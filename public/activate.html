@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product Activation</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      background: rgba(255,255,255,0.97);
+      border-radius: 24px;
+      padding: 48px 40px;
+      max-width: 480px;
+      width: 100%;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+      animation: slideUp 0.5s ease-out;
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .icon { text-align: center; font-size: 48px; margin-bottom: 16px; }
+    h1 { text-align: center; font-size: 1.6rem; color: #1a1a2e; margin-bottom: 6px; }
+    .subtitle { text-align: center; font-size: 0.85rem; color: #888; margin-bottom: 32px; }
+    .field { margin-bottom: 20px; }
+    .field label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #555;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .field input {
+      width: 100%;
+      padding: 14px 16px;
+      border: 2px solid #e8e8e8;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      letter-spacing: 1px;
+      transition: border-color 0.2s;
+      outline: none;
+    }
+    .field input:focus { border-color: #6c63ff; }
+    .field input::placeholder { letter-spacing: 0; font-family: inherit; }
+    .btn {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #6c63ff, #e94560);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      margin-top: 8px;
+    }
+    .btn:hover { opacity: 0.92; }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .result {
+      margin-top: 24px;
+      padding: 16px;
+      border-radius: 12px;
+      text-align: center;
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .result.show { display: block; }
+    .result.success { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+    .result.error { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+    .result .code {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin: 8px 0;
+      word-break: break-all;
+    }
+    .copy-btn {
+      margin-top: 8px;
+      padding: 6px 16px;
+      font-size: 0.8rem;
+      background: #2e7d32;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .loading {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid #fff;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .nav { text-align: center; margin-top: 16px; }
+    .nav a { color: #6c63ff; font-size: 0.8rem; text-decoration: none; }
+    .nav a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">🔐</div>
+    <h1>Product Activation</h1>
+    <p class="subtitle">Enter your redeem code to activate your license</p>
+
+    <div class="field">
+      <label>Device ID</label>
+      <input type="text" id="deviceId" placeholder="Auto-generated device fingerprint" readonly>
+    </div>
+    <div class="field">
+      <label>Redeem Code</label>
+      <input type="text" id="redeemCode" placeholder="XXXX-XXXX-XXXX" maxlength="14" autocomplete="off">
+    </div>
+    <button class="btn" id="activateBtn" onclick="activate()">Activate Now</button>
+
+    <div class="result" id="result"></div>
+    <div class="nav">
+      <a href="/admin.html">Admin Panel</a>
+    </div>
+  </div>
+
+  <script>
+    function generateDeviceId() {
+      var stored = localStorage.getItem('deviceId');
+      if (stored) return stored;
+      var id = 'DEV-' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+      localStorage.setItem('deviceId', id);
+      return id;
+    }
+
+    var deviceId = generateDeviceId();
+    document.getElementById('deviceId').value = deviceId;
+
+    function setLoading(loading) {
+      var btn = document.getElementById('activateBtn');
+      if (loading) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="loading"></span>Activating...';
+      } else {
+        btn.disabled = false;
+        btn.innerHTML = 'Activate Now';
+      }
+    }
+
+    function showResult(type, message, code) {
+      var el = document.getElementById('result');
+      el.className = 'result show ' + (type === 'success' ? 'success' : 'error');
+      var html = '<strong>' + (type === 'success' ? 'Success!' : 'Error') + '</strong>';
+      html += '<p style="margin-top:4px">' + message + '</p>';
+      if (code) {
+        html += '<div class="code">' + code + '</div>';
+        html += '<button class="copy-btn" onclick="copyCode(\'' + code + '\')">Copy Code</button>';
+      }
+      el.innerHTML = html;
+    }
+
+    function copyCode(code) {
+      navigator.clipboard.writeText(code).then(function() {
+        alert('Activation code copied!');
+      });
+    }
+
+    async function activate() {
+      var codeInput = document.getElementById('redeemCode');
+      var code = codeInput.value.trim().toUpperCase();
+
+      if (!code) {
+        showResult('error', 'Please enter a redeem code');
+        return;
+      }
+
+      setLoading(true);
+      document.getElementById('result').className = 'result';
+
+      try {
+        var res = await fetch('/api/activate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deviceId: deviceId, redeemCode: code }),
+        });
+        var data = await res.json();
+
+        if (data.success) {
+          showResult('success', 'Product activated successfully!', data.activationCode);
+          codeInput.value = '';
+        } else {
+          showResult('error', data.error || 'Activation failed');
+        }
+      } catch (e) {
+        showResult('error', 'Network error. Please try again.');
+      }
+
+      setLoading(false);
+    }
+
+    document.getElementById('redeemCode').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') activate();
+    });
+  </script>
+</body>
+</html>

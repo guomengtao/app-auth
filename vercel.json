@@ -1,1 +1,7 @@
-{}
+{
+  "rewrites": [
+    { "source": "/activate", "destination": "/public/activate.html" },
+    { "source": "/admin", "destination": "/public/admin.html" },
+    { "source": "/login", "destination": "/public/login.html" }
+  ]
+}
