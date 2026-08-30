@@ -161,6 +161,7 @@
 
     <div class="error" id="error"></div>
     <p class="hint">默认账号: admin / admin123</p>
+    <p class="hint" style="font-size:0.7rem;color:#999;">Vercel 认证需在 Vercel 后台开启 Deployment Protection</p>
     <a href="/" class="back-link">← 返回首页</a>
   </div>
 
@@ -219,7 +220,7 @@
     });
 
     function loginWithVercel() {
-      window.location.href = '/api/admin/oauth-login';
+      window.location.href = '/admin.html';
     }
   </script>
 </body>
