@@ -19,5 +19,8 @@
   "description": "",
   "devDependencies": {
     "vercel": "^59.10.0"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.38.3"
   }
 }
