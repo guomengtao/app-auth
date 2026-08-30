@@ -1,7 +1,7 @@
 const redis = require("../../lib/redis");
 const { requireAuth } = require("../../lib/auth");
 const { validateProductName } = require("../../lib/validate");
-const crypto = require("crypto");
+const { pad4 } = require("../../lib/crypto");
 
 module.exports = async (req, res) => {
   const auth = requireAuth(req);
@@ -29,7 +29,8 @@ module.exports = async (req, res) => {
         return res.status(400).json({ success: false, error: nameCheck.error });
       }
 
-      const id = "prod-" + crypto.randomBytes(6).toString("hex");
+      const counter = await redis.incr("auth:product_counter");
+      const id = pad4(counter);
       const product = {
         name: nameCheck.value,
         description: (description || "").trim(),

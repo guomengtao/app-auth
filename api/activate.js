@@ -40,7 +40,7 @@ module.exports = async (req, res) => {
       });
     }
 
-    const activationCode = generateActivationCode(info.product_id, deviceCheck.value);
+    const activationCode = generateActivationCode(info.product_id, deviceCheck.value, info.duration_days);
 
     const updated = {
       ...info,

@@ -171,7 +171,7 @@
       <ol>
         <li>确认下方「设备ID」与您的设备一致</li>
         <li>输入从爱发电获得的 <strong>4位兑换码</strong></li>
-        <li>点击「立即激活」获取 <strong>12位数字激活码</strong></li>
+        <li>点击「立即激活」获取 <strong>16位数字激活码</strong></li>
         <li>将激活码输入到手环应用中完成激活</li>
       </ol>
     </div>
@@ -219,13 +219,19 @@
       }
     }
 
+    function fmtCode16(code) {
+      if (!code || code.length !== 16) return code;
+      return code.substring(0, 4) + ' ' + code.substring(4, 8) + ' ' + code.substring(8, 12) + ' ' + code.substring(12, 16);
+    }
+
     function showResult(type, message, code) {
       var el = document.getElementById('result');
       el.className = 'result show ' + (type === 'success' ? 'success' : 'error');
       var html = '<strong>' + (type === 'success' ? '激活成功！' : '激活失败') + '</strong>';
       html += '<p style="margin-top:4px;font-size:0.85rem">' + message + '</p>';
       if (code) {
-        html += '<div class="code">' + code + '</div>';
+        var displayCode = fmtCode16(code);
+        html += '<div class="code">' + displayCode + '</div>';
         html += '<button class="copy-btn" onclick="copyCode(\'' + code + '\')">复制激活码</button>';
       }
       el.innerHTML = html;
