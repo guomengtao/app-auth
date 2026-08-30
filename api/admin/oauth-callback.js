@@ -3,17 +3,17 @@ const { createToken } = require("../../lib/auth");
 const ALLOWED_EMAIL = "guomengtao@gmail.com";
 
 module.exports = async (req, res) => {
-  const { code, state } = req.query;
+  const { code } = req.query;
 
   if (!code) {
     return res.status(400).send("Missing authorization code");
   }
 
-  const clientId = process.env.GITHUB_CLIENT_ID;
-  const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+  const clientId = process.env.VERCEL_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.VERCEL_OAUTH_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    return res.status(500).send("OAuth not configured");
+    return res.status(500).send("Vercel OAuth not configured");
   }
 
   try {
@@ -21,61 +21,47 @@ module.exports = async (req, res) => {
       ? "https://" + process.env.VERCEL_URL
       : "http://localhost:3000") + "/api/admin/oauth-callback";
 
-    const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
+    const tokenRes = await fetch("https://api.vercel.com/v2/oauth/access_token", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: JSON.stringify({
+      body: new URLSearchParams({
         client_id: clientId,
         client_secret: clientSecret,
         code,
         redirect_uri: redirectUri,
-      }),
+      }).toString(),
     });
 
     const tokenData = await tokenRes.json();
 
     if (tokenData.error || !tokenData.access_token) {
-      return res.status(400).send("GitHub auth failed: " + (tokenData.error_description || tokenData.error));
+      return res.status(400).send("Vercel auth failed: " + (tokenData.error_description || tokenData.error));
     }
 
-    const userRes = await fetch("https://api.github.com/user", {
+    const userRes = await fetch("https://api.vercel.com/v2/user", {
       headers: {
         Authorization: "Bearer " + tokenData.access_token,
-        "User-Agent": "app-auth",
       },
     });
     const userData = await userRes.json();
 
-    if (userData.email && userData.email.toLowerCase() === ALLOWED_EMAIL) {
-      const token = createToken(userData.email);
-      res.setHeader("Set-Cookie", "token=" + token + "; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400");
-      return res.redirect(302, "/admin.html");
+    if (!userData.user || !userData.user.email) {
+      return res.status(400).send("Unable to get user email from Vercel");
     }
 
-    const emailRes = await fetch("https://api.github.com/user/emails", {
-      headers: {
-        Authorization: "Bearer " + tokenData.access_token,
-        "User-Agent": "app-auth",
-      },
-    });
-    const emails = await emailRes.json();
+    const email = userData.user.email.toLowerCase();
 
-    const primaryEmail = Array.isArray(emails)
-      ? emails.find((e) => e.primary && e.verified) || emails.find((e) => e.verified)
-      : null;
-
-    if (primaryEmail && primaryEmail.email.toLowerCase() === ALLOWED_EMAIL) {
-      const token = createToken(primaryEmail.email);
-      res.setHeader("Set-Cookie", "token=" + token + "; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400");
-      return res.redirect(302, "/admin.html");
+    if (email !== ALLOWED_EMAIL) {
+      return res.status(403).send("Access denied. Only " + ALLOWED_EMAIL + " is allowed. Your email: " + email);
     }
 
-    return res.status(403).send("Access denied. Only guomengtao@gmail.com is allowed.");
+    const token = createToken(email);
+    res.setHeader("Set-Cookie", "token=" + token + "; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400");
+    return res.redirect(302, "/admin.html");
   } catch (error) {
-    console.error("OAuth callback error:", error);
+    console.error("Vercel OAuth callback error:", error);
     return res.status(500).send("OAuth error");
   }
 };

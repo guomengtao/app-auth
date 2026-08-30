@@ -1,15 +1,15 @@
 module.exports = async (req, res) => {
-  const clientId = process.env.GITHUB_CLIENT_ID;
+  const clientId = process.env.VERCEL_OAUTH_CLIENT_ID;
 
   if (!clientId) {
-    return res.status(500).send("GitHub OAuth not configured. Set GITHUB_CLIENT_ID env var.");
+    return res.status(500).send("Vercel OAuth not configured. Set VERCEL_OAUTH_CLIENT_ID env var.");
   }
 
   const redirectUri = (process.env.VERCEL_URL
     ? "https://" + process.env.VERCEL_URL
     : "http://localhost:3000") + "/api/admin/oauth-callback";
 
-  const url = "https://github.com/login/oauth/authorize" +
+  const url = "https://vercel.com/oauth/authorize" +
     "?client_id=" + encodeURIComponent(clientId) +
     "&redirect_uri=" + encodeURIComponent(redirectUri) +
     "&scope=user:email";
