@@ -91,6 +91,38 @@
       text-decoration: none;
     }
     .back-link:hover { text-decoration: underline; }
+    .divider {
+      display: flex;
+      align-items: center;
+      margin: 24px 0;
+      color: #aaa;
+      font-size: 0.75rem;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    .divider span { padding: 0 12px; }
+    .btn-vercel {
+      width: 100%;
+      padding: 14px;
+      background: #000;
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .btn-vercel:hover { opacity: 0.85; }
+    .btn-vercel:active { transform: scale(0.98); }
+    .btn-vercel svg { width: 18px; height: 18px; }
     .loading {
       display: inline-block;
       width: 16px; height: 16px;
@@ -119,6 +151,13 @@
       <input type="password" id="password" placeholder="输入密码" autocomplete="current-password">
     </div>
     <button class="btn" id="loginBtn" onclick="login()">登 录</button>
+
+    <div class="divider"><span>或</span></div>
+
+    <button class="btn-vercel" onclick="loginWithVercel()">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18.5L4.5 12 12 4.5 19.5 12 12 20.5z"/></svg>
+      Vercel 认证登录
+    </button>
 
     <div class="error" id="error"></div>
     <p class="hint">默认账号: admin / admin123</p>
@@ -178,6 +217,10 @@
     document.getElementById('password').addEventListener('keydown', function(e) {
       if (e.key === 'Enter') login();
     });
+
+    function loginWithVercel() {
+      window.location.href = '/api/admin/oauth-login';
+    }
   </script>
 </body>
 </html>
