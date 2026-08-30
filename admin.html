@@ -227,6 +227,66 @@
       from { opacity: 0; transform: translateX(20px); }
       to { opacity: 1; transform: translateX(0); }
     }
+
+    .decrypt-box {
+      background: #fff;
+      border-radius: 16px;
+      padding: 28px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+      max-width: 640px;
+    }
+    .decrypt-box h3 {
+      font-size: 1.1rem;
+      color: #1a1a2e;
+      margin-bottom: 6px;
+    }
+    .decrypt-desc {
+      font-size: 0.78rem;
+      color: #888;
+      margin-bottom: 20px;
+    }
+    .decrypt-input-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .decrypt-input {
+      flex: 1;
+      padding: 12px 16px;
+      border: 2px solid #e8e8e8;
+      border-radius: 10px;
+      font-size: 1.1rem;
+      font-family: 'SF Mono', 'Fira Code', 'Menlo', monospace;
+      letter-spacing: 3px;
+      text-align: center;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .decrypt-input:focus { border-color: #6c63ff; }
+    .decrypt-result {
+      border-radius: 12px;
+      padding: 20px;
+      animation: fadeIn 0.3s ease;
+    }
+    .decrypt-result.success {
+      background: #e8f5e9;
+      border: 1px solid #a5d6a7;
+    }
+    .decrypt-result.error {
+      background: #ffebee;
+      border: 1px solid #ef9a9a;
+    }
+    .decrypt-result .field-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      font-size: 0.85rem;
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+    }
+    .decrypt-result .field-row:last-child { border-bottom: none; }
+    .decrypt-result .field-label { color: #666; font-weight: 600; }
+    .decrypt-result .field-value { color: #1a1a2e; font-family: 'SF Mono', 'Fira Code', monospace; }
+    .decrypt-result .error-msg { color: #c62828; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -268,6 +328,7 @@
     <button class="tab active" onclick="switchTab('products')">产品管理</button>
     <button class="tab" onclick="switchTab('codes')">兑换码管理</button>
     <button class="tab" onclick="switchTab('records')">激活记录</button>
+    <button class="tab" onclick="switchTab('decrypt')">解密验证</button>
   </div>
 
   <div class="content">
@@ -302,6 +363,18 @@
         <button class="btn btn-outline" onclick="loadRecords()">刷新</button>
       </div>
       <div id="recordsTable"></div>
+    </div>
+
+    <div class="panel" id="panel-decrypt">
+      <div class="decrypt-box">
+        <h3>激活码解密</h3>
+        <p class="decrypt-desc">通过算法解密激活码，提取产品ID、设备哈希、天数等信息（不查询数据库）</p>
+        <div class="decrypt-input-row">
+          <input type="text" id="decryptInput" class="decrypt-input" placeholder="输入16位或12位激活码" maxlength="19" autocomplete="off">
+          <button class="btn btn-primary" onclick="doDecrypt()">解密</button>
+        </div>
+        <div class="decrypt-result" id="decryptResult" style="display:none"></div>
+      </div>
     </div>
   </div>
 
@@ -376,6 +449,7 @@
       if (tab === 'products') loadProducts();
       if (tab === 'codes') loadCodes();
       if (tab === 'records') loadRecords();
+      if (tab === 'decrypt') { /* no auto-load needed */ }
     }
 
     function logout() {
@@ -561,6 +635,111 @@
       div.textContent = str;
       return div.innerHTML;
     }
+
+    function pad4(n) {
+      var s = String(n);
+      while (s.length < 4) { s = "0" + s; }
+      return s;
+    }
+
+    function generateChecksum4(str) {
+      var hash = 0;
+      for (var i = 0; i < str.length; i++) {
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        hash = hash & hash;
+      }
+      return pad4(Math.abs(hash) % 10000);
+    }
+
+    function decryptCode(code) {
+      var cleaned = code.replace(/\s/g, "");
+      if (cleaned.length !== 16 && cleaned.length !== 12) {
+        return { valid: false, reason: "激活码长度无效（需16位或12位）" };
+      }
+      if (!/^\d+$/.test(cleaned)) {
+        return { valid: false, reason: "激活码必须为纯数字" };
+      }
+
+      if (cleaned.length === 16) {
+        var pid = cleaned.substring(0, 4);
+        var idHash = cleaned.substring(4, 8);
+        var daysStr = cleaned.substring(8, 12);
+        var checksum = cleaned.substring(12, 16);
+        var days = parseInt(daysStr, 10);
+        var plain = pid + idHash + daysStr;
+        var expectedChecksum = generateChecksum4(plain);
+        if (checksum !== expectedChecksum) {
+          return { valid: false, reason: "校验码不匹配，激活码可能被篡改" };
+        }
+        return {
+          valid: true,
+          productId: pid,
+          deviceHash: idHash,
+          days: days,
+          isPermanent: days === 9999,
+          format: "v2-16位",
+        };
+      }
+
+      if (cleaned.length === 12) {
+        var pid = cleaned.substring(0, 4);
+        var idHash = cleaned.substring(4, 8);
+        var checksum = cleaned.substring(8, 12);
+        var plain = pid + idHash;
+        var expectedChecksum = generateChecksum4(plain);
+        if (checksum !== expectedChecksum) {
+          return { valid: false, reason: "校验码不匹配，激活码可能被篡改" };
+        }
+        return {
+          valid: true,
+          productId: pid,
+          deviceHash: idHash,
+          days: null,
+          isPermanent: false,
+          format: "v1-12位",
+        };
+      }
+    }
+
+    function doDecrypt() {
+      var input = document.getElementById('decryptInput').value.trim();
+      var resultEl = document.getElementById('decryptResult');
+
+      if (!input) {
+        resultEl.style.display = 'block';
+        resultEl.className = 'decrypt-result error';
+        resultEl.innerHTML = '<span class="error-msg">请输入激活码</span>';
+        return;
+      }
+
+      var result = decryptCode(input);
+
+      if (!result.valid) {
+        resultEl.style.display = 'block';
+        resultEl.className = 'decrypt-result error';
+        resultEl.innerHTML = '<span class="error-msg">' + result.reason + '</span>';
+        return;
+      }
+
+      var html = '';
+      html += '<div class="field-row"><span class="field-label">格式版本</span><span class="field-value">' + result.format + '</span></div>';
+      html += '<div class="field-row"><span class="field-label">产品ID</span><span class="field-value">' + result.productId + '</span></div>';
+      html += '<div class="field-row"><span class="field-label">设备哈希</span><span class="field-value">' + result.deviceHash + '</span></div>';
+      if (result.days !== null) {
+        html += '<div class="field-row"><span class="field-label">授权天数</span><span class="field-value">' + (result.isPermanent ? '永久 (9999天)' : result.days + ' 天') + '</span></div>';
+      } else {
+        html += '<div class="field-row"><span class="field-label">授权天数</span><span class="field-value">无（v1格式不含天数）</span></div>';
+      }
+      html += '<div class="field-row"><span class="field-label">校验状态</span><span class="field-value" style="color:#2e7d32">✓ 校验通过</span></div>';
+
+      resultEl.style.display = 'block';
+      resultEl.className = 'decrypt-result success';
+      resultEl.innerHTML = html;
+    }
+
+    document.getElementById('decryptInput').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') doDecrypt();
+    });
 
     loadStats();
     loadProducts();
