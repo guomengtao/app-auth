@@ -22,7 +22,7 @@ module.exports = async (req, res) => {
 
     const messages = rawMessages
       .filter(Boolean)
-      .map((raw) => JSON.parse(raw))
+      .map((raw) => (typeof raw === "string" ? JSON.parse(raw) : raw))
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     return res.status(200).json({ messages });
