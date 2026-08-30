@@ -23,64 +23,39 @@
       width: 100%;
       box-shadow: 0 30px 80px rgba(0,0,0,0.5);
       animation: slideUp 0.5s ease-out;
+      text-align: center;
     }
     @keyframes slideUp {
       from { opacity: 0; transform: translateY(30px); }
       to { opacity: 1; transform: translateY(0); }
     }
-    .icon { text-align: center; font-size: 48px; margin-bottom: 16px; }
-    h1 { text-align: center; font-size: 1.6rem; color: #1a1a2e; margin-bottom: 6px; }
-    .subtitle { text-align: center; font-size: 0.85rem; color: #888; margin-bottom: 32px; }
-    .field { margin-bottom: 20px; }
-    .field label {
-      display: block;
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: #555;
-      margin-bottom: 6px;
-    }
-    .field input {
+    .icon { font-size: 48px; margin-bottom: 16px; }
+    h1 { font-size: 1.6rem; color: #1a1a2e; margin-bottom: 6px; }
+    .subtitle { font-size: 0.85rem; color: #888; margin-bottom: 32px; }
+    .btn-vercel {
       width: 100%;
-      padding: 14px 16px;
-      border: 2px solid #e8e8e8;
-      border-radius: 12px;
-      font-size: 1rem;
-      transition: border-color 0.2s;
-      outline: none;
-    }
-    .field input:focus { border-color: #6c63ff; }
-    .btn {
-      width: 100%;
-      padding: 14px;
-      background: linear-gradient(135deg, #6c63ff, #e94560);
+      padding: 16px;
+      background: #000;
       color: #fff;
       border: none;
       border-radius: 12px;
-      font-size: 1rem;
+      font-size: 1.1rem;
       font-weight: 700;
       cursor: pointer;
       transition: opacity 0.2s, transform 0.1s;
-      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
     }
-    .btn:hover { opacity: 0.92; }
-    .btn:active { transform: scale(0.98); }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .error {
-      margin-top: 16px;
-      padding: 12px;
-      background: #ffebee;
-      color: #c62828;
-      border-radius: 10px;
-      text-align: center;
-      font-size: 0.85rem;
-      display: none;
-    }
-    .error.show { display: block; }
+    .btn-vercel:hover { opacity: 0.85; }
+    .btn-vercel:active { transform: scale(0.98); }
+    .btn-vercel svg { width: 20px; height: 20px; }
     .hint {
-      text-align: center;
-      margin-top: 20px;
+      margin-top: 24px;
       font-size: 0.75rem;
       color: #aaa;
+      line-height: 1.6;
     }
     .back-link {
       display: block;
@@ -91,137 +66,25 @@
       text-decoration: none;
     }
     .back-link:hover { text-decoration: underline; }
-    .divider {
-      display: flex;
-      align-items: center;
-      margin: 24px 0;
-      color: #aaa;
-      font-size: 0.75rem;
-    }
-    .divider::before, .divider::after {
-      content: '';
-      flex: 1;
-      border-bottom: 1px solid #e0e0e0;
-    }
-    .divider span { padding: 0 12px; }
-    .btn-vercel {
-      width: 100%;
-      padding: 14px;
-      background: #000;
-      color: #fff;
-      border: none;
-      border-radius: 12px;
-      font-size: 1rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: opacity 0.2s, transform 0.1s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-    }
-    .btn-vercel:hover { opacity: 0.85; }
-    .btn-vercel:active { transform: scale(0.98); }
-    .btn-vercel svg { width: 18px; height: 18px; }
-    .loading {
-      display: inline-block;
-      width: 16px; height: 16px;
-      border: 2px solid #fff;
-      border-top-color: transparent;
-      border-radius: 50%;
-      animation: spin 0.6s linear infinite;
-      margin-right: 8px;
-      vertical-align: middle;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
   <div class="card">
     <div class="icon">🛡️</div>
     <h1>管理员登录</h1>
-    <p class="subtitle">登录以管理激活码系统</p>
+    <p class="subtitle">仅限管理员通过 Vercel 认证登录</p>
 
-    <div class="field">
-      <label>用户名</label>
-      <input type="text" id="username" placeholder="admin" autocomplete="username">
-    </div>
-    <div class="field">
-      <label>密码</label>
-      <input type="password" id="password" placeholder="输入密码" autocomplete="current-password">
-    </div>
-    <button class="btn" id="loginBtn" onclick="login()">登 录</button>
-
-    <div class="divider"><span>或</span></div>
-
-    <button class="btn-vercel" onclick="loginWithVercel()">
+    <button class="btn-vercel" onclick="location.href='/admin.html'">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18.5L4.5 12 12 4.5 19.5 12 12 20.5z"/></svg>
       Vercel 认证登录
     </button>
 
-    <div class="error" id="error"></div>
-    <p class="hint">默认账号: admin / admin123</p>
-    <p class="hint" style="font-size:0.7rem;color:#999;">Vercel 认证需在 Vercel 后台开启 Deployment Protection</p>
+    <p class="hint">
+      仅允许 <strong>guomengtao@gmail.com</strong> 登录<br>
+      需在 Vercel 后台 → Settings → Deployment Protection<br>
+      开启 <strong>Vercel Authentication</strong>
+    </p>
     <a href="/" class="back-link">← 返回首页</a>
   </div>
-
-  <script>
-    function setLoading(loading) {
-      var btn = document.getElementById('loginBtn');
-      if (loading) {
-        btn.disabled = true;
-        btn.innerHTML = '<span class="loading"></span>登录中...';
-      } else {
-        btn.disabled = false;
-        btn.innerHTML = '登 录';
-      }
-    }
-
-    function showError(msg) {
-      var el = document.getElementById('error');
-      el.textContent = msg;
-      el.className = 'error show';
-    }
-
-    async function login() {
-      var username = document.getElementById('username').value.trim();
-      var password = document.getElementById('password').value;
-
-      if (!username || !password) {
-        showError('请输入用户名和密码');
-        return;
-      }
-
-      setLoading(true);
-      document.getElementById('error').className = 'error';
-
-      try {
-        var res = await fetch('/api/admin/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password }),
-        });
-        var data = await res.json();
-
-        if (data.success) {
-          window.location.href = '/admin.html';
-        } else {
-          showError(data.error || '登录失败');
-        }
-      } catch (e) {
-        showError('网络错误，请重试');
-      }
-
-      setLoading(false);
-    }
-
-    document.getElementById('password').addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') login();
-    });
-
-    function loginWithVercel() {
-      window.location.href = '/admin.html';
-    }
-  </script>
 </body>
 </html>

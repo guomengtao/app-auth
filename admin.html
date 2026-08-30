@@ -437,6 +437,12 @@
         window.location.href = '/login.html';
         throw new Error('Unauthorized');
       }
+      if (res.status === 403) {
+        var data = await res.json();
+        alert(data.error || 'only guomengtao@gmail.com allowed');
+        window.location.href = '/login.html';
+        throw new Error('Forbidden');
+      }
       return res.json();
     }
 
