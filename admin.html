@@ -350,6 +350,14 @@
           <option value="false">未使用</option>
           <option value="true">已使用</option>
         </select>
+        <select id="filterDuration" onchange="loadCodes()" style="padding:8px 12px;border:2px solid #e8e8e8;border-radius:8px;">
+          <option value="">全部有效期</option>
+          <option value="30">30 天</option>
+          <option value="90">90 天</option>
+          <option value="180">180 天</option>
+          <option value="365">365 天</option>
+          <option value="9999">永久</option>
+        </select>
         <button class="btn btn-outline" onclick="loadCodes()">刷新</button>
       </div>
       <div id="codesTable"></div>
@@ -511,8 +519,10 @@
         var params = new URLSearchParams();
         var pid = document.getElementById('filterProduct').value;
         var used = document.getElementById('filterUsed').value;
+        var dur = document.getElementById('filterDuration').value;
         if (pid) params.set('product_id', pid);
         if (used) params.set('used', used);
+        if (dur) params.set('duration_days', dur);
 
         var data = await api('/api/admin/redeem-codes?' + params.toString());
         if (!data.success) return;

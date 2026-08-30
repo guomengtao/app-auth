@@ -11,7 +11,7 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method === "GET") {
-      const { cursor, used, product_id } = req.query;
+      const { cursor, used, product_id, duration_days } = req.query;
       const count = Math.min(parseInt(req.query.count) || 50, 200);
 
       const [nextCursor, keys] = await redis.sscan("auth:redeem_codes", cursor || 0, {
@@ -34,6 +34,9 @@ module.exports = async (req, res) => {
       }
       if (product_id) {
         codes = codes.filter((c) => c.product_id === product_id);
+      }
+      if (duration_days) {
+        codes = codes.filter((c) => c.duration_days === parseInt(duration_days, 10));
       }
 
       return res.json({
