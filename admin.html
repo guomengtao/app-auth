@@ -302,7 +302,7 @@
   </div>
 
   <div class="desc-banner">
-    <strong>系统说明：</strong>本系统为小米手环/手表应用提供激活码管理服务。后台生成<strong>4位字母+数字混合兑换码</strong>发放给用户，用户激活后系统基于设备ID后四位生成<strong>16位纯数字激活码</strong>（产品ID 4位 + 设备ID后四位 4位 + 天数 4位 + 校验码 4位），兼容手环端解密验证。
+    <strong>系统说明：</strong>本系统为小米手环/手表应用提供激活码管理服务。后台生成<strong>4位字母+数字混合兑换码</strong>发放给用户，用户激活后系统基于设备ID后四位生成<strong>16位激活码</strong>（产品ID 4位数字 + 设备ID后四位 4位 + 天数 4位数字 + 校验码 4位数字），兼容手环端解密验证。
   </div>
 
   <div class="stats-bar">
@@ -376,9 +376,9 @@
     <div class="panel" id="panel-decrypt">
       <div class="decrypt-box">
         <h3>激活码解密</h3>
-        <p class="decrypt-desc">通过算法解密激活码，提取产品ID、设备哈希、天数等信息（不查询数据库）</p>
+        <p class="decrypt-desc">通过算法解密激活码，提取产品ID、设备ID后四位、天数等信息（不查询数据库）</p>
         <div class="decrypt-input-row">
-          <input type="text" id="decryptInput" class="decrypt-input" placeholder="输入16位或12位激活码" maxlength="19" autocomplete="off">
+          <input type="text" id="decryptInput" class="decrypt-input" placeholder="输入16位激活码" maxlength="19" autocomplete="off">
           <button class="btn btn-primary" onclick="doDecrypt()">解密</button>
         </div>
         <div class="decrypt-result" id="decryptResult" style="display:none"></div>
@@ -668,9 +668,6 @@
       var cleaned = code.replace(/\s/g, "");
       if (cleaned.length !== 16 && cleaned.length !== 12) {
         return { valid: false, reason: "激活码长度无效（需16位或12位）" };
-      }
-      if (!/^\d+$/.test(cleaned)) {
-        return { valid: false, reason: "激活码必须为纯数字" };
       }
 
       if (cleaned.length === 16) {
