@@ -1,13 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Product Activation</title>
+  <title>激活码系统 - 设备激活</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
       background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
       min-height: 100vh;
       display: flex;
@@ -18,8 +18,8 @@
     .card {
       background: rgba(255,255,255,0.97);
       border-radius: 24px;
-      padding: 48px 40px;
-      max-width: 480px;
+      padding: 40px 36px;
+      max-width: 460px;
       width: 100%;
       box-shadow: 0 30px 80px rgba(0,0,0,0.5);
       animation: slideUp 0.5s ease-out;
@@ -28,18 +28,40 @@
       from { opacity: 0; transform: translateY(30px); }
       to { opacity: 1; transform: translateY(0); }
     }
-    .icon { text-align: center; font-size: 48px; margin-bottom: 16px; }
-    h1 { text-align: center; font-size: 1.6rem; color: #1a1a2e; margin-bottom: 6px; }
-    .subtitle { text-align: center; font-size: 0.85rem; color: #888; margin-bottom: 32px; }
-    .field { margin-bottom: 20px; }
-    .field label {
-      display: block;
+    .icon { text-align: center; font-size: 48px; margin-bottom: 12px; }
+    h1 { text-align: center; font-size: 1.5rem; color: #1a1a2e; margin-bottom: 4px; }
+    .subtitle { text-align: center; font-size: 0.82rem; color: #999; margin-bottom: 28px; }
+
+    .steps {
+      background: #f8f9ff;
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin-bottom: 24px;
+      border-left: 3px solid #6c63ff;
+    }
+    .steps-title {
       font-size: 0.8rem;
-      font-weight: 600;
-      color: #555;
-      margin-bottom: 6px;
+      font-weight: 700;
+      color: #6c63ff;
+      margin-bottom: 8px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
+    }
+    .steps ol {
+      padding-left: 18px;
+      font-size: 0.78rem;
+      color: #555;
+      line-height: 1.8;
+    }
+    .steps ol li { margin-bottom: 2px; }
+
+    .field { margin-bottom: 18px; }
+    .field label {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #555;
+      margin-bottom: 5px;
     }
     .field input {
       width: 100%;
@@ -47,13 +69,28 @@
       border: 2px solid #e8e8e8;
       border-radius: 12px;
       font-size: 1rem;
-      font-family: 'SF Mono', 'Fira Code', monospace;
-      letter-spacing: 1px;
+      font-family: 'SF Mono', 'Fira Code', 'Menlo', monospace;
+      letter-spacing: 2px;
       transition: border-color 0.2s;
       outline: none;
+      text-align: center;
     }
     .field input:focus { border-color: #6c63ff; }
-    .field input::placeholder { letter-spacing: 0; font-family: inherit; }
+    .field input::placeholder {
+      letter-spacing: 0;
+      font-family: inherit;
+      font-size: 0.82rem;
+      color: #bbb;
+    }
+    .field input.readonly {
+      background: #f5f5f5;
+      color: #888;
+      cursor: default;
+      letter-spacing: 0;
+      font-family: inherit;
+      font-size: 0.82rem;
+    }
+
     .btn {
       width: 100%;
       padding: 14px;
@@ -65,13 +102,15 @@
       font-weight: 700;
       cursor: pointer;
       transition: opacity 0.2s, transform 0.1s;
-      margin-top: 8px;
+      margin-top: 4px;
+      letter-spacing: 1px;
     }
     .btn:hover { opacity: 0.92; }
     .btn:active { transform: scale(0.98); }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
     .result {
-      margin-top: 24px;
+      margin-top: 20px;
       padding: 16px;
       border-radius: 12px;
       text-align: center;
@@ -83,22 +122,25 @@
     .result.success { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
     .result.error { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
     .result .code {
-      font-family: 'SF Mono', 'Fira Code', monospace;
-      font-size: 1.2rem;
+      font-family: 'SF Mono', 'Fira Code', 'Menlo', monospace;
+      font-size: 1.4rem;
       font-weight: 700;
       margin: 8px 0;
       word-break: break-all;
+      letter-spacing: 3px;
     }
     .copy-btn {
       margin-top: 8px;
-      padding: 6px 16px;
+      padding: 8px 20px;
       font-size: 0.8rem;
       background: #2e7d32;
       color: #fff;
       border: none;
-      border-radius: 6px;
+      border-radius: 8px;
       cursor: pointer;
+      font-weight: 600;
     }
+    .copy-btn:hover { opacity: 0.85; }
     .loading {
       display: inline-block;
       width: 16px; height: 16px;
@@ -110,80 +152,103 @@
       vertical-align: middle;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .nav { text-align: center; margin-top: 16px; }
-    .nav a { color: #6c63ff; font-size: 0.8rem; text-decoration: none; }
-    .nav a:hover { text-decoration: underline; }
+    .device-info {
+      text-align: center;
+      font-size: 0.72rem;
+      color: #aaa;
+      margin-top: 14px;
+    }
   </style>
 </head>
 <body>
   <div class="card">
     <div class="icon">🔐</div>
-    <h1>Product Activation</h1>
-    <p class="subtitle">Enter your redeem code to activate your license</p>
+    <h1>设备激活</h1>
+    <p class="subtitle">输入您的爱发电兑换码，获取激活码</p>
+
+    <div class="steps">
+      <div class="steps-title">操作步骤</div>
+      <ol>
+        <li>确认下方「设备ID」与您的设备一致</li>
+        <li>输入从爱发电获得的 <strong>4位兑换码</strong></li>
+        <li>点击「立即激活」获取 <strong>12位数字激活码</strong></li>
+        <li>将激活码输入到手环应用中完成激活</li>
+      </ol>
+    </div>
 
     <div class="field">
-      <label>Device ID</label>
-      <input type="text" id="deviceId" placeholder="Auto-generated device fingerprint" readonly>
+      <label>设备ID</label>
+      <input type="text" id="deviceId" class="readonly" readonly>
     </div>
     <div class="field">
-      <label>Redeem Code</label>
-      <input type="text" id="redeemCode" placeholder="XXXX-XXXX-XXXX" maxlength="14" autocomplete="off">
+      <label>兑换码（4位字母+数字）</label>
+      <input type="text" id="redeemCode" placeholder="输入4位兑换码" maxlength="4" autocomplete="off">
     </div>
-    <button class="btn" id="activateBtn" onclick="activate()">Activate Now</button>
+    <button class="btn" id="activateBtn" onclick="activate()">立即激活</button>
 
     <div class="result" id="result"></div>
-    <div class="nav">
-      <a href="/admin.html">Admin Panel</a>
-    </div>
+    <div class="device-info" id="deviceInfo"></div>
   </div>
 
   <script>
-    function generateDeviceId() {
-      var stored = localStorage.getItem('deviceId');
-      if (stored) return stored;
-      var id = 'DEV-' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-      localStorage.setItem('deviceId', id);
-      return id;
+    function getDeviceIdFromUrl() {
+      var params = new URLSearchParams(window.location.search);
+      return params.get('deviceId') || params.get('deviceid') || params.get('id') || '';
     }
 
-    var deviceId = generateDeviceId();
+    var deviceId = getDeviceIdFromUrl();
+    if (!deviceId) {
+      deviceId = localStorage.getItem('deviceId') || '';
+    }
+    if (!deviceId) {
+      deviceId = 'DEV-' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+      localStorage.setItem('deviceId', deviceId);
+    }
+
     document.getElementById('deviceId').value = deviceId;
+    document.getElementById('deviceInfo').textContent = '设备ID来源: ' + (getDeviceIdFromUrl() ? 'URL参数' : '本地生成');
 
     function setLoading(loading) {
       var btn = document.getElementById('activateBtn');
       if (loading) {
         btn.disabled = true;
-        btn.innerHTML = '<span class="loading"></span>Activating...';
+        btn.innerHTML = '<span class="loading"></span>激活中...';
       } else {
         btn.disabled = false;
-        btn.innerHTML = 'Activate Now';
+        btn.innerHTML = '立即激活';
       }
     }
 
     function showResult(type, message, code) {
       var el = document.getElementById('result');
       el.className = 'result show ' + (type === 'success' ? 'success' : 'error');
-      var html = '<strong>' + (type === 'success' ? 'Success!' : 'Error') + '</strong>';
-      html += '<p style="margin-top:4px">' + message + '</p>';
+      var html = '<strong>' + (type === 'success' ? '激活成功！' : '激活失败') + '</strong>';
+      html += '<p style="margin-top:4px;font-size:0.85rem">' + message + '</p>';
       if (code) {
         html += '<div class="code">' + code + '</div>';
-        html += '<button class="copy-btn" onclick="copyCode(\'' + code + '\')">Copy Code</button>';
+        html += '<button class="copy-btn" onclick="copyCode(\'' + code + '\')">复制激活码</button>';
       }
       el.innerHTML = html;
     }
 
     function copyCode(code) {
       navigator.clipboard.writeText(code).then(function() {
-        alert('Activation code copied!');
+        var btn = document.querySelector('.copy-btn');
+        if (btn) { btn.textContent = '已复制！'; btn.style.background = '#666'; }
       });
     }
 
     async function activate() {
       var codeInput = document.getElementById('redeemCode');
-      var code = codeInput.value.trim().toUpperCase();
+      var code = codeInput.value.trim();
 
       if (!code) {
-        showResult('error', 'Please enter a redeem code');
+        showResult('error', '请输入兑换码');
+        return;
+      }
+
+      if (code.length !== 4) {
+        showResult('error', '兑换码必须为4位');
         return;
       }
 
@@ -199,13 +264,13 @@
         var data = await res.json();
 
         if (data.success) {
-          showResult('success', 'Product activated successfully!', data.activationCode);
+          showResult('success', '请将激活码输入到手环应用中', data.activationCode);
           codeInput.value = '';
         } else {
-          showResult('error', data.error || 'Activation failed');
+          showResult('error', data.error || '激活失败，请重试');
         }
       } catch (e) {
-        showResult('error', 'Network error. Please try again.');
+        showResult('error', '网络错误，请检查网络后重试');
       }
 
       setLoading(false);

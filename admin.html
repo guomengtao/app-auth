@@ -1,13 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Panel - App Auth</title>
+  <title>管理后台 - 激活码系统</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
       background: #f0f2f5;
       min-height: 100vh;
     }
@@ -34,11 +34,24 @@
     }
     .header .logout:hover { background: rgba(255,255,255,0.25); }
 
+    .desc-banner {
+      background: #fff;
+      margin: 16px 32px 0;
+      padding: 16px 20px;
+      border-radius: 14px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+      font-size: 0.8rem;
+      color: #666;
+      line-height: 1.7;
+      border-left: 4px solid #6c63ff;
+    }
+    .desc-banner strong { color: #6c63ff; }
+
     .stats-bar {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 16px;
-      padding: 24px 32px;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 14px;
+      padding: 20px 32px;
     }
     .stat-card {
       background: #fff;
@@ -56,16 +69,13 @@
       background-clip: text;
     }
     .stat-card .label {
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       color: #888;
       margin-top: 4px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
     }
 
     .tabs {
       display: flex;
-      gap: 0;
       padding: 0 32px;
       border-bottom: 2px solid #e8e8e8;
       background: #fff;
@@ -87,10 +97,7 @@
     .tab:hover { color: #6c63ff; }
     .tab.active { color: #6c63ff; border-bottom-color: #6c63ff; }
 
-    .content {
-      padding: 24px 32px;
-      max-width: 1200px;
-    }
+    .content { padding: 24px 32px; max-width: 1200px; }
     .panel { display: none; }
     .panel.active { display: block; }
 
@@ -139,8 +146,8 @@
       background: #f8f9fa;
       font-weight: 600;
       color: #555;
-      text-transform: uppercase;
       font-size: 0.7rem;
+      text-transform: uppercase;
       letter-spacing: 0.5px;
     }
     tr:not(:last-child) td { border-bottom: 1px solid #f0f0f0; }
@@ -154,7 +161,7 @@
     .badge-success { background: #e8f5e9; color: #2e7d32; }
     .badge-warning { background: #fff3e0; color: #e65100; }
     .badge-info { background: #e3f2fd; color: #1565c0; }
-    .mono { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.8rem; }
+    .mono { font-family: 'SF Mono', 'Fira Code', 'Menlo', monospace; font-size: 0.82rem; letter-spacing: 1px; }
     .empty { text-align: center; padding: 40px; color: #aaa; }
 
     .modal-overlay {
@@ -183,7 +190,6 @@
       font-weight: 600;
       color: #555;
       margin-bottom: 4px;
-      text-transform: uppercase;
     }
     .modal .field input, .modal .field select {
       width: 100%;
@@ -221,67 +227,69 @@
       from { opacity: 0; transform: translateX(20px); }
       to { opacity: 1; transform: translateX(0); }
     }
-    .loading-dots {
-      text-align: center;
-      padding: 20px;
-      color: #888;
-    }
   </style>
 </head>
 <body>
   <div class="header">
     <div>
-      <h1>App Auth Admin</h1>
+      <h1>激活码管理系统</h1>
       <span class="user" id="usernameDisplay"></span>
     </div>
-    <button class="logout" onclick="logout()">Logout</button>
+    <div style="display:flex;gap:8px;align-items:center">
+      <a href="/" style="color:#fff;font-size:0.8rem;text-decoration:none;opacity:0.7">← 首页</a>
+      <button class="logout" onclick="logout()">退出登录</button>
+    </div>
+  </div>
+
+  <div class="desc-banner">
+    <strong>系统说明：</strong>本系统为小米手环/手表应用提供激活码管理服务。后台生成<strong>4位字母+数字混合兑换码</strong>发放给用户，用户激活后系统基于设备ID哈希生成<strong>12位纯数字激活码</strong>（产品ID 4位 + 设备哈希 4位 + 校验码 4位），兼容手环端解密验证。
   </div>
 
   <div class="stats-bar">
     <div class="stat-card">
       <div class="number" id="statProducts">-</div>
-      <div class="label">Products</div>
+      <div class="label">产品数量</div>
     </div>
     <div class="stat-card">
       <div class="number" id="statCodes">-</div>
-      <div class="label">Total Codes</div>
+      <div class="label">兑换码总数</div>
     </div>
     <div class="stat-card">
       <div class="number" id="statUsed">-</div>
-      <div class="label">Used</div>
+      <div class="label">已使用</div>
     </div>
     <div class="stat-card">
       <div class="number" id="statActivations">-</div>
-      <div class="label">Activations</div>
+      <div class="label">激活次数</div>
     </div>
   </div>
 
   <div class="tabs">
-    <button class="tab active" onclick="switchTab('products')">Products</button>
-    <button class="tab" onclick="switchTab('codes')">Redeem Codes</button>
-    <button class="tab" onclick="switchTab('records')">Activation Records</button>
+    <button class="tab active" onclick="switchTab('products')">产品管理</button>
+    <button class="tab" onclick="switchTab('codes')">兑换码管理</button>
+    <button class="tab" onclick="switchTab('records')">激活记录</button>
   </div>
 
   <div class="content">
     <div class="panel active" id="panel-products">
       <div class="toolbar">
-        <button class="btn btn-primary" onclick="openProductModal()">+ Add Product</button>
+        <button class="btn btn-primary" onclick="openProductModal()">+ 添加产品</button>
       </div>
       <div id="productsTable"></div>
     </div>
 
     <div class="panel" id="panel-codes">
       <div class="toolbar">
-        <button class="btn btn-primary" onclick="openCodeModal()">+ Generate Codes</button>
+        <button class="btn btn-primary" onclick="openCodeModal()">+ 生成兑换码</button>
         <select id="filterProduct" onchange="loadCodes()" style="padding:8px 12px;border:2px solid #e8e8e8;border-radius:8px;">
-          <option value="">All Products</option>
+          <option value="">全部产品</option>
         </select>
         <select id="filterUsed" onchange="loadCodes()" style="padding:8px 12px;border:2px solid #e8e8e8;border-radius:8px;">
-          <option value="">All Status</option>
-          <option value="false">Unused</option>
-          <option value="true">Used</option>
+          <option value="">全部状态</option>
+          <option value="false">未使用</option>
+          <option value="true">已使用</option>
         </select>
-        <button class="btn btn-outline" onclick="loadCodes()">Refresh</button>
+        <button class="btn btn-outline" onclick="loadCodes()">刷新</button>
       </div>
       <div id="codesTable"></div>
     </div>
@@ -289,9 +297,9 @@
     <div class="panel" id="panel-records">
       <div class="toolbar">
         <select id="filterRecordProduct" onchange="loadRecords()" style="padding:8px 12px;border:2px solid #e8e8e8;border-radius:8px;">
-          <option value="">All Products</option>
+          <option value="">全部产品</option>
         </select>
-        <button class="btn btn-outline" onclick="loadRecords()">Refresh</button>
+        <button class="btn btn-outline" onclick="loadRecords()">刷新</button>
       </div>
       <div id="recordsTable"></div>
     </div>
@@ -299,40 +307,40 @@
 
   <div class="modal-overlay" id="productModal">
     <div class="modal">
-      <h3>Add Product</h3>
+      <h3>添加产品</h3>
       <div class="field">
-        <label>Product Name</label>
-        <input type="text" id="productName" placeholder="e.g. VIP Pro">
+        <label>产品名称</label>
+        <input type="text" id="productName" placeholder="例如：VIP Pro">
       </div>
       <div class="field">
-        <label>Description</label>
-        <input type="text" id="productDesc" placeholder="Optional description">
+        <label>描述</label>
+        <input type="text" id="productDesc" placeholder="可选描述">
       </div>
       <div class="actions">
-        <button class="btn btn-outline" onclick="closeProductModal()">Cancel</button>
-        <button class="btn btn-primary" onclick="addProduct()">Create</button>
+        <button class="btn btn-outline" onclick="closeProductModal()">取消</button>
+        <button class="btn btn-primary" onclick="addProduct()">创建</button>
       </div>
     </div>
   </div>
 
   <div class="modal-overlay" id="codeModal">
     <div class="modal">
-      <h3>Generate Redeem Codes</h3>
+      <h3>生成兑换码（4位字母+数字）</h3>
       <div class="field">
-        <label>Product</label>
+        <label>选择产品</label>
         <select id="codeProduct"></select>
       </div>
       <div class="field">
-        <label>Duration (days)</label>
+        <label>有效期（天）</label>
         <input type="number" id="codeDuration" value="365" min="1" max="9999">
       </div>
       <div class="field">
-        <label>Count</label>
+        <label>生成数量</label>
         <input type="number" id="codeCount" value="10" min="1" max="1000">
       </div>
       <div class="actions">
-        <button class="btn btn-outline" onclick="closeCodeModal()">Cancel</button>
-        <button class="btn btn-primary" onclick="generateCodes()">Generate</button>
+        <button class="btn btn-outline" onclick="closeCodeModal()">取消</button>
+        <button class="btn btn-primary" onclick="generateCodes()">生成</button>
       </div>
     </div>
   </div>
@@ -392,16 +400,16 @@
         var data = await api('/api/admin/products');
         if (!data.success) return;
 
-        var html = '<table><thead><tr><th>ID</th><th>Name</th><th>Description</th><th>Created</th></tr></thead><tbody>';
+        var html = '<table><thead><tr><th>ID</th><th>名称</th><th>描述</th><th>创建时间</th></tr></thead><tbody>';
         if (data.products.length === 0) {
-          html += '<tr><td colspan="4" class="empty">No products yet</td></tr>';
+          html += '<tr><td colspan="4" class="empty">暂无产品</td></tr>';
         } else {
           data.products.forEach(function(p) {
             html += '<tr>';
-            html += '<td class="mono">' + p.id + '</td>';
+            html += '<td class="mono" style="letter-spacing:0">' + p.id + '</td>';
             html += '<td><strong>' + escapeHtml(p.name) + '</strong></td>';
             html += '<td>' + escapeHtml(p.description || '-') + '</td>';
-            html += '<td>' + new Date(p.created_at).toLocaleDateString() + '</td>';
+            html += '<td>' + new Date(p.created_at).toLocaleDateString('zh-CN') + '</td>';
             html += '</tr>';
           });
         }
@@ -412,7 +420,7 @@
         productSelects.forEach(function(sid) {
           var sel = document.getElementById(sid);
           var val = sel.value;
-          sel.innerHTML = '<option value="">All Products</option>';
+          sel.innerHTML = '<option value="">全部产品</option>';
           data.products.forEach(function(p) {
             sel.innerHTML += '<option value="' + p.id + '">' + escapeHtml(p.name) + '</option>';
           });
@@ -432,18 +440,18 @@
         var data = await api('/api/admin/redeem-codes?' + params.toString());
         if (!data.success) return;
 
-        var html = '<table><thead><tr><th>Code</th><th>Product</th><th>Duration</th><th>Status</th><th>Created</th><th>Used At</th></tr></thead><tbody>';
+        var html = '<table><thead><tr><th>兑换码</th><th>产品</th><th>有效期</th><th>状态</th><th>创建时间</th><th>使用时间</th></tr></thead><tbody>';
         if (data.codes.length === 0) {
-          html += '<tr><td colspan="6" class="empty">No redeem codes found</td></tr>';
+          html += '<tr><td colspan="6" class="empty">暂无兑换码</td></tr>';
         } else {
           data.codes.forEach(function(c) {
             html += '<tr>';
             html += '<td class="mono">' + c.code + '</td>';
             html += '<td>' + c.product_id + '</td>';
-            html += '<td>' + (c.duration_days === 9999 ? 'Lifetime' : c.duration_days + ' days') + '</td>';
-            html += '<td><span class="badge ' + (c.used ? 'badge-success' : 'badge-warning') + '">' + (c.used ? 'Used' : 'Unused') + '</span></td>';
-            html += '<td>' + new Date(c.created_at).toLocaleDateString() + '</td>';
-            html += '<td>' + (c.used_at ? new Date(c.used_at).toLocaleString() : '-') + '</td>';
+            html += '<td>' + (c.duration_days === 9999 ? '永久' : c.duration_days + ' 天') + '</td>';
+            html += '<td><span class="badge ' + (c.used ? 'badge-success' : 'badge-warning') + '">' + (c.used ? '已使用' : '未使用') + '</span></td>';
+            html += '<td>' + new Date(c.created_at).toLocaleDateString('zh-CN') + '</td>';
+            html += '<td>' + (c.used_at ? new Date(c.used_at).toLocaleString('zh-CN') : '-') + '</td>';
             html += '</tr>';
           });
         }
@@ -461,18 +469,18 @@
         var data = await api('/api/admin/records?' + params.toString());
         if (!data.success) return;
 
-        var html = '<table><thead><tr><th>Activation Code</th><th>Device</th><th>Product</th><th>Duration</th><th>Generated</th><th>Expires</th></tr></thead><tbody>';
+        var html = '<table><thead><tr><th>激活码</th><th>设备哈希</th><th>产品</th><th>有效期</th><th>生成时间</th><th>到期时间</th></tr></thead><tbody>';
         if (data.records.length === 0) {
-          html += '<tr><td colspan="6" class="empty">No activation records</td></tr>';
+          html += '<tr><td colspan="6" class="empty">暂无激活记录</td></tr>';
         } else {
           data.records.forEach(function(r) {
             html += '<tr>';
-            html += '<td class="mono" style="font-size:0.7rem">' + r.activation_code + '</td>';
-            html += '<td class="mono" style="font-size:0.7rem">' + r.device_id_hash.slice(0, 16) + '...</td>';
+            html += '<td class="mono" style="font-size:0.75rem">' + r.activation_code + '</td>';
+            html += '<td class="mono" style="font-size:0.7rem;letter-spacing:0">' + r.device_id_hash.slice(0, 12) + '...</td>';
             html += '<td>' + r.product_id + '</td>';
-            html += '<td>' + (r.duration_days === 9999 ? 'Lifetime' : r.duration_days + ' days') + '</td>';
-            html += '<td>' + new Date(r.generated_at).toLocaleString() + '</td>';
-            html += '<td>' + (r.expires_at ? new Date(r.expires_at).toLocaleDateString() : '<span class="badge badge-info">Never</span>') + '</td>';
+            html += '<td>' + (r.duration_days === 9999 ? '永久' : r.duration_days + ' 天') + '</td>';
+            html += '<td>' + new Date(r.generated_at).toLocaleString('zh-CN') + '</td>';
+            html += '<td>' + (r.expires_at ? new Date(r.expires_at).toLocaleDateString('zh-CN') : '<span class="badge badge-info">永不过期</span>') + '</td>';
             html += '</tr>';
           });
         }
@@ -495,7 +503,7 @@
       var name = document.getElementById('productName').value.trim();
       var desc = document.getElementById('productDesc').value.trim();
 
-      if (!name) { showToast('Product name is required', 'error'); return; }
+      if (!name) { showToast('请输入产品名称', 'error'); return; }
 
       try {
         var data = await api('/api/admin/products', {
@@ -504,7 +512,7 @@
           body: JSON.stringify({ name: name, description: desc }),
         });
         if (data.success) {
-          showToast('Product created', 'success');
+          showToast('产品创建成功', 'success');
           closeProductModal();
           loadProducts();
           loadStats();
@@ -529,7 +537,7 @@
       var duration = parseInt(document.getElementById('codeDuration').value);
       var count = parseInt(document.getElementById('codeCount').value);
 
-      if (!productId) { showToast('Please select a product', 'error'); return; }
+      if (!productId) { showToast('请选择产品', 'error'); return; }
 
       try {
         var data = await api('/api/admin/redeem-codes', {
@@ -538,7 +546,7 @@
           body: JSON.stringify({ product_id: productId, duration_days: duration, count: count }),
         });
         if (data.success) {
-          showToast(count + ' codes generated', 'success');
+          showToast('成功生成 ' + count + ' 个兑换码', 'success');
           closeCodeModal();
           loadCodes();
           loadStats();

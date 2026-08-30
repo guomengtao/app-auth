@@ -1,5 +1,5 @@
 const redis = require("../lib/redis");
-const { sha256, generateActivationCode } = require("../lib/crypto");
+const { generateActivationCode, sha256 } = require("../lib/crypto");
 const { validateRedeemCode, validateDeviceId } = require("../lib/validate");
 
 module.exports = async (req, res) => {
@@ -25,7 +25,7 @@ module.exports = async (req, res) => {
 
     const codeData = await redis.get(`auth:redeem:${code}`);
     if (!codeData) {
-      return res.status(400).json({ success: false, error: "Invalid redeem code" });
+      return res.status(400).json({ success: false, error: "无效兑换码" });
     }
 
     const info = typeof codeData === "string" ? JSON.parse(codeData) : codeData;
@@ -36,15 +36,11 @@ module.exports = async (req, res) => {
       }
       return res.status(400).json({
         success: false,
-        error: "This redeem code has already been used on another device",
+        error: "该兑换码已被其他设备使用",
       });
     }
 
-    const activationCode = generateActivationCode(
-      info.product_id,
-      deviceCheck.value,
-      info.duration_days
-    );
+    const activationCode = generateActivationCode(info.product_id, deviceCheck.value);
 
     const updated = {
       ...info,
@@ -74,6 +70,6 @@ module.exports = async (req, res) => {
     return res.json({ success: true, activationCode });
   } catch (error) {
     console.error("Activate error:", error);
-    return res.status(500).json({ success: false, error: "Internal server error" });
+    return res.status(500).json({ success: false, error: "服务器内部错误" });
   }
 };
