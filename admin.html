@@ -498,6 +498,9 @@
           data.products.forEach(function(p) {
             sel.innerHTML += '<option value="' + p.id + '">' + escapeHtml(p.name) + '</option>';
           });
+          if (sid === 'codeProduct' || sid === 'filterProduct' || sid === 'filterRecordProduct') {
+            sel.innerHTML += '<option value="0000">全部产品 (0000)</option>';
+          }
           sel.value = val;
         });
       } catch (e) {}
