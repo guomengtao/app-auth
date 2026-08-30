@@ -1,8 +1,8 @@
 {
+  "builds": [
+    { "src": "api/**/*.js", "use": "@vercel/node" }
+  ],
   "rewrites": [
-    { "source": "/", "destination": "/index.html" },
-    { "source": "/activate", "destination": "/public/activate.html" },
-    { "source": "/admin", "destination": "/public/admin.html" },
-    { "source": "/login", "destination": "/public/login.html" }
+    { "source": "/", "destination": "/index.html" }
   ]
 }
