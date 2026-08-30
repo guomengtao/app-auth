@@ -1,0 +1,23 @@
+{
+  "name": "app-auth",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/guomengtao/app-auth.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/guomengtao/app-auth/issues"
+  },
+  "homepage": "https://github.com/guomengtao/app-auth#readme",
+  "description": "",
+  "devDependencies": {
+    "vercel": "^59.10.0"
+  }
+}
