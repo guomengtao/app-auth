@@ -36,43 +36,65 @@ Output: "a1b2c3d4e5f6..." (64 lowercase hex chars)
 
 ### 2.1 Format Overview
 
-The activation code is a **16-digit numeric string** composed of 4 parts:
+The activation code is a **16-digit numeric string** composed of 4 parts, with product ID and duration days **scrambled** to prevent tampering:
 
 ```
-PPPP DDDD DDDD CCCC
+SPPP DDDD SDDD CCCC
 │    │    │     │
 │    │    │     └── Checksum (4 digits, mod 10000)
-│    │    └── Duration days (4 digits, zero-padded)
-│    └── Device ID hash (4 digits, zero-padded)
-└── Product ID (4 digits)
+│    │    └── Scrambled duration days (4 digits)
+│    └── Device ID hash (4 digits)
+└── Scrambled product ID (4 digits)
 ```
 
-- **Without spaces**: 16 consecutive digits, e.g. `1234567800301234`
-- **With spaces** (display only): `1234 5678 0030 1234`
+- **Without spaces**: 16 consecutive digits, e.g. `7312567800301234`
+- **With spaces** (display only): `7312 5678 0030 1234`
 
-### 2.2 Step 1: Product ID → 4 Digits
+**Important**: The product ID and duration days are scrambled using a 4-digit secret key (`7319`). Without the secret, the raw values cannot be read from the activation code. This prevents users from modifying the product ID or duration.
 
-If the `productId` is already a 4-digit numeric string (matching `/^\d{4}$/`), use it directly.  
-Otherwise, hash it to a 4-digit number using a rolling hash (same as checksum algorithm, see Section 4).
+### 2.2 Scrambling Algorithm (scramble4 / unscramble4)
+
+A digit-wise Caesar cipher: each digit of the input is added/subtracted with the corresponding digit of the secret key, modulo 10.
 
 ```
-productIdTo4Digit(pid):
-  if pid matches /^\d{4}$/ → return pid
-  else:
-    hash = 0
-    for each char c in pid:
-      hash = ((hash << 5) - hash) + charCodeAt(c)
-      hash = hash & hash  // 32-bit signed integer truncation
-    return pad4(abs(hash) % 10000)
+ACTIVATION_SECRET = "7319"
+
+function scramble4(digits, secret):
+  result = ""
+  for i = 0 to 3:
+    result += ((parseInt(digits[i]) + parseInt(secret[i])) % 10).toString()
+  return result
+
+function unscramble4(digits, secret):
+  result = ""
+  for i = 0 to 3:
+    result += ((parseInt(digits[i]) - parseInt(secret[i]) + 10) % 10).toString()
+  return result
 ```
 
 **Example**:
 ```
-Input:  "prod-abc"
-Output: "1234" (deterministic, based on hash)
+scramble4("0001", "7319") → "7310"
+unscramble4("7310", "7319") → "0001"
+
+scramble4("0030", "7319") → "7349"
+unscramble4("7349", "7319") → "0030"
 ```
 
-### 2.3 Step 2: Device ID → 4 Digits
+### 2.3 Step 1: Product ID → 4 Digits
+
+**Always hash** the product ID to a 4-digit number using a rolling hash. There is no shortcut for already-numeric IDs — all product IDs are hashed to prevent plaintext leakage.
+
+```
+productIdTo4Digit(pid):
+  hash = 0
+  for each char c in pid:
+    hash = ((hash << 5) - hash) + charCodeAt(c)
+    hash = hash & hash  // 32-bit signed integer truncation
+  return pad4(abs(hash) % 10000)
+```
+
+### 2.4 Step 2: Device ID → 4 Digits
 
 Hash the raw device ID string to a 4-digit number using the same rolling hash algorithm as the checksum.
 
@@ -91,7 +113,7 @@ Input:  "device-abc-123"
 Output: "1234" (deterministic, based on hash)
 ```
 
-### 2.4 Step 3: Duration Days → 4 Digits
+### 2.5 Step 3: Duration Days → 4 Digits
 
 Left-pad the number of days to 4 digits with zeros.
 
@@ -102,48 +124,45 @@ pad4(n):
   return s
 ```
 
-**Example**:
-```
-Input:  30
-Output: "0030"
+### 2.6 Step 4: Scramble Product ID and Duration
 
-Input:  365
-Output: "0365"
-
-Input:  9999  (permanent)
-Output: "9999"
-```
-
-### 2.5 Step 4: Generate Checksum
-
-Compute a 4-digit checksum over the 12-digit plaintext (productId + idHash + daysPart).
-
-See Section 4 for the checksum algorithm.
+Scramble the 4-digit product ID and duration using the secret key.
 
 ```
-plain = pid + idHash + daysPart   // 12 digits
-checksum = generateChecksum4(plain)  // 4 digits
+scrambledPid  = scramble4(pid, ACTIVATION_SECRET)
+scrambledDays = scramble4(daysPart, ACTIVATION_SECRET)
 ```
 
-### 2.6 Final Assembly
+### 2.7 Step 5: Generate Checksum
+
+Compute a 4-digit checksum over the 12-digit scrambled text (scrambledPid + idHash + scrambledDays).
 
 ```
-activationCode = pid + idHash + daysPart + checksum  // 16 digits
+plain = scrambledPid + idHash + scrambledDays   // 12 digits
+checksum = generateChecksum4(plain)              // 4 digits
 ```
 
-### 2.7 Complete Pseudocode
+### 2.8 Final Assembly
+
+```
+activationCode = scrambledPid + idHash + scrambledDays + checksum  // 16 digits
+```
+
+### 2.9 Complete Pseudocode
 
 ```
 function generateActivationCode(productId, deviceId, days):
-  pid      = productIdTo4Digit(productId)
-  idHash   = deviceIdTo4Digit(deviceId)
-  daysPart = pad4(days)
-  plain    = pid + idHash + daysPart
-  checksum = generateChecksum4(plain)
+  pid          = productIdTo4Digit(productId)
+  idHash       = deviceIdTo4Digit(deviceId)
+  daysPart     = pad4(days)
+  scrambledPid = scramble4(pid, ACTIVATION_SECRET)
+  scrambledDays = scramble4(daysPart, ACTIVATION_SECRET)
+  plain        = scrambledPid + idHash + scrambledDays
+  checksum     = generateChecksum4(plain)
   return plain + checksum
 ```
 
-### 2.8 Example Walkthrough
+### 2.10 Example Walkthrough
 
 ```
 Input:
@@ -151,12 +170,14 @@ Input:
   deviceId  = "device-abc-123"
   days      = 30
 
-Step 1: productIdTo4Digit("my-product") → hash → "5678" (example)
+Step 1: productIdTo4Digit("my-product") → hash → "5678"
 Step 2: deviceIdTo4Digit("device-abc-123") → "0123"
 Step 3: pad4(30) → "0030"
-Step 4: plain = "5678" + "0123" + "0030" = "567801230030"
-         checksum = generateChecksum4("567801230030") → "1234" (example)
-Output: "5678012300301234"
+Step 4: scramble4("5678", "7319") → "2987"
+         scramble4("0030", "7319") → "7349"
+Step 5: plain = "2987" + "0123" + "7349" = "298701237349"
+         checksum = generateChecksum4("298701237349") → "XXXX"
+Output: "298701237349XXXX"
 ```
 
 ---
@@ -170,19 +191,20 @@ Input: 16-digit numeric string (spaces are stripped)
 Steps:
   1. Strip all whitespace
   2. Assert length === 16
-  3. Split: pid(0-4), idHash(4-8), daysStr(8-12), checksum(12-16)
-  4. Recompute checksum from pid + idHash + daysStr
+  3. Split: scrambledPid(0-4), idHash(4-8), scrambledDays(8-12), checksum(12-16)
+  4. Recompute checksum from scrambledPid + idHash + scrambledDays
   5. Compare with provided checksum
-  6. Parse days = parseInt(daysStr, 10)
-  7. isPermanent = (days === 9999)
+  6. Unscramble: pid = unscramble4(scrambledPid, ACTIVATION_SECRET)
+  7. Unscramble: days = parseInt(unscramble4(scrambledDays, ACTIVATION_SECRET))
+  8. isPermanent = (days === 9999)
 ```
 
 **Return value**:
 ```json
 {
   "valid": true,
-  "productId": "1234",
-  "deviceHash": "5678",
+  "productId": "5678",
+  "deviceHash": "0123",
   "days": 30,
   "isPermanent": false,
   "format": "16位"
@@ -415,6 +437,7 @@ pad4(9999) → "9999"
 | Rolling Hash + mod 10000 | Checksum for activation codes | 12-digit string | 4-digit string |
 | Rolling Hash + mod 10000 | Product ID → 4 digits | Any string | 4-digit string |
 | Rolling Hash + mod 10000 | Device ID → 4 digits | Device ID string | 4-digit string |
+| Digit-wise Caesar + mod 10 | Scramble product ID & days | 4-digit + secret "7319" | 4-digit string |
 | Random selection from 62-char set | Redeem code generator | (none) | 4-char alphanumeric |
 | HMAC-SHA256 + base64url | JWT signing | JSON payload | JWT token string |
 | HMAC-SHA256 + base64url | JWT verification | JWT token | JSON payload or null |
@@ -428,8 +451,9 @@ When integrating external software with this system, ensure you can:
 
 - [ ] Compute SHA-256 hash and output lowercase hex
 - [ ] Implement the rolling hash checksum (`hash = (hash << 5) - hash + charCode`) with 32-bit signed integer semantics
-- [ ] Generate activation codes using the 4-part format (pid + idHash + days + checksum)
-- [ ] Verify activation codes by recomputing and comparing checksums
+- [ ] Implement the digit-wise scramble4/unscramble4 with secret `"7319"` (see Section 2.2)
+- [ ] Generate activation codes using the scrambled format (scrambledPid + idHash + scrambledDays + checksum)
+- [ ] Verify activation codes by recomputing checksum AND unscrambling product ID and days
 - [ ] Generate random 4-character alphanumeric redeem codes
 - [ ] Sign and verify JWT tokens using HS256 (HMAC-SHA256) with base64url encoding
 - [ ] Use the same `JWT_SECRET` value as the server

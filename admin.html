@@ -715,51 +715,49 @@
       return pad4(Math.abs(hash) % 10000);
     }
 
+    var ACTIVATION_SECRET = "7319";
+
+    function scramble4(digits, secret) {
+      var result = "";
+      for (var i = 0; i < 4; i++) {
+        result += ((parseInt(digits[i], 10) + parseInt(secret[i], 10)) % 10).toString();
+      }
+      return result;
+    }
+
+    function unscramble4(digits, secret) {
+      var result = "";
+      for (var i = 0; i < 4; i++) {
+        result += ((parseInt(digits[i], 10) - parseInt(secret[i], 10) + 10) % 10).toString();
+      }
+      return result;
+    }
+
     function decryptCode(code) {
       var cleaned = code.replace(/\s/g, "");
-      if (cleaned.length !== 16 && cleaned.length !== 12) {
-        return { valid: false, reason: "激活码长度无效（需16位或12位）" };
+      if (cleaned.length !== 16) {
+        return { valid: false, reason: "激活码长度无效（需16位）" };
       }
 
-      if (cleaned.length === 16) {
-        var pid = cleaned.substring(0, 4);
-        var idHash = cleaned.substring(4, 8);
-        var daysStr = cleaned.substring(8, 12);
-        var checksum = cleaned.substring(12, 16);
-        var days = parseInt(daysStr, 10);
-        var plain = pid + idHash + daysStr;
-        var expectedChecksum = generateChecksum4(plain);
-        if (checksum !== expectedChecksum) {
-          return { valid: false, reason: "校验码不匹配，激活码可能被篡改" };
-        }
-        return {
-          valid: true,
-          productId: pid,
-          deviceHash: idHash,
-          days: days,
-          isPermanent: days === 9999,
-          format: "v2-16位",
-        };
+      var scrambledPid = cleaned.substring(0, 4);
+      var idHash = cleaned.substring(4, 8);
+      var scrambledDays = cleaned.substring(8, 12);
+      var checksum = cleaned.substring(12, 16);
+      var plain = scrambledPid + idHash + scrambledDays;
+      var expectedChecksum = generateChecksum4(plain);
+      if (checksum !== expectedChecksum) {
+        return { valid: false, reason: "校验码不匹配，激活码可能被篡改" };
       }
-
-      if (cleaned.length === 12) {
-        var pid = cleaned.substring(0, 4);
-        var idHash = cleaned.substring(4, 8);
-        var checksum = cleaned.substring(8, 12);
-        var plain = pid + idHash;
-        var expectedChecksum = generateChecksum4(plain);
-        if (checksum !== expectedChecksum) {
-          return { valid: false, reason: "校验码不匹配，激活码可能被篡改" };
-        }
-        return {
-          valid: true,
-          productId: pid,
-          deviceHash: idHash,
-          days: null,
-          isPermanent: false,
-          format: "v1-12位",
-        };
-      }
+      var pid = unscramble4(scrambledPid, ACTIVATION_SECRET);
+      var days = parseInt(unscramble4(scrambledDays, ACTIVATION_SECRET), 10);
+      return {
+        valid: true,
+        productId: pid,
+        deviceHash: idHash,
+        days: days,
+        isPermanent: days === 9999,
+        format: "16位",
+      };
     }
 
     function doDecrypt() {
@@ -786,11 +784,7 @@
       html += '<div class="field-row"><span class="field-label">格式版本</span><span class="field-value">' + result.format + '</span></div>';
       html += '<div class="field-row"><span class="field-label">产品ID</span><span class="field-value">' + result.productId + '</span></div>';
       html += '<div class="field-row"><span class="field-label">设备ID后四位</span><span class="field-value">' + result.deviceHash + '</span></div>';
-      if (result.days !== null) {
-        html += '<div class="field-row"><span class="field-label">授权天数</span><span class="field-value">' + (result.isPermanent ? '永久 (9999天)' : result.days + ' 天') + '</span></div>';
-      } else {
-        html += '<div class="field-row"><span class="field-label">授权天数</span><span class="field-value">无（v1格式不含天数）</span></div>';
-      }
+      html += '<div class="field-row"><span class="field-label">授权天数</span><span class="field-value">' + (result.isPermanent ? '永久 (9999天)' : result.days + ' 天') + '</span></div>';
       html += '<div class="field-row"><span class="field-label">校验状态</span><span class="field-value" style="color:#2e7d32">✓ 校验通过</span></div>';
 
       resultEl.style.display = 'block';
