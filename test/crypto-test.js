@@ -42,13 +42,13 @@ function runRandomTest(groupNum) {
   var pass = green("PASS");
   var fail = red("FAIL");
 
-  console.log(bold("\n--- Test Group " + groupNum + " ---"));
-  console.log(dim("  Input:   productId=" + productId + "  deviceId=" + deviceId + "  days=" + days + (days === 9999 ? " (permanent)" : "")));
+  console.log(bold("\n--- 测试组 " + groupNum + " ---"));
+  console.log(dim("  输入:   产品ID=" + productId + "  设备ID=" + deviceId + "  天数=" + days + (days === 9999 ? " (永久)" : "")));
   console.log("");
-  console.log("  " + bold(yellow(" Encrypted 16-digit:  " + formatted + " ")));
-  console.log("  " + bold(cyan(" Decrypted            productId=" + result.productId + "  deviceHash=" + result.deviceHash + "  days=" + result.days + (result.isPermanent ? " (permanent)" : ""))));
+  console.log("  " + bold(yellow(" 加密后16位:  " + formatted + " ")));
+  console.log("  " + bold(cyan(" 解密后      产品ID=" + result.productId + "  设备哈希=" + result.deviceHash + "  天数=" + result.days + (result.isPermanent ? " (永久)" : ""))));
   console.log("");
-  console.log("  " + dim("pid:" + (pidMatch ? pass : fail) + "  dev:" + (devMatch ? pass : fail) + "  days:" + (daysMatch ? pass : fail)) + "  -> " + bold(allMatch ? green("ALL PASS") : red("FAILED")));
+  console.log("  " + dim("产品:" + (pidMatch ? pass : fail) + "  设备:" + (devMatch ? pass : fail) + "  天数:" + (daysMatch ? pass : fail)) + "  -> " + bold(allMatch ? green("全部通过") : red("失败")));
 
   return allMatch;
 }
@@ -62,71 +62,65 @@ function runCustomTest(code) {
   var highlighted = bold(yellow(parts[0] + " " + parts[1] + " " + parts[2] + " " + parts[3]));
 
   console.log("");
-  console.log(bold("  === Activation Code Verification ==="));
+  console.log(bold("  === 激活码验证 ==="));
   console.log("");
 
-  // --- ENCRYPTED 16-DIGIT CODE (prominent) ---
-  console.log("  " + bold("Encrypted 16-digit Code:"));
+  console.log("  " + bold("加密后16位激活码:"));
   console.log("  ┌──────────────────────┐");
   console.log("  │  " + highlighted + "  │");
   console.log("  └──────────────────────┘");
   console.log("");
 
-  // Validate format
   if (cleaned.length !== 16) {
-    console.log("  " + red("ERROR: must be exactly 16 digits, got " + cleaned.length));
+    console.log("  " + red("错误: 必须是16位数字, 当前" + cleaned.length + "位"));
     console.log("");
     return false;
   }
   if (!/^\d{16}$/.test(cleaned)) {
-    console.log("  " + red("ERROR: must be all numeric digits"));
+    console.log("  " + red("错误: 必须全部是数字"));
     console.log("");
     return false;
   }
 
-  // Structure breakdown
   var scrambledPid = cleaned.substring(0, 4);
   var idHash = cleaned.substring(4, 8);
   var scrambledDays = cleaned.substring(8, 12);
   var checksum = cleaned.substring(12, 16);
 
-  console.log(dim("  Structure:"));
+  console.log(dim("  结构拆解:"));
   console.log(dim("    [" + scrambledPid + "] [" + idHash + "] [" + scrambledDays + "] [" + checksum + "]"));
-  console.log(dim("    scrambledPid  deviceHash  scrambledDays  checksum"));
+  console.log(dim("    加密产品ID  设备哈希  加密天数  校验码"));
   console.log("");
 
-  // Checksum
   var plain = scrambledPid + idHash + scrambledDays;
   var expectedChecksum = crypto.generateChecksum4(plain);
   var checksumOk = expectedChecksum === checksum;
-  console.log("  " + dim("Checksum: ") + (checksumOk ? green("PASS") + dim("  (" + expectedChecksum + " == " + checksum + ")") : red("FAIL") + dim("  (computed " + expectedChecksum + " != got " + checksum + ")")));
+  console.log("  " + dim("校验码: ") + (checksumOk ? green("通过") + dim("  (" + expectedChecksum + " == " + checksum + ")") : red("失败") + dim("  (计算值 " + expectedChecksum + " != 输入值 " + checksum + ")")));
   console.log("");
 
-  // Unscramble
   var unscrambledPid = crypto.unscramble4(scrambledPid, crypto.ACTIVATION_SECRET);
   var unscrambledDays = crypto.unscramble4(scrambledDays, crypto.ACTIVATION_SECRET);
   var days = parseInt(unscrambledDays, 10);
 
-  console.log(dim("  Unscramble (secret " + crypto.ACTIVATION_SECRET + "):"));
-  console.log(dim("    pid:  " + scrambledPid + " -> " + unscrambledPid));
-  console.log(dim("    days: " + scrambledDays + " -> " + unscrambledDays + (days === 9999 ? " (permanent)" : "")));
+  console.log(dim("  解扰 (密钥 " + crypto.ACTIVATION_SECRET + "):"));
+  console.log(dim("    产品ID: " + scrambledPid + " -> " + unscrambledPid));
+  console.log(dim("    天数:   " + scrambledDays + " -> " + unscrambledDays + (days === 9999 ? " (永久)" : "")));
   console.log("");
 
-  // --- DECRYPTED RESULT (prominent, in cyan) ---
   var result = crypto.decryptActivationCode(cleaned);
-  console.log("  " + bold("Decrypted Result:"));
+  console.log("  " + bold("解密结果:"));
   console.log("  ┌────────────────────────────────────────────┐");
-  console.log("  │  " + bold(cyan("productId  = " + result.productId)) + "                        │");
-  console.log("  │  " + bold(cyan("deviceHash = " + result.deviceHash)) + "                        │");
-  console.log("  │  " + bold(cyan("days       = " + result.days + (result.isPermanent ? " (permanent)" : ""))) + "                  │");
-  console.log("  │  " + bold(cyan("valid      = " + result.valid)) + "                             │");
+  console.log("  │  " + bold(cyan("产品ID   = " + result.productId)) + "                        │");
+  console.log("  │  " + bold(cyan("设备哈希 = " + result.deviceHash)) + "                        │");
+  console.log("  │  " + bold(cyan("授权天数 = " + result.days + (result.isPermanent ? " (永久)" : ""))) + "                  │");
+  console.log("  │  " + bold(cyan("有效性   = " + result.valid)) + "                             │");
   console.log("  └────────────────────────────────────────────┘");
   console.log("");
 
   if (result.valid) {
-    console.log("  " + bold(green("=== VERIFICATION PASSED ===")));
+    console.log("  " + bold(green("=== 验证通过 ===")));
   } else {
-    console.log("  " + bold(red("=== VERIFICATION FAILED: " + result.reason + " ===")));
+    console.log("  " + bold(red("=== 验证失败: " + result.reason + " ===")));
   }
   console.log("");
 
@@ -145,15 +139,15 @@ function runEncryptThenDecrypt(productId, deviceId, days) {
   var highlighted = bold(yellow(parts[0] + " " + parts[1] + " " + parts[2] + " " + parts[3]));
 
   console.log("");
-  console.log(bold("  === Encrypt -> Decrypt Round-Trip ==="));
+  console.log(bold("  === 加密 -> 解密 往返测试 ==="));
   console.log("");
-  console.log(dim("  Input:"));
-  console.log(dim("    productId  = " + productId + "  -> hash: " + pidHash));
-  console.log(dim("    deviceId   = " + deviceId + "  -> hash: " + devHash));
-  console.log(dim("    days       = " + days + (days === 9999 ? " (permanent)" : "")));
+  console.log(dim("  输入:"));
+  console.log(dim("    产品ID  = " + productId + "  -> 哈希: " + pidHash));
+  console.log(dim("    设备ID  = " + deviceId + "  -> 哈希: " + devHash));
+  console.log(dim("    天数    = " + days + (days === 9999 ? " (永久)" : "")));
   console.log("");
 
-  console.log("  " + bold("Encrypted 16-digit Code:"));
+  console.log("  " + bold("加密后16位激活码:"));
   console.log("  ┌──────────────────────┐");
   console.log("  │  " + highlighted + "  │");
   console.log("  └──────────────────────┘");
@@ -166,18 +160,18 @@ function runEncryptThenDecrypt(productId, deviceId, days) {
   var daysMatch = result.days === days;
   var allMatch = pidMatch && devMatch && daysMatch;
 
-  console.log("  " + bold("Decrypted Result:"));
+  console.log("  " + bold("解密结果:"));
   console.log("  ┌────────────────────────────────────────────┐");
-  console.log("  │  " + bold(cyan("productId  = " + result.productId)) + "                        │");
-  console.log("  │  " + bold(cyan("deviceHash = " + result.deviceHash)) + "                        │");
-  console.log("  │  " + bold(cyan("days       = " + result.days + (result.isPermanent ? " (permanent)" : ""))) + "                  │");
-  console.log("  │  " + bold(cyan("valid      = " + result.valid)) + "                             │");
+  console.log("  │  " + bold(cyan("产品ID   = " + result.productId)) + "                        │");
+  console.log("  │  " + bold(cyan("设备哈希 = " + result.deviceHash)) + "                        │");
+  console.log("  │  " + bold(cyan("授权天数 = " + result.days + (result.isPermanent ? " (永久)" : ""))) + "                  │");
+  console.log("  │  " + bold(cyan("有效性   = " + result.valid)) + "                             │");
   console.log("  └────────────────────────────────────────────┘");
   console.log("");
 
-  console.log("  " + dim("pid:" + (pidMatch ? green("PASS") : red("FAIL")) + "  dev:" + (devMatch ? green("PASS") : red("FAIL")) + "  days:" + (daysMatch ? green("PASS") : red("FAIL"))));
+  console.log("  " + dim("产品:" + (pidMatch ? green("通过") : red("失败")) + "  设备:" + (devMatch ? green("通过") : red("失败")) + "  天数:" + (daysMatch ? green("通过") : red("失败"))));
   console.log("");
-  console.log("  " + bold(allMatch ? green("=== ROUND-TRIP PASSED ===") : red("=== ROUND-TRIP FAILED ===")));
+  console.log("  " + bold(allMatch ? green("=== 往返测试通过 ===") : red("=== 往返测试失败 ===")));
   console.log("");
 
   return allMatch;
@@ -188,17 +182,17 @@ var raw = (input || "").replace(/\s/g, "");
 
 if (!raw) {
   console.log("");
-  console.log(bold("  Crypto Encrypt/Decrypt Test"));
-  console.log(dim("  Secret: " + crypto.ACTIVATION_SECRET));
+  console.log(bold("  加密/解密测试"));
+  console.log(dim("  密钥: " + crypto.ACTIVATION_SECRET));
   console.log("");
 
   var pass1 = runRandomTest(1);
   var pass2 = runRandomTest(2);
 
   console.log("");
-  console.log(bold("  === Summary ==="));
-  console.log("  Group 1: " + (pass1 ? green("PASS") : red("FAIL")) + "   Group 2: " + (pass2 ? green("PASS") : red("FAIL")));
-  console.log("  Overall:  " + bold(pass1 && pass2 ? green("ALL PASS") : red("SOME FAILED")));
+  console.log(bold("  === 总结 ==="));
+  console.log("  测试组1: " + (pass1 ? green("通过") : red("失败")) + "   测试组2: " + (pass2 ? green("通过") : red("失败")));
+  console.log("  总体:    " + bold(pass1 && pass2 ? green("全部通过") : red("部分失败")));
   console.log("");
 
   process.exit(pass1 && pass2 ? 0 : 1);
@@ -220,14 +214,14 @@ var userChecksum = raw.substring(12, 16) || "";
 var days = parseInt(daysStr, 10);
 
 console.log("");
-console.log(bold("  === Encrypt ==="));
+console.log(bold("  === 加密 ==="));
 console.log("");
-console.log(dim("  Parsed input:"));
-console.log(dim("    productId  = " + pid));
-console.log(dim("    deviceId   = " + did));
-console.log(dim("    days       = " + daysStr + " -> " + days + (days === 9999 ? " (permanent)" : "")));
+console.log(dim("  解析输入:"));
+console.log(dim("    产品ID  = " + pid));
+console.log(dim("    设备ID  = " + did));
+console.log(dim("    天数    = " + daysStr + " -> " + days + (days === 9999 ? " (永久)" : "")));
 if (userChecksum.length === 4) {
-  console.log(dim("    checksum   = " + userChecksum));
+  console.log(dim("    校验码  = " + userChecksum));
 }
 
 // Verify checksum if provided
@@ -239,7 +233,7 @@ if (userChecksum.length === 4) {
   var plain = scrambledPid + devHash + scrambledDays;
   var expectedChecksum = crypto.generateChecksum4(plain);
   console.log("");
-  console.log("  " + dim("Checksum: got=" + userChecksum + "  expected=" + expectedChecksum + "  ") + (userChecksum === expectedChecksum ? green("MATCH") : red("MISMATCH")));
+  console.log("  " + dim("校验码: 输入=" + userChecksum + "  计算=" + expectedChecksum + "  ") + (userChecksum === expectedChecksum ? green("匹配") : red("不匹配")));
 }
 
 runEncryptThenDecrypt(pid, did, days);
