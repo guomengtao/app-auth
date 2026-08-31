@@ -191,21 +191,24 @@
       height: 100%;
     }
     .topbar {
-      height: var(--topbar-h);
+      min-height: var(--topbar-h);
+      height: auto;
       flex-shrink: 0;
       background: var(--surface);
       border-bottom: 1px solid var(--line);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 24px;
-      gap: 16px;
+      padding: 8px 24px;
+      gap: 10px;
+      flex-wrap: wrap;
     }
     .topbar-left {
       display: flex;
       align-items: center;
       gap: 12px;
       min-width: 0;
+      flex: 1 1 auto;
     }
     .menu-btn {
       display: none;
@@ -236,7 +239,11 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      flex-shrink: 0;
+      flex-shrink: 1;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      flex: 1 1 auto;
+      min-width: min-content;
     }
     .user-chip {
       font-size: 0.78rem;
@@ -935,7 +942,7 @@
       .sidebar.collapsed .sidebar-nav-label { visibility: visible; height: auto; padding: 18px 18px 8px; }
       .menu-btn { display: flex; }
       .sidebar-toggle { display: none; }
-      .topbar { padding: 0 14px; }
+      .topbar { padding: 8px 14px; gap: 6px; }
       .stats-bar { grid-template-columns: repeat(2, 1fr); gap: 8px; }
       .decrypt-input-row { flex-direction: column; }
     }
@@ -1023,15 +1030,35 @@
       border-radius: 999px;
       padding: 3px 4px 3px 10px;
       box-shadow: 0 1px 2px rgba(16,24,40,.05);
+      max-width: 100%;
+      row-gap: 4px;
     }
     .sync-status .sync-btn { white-space: nowrap; }
     .sync-status .sync-btn-sm { white-space: nowrap; }
-    @media (max-width: 780px) {
+    @media (max-width: 900px) {
       .sync-status {
-        border-radius: 10px;
-        padding: 6px;
-        margin-top: 6px;
+        border-radius: 12px;
+        padding: 6px 8px;
+        margin-top: 2px;
       }
+      .sync-status .sync-btn,
+      .sync-status .sync-btn-sm {
+        padding: 4px 8px !important;
+        font-size: 0.73rem !important;
+      }
+      .sync-status #syncModeLabel,
+      .sync-status #syncDirtyBadge {
+        font-size: 0.7rem !important;
+        padding: 2px 8px !important;
+      }
+    }
+    @media (max-width: 720px) {
+      .sync-status {
+        border-radius: 12px;
+        width: 100%;
+        justify-content: space-between;
+      }
+      .topbar-right { width: 100%; justify-content: space-between; }
     }
     @keyframes dirtyPulse {
       0%,100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(249, 115, 22, .5); }
