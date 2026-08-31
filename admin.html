@@ -742,14 +742,15 @@
       var scrambledPid = cleaned.substring(0, 4);
       var idHash = cleaned.substring(4, 8);
       var scrambledDays = cleaned.substring(8, 12);
-      var checksum = cleaned.substring(12, 16);
+      var embedded = cleaned.substring(12, 16);
       var plain = scrambledPid + idHash + scrambledDays;
-      var expectedChecksum = generateChecksum4(plain);
-      if (checksum !== expectedChecksum) {
-        return { valid: false, reason: "校验码不匹配，激活码可能被篡改" };
-      }
-      var pid = unscramble4(scrambledPid, ACTIVATION_SECRET);
-      var days = parseInt(unscramble4(scrambledDays, ACTIVATION_SECRET), 10);
+      var checksum = generateChecksum4(plain);
+
+      var saltHash = unscramble4(embedded, checksum);
+      var perCodeSecret = scramble4(ACTIVATION_SECRET, saltHash);
+
+      var pid = unscramble4(scrambledPid, perCodeSecret);
+      var days = parseInt(unscramble4(scrambledDays, perCodeSecret), 10);
       return {
         valid: true,
         productId: pid,

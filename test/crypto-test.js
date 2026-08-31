@@ -25,11 +25,12 @@ function runRandomTest(groupNum) {
   var productId = randomPick(PRODUCT_IDS);
   var deviceId = randomPick(DEVICE_IDS);
   var days = randomPick([7, 30, 90, 180, 365, 9999]);
+  var salt = crypto.generateRedeemCode();
 
   var pidHash = crypto.productIdTo4Digit(productId);
   var devHash = crypto.deviceIdTo4Digit(deviceId);
 
-  var code = crypto.generateActivationCode(productId, deviceId, days);
+  var code = crypto.generateActivationCode(productId, deviceId, days, salt);
   var formatted = crypto.fmtCode16(code);
   var result = crypto.decryptActivationCode(code);
 
@@ -41,11 +42,13 @@ function runRandomTest(groupNum) {
   var pass = green("PASS");
   var fail = red("FAIL");
 
+  var daysLabel = days === 9999 ? " (permanent)" : "";
+
   console.log(bold("\n--- test group " + groupNum + " ---"));
-  console.log(dim("  input:   productId=" + productId + "  deviceId=" + deviceId + "  days=" + days + (days === 9999 ? " (permanent)" : "")));
+  console.log(dim("  input:   productId=" + productId + "  deviceId=" + deviceId + "  days=" + days + daysLabel + "  salt=" + salt));
   console.log("");
   console.log("  " + bold(yellow(" encrypted 16-digit:  " + formatted + " ")));
-  console.log("  " + bold(cyan(" decrypted            productId=" + result.productId + "  deviceHash=" + result.deviceHash + "  days=" + result.days + (result.isPermanent ? " (permanent)" : ""))));
+  console.log("  " + bold(cyan(" decrypted            productId=" + result.productId + "  deviceHash=" + result.deviceHash + "  days=" + result.days + daysLabel)));
   console.log("");
   console.log("  " + dim("pid:" + (pidMatch ? pass : fail) + "  dev:" + (devMatch ? pass : fail) + "  days:" + (daysMatch ? pass : fail)) + "  -> " + bold(allMatch ? green("ALL PASS") : red("FAILED")));
 
@@ -83,24 +86,27 @@ function runCustomTest(code) {
   var scrambledPid = cleaned.substring(0, 4);
   var idHash = cleaned.substring(4, 8);
   var scrambledDays = cleaned.substring(8, 12);
-  var checksum = cleaned.substring(12, 16);
+  var embedded = cleaned.substring(12, 16);
+  var plain = scrambledPid + idHash + scrambledDays;
+  var checksum = crypto.generateChecksum4(plain);
+  var saltHash = crypto.unscramble4(embedded, checksum);
 
   console.log(dim("  Structure:"));
-  console.log(dim("    [" + scrambledPid + "] [" + idHash + "] [" + scrambledDays + "] [" + checksum + "]"));
-  console.log(dim("    scrambledPid  deviceHash  scrambledDays  checksum"));
+  console.log(dim("    [" + scrambledPid + "] [" + idHash + "] [" + scrambledDays + "] [" + embedded + "]"));
+  console.log(dim("    scrambledPid  deviceHash  scrambledDays  embedded(saltHash^checksum)"));
   console.log("");
 
-  var plain = scrambledPid + idHash + scrambledDays;
-  var expectedChecksum = crypto.generateChecksum4(plain);
-  var checksumOk = expectedChecksum === checksum;
-  console.log("  " + dim("Checksum: ") + (checksumOk ? green("PASS") + dim("  (" + expectedChecksum + " == " + checksum + ")") : red("FAIL") + dim("  (computed " + expectedChecksum + " != got " + checksum + ")")));
+  console.log("  " + dim("Checksum: " + checksum + "  SaltHash: " + saltHash));
+
+  var perCodeSecret = crypto.scramble4(crypto.ACTIVATION_SECRET, saltHash);
+  console.log(dim("  PerCodeSecret: " + perCodeSecret));
   console.log("");
 
-  var unscrambledPid = crypto.unscramble4(scrambledPid, crypto.ACTIVATION_SECRET);
-  var unscrambledDays = crypto.unscramble4(scrambledDays, crypto.ACTIVATION_SECRET);
+  var unscrambledPid = crypto.unscramble4(scrambledPid, perCodeSecret);
+  var unscrambledDays = crypto.unscramble4(scrambledDays, perCodeSecret);
   var days = parseInt(unscrambledDays, 10);
 
-  console.log(dim("  Unscramble (secret " + crypto.ACTIVATION_SECRET + "):"));
+  console.log(dim("  Unscramble (perCodeSecret " + perCodeSecret + "):"));
   console.log(dim("    pid:  " + scrambledPid + " -> " + unscrambledPid));
   console.log(dim("    days: " + scrambledDays + " -> " + unscrambledDays + (days === 9999 ? " (permanent)" : "")));
   console.log("");
@@ -125,13 +131,13 @@ function runCustomTest(code) {
   return result.valid;
 }
 
-function runEncryptThenDecrypt(productId, deviceId, days) {
+function runEncryptThenDecrypt(productId, deviceId, days, salt) {
   days = parseInt(days, 10);
 
   var pidHash = crypto.productIdTo4Digit(productId);
   var devHash = crypto.deviceIdTo4Digit(deviceId);
 
-  var code = crypto.generateActivationCode(productId, deviceId, days);
+  var code = crypto.generateActivationCode(productId, deviceId, days, salt);
   var formatted = crypto.fmtCode16(code);
 
   var result = crypto.decryptActivationCode(code);
@@ -144,7 +150,7 @@ function runEncryptThenDecrypt(productId, deviceId, days) {
   var daysLabel = result.isPermanent ? " days(permanent)" : " days";
 
   console.log("");
-  console.log("  " + bold("Input:     ") + dim(productId + " | " + deviceId + " | " + days + daysLabel));
+  console.log("  " + bold("Input:     ") + dim(productId + " | " + deviceId + " | " + days + daysLabel + " | salt=" + salt));
   console.log("");
   console.log("  " + bold("Encrypted: ") + bold(yellow(formatted)));
   console.log("  " + bold("Decrypted: ") + bold(cyan(pidHash + " | " + devHash + " | " + result.days + daysLabel)));
@@ -182,16 +188,17 @@ if (raw.length === 16 && /^\d{16}$/.test(raw)) {
   process.exit(0);
 }
 
-// Otherwise -> parse as: productId(4) + deviceId(4) + days(4) + checksum(4)
-// checksum is a verification output, not an encryption input
+// Otherwise -> parse as: productId(4) + deviceId(4) + days(4) + salt(rest)
+// salt participates in encryption, each unique salt produces unique activation code
 
 var pid = raw.substring(0, 4);
 var did = raw.substring(4, 8);
 var daysStr = raw.substring(8, 12);
+var salt = raw.substring(12) || "0000";
 var days = parseInt(daysStr, 10);
 
 console.log("");
 console.log(bold("  === Encrypt ==="));
 console.log("");
 
-runEncryptThenDecrypt(pid, did, days);
+runEncryptThenDecrypt(pid, did, days, salt);
