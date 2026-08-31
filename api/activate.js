@@ -43,7 +43,7 @@ function normalizeMonths(months) {
 
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
-    return res.status(405).json({ success: false, error: "请求方法不允许" });
+    return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
   try {
@@ -58,10 +58,7 @@ module.exports = async (req, res) => {
 
     var codeCheck = validateRedeemCode(redeemCode);
     if (!codeCheck.valid) {
-      var errMsg = codeCheck.error;
-      if (errMsg.indexOf("Redeem code is required") >= 0) errMsg = "请输入兑换码";
-      else if (errMsg.indexOf("Redeem code must be") >= 0) errMsg = "兑换码必须为4位大写字母或数字（A-Z, 0-9）";
-      return res.status(400).json({ success: false, error: errMsg });
+      return res.status(400).json({ success: false, error: codeCheck.error });
     }
 
     var code = codeCheck.value;
@@ -70,13 +67,13 @@ module.exports = async (req, res) => {
 
     var codeData = await redis.get("auth:redeem:" + code);
     if (!codeData) {
-      return res.status(400).json({ success: false, error: "兑换码无效，请检查后重试" });
+      return res.status(400).json({ success: false, error: "Invalid redeem code" });
     }
 
     var info = parseRedisJson(codeData);
     if (!info) {
       console.error("Activate: invalid redeem payload", typeof codeData, codeData);
-      return res.status(500).json({ success: false, error: "兑换码数据异常，请联系管理员" });
+      return res.status(500).json({ success: false, error: "Redeem code data corrupted, contact admin" });
     }
 
     var productId = normalizeProductId(info.product_id);
@@ -85,7 +82,7 @@ module.exports = async (req, res) => {
       console.error("Activate: bad product/duration", info.product_id, info.duration_months);
       return res.status(500).json({
         success: false,
-        error: "兑换码配置异常（产品或有效期无效），请联系管理员",
+        error: "Redeem code config invalid (bad product or duration), contact admin",
       });
     }
 
@@ -100,13 +97,15 @@ module.exports = async (req, res) => {
         info.generated_activation_code = activationCodeReuse;
         info.product_id = productId;
         info.duration_months = months;
-        await redis.set("auth:redeem:" + code, JSON.stringify(info));
-        await redis.set("auth:device:" + deviceHash, activationCodeReuse);
+        await Promise.all([
+          redis.set("auth:redeem:" + code, JSON.stringify(info)),
+          redis.set("auth:device:" + deviceHash, activationCodeReuse)
+        ]);
         return res.json({ success: true, activationCode: activationCodeReuse });
       }
       return res.status(400).json({
         success: false,
-        error: "该兑换码已被其他设备激活使用",
+        error: "Redeem code already used by another device",
       });
     }
 
@@ -127,7 +126,6 @@ module.exports = async (req, res) => {
       created_at: info.created_at || Date.now(),
       used_at: Date.now(),
     };
-    await redis.set("auth:redeem:" + code, JSON.stringify(updated));
 
     var record = {
       activation_code: activationCode,
@@ -137,19 +135,24 @@ module.exports = async (req, res) => {
       redeem_code: code,
       generated_at: Date.now(),
     };
-    await redis.set("auth:activation:" + activationCode, JSON.stringify(record));
-    await redis.sadd("auth:activation_codes", activationCode);
 
-    await redis.set("auth:device:" + deviceHash, activationCode);
+    var USED_COUNTER_KEY = "auth:counter:used_redeem_codes";
+    await Promise.all([
+      redis.set("auth:redeem:" + code, JSON.stringify(updated)),
+      redis.set("auth:activation:" + activationCode, JSON.stringify(record)),
+      redis.sadd("auth:activation_codes", activationCode),
+      redis.set("auth:device:" + deviceHash, activationCode),
+      redis.incr(USED_COUNTER_KEY).catch(function () {}),
+    ]);
 
     return res.json({ success: true, activationCode: activationCode });
   } catch (error) {
     console.error("Activate error:", error && error.message ? error.message : error, error);
-    var msg = "服务器内部错误，请稍后重试";
-    if (error && error.code === "REDIS_ENV_MISSING") {
-      msg = "服务器未配置数据库（Redis），请联系管理员";
-    } else if (error && /fetch failed|ENOTFOUND|ECONNREFUSED|Unauthorized|401|403|Redis/i.test(String(error.message || ""))) {
-      msg = "服务器数据库连接失败，请稍后重试或联系管理员";
+    var msg = "Internal server error, please try again later";
+    if (error && error.code === "PG_ENV_MISSING") {
+      msg = "Server database (Postgres) not configured, contact admin";
+    } else if (error && /connection|ECONNREFUSED|ENOTFOUND|Unauthorized|401|403/i.test(String(error.message || ""))) {
+      msg = "Server database connection failed, try again later or contact admin";
     }
     return res.status(500).json({ success: false, error: msg });
   }

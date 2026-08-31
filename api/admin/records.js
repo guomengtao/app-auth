@@ -13,7 +13,7 @@ module.exports = async (req, res) => {
 
   try {
     const { cursor, product_id } = req.query;
-    const count = Math.min(parseInt(req.query.count) || 50, 200);
+    const count = Math.min(parseInt(req.query.count) || 100, 200);
 
     const [nextCursor, keys] = await redis.sscan("auth:activation_codes", cursor || 0, {
       count,
@@ -43,6 +43,12 @@ module.exports = async (req, res) => {
     });
   } catch (error) {
     console.error("Records error:", error);
-    return res.status(500).json({ success: false, error: "Internal server error" });
+    var msg = "Internal server error";
+    if (error && error.code === "PG_ENV_MISSING") {
+      msg = "Server database (Postgres) not configured, contact admin";
+    } else if (error && /connection|ECONNREFUSED|ENOTFOUND/i.test(String(error.message || ""))) {
+      msg = "Server database connection failed, try again later or contact admin";
+    }
+    return res.status(500).json({ success: false, error: msg });
   }
 };

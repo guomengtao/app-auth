@@ -1,9 +1,4 @@
-const { Redis } = require("@upstash/redis");
-
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL,
-  token: process.env.KV_REST_API_TOKEN,
-});
+const redis = require("../lib/redis");
 
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
@@ -24,12 +19,20 @@ module.exports = async (req, res) => {
       createdAt: new Date().toISOString(),
     };
 
-    await redis.set(`msg:${id}`, JSON.stringify(entry));
-    await redis.lpush("messages:list", id);
+    await Promise.all([
+      redis.set(`msg:${id}`, JSON.stringify(entry)),
+      redis.lpush("messages:list", id),
+    ]);
 
     return res.status(200).json({ success: true, entry });
   } catch (error) {
     console.error("Publish error:", error);
-    return res.status(500).json({ error: "Failed to publish message" });
+    var msg = "Failed to publish message";
+    if (error && error.code === "PG_ENV_MISSING") {
+      msg = "Server database (Postgres) not configured, contact admin";
+    } else if (error && /connection|ECONNREFUSED|ENOTFOUND/i.test(String(error.message || ""))) {
+      msg = "Server database connection failed, try again later or contact admin";
+    }
+    return res.status(500).json({ error: msg });
   }
 };

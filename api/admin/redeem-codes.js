@@ -26,7 +26,6 @@ function parseRedisJson(value) {
 }
 
 function normalizeSscanResult(result) {
-  // Upstash may return [cursor, keys] or { cursor, keys }
   if (Array.isArray(result)) {
     return {
       cursor: String(result[0] == null ? "0" : result[0]),
@@ -47,7 +46,7 @@ async function scanAllRedeemCodes() {
   var cursor = "0";
   var guard = 0;
   do {
-    var raw = await redis.sscan("auth:redeem_codes", cursor, { count: 200 });
+    var raw = await redis.sscan("auth:redeem_codes", cursor, { count: 500 });
     var parsed = normalizeSscanResult(raw);
     cursor = parsed.cursor;
     if (parsed.keys.length) {
@@ -62,7 +61,7 @@ async function fetchRedeemRecords(keys) {
   var records = [];
   if (!keys || keys.length === 0) return records;
 
-  var batchSize = 80;
+  var batchSize = 100;
   for (var i = 0; i < keys.length; i += batchSize) {
     var batch = keys.slice(i, i + batchSize);
     var values;
@@ -94,6 +93,17 @@ async function listFilteredCodes(filterProductId, filterUsed, filterDuration) {
   return allCodes.filter(function (data) {
     return matchCode(data, filterProductId, filterUsed, filterDuration);
   });
+}
+
+function generateUniqueCodes(count) {
+  var codes = new Set();
+  var attempts = 0;
+  var maxAttempts = count * 20;
+  while (codes.size < count && attempts < maxAttempts) {
+    codes.add(generateRedeemCode());
+    attempts++;
+  }
+  return Array.from(codes);
 }
 
 module.exports = async (req, res) => {
@@ -173,22 +183,26 @@ module.exports = async (req, res) => {
 
       var numCodes = countCheck.value;
       var months = durationCheck.value;
+
+      var candidateCodes = generateUniqueCodes(numCodes + Math.floor(numCodes * 0.2) + 10);
+      var checkPipeline = redis.pipeline();
+      candidateCodes.forEach(function (code) {
+        checkPipeline.get("auth:redeem:" + code);
+      });
+      var checkResults = await checkPipeline.exec();
+
+      var availableCodes = [];
+      checkResults.forEach(function (val, idx) {
+        if (!val && availableCodes.length < numCodes) {
+          availableCodes.push(candidateCodes[idx]);
+        }
+      });
+
+      var now = Date.now();
       var generated = [];
+      var writePipeline = redis.pipeline();
 
-      for (var i = 0; i < numCodes; i++) {
-        var code = generateRedeemCode();
-
-        var existing = await redis.get("auth:redeem:" + code);
-        var retries = 0;
-        while (existing && retries < 10) {
-          code = generateRedeemCode();
-          existing = await redis.get("auth:redeem:" + code);
-          retries++;
-        }
-        if (existing) {
-          continue;
-        }
-
+      availableCodes.forEach(function (code) {
         var record = {
           code: code,
           product_id: productId,
@@ -196,13 +210,20 @@ module.exports = async (req, res) => {
           used: false,
           used_device_id: null,
           generated_activation_code: null,
-          created_at: Date.now(),
+          created_at: now,
           used_at: null,
         };
-
-        await redis.set("auth:redeem:" + code, JSON.stringify(record));
-        await redis.sadd("auth:redeem_codes", code);
+        writePipeline.set("auth:redeem:" + code, JSON.stringify(record));
+        writePipeline.sadd("auth:redeem_codes", code);
         generated.push(code);
+      });
+
+      await writePipeline.exec();
+
+      try {
+        await redis.del("auth:counter:used_redeem_codes");
+      } catch (e) {
+        console.error("Failed to invalidate used count cache:", e);
       }
 
       return res.json({
@@ -215,6 +236,12 @@ module.exports = async (req, res) => {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   } catch (error) {
     console.error("Redeem codes error:", error && error.message ? error.message : error, error);
-    return res.status(500).json({ success: false, error: "Internal server error" });
+    var msg = "Internal server error";
+    if (error && error.code === "PG_ENV_MISSING") {
+      msg = "Server database (Postgres) not configured, contact admin";
+    } else if (error && /connection|ECONNREFUSED|ENOTFOUND/i.test(String(error.message || ""))) {
+      msg = "Server database connection failed, try again later or contact admin";
+    }
+    return res.status(500).json({ success: false, error: msg });
   }
 };

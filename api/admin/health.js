@@ -6,8 +6,11 @@ function nowMs() {
   return Date.now();
 }
 
-function getRedisConfig() {
-  return redis.getRedisConfig ? redis.getRedisConfig() : { url: "", token: "" };
+function getPgConfig() {
+  return {
+    url: String(process.env.POSTGRES_URL || process.env.DATABASE_URL || "").trim(),
+    token: "",
+  };
 }
 
 function maskUrl(url) {
@@ -34,13 +37,19 @@ async function runCheck(id, name, fn) {
       data: result.data || null,
     };
   } catch (e) {
+    var detailMsg = (e && e.message) || String(e);
+    var hintMsg = "Check Vercel function logs and Postgres connection config";
+    if (e && e.code === "PG_ENV_MISSING") {
+      detailMsg = "Postgres env missing: " + detailMsg;
+      hintMsg = "Configure POSTGRES_URL in Vercel Project -> Settings -> Environment Variables, then redeploy";
+    }
     return {
       id: id,
       name: name,
       status: "fail",
       latencyMs: nowMs() - started,
-      detail: (e && e.message) || String(e),
-      hint: "查看 Vercel 函数日志与 Upstash/KV 连接配置",
+      detail: detailMsg,
+      hint: hintMsg,
       data: null,
     };
   }
@@ -57,35 +66,34 @@ module.exports = async (req, res) => {
   }
 
   var checks = [];
-  var cfg = getRedisConfig();
+  var cfg = getPgConfig();
 
   checks.push(
-    await runCheck("env", "环境变量", async function () {
+    await runCheck("env", "Environment Variables", async function () {
       var missing = [];
-      if (!cfg.url) missing.push("KV_REST_API_URL / UPSTASH_REDIS_REST_URL");
-      if (!cfg.token) missing.push("KV_REST_API_TOKEN / UPSTASH_REDIS_REST_TOKEN");
+      if (!cfg.url) missing.push("POSTGRES_URL / DATABASE_URL");
       var jwtSet = !!(process.env.JWT_SECRET && process.env.JWT_SECRET !== "jwt-secret-change-me");
       if (missing.length) {
         return {
           status: "fail",
-          detail: "缺失: " + missing.join(", "),
-          hint: "在 Vercel Project → Settings → Environment Variables 中配置 Upstash/KV 变量并重新部署",
-          data: { jwtConfigured: jwtSet, redisUrl: maskUrl(cfg.url) },
+          detail: "Missing: " + missing.join(", "),
+          hint: "Configure Postgres variables in Vercel Project -> Settings -> Environment Variables, then redeploy",
+          data: { jwtConfigured: jwtSet, pgUrl: maskUrl(cfg.url) },
         };
       }
       return {
         status: jwtSet ? "pass" : "warn",
         detail: jwtSet
-          ? "Redis 与 JWT 环境变量已配置"
-          : "Redis 已配置，但 JWT_SECRET 使用默认值（不安全）",
-        hint: jwtSet ? "" : "建议设置强随机 JWT_SECRET",
-        data: { jwtConfigured: jwtSet, redisUrl: maskUrl(cfg.url) },
+          ? "Postgres and JWT environment variables configured"
+          : "Postgres configured, but JWT_SECRET uses default value (insecure)",
+        hint: jwtSet ? "" : "Set a strong random JWT_SECRET",
+        data: { jwtConfigured: jwtSet, pgUrl: maskUrl(cfg.url) },
       };
     })
   );
 
   checks.push(
-    await runCheck("redis_ping", "Redis 连通性", async function () {
+    await runCheck("pg_ping", "Postgres Connectivity", async function () {
       var pong = await redis.ping();
       return {
         status: pong === "PONG" || pong === "pong" || pong ? "pass" : "warn",
@@ -96,7 +104,7 @@ module.exports = async (req, res) => {
   );
 
   checks.push(
-    await runCheck("redis_rw", "Redis 读写", async function () {
+    await runCheck("pg_rw", "Postgres Read/Write", async function () {
       var key = "auth:health:probe";
       var payload = { t: Date.now(), by: auth.username || "admin" };
       await redis.set(key, JSON.stringify(payload), { ex: 60 });
@@ -106,21 +114,21 @@ module.exports = async (req, res) => {
       if (!ok) {
         return {
           status: "fail",
-          detail: "写入后读回不一致",
-          hint: "检查 KV 是否只读、或是否连到了错误的 Redis 实例",
+          detail: "Write then read mismatch",
+          hint: "Check if Postgres is read-only or connected to wrong database instance",
           data: { wrote: payload, read: parsed },
         };
       }
       return {
         status: "pass",
-        detail: "set/get 正常（临时键 60s 过期）",
+        detail: "set/get OK (temp key expires in 60s)",
         data: { key: key },
       };
     })
   );
 
   checks.push(
-    await runCheck("products", "产品数据", async function () {
+    await runCheck("products", "Products Data", async function () {
       var raw = await redis.hgetall("auth:products");
       var counter = await redis.get("auth:product_counter");
       var count = raw ? Object.keys(raw).length : 0;
@@ -141,41 +149,41 @@ module.exports = async (req, res) => {
       return {
         status: parseErrors ? "warn" : "pass",
         detail:
-          "产品数 " +
+          "Product count " +
           count +
-          "，计数器 " +
+          ", counter " +
           String(counter == null ? "-" : counter) +
-          (parseErrors ? "，解析异常 " + parseErrors : ""),
-        hint: count === 0 ? "当前无产品，添加产品失败通常是 Redis 写入或鉴权问题" : "",
+          (parseErrors ? ", parse errors " + parseErrors : ""),
+        hint: count === 0 ? "No products yet. Add product failures are usually Postgres write or auth issues." : "",
         data: { count: count, counter: counter, sampleIds: sampleIds, parseErrors: parseErrors },
       };
     })
   );
 
   checks.push(
-    await runCheck("redeem_codes", "兑换码数据", async function () {
+    await runCheck("redeem_codes", "Redeem Codes Data", async function () {
       var total = await redis.scard("auth:redeem_codes");
       return {
         status: "pass",
-        detail: "兑换码集合大小 " + total,
+        detail: "Redeem code set size: " + total,
         data: { total: total },
       };
     })
   );
 
   checks.push(
-    await runCheck("activations", "激活记录", async function () {
+    await runCheck("activations", "Activation Records", async function () {
       var total = await redis.scard("auth:activation_codes");
       return {
         status: "pass",
-        detail: "激活码集合大小 " + total,
+        detail: "Activation code set size: " + total,
         data: { total: total },
       };
     })
   );
 
   checks.push(
-    await runCheck("crypto", "激活码编解码", async function () {
+    await runCheck("crypto", "Activation Code Encode/Decode", async function () {
       var code = crypto.generateActivationCode("01", "Ab12", 12, "TEST");
       var dec = crypto.decryptActivationCode(code);
       var ok =
@@ -188,37 +196,35 @@ module.exports = async (req, res) => {
       if (!ok) {
         return {
           status: "fail",
-          detail: "编解码校验失败",
+          detail: "Encode/decode verification failed",
           data: { code: code, dec: dec },
         };
       }
       return {
         status: "pass",
-        detail: "18位激活码编解码正常: " + crypto.fmtCode18(code),
+        detail: "18-digit activation code encode/decode OK: " + crypto.fmtCode18(code),
         data: { sample: code },
       };
     })
   );
 
   checks.push(
-    await runCheck("activate_path", "激活链路抽检", async function () {
-      // Non-destructive: ensure redis read path used by activate works.
+    await runCheck("activate_path", "Activation Path Spot Check", async function () {
       var probeCode = "____";
       var missing = await redis.get("auth:redeem:" + probeCode);
       if (missing != null) {
         return {
           status: "warn",
-          detail: "探测键意外存在，跳过",
+          detail: "Probe key unexpectedly exists, skipping",
         };
       }
-      // Try listing one real redeem if any
       var scan = await redis.sscan("auth:redeem_codes", "0", { count: 5 });
       var keys = Array.isArray(scan) ? scan[1] || [] : scan && scan.keys ? scan.keys : [];
       if (!keys.length) {
         return {
           status: "warn",
-          detail: "暂无兑换码，无法做真实兑换码读取抽检（编解码已通过）",
-          hint: "先在后台生成兑换码后再测激活；若激活仍 500，优先看 Redis 连通性检查",
+          detail: "No redeem codes yet, cannot do real redeem code read spot-check (encode/decode passed)",
+          hint: "Generate redeem codes in admin panel first, then test activation. If activation still returns 500, prioritize Postgres connectivity checks.",
         };
       }
       var sampleKey = keys[0];
@@ -230,16 +236,16 @@ module.exports = async (req, res) => {
         } catch (e) {
           return {
             status: "fail",
-            detail: "兑换码 " + sampleKey + " JSON 解析失败",
-            hint: "兑换码 payload 损坏会导致激活 500",
+            detail: "Redeem code " + sampleKey + " JSON parse failed",
+            hint: "Corrupted redeem code payload causes activation 500",
           };
         }
       }
       if (!info || typeof info !== "object") {
         return {
           status: "fail",
-          detail: "兑换码 " + sampleKey + " 数据无法解析",
-          hint: "兑换码 payload 损坏会导致激活 500",
+          detail: "Redeem code " + sampleKey + " data unparseable",
+          hint: "Corrupted redeem code payload causes activation 500",
         };
       }
       var pid = crypto.pad2(info.product_id);
@@ -247,25 +253,25 @@ module.exports = async (req, res) => {
       if (!Number.isFinite(months) || months < 1) {
         return {
           status: "fail",
-          detail: "兑换码 " + sampleKey + " 的 duration_months 无效: " + String(info.duration_months),
-          hint: "修复该兑换码数据或重新生成",
+          detail: "Redeem code " + sampleKey + " has invalid duration_months: " + String(info.duration_months),
+          hint: "Fix the redeem code data or regenerate it",
           data: { code: sampleKey, product_id: info.product_id, duration_months: info.duration_months },
         };
       }
       var act = crypto.generateActivationCode(pid, "Zz99", months, String(sampleKey).toUpperCase());
       return {
         status: "pass",
-        detail: "样例兑换码 " + sampleKey + " 可读，模拟激活码生成成功",
+        detail: "Sample redeem code " + sampleKey + " readable, simulated activation generated",
         data: { sampleCode: sampleKey, product_id: pid, duration_months: months, sampleActivation: act },
       };
     })
   );
 
   checks.push(
-    await runCheck("auth", "后台鉴权", async function () {
+    await runCheck("auth", "Admin Authentication", async function () {
       return {
         status: "pass",
-        detail: "当前请求已通过鉴权: " + (auth.username || "unknown"),
+        detail: "Current request authenticated: " + (auth.username || "unknown"),
         data: { username: auth.username || "" },
       };
     })
@@ -277,12 +283,12 @@ module.exports = async (req, res) => {
 
   var summary = "";
   if (overall === "ok") {
-    summary = "服务器核心依赖正常。若前台仍提示激活失败，请核对兑换码是否存在于 Redis，以及设备ID是否正确。";
+    summary = "Core server dependencies healthy. If frontend still reports activation failure, verify redeem code exists in Postgres and device ID is correct.";
   } else if (overall === "degraded") {
-    summary = "存在告警项，服务可能部分可用。请优先处理警告项后再重试添加产品/激活。";
+    summary = "Warnings present, service may be partially available. Resolve warning items before retrying product add / activation.";
   } else {
     summary =
-      "检测到故障。添加产品失败与激活 500 最常见原因是 Redis/KV 未配置或连不通。请先修复失败的检查项。";
+      "Faults detected. Most common causes for add-product failure and activation 500 are unconfigured or unreachable Postgres. Fix failed check items first.";
   }
 
   return res.json({

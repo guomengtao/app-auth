@@ -65,7 +65,7 @@ module.exports = async (req, res) => {
 
       var counter = await redis.incr("auth:product_counter");
       if (counter > 99) {
-        return res.status(400).json({ success: false, error: "已达到产品数量上限（99）" });
+        return res.status(400).json({ success: false, error: "Product limit reached (max 99)" });
       }
       var id = pad2(counter);
       var product = {
@@ -74,12 +74,10 @@ module.exports = async (req, res) => {
         created_at: Date.now(),
       };
 
-      // Store as JSON string for stable cross-client compatibility.
       await redis.hset("auth:products", { [id]: JSON.stringify(product) });
       try {
         await redis.sadd("auth:product_ids", id);
       } catch (e) {
-        // Non-fatal secondary index
         console.error("product_ids sadd failed:", e);
       }
 
@@ -89,11 +87,11 @@ module.exports = async (req, res) => {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   } catch (error) {
     console.error("Products error:", error && error.message ? error.message : error, error);
-    var msg = "服务器内部错误";
-    if (error && error.code === "REDIS_ENV_MISSING") {
-      msg = "Redis 未配置，请在 Vercel 设置 KV/Upstash 环境变量";
-    } else if (error && /fetch failed|ENOTFOUND|ECONNREFUSED|Unauthorized|401|403/i.test(String(error.message || ""))) {
-      msg = "Redis 连接失败，请检查 KV_REST_API_URL / TOKEN";
+    var msg = "Internal server error";
+    if (error && error.code === "PG_ENV_MISSING") {
+      msg = "Postgres not configured. Please set POSTGRES_URL environment variable in Vercel settings";
+    } else if (error && /connection|ECONNREFUSED|ENOTFOUND|Unauthorized|401|403/i.test(String(error.message || ""))) {
+      msg = "Postgres connection failed. Check POSTGRES_URL environment variable";
     }
     return res.status(500).json({ success: false, error: msg });
   }

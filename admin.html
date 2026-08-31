@@ -1068,7 +1068,7 @@
               <div class="health-overall">
                 <div class="health-badge"><span class="health-dot"></span><span id="healthOverallText">尚未检测</span></div>
               </div>
-              <div class="health-summary-text" id="healthSummaryText">点击「开始检测」分析 Redis、鉴权、编解码与激活链路，定位添加产品/激活失败原因。</div>
+              <div class="health-summary-text" id="healthSummaryText">点击「开始检测」分析 Postgres、鉴权、编解码与激活链路，定位添加产品/激活失败原因。</div>
             </div>
             <div class="health-grid" id="healthChecks"></div>
           </div>
@@ -1319,7 +1319,7 @@
       records: { title: '激活记录', sub: '查看设备激活历史' },
       'pg-messages': { title: '消息中心 (Postgres)', sub: '使用 Vercel Postgres 发布和管理持久化消息' },
       decrypt: { title: '解密验证', sub: '离线解析激活码内容' },
-      health: { title: '服务器状态', sub: '检测 Redis / 鉴权 / 激活链路是否正常' }
+      health: { title: '服务器状态', sub: '检测 Postgres / 鉴权 / 激活链路是否正常' }
     };
 
     function switchTab(tab) {
@@ -1922,7 +1922,7 @@
         btn.textContent = '检测中...';
       }
       document.getElementById('healthOverallText').textContent = '检测中...';
-      document.getElementById('healthSummaryText').textContent = '正在检查环境变量、Redis、产品/兑换码数据、编解码与激活链路...';
+      document.getElementById('healthSummaryText').textContent = '正在检查环境变量、Postgres、产品/兑换码数据、编解码与激活链路...';
       checksEl.innerHTML = '<div class="empty">检测进行中，请稍候...</div>';
 
       try {

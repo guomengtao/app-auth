@@ -1,9 +1,4 @@
-const { Redis } = require("@upstash/redis");
-
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL,
-  token: process.env.KV_REST_API_TOKEN,
-});
+const redis = require("../lib/redis");
 
 module.exports = async (req, res) => {
   if (req.method !== "GET") {
@@ -28,6 +23,12 @@ module.exports = async (req, res) => {
     return res.status(200).json({ messages });
   } catch (error) {
     console.error("Fetch error:", error);
-    return res.status(500).json({ error: "Failed to fetch messages" });
+    var msg = "Failed to fetch messages";
+    if (error && error.code === "PG_ENV_MISSING") {
+      msg = "Server database (Postgres) not configured, contact admin";
+    } else if (error && /connection|ECONNREFUSED|ENOTFOUND/i.test(String(error.message || ""))) {
+      msg = "Server database connection failed, try again later or contact admin";
+    }
+    return res.status(500).json({ error: msg });
   }
 };
