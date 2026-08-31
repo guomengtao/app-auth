@@ -1,0 +1,377 @@
+var redis = require("../../lib/redis");
+var crypto = require("../../lib/crypto");
+var { requireAuth } = require("../../lib/auth");
+var quota = require("../../lib/quota");
+
+function parseBody(req) {
+  var body = req.body;
+  if (body == null || body === "") return {};
+  if (typeof body === "string") {
+    try { return JSON.parse(body); } catch (e) { return {}; }
+  }
+  return body || {};
+}
+
+function parseJsonSafe(s, fallback) {
+  if (s == null) return fallback;
+  if (typeof s !== "string") return s;
+  try { return JSON.parse(s); } catch (e) { return fallback; }
+}
+
+async function snapshotAll() {
+  try { await quota.bumpQuotaTick("/api/admin/sync"); } catch (_) {}
+  var pAll = await redis.hgetall("auth:products");
+  var productsArray = [];
+  if (pAll && typeof pAll === "object") {
+    Object.keys(pAll).sort().forEach(function(id) {
+      var v = parseJsonSafe(pAll[id], null);
+      if (v && typeof v === "object") {
+        productsArray.push(Object.assign({ id: String(id).padStart(2, '0') }, v));
+      }
+    });
+  }
+  var productCounter = Number(await redis.get("auth:product_counter")) || 0;
+
+  var codeSet = await redis.smembers("auth:redeem_codes");
+  var codeKeys = Array.isArray(codeSet) ? codeSet : [];
+  var redeemCodesArray = [];
+  if (codeKeys.length) {
+    var chunks = [];
+    for (var i = 0; i < codeKeys.length; i += 200) chunks.push(codeKeys.slice(i, i + 200));
+    for (var c = 0; c < chunks.length; c++) {
+      var batch = chunks[c];
+      var keys = batch.map(function(x) { return "auth:redeem:" + x; });
+      var vals = await redis.mget(keys);
+      for (var j = 0; j < batch.length; j++) {
+        var code = batch[j];
+        var raw = vals && vals[j];
+        var obj = parseJsonSafe(raw, null);
+        if (obj) {
+          var o = Object.assign({}, obj, { code: String(code).toUpperCase() });
+          if (o.product_id) o.product_id = String(o.product_id).padStart(2, '0');
+          redeemCodesArray.push(o);
+        }
+      }
+    }
+  }
+
+  var actSet = await redis.smembers("auth:activation_codes");
+  var actKeys = Array.isArray(actSet) ? actSet : [];
+  var activationsArray = [];
+  if (actKeys.length) {
+    var chunksA = [];
+    for (var i2 = 0; i2 < actKeys.length; i2 += 200) chunksA.push(actKeys.slice(i2, i2 + 200));
+    for (var c2 = 0; c2 < chunksA.length; c2++) {
+      var batchA = chunksA[c2];
+      var keysA = batchA.map(function(x) { return "auth:activation:" + x; });
+      var valsA = await redis.mget(keysA);
+      for (var j2 = 0; j2 < batchA.length; j2++) {
+        var acode = batchA[j2];
+        var rawA = valsA && valsA[j2];
+        var objA = parseJsonSafe(rawA, null);
+        if (objA) {
+          var oa = Object.assign({}, objA);
+          if (!oa.activation_code) oa.activation_code = String(acode);
+          activationsArray.push(oa);
+        }
+      }
+    }
+  }
+
+  return {
+    schema: 2,
+    generatedAt: Date.now(),
+    counters: {
+      product_counter: productCounter,
+    },
+    products: productsArray,
+    redeemCodes: redeemCodesArray,
+    activationRecords: activationsArray,
+    stats: {
+      productCount: productsArray.length,
+      redeemCodeCount: redeemCodesArray.length,
+      activationCount: activationsArray.length,
+    },
+  };
+}
+
+function validateLocalProduct(id, p) {
+  if (p && typeof p === "object" && !id) id = p.id;
+  id = String(id || "").trim();
+  if (!/^\d{1,2}$/.test(id)) return null;
+  if (!p || typeof p !== "object") return null;
+  var name = String(p.name || "").trim();
+  if (name.length < 1 || name.length > 60) return null;
+  return {
+    id: id.padStart(2, "0"),
+    name: name,
+    description: String(p.description || "").trim().slice(0, 200),
+    created_at: Number(p.created_at) || Date.now(),
+    updated_at: Number(p.updated_at) || Date.now(),
+  };
+}
+
+function validateLocalCode(obj, idx) {
+  if (!obj || typeof obj !== "object") return null;
+  var c = String(obj.code || (typeof idx === "string" ? idx : "")).toUpperCase().trim();
+  if (!/^[A-Z0-9]{3,16}$/.test(c)) return null;
+  var pid = String(obj.product_id || "01").padStart(2, "0");
+  var dm = Number(obj.duration_months);
+  if (!/^\d{2}$/.test(pid)) return null;
+  if (!Number.isFinite(dm) || dm < 1 || dm > 99) return null;
+  var used = !!obj.used;
+  return {
+    code: c,
+    product_id: pid,
+    duration_months: dm,
+    created_at: Number(obj.created_at) || Date.now(),
+    used: used,
+    used_device_id: used ? String(obj.used_device_id || "").trim() : "",
+    used_at: used ? (Number(obj.used_at) || Date.now()) : 0,
+    generated_activation_code: String(obj.generated_activation_code || "").trim(),
+  };
+}
+
+function validateLocalActivation(obj, idx) {
+  if (!obj || typeof obj !== "object") return null;
+  var c = String(obj.activation_code || (typeof idx === "string" ? idx : "")).replace(/\D/g, "");
+  if (c.length < 8 || c.length > 32) return null;
+  var pid = String(obj.product_id || "01").padStart(2, "0");
+  if (!/^\d{2}$/.test(pid)) return null;
+  return {
+    activation_code: c,
+    device_id_hash: String(obj.device_id_hash || obj.used_device_id || "").trim(),
+    device_id: String(obj.device_id || "").trim(),
+    product_id: pid,
+    duration_months: Number(obj.duration_months) || 1,
+    redeem_code: String(obj.redeem_code || "").trim().toUpperCase(),
+    generated_at: Number(obj.generated_at) || Date.now(),
+    expires_at: (obj.expires_at != null) ? Number(obj.expires_at) : null,
+  };
+}
+
+async function applyPatch(patch) {
+  var report = {
+    products: { added: 0, updated: 0, skipped: 0, deleted: 0 },
+    redeemCodes: { added: 0, updated: 0, skipped: 0, deleted: 0 },
+    activationRecords: { added: 0, updated: 0, skipped: 0 },
+    counters: {}
+  };
+  if (!patch || typeof patch !== "object") return report;
+
+  // 1) counters
+  if (patch.counters && typeof patch.counters === "object") {
+    if (Number.isFinite(Number(patch.counters.product_counter))) {
+      var local = Number(patch.counters.product_counter);
+      var cur = Number(await redis.get("auth:product_counter")) || 0;
+      if (local > cur) {
+        await redis.set("auth:product_counter", String(local));
+        report.counters.product_counter_updated_from_to = [cur, local];
+      } else {
+        report.counters.product_counter_kept = cur;
+      }
+    }
+  }
+
+  // 2) products: 支持数组或对象两种来源（前端传对象、数组都兼容）
+  var productsInput = [];
+  if (Array.isArray(patch.products)) {
+    productsInput = patch.products.slice();
+  } else if (patch.products && typeof patch.products === "object") {
+    Object.keys(patch.products).forEach(function(k) {
+      productsInput.push(Object.assign({ id: k }, patch.products[k] || {}));
+    });
+  }
+  for (var i = 0; i < productsInput.length; i++) {
+    var rawP = productsInput[i];
+    var v = validateLocalProduct(rawP && rawP.id, rawP);
+    if (!v) { report.products.skipped++; continue; }
+    var existedRaw = await redis.hget("auth:products", v.id);
+    var existed = parseJsonSafe(existedRaw, null);
+    var existedTs = existed && Number(existed.updated_at) ? Number(existed.updated_at) : 0;
+    if (!existed || existedTs < Number(v.updated_at || 0)) {
+      if (!existed) report.products.added++; else report.products.updated++;
+      await redis.hset("auth:products", { [v.id]: JSON.stringify(v) });
+      try { await redis.sadd("auth:product_ids", v.id); } catch (_) {}
+    } else {
+      report.products.skipped++;
+    }
+  }
+
+  var deletes = (patch.deletes && typeof patch.deletes === "object") ? patch.deletes : {};
+  var delPids = [];
+  if (Array.isArray(patch.deletedProductIds)) delPids = delPids.concat(patch.deletedProductIds);
+  if (Array.isArray(deletes.productIds)) delPids = delPids.concat(deletes.productIds);
+  var seenPid = {};
+  for (var di = 0; di < delPids.length; di++) {
+    var did = String(delPids[di]).padStart(2, "0");
+    if (seenPid[did]) continue;
+    seenPid[did] = true;
+    if (/^\d{2}$/.test(did)) {
+      await redis.hdel("auth:products", did);
+      try { await redis.srem("auth:product_ids", did); } catch (_) {}
+      report.products.deleted++;
+    }
+  }
+
+  // 3) redeem codes: 支持数组（前端）或对象两种输入
+  var codesInput = [];
+  if (Array.isArray(patch.redeemCodes)) {
+    codesInput = patch.redeemCodes.slice();
+  } else if (patch.redeemCodes && typeof patch.redeemCodes === "object") {
+    Object.keys(patch.redeemCodes).forEach(function(k) {
+      codesInput.push(Object.assign({ code: k }, patch.redeemCodes[k] || {}));
+    });
+  }
+  for (var k = 0; k < codesInput.length; k++) {
+    var cv = validateLocalCode(codesInput[k]);
+    if (!cv) { report.redeemCodes.skipped++; continue; }
+    var key = "auth:redeem:" + cv.code;
+    var existed2Raw = await redis.get(key);
+    var existed2 = parseJsonSafe(existed2Raw, null);
+    var e2Ts = existed2 && (Number(existed2.used_at) || Number(existed2.created_at) || 0);
+    var nTs = Number(cv.used_at) || Number(cv.created_at) || 0;
+    var serverWins = existed2 && existed2.used && !cv.used; // server 已使用本地没使用，保持服务器
+    if (serverWins) { report.redeemCodes.skipped++; continue; }
+    if (!existed2 || e2Ts <= nTs || (cv.used && !existed2.used)) {
+      if (!existed2) report.redeemCodes.added++; else report.redeemCodes.updated++;
+      await redis.set(key, JSON.stringify(cv));
+      try { await redis.sadd("auth:redeem_codes", cv.code); } catch (_) {}
+    } else {
+      report.redeemCodes.skipped++;
+    }
+  }
+
+  var delCodes = [];
+  if (Array.isArray(patch.deletedRedeemCodes)) delCodes = delCodes.concat(patch.deletedRedeemCodes);
+  if (Array.isArray(deletes.redeemCodes)) delCodes = delCodes.concat(deletes.redeemCodes);
+  var seenCode = {};
+  for (var dk = 0; dk < delCodes.length; dk++) {
+    var dcode = String(delCodes[dk]).toUpperCase();
+    if (seenCode[dcode]) continue;
+    seenCode[dcode] = true;
+    if (/^[A-Z0-9]{3,16}$/.test(dcode)) {
+      await redis.del("auth:redeem:" + dcode);
+      try { await redis.srem("auth:redeem_codes", dcode); } catch (_) {}
+      report.redeemCodes.deleted++;
+    }
+  }
+
+  // 4) activation records: 支持数组（前端）或对象两种；激活记录以服务器为权威（客户端不允许覆盖服务器记录），只有服务器不存在的新激活才插入
+  var actInput = [];
+  if (Array.isArray(patch.activationRecords)) {
+    actInput = patch.activationRecords.slice();
+  } else if (patch.activations && typeof patch.activations === "object") {
+    Object.keys(patch.activations).forEach(function(k) {
+      actInput.push(Object.assign({ activation_code: k }, patch.activations[k] || {}));
+    });
+  }
+  for (var m = 0; m < actInput.length; m++) {
+    var av = validateLocalActivation(actInput[m]);
+    if (!av) { report.activationRecords.skipped++; continue; }
+    var aKey = "auth:activation:" + av.activation_code;
+    var existedARaw = await redis.get(aKey);
+    var existedA = parseJsonSafe(existedARaw, null);
+    // 服务器为权威：已存在记录一律不覆盖（除非服务器缺字段本地补上）
+    if (!existedA) {
+      report.activationRecords.added++;
+      await redis.set(aKey, JSON.stringify(av));
+      try { await redis.sadd("auth:activation_codes", av.activation_code); } catch (_) {}
+      if (av.device_id_hash) {
+        try { await redis.set("auth:device:" + av.device_id_hash, av.activation_code); } catch (_) {}
+      }
+    } else {
+      var needPatch = false;
+      var merged = Object.assign({}, existedA);
+      if (!merged.device_id && av.device_id) { merged.device_id = av.device_id; needPatch = true; }
+      if (!merged.expires_at && av.expires_at) { merged.expires_at = av.expires_at; needPatch = true; }
+      if (needPatch) {
+        report.activationRecords.updated++;
+        await redis.set(aKey, JSON.stringify(merged));
+      } else {
+        report.activationRecords.skipped++;
+      }
+    }
+  }
+  return report;
+}
+
+function summarizeReport(r) {
+  var parts = [];
+  if (r.products) {
+    parts.push(
+      "产品: " + r.products.added + "新增/" + r.products.updated + "更新/" + r.products.deleted + "删除/" + r.products.skipped + "跳过"
+    );
+  }
+  if (r.redeemCodes) {
+    parts.push(
+      "兑换码: " + r.redeemCodes.added + "新增/" + r.redeemCodes.updated + "更新/" + r.redeemCodes.deleted + "删除/" + r.redeemCodes.skipped + "跳过"
+    );
+  }
+  if (r.activationRecords) {
+    parts.push(
+      "激活记录: " + r.activationRecords.added + "新增/" + r.activationRecords.updated + "补齐字段/" + r.activationRecords.skipped + "跳过(服务器权威)"
+    );
+  }
+  return parts.join("；");
+}
+
+module.exports = async (req, res) => {
+  var auth = requireAuth(req);
+  if (!auth.authorized) {
+    return res.status(auth.status).json({ success: false, error: auth.error });
+  }
+
+  if (req.method === "GET") {
+    try {
+      var snap = await snapshotAll();
+      return res.json({ success: true, mode: "full-snapshot", snapshot: snap, data: snap });
+    } catch (e) {
+      console.error("sync GET snapshot failed:", e);
+      return res.status(500).json({ success: false, error: (e && e.message) || String(e) });
+    }
+  }
+
+  if (req.method === "POST") {
+    var body = parseBody(req);
+    // 兼容两种前端：body.mode(新) / body.action(旧)
+    var mode = String(body.mode || body.action || "merge");
+    if (!["push", "pull", "merge"].includes(mode)) mode = "merge";
+    try {
+      if (mode === "pull") {
+        var s = await snapshotAll();
+        return res.json({ success: true, mode: "pull", snapshot: s, data: s });
+      }
+      if (mode === "push" || mode === "merge") {
+        if (!body.patch && !body.data) {
+          return res.status(400).json({ success: false, error: "Missing patch payload" });
+        }
+        var patch = body.patch || body.data || {};
+        var r = await applyPatch(patch);
+        var summary = summarizeReport(r);
+        var after = (mode === "merge") ? await snapshotAll() : null;
+        if (mode === "merge") {
+          return res.json({
+            success: true,
+            mode: "merge",
+            applied: r,
+            summary: summary,
+            snapshot: after,
+          });
+        }
+        return res.json({
+          success: true,
+          mode: "push",
+          applied: r,
+          summary: summary,
+        });
+      }
+      return res.status(400).json({ success: false, error: "Unknown mode: " + mode });
+    } catch (e) {
+      console.error("sync POST failed:", e);
+      return res.status(500).json({ success: false, error: (e && e.message) || String(e) });
+    }
+  }
+
+  return res.status(405).json({ success: false, error: "Method not allowed" });
+};
