@@ -84,16 +84,16 @@ function runCustomTest(code) {
   }
 
   var scrambledPid = cleaned.substring(0, 4);
-  var idHash = cleaned.substring(4, 8);
+  var scrambledIdHash = cleaned.substring(4, 8);
   var scrambledDays = cleaned.substring(8, 12);
   var embedded = cleaned.substring(12, 16);
-  var plain = scrambledPid + idHash + scrambledDays;
+  var plain = scrambledPid + scrambledIdHash + scrambledDays;
   var checksum = crypto.generateChecksum4(plain);
   var saltHash = crypto.unscramble4(embedded, checksum);
 
   console.log(dim("  Structure:"));
-  console.log(dim("    [" + scrambledPid + "] [" + idHash + "] [" + scrambledDays + "] [" + embedded + "]"));
-  console.log(dim("    scrambledPid  deviceHash  scrambledDays  embedded(saltHash^checksum)"));
+  console.log(dim("    [" + scrambledPid + "] [" + scrambledIdHash + "] [" + scrambledDays + "] [" + embedded + "]"));
+  console.log(dim("    scrambledPid  scrambledIdHash  scrambledDays  embedded(saltHash^checksum)"));
   console.log("");
 
   console.log("  " + dim("Checksum: " + checksum + "  SaltHash: " + saltHash));
@@ -103,12 +103,14 @@ function runCustomTest(code) {
   console.log("");
 
   var unscrambledPid = crypto.unscramble4(scrambledPid, perCodeSecret);
+  var unscrambledIdHash = crypto.unscramble4(scrambledIdHash, perCodeSecret);
   var unscrambledDays = crypto.unscramble4(scrambledDays, perCodeSecret);
   var days = parseInt(unscrambledDays, 10);
 
   console.log(dim("  Unscramble (perCodeSecret " + perCodeSecret + "):"));
-  console.log(dim("    pid:  " + scrambledPid + " -> " + unscrambledPid));
-  console.log(dim("    days: " + scrambledDays + " -> " + unscrambledDays + (days === 9999 ? " (permanent)" : "")));
+  console.log(dim("    pid:   " + scrambledPid + " -> " + unscrambledPid));
+  console.log(dim("    idHash: " + scrambledIdHash + " -> " + unscrambledIdHash));
+  console.log(dim("    days:  " + scrambledDays + " -> " + unscrambledDays + (days === 9999 ? " (permanent)" : "")));
   console.log("");
 
   var result = crypto.decryptActivationCode(cleaned);
