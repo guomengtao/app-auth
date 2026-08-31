@@ -183,37 +183,13 @@ function runEncryptThenDecrypt(productId, deviceId, days) {
   return allMatch;
 }
 
-var arg1 = process.argv[2];
-var arg2 = process.argv[3];
-var arg3 = process.argv[4];
+var input = process.argv[2];
+var raw = (input || "").replace(/\s/g, "");
 
-if (arg1 && arg2 && arg3) {
-  runEncryptThenDecrypt(arg1, arg2, arg3);
-} else if (arg1) {
-  var cleaned = arg1.replace(/\s/g, "");
-  if (cleaned.length === 16 && /^\d{16}$/.test(cleaned)) {
-    runCustomTest(arg1);
-  } else {
-    console.log("");
-    console.log(bold("  Crypto Encrypt/Decrypt Test"));
-    console.log(dim("  Secret: " + crypto.ACTIVATION_SECRET));
-    console.log("");
-    console.log("  " + red("Invalid input. Must be either:"));
-    console.log("");
-    console.log("  " + bold("  1) Verify mode:"));
-    console.log(dim("     node test/crypto-test.js <16-digit-code>"));
-    console.log("");
-    console.log("  " + bold("  2) Encrypt mode:"));
-    console.log(dim("     node test/crypto-test.js <productId> <deviceId> <days>"));
-    console.log("");
-    console.log("  " + bold("  3) Random test mode:"));
-    console.log(dim("     node test/crypto-test.js"));
-    console.log("");
-  }
-} else {
+if (!raw) {
   console.log("");
   console.log(bold("  Crypto Encrypt/Decrypt Test"));
-  console.log(dim("  Secret: " + crypto.ACTIVATION_SECRET + "  |  Usage: node test/crypto-test.js [16-digit-code] | [productId deviceId days]"));
+  console.log(dim("  Secret: " + crypto.ACTIVATION_SECRET));
   console.log("");
 
   var pass1 = runRandomTest(1);
@@ -227,3 +203,43 @@ if (arg1 && arg2 && arg3) {
 
   process.exit(pass1 && pass2 ? 0 : 1);
 }
+
+// 16 pure digits -> verify existing activation code
+if (raw.length === 16 && /^\d{16}$/.test(raw)) {
+  runCustomTest(raw);
+  process.exit(0);
+}
+
+// Otherwise -> parse as: productId(4) + deviceId(4) + days(4) + checksum(4)
+// and encrypt
+
+var pid = raw.substring(0, 4);
+var did = raw.substring(4, 8);
+var daysStr = raw.substring(8, 12);
+var userChecksum = raw.substring(12, 16) || "";
+var days = parseInt(daysStr, 10);
+
+console.log("");
+console.log(bold("  === Encrypt ==="));
+console.log("");
+console.log(dim("  Parsed input:"));
+console.log(dim("    productId  = " + pid));
+console.log(dim("    deviceId   = " + did));
+console.log(dim("    days       = " + daysStr + " -> " + days + (days === 9999 ? " (permanent)" : "")));
+if (userChecksum.length === 4) {
+  console.log(dim("    checksum   = " + userChecksum));
+}
+
+// Verify checksum if provided
+if (userChecksum.length === 4) {
+  var pidHash = crypto.productIdTo4Digit(pid);
+  var devHash = crypto.deviceIdTo4Digit(did);
+  var scrambledPid = crypto.scramble4(pidHash, crypto.ACTIVATION_SECRET);
+  var scrambledDays = crypto.scramble4(crypto.pad4(days), crypto.ACTIVATION_SECRET);
+  var plain = scrambledPid + devHash + scrambledDays;
+  var expectedChecksum = crypto.generateChecksum4(plain);
+  console.log("");
+  console.log("  " + dim("Checksum: got=" + userChecksum + "  expected=" + expectedChecksum + "  ") + (userChecksum === expectedChecksum ? green("MATCH") : red("MISMATCH")));
+}
+
+runEncryptThenDecrypt(pid, did, days);
