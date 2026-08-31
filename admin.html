@@ -359,6 +359,7 @@
           <option value="9999">永久</option>
         </select>
         <button class="btn btn-outline" onclick="loadCodes()">刷新</button>
+        <button class="btn btn-outline" onclick="exportCodes()" style="margin-left:auto">导出 CSV</button>
       </div>
       <div id="codesTable"></div>
     </div>
@@ -551,6 +552,50 @@
         html += '</tbody></table>';
         document.getElementById('codesTable').innerHTML = html;
       } catch (e) {}
+    }
+
+    async function exportCodes() {
+      try {
+        var params = new URLSearchParams();
+        var pid = document.getElementById('filterProduct').value;
+        var used = document.getElementById('filterUsed').value;
+        var dur = document.getElementById('filterDuration').value;
+        if (pid) params.set('product_id', pid);
+        if (used) params.set('used', used);
+        if (dur) params.set('duration_days', dur);
+        params.set('export', '1');
+
+        showToast('正在导出...', 'success');
+
+        var data = await api('/api/admin/redeem-codes?' + params.toString());
+        if (!data.success || !data.codes || data.codes.length === 0) {
+          showToast('没有可导出的兑换码', 'error');
+          return;
+        }
+
+        var csv = 'code,product_id,duration_days,status,created_at,used_at\n';
+        data.codes.forEach(function(c) {
+          var status = c.used ? 'used' : 'unused';
+          var createdAt = new Date(c.created_at).toISOString();
+          var usedAt = c.used_at ? new Date(c.used_at).toISOString() : '';
+          csv += c.code + ',' + c.product_id + ',' + c.duration_days + ',' + status + ',' + createdAt + ',' + usedAt + '\n';
+        });
+
+        var bom = '\uFEFF';
+        var blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'redeem-codes-' + new Date().toISOString().slice(0, 10) + '.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showToast('成功导出 ' + data.total + ' 个兑换码', 'success');
+      } catch (e) {
+        showToast('导出失败', 'error');
+      }
     }
 
     async function loadRecords() {

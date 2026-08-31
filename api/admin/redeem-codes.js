@@ -11,7 +11,45 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method === "GET") {
-      const { cursor, used, product_id, duration_days } = req.query;
+      const { cursor, used, product_id, duration_days, export: exportAll } = req.query;
+
+      if (exportAll === "1") {
+        let allKeys = [];
+        let scanCursor = 0;
+        do {
+          const [next, keys] = await redis.sscan("auth:redeem_codes", scanCursor, { count: 200 });
+          scanCursor = next;
+          allKeys = allKeys.concat(keys);
+        } while (scanCursor !== 0);
+
+        let codes = [];
+        if (allKeys.length > 0) {
+          const pipeline = redis.pipeline();
+          allKeys.forEach((code) => pipeline.get(`auth:redeem:${code}`));
+          const results = await pipeline.exec();
+          codes = results
+            .map((r) => (typeof r === "string" ? JSON.parse(r) : r))
+            .filter(Boolean);
+        }
+
+        if (used !== undefined) {
+          const isUsed = used === "true";
+          codes = codes.filter((c) => c.used === isUsed);
+        }
+        if (product_id) {
+          codes = codes.filter((c) => c.product_id === product_id);
+        }
+        if (duration_days) {
+          codes = codes.filter((c) => c.duration_days === parseInt(duration_days, 10));
+        }
+
+        return res.json({
+          success: true,
+          codes,
+          total: codes.length,
+        });
+      }
+
       const count = Math.min(parseInt(req.query.count) || 50, 200);
 
       const [nextCursor, keys] = await redis.sscan("auth:redeem_codes", cursor || 0, {
