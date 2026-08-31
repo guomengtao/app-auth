@@ -149,11 +149,18 @@ function runEncryptThenDecrypt(productId, deviceId, days, salt) {
 
   var daysLabel = result.isPermanent ? " days(permanent)" : " days";
 
+  var check = " " + green("✓");
+  var cross = " " + red("✗");
+
   console.log("");
   console.log("  " + bold("Input:     ") + dim(productId + " | " + deviceId + " | " + days + daysLabel + " | salt=" + salt));
   console.log("");
   console.log("  " + bold("Encrypted: ") + bold(yellow(formatted)));
-  console.log("  " + bold("Decrypted: ") + bold(cyan(pidHash + " | " + devHash + " | " + result.days + daysLabel)));
+  console.log("");
+  console.log("  " + bold("Decrypt Result:"));
+  console.log("    pid:   " + bold(cyan(result.productId)) + (pidMatch ? check : cross + " expect " + pidHash));
+  console.log("    dev:   " + bold(cyan(result.deviceHash)) + (devMatch ? check : cross + " expect " + devHash));
+  console.log("    days:  " + bold(cyan(String(result.days))) + (daysMatch ? check : cross + " expect " + days));
   console.log("");
   console.log("  " + bold(allMatch ? green("  round-trip OK") : red("  round-trip FAIL")));
   console.log("");
