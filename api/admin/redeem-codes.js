@@ -5,8 +5,8 @@ var { validateCount, validateDuration } = require("../../lib/validate");
 
 function matchCode(data, filterProductId, filterUsed, filterDuration) {
   if (filterProductId && data.product_id !== filterProductId) return false;
-  if (filterUsed === "true" && !data.used) return false;
-  if (filterUsed === "false" && data.used) return false;
+  if (filterUsed === "1" && !data.used) return false;
+  if (filterUsed === "0" && data.used) return false;
   if (filterDuration && String(data.duration_months) !== filterDuration) return false;
   return true;
 }
@@ -28,7 +28,7 @@ module.exports = async (req, res) => {
         var allMemberKeys = [];
         var memberCursor = 0;
         do {
-          var memberResult = await redis.sscan("auth:redeem_codes", memberCursor, { count: 200 });
+          var memberResult = await redis.sscan("auth:redeem_codes", memberCursor, { count: 500 });
           memberCursor = memberResult[0];
           allMemberKeys = allMemberKeys.concat(memberResult[1]);
         } while (memberCursor !== 0);
@@ -64,7 +64,7 @@ module.exports = async (req, res) => {
       var allMemberKeys = [];
       var memberCursor = 0;
       do {
-        var memberResult = await redis.sscan("auth:redeem_codes", memberCursor, { count: 200 });
+        var memberResult = await redis.sscan("auth:redeem_codes", memberCursor, { count: 500 });
         memberCursor = memberResult[0];
         allMemberKeys = allMemberKeys.concat(memberResult[1]);
       } while (memberCursor !== 0);

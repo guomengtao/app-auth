@@ -1,0 +1,29 @@
+[
+  {
+    "activation_code": "010010030001000001",
+    "device_id_hash": "dev001hash",
+    "product_id": "01",
+    "duration_months": 3,
+    "generated_at": 1756732800000,
+    "expires_at": 1764681600000,
+    "redeem_code": "C3D4"
+  },
+  {
+    "activation_code": "020011010002000002",
+    "device_id_hash": "dev002hash",
+    "product_id": "02",
+    "duration_months": 1,
+    "generated_at": 1756646400000,
+    "expires_at": 1759324800000,
+    "redeem_code": "J9K0"
+  },
+  {
+    "activation_code": "010012060003000003",
+    "device_id_hash": "dev003hash",
+    "product_id": "01",
+    "duration_months": 6,
+    "generated_at": 1756560000000,
+    "expires_at": 1772342400000,
+    "redeem_code": "Q6R7"
+  }
+]

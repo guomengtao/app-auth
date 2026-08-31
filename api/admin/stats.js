@@ -18,17 +18,21 @@ module.exports = async (req, res) => {
       redis.scard("auth:activation_codes"),
     ]);
 
-    const codes = await redis.sscan("auth:redeem_codes", 0, { count: 1000 });
     let usedCount = 0;
-    if (codes[1].length > 0) {
-      const pipeline = redis.pipeline();
-      codes[1].forEach((code) => pipeline.get(`auth:redeem:${code}`));
-      const results = await pipeline.exec();
-      usedCount = results.filter((r) => {
-        const data = typeof r === "string" ? JSON.parse(r) : r;
-        return data && data.used;
-      }).length;
-    }
+    let cursor = 0;
+    do {
+      const codes = await redis.sscan("auth:redeem_codes", cursor, { count: 500 });
+      cursor = codes[0];
+      if (codes[1].length > 0) {
+        const pipeline = redis.pipeline();
+        codes[1].forEach((code) => pipeline.get(`auth:redeem:${code}`));
+        const results = await pipeline.exec();
+        usedCount += results.filter((r) => {
+          const data = typeof r === "string" ? JSON.parse(r) : r;
+          return data && data.used;
+        }).length;
+      }
+    } while (cursor !== 0);
 
     return res.json({
       success: true,

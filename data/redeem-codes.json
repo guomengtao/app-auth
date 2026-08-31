@@ -1,0 +1,82 @@
+[
+  {
+    "code": "A1B2",
+    "product_id": "01",
+    "duration_months": 12,
+    "used": false,
+    "used_device_id": null,
+    "generated_activation_code": null,
+    "created_at": 1756646400000,
+    "used_at": null
+  },
+  {
+    "code": "C3D4",
+    "product_id": "01",
+    "duration_months": 3,
+    "used": true,
+    "used_device_id": "dev001hash",
+    "generated_activation_code": "010010030001000001",
+    "created_at": 1756560000000,
+    "used_at": 1756732800000
+  },
+  {
+    "code": "E5F6",
+    "product_id": "02",
+    "duration_months": 6,
+    "used": false,
+    "used_device_id": null,
+    "generated_activation_code": null,
+    "created_at": 1756473600000,
+    "used_at": null
+  },
+  {
+    "code": "G7H8",
+    "product_id": "01",
+    "duration_months": 99,
+    "used": false,
+    "used_device_id": null,
+    "generated_activation_code": null,
+    "created_at": 1756387200000,
+    "used_at": null
+  },
+  {
+    "code": "J9K0",
+    "product_id": "02",
+    "duration_months": 1,
+    "used": true,
+    "used_device_id": "dev002hash",
+    "generated_activation_code": "020011010002000002",
+    "created_at": 1756300800000,
+    "used_at": 1756646400000
+  },
+  {
+    "code": "L1M3",
+    "product_id": "01",
+    "duration_months": 12,
+    "used": false,
+    "used_device_id": null,
+    "generated_activation_code": null,
+    "created_at": 1756214400000,
+    "used_at": null
+  },
+  {
+    "code": "N4P5",
+    "product_id": "02",
+    "duration_months": 3,
+    "used": false,
+    "used_device_id": null,
+    "generated_activation_code": null,
+    "created_at": 1756128000000,
+    "used_at": null
+  },
+  {
+    "code": "Q6R7",
+    "product_id": "01",
+    "duration_months": 6,
+    "used": true,
+    "used_device_id": "dev003hash",
+    "generated_activation_code": "010012060003000003",
+    "created_at": 1756041600000,
+    "used_at": 1756560000000
+  }
+]

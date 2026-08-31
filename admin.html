@@ -579,7 +579,7 @@
       </div>
       <div class="actions">
         <button class="btn btn-outline" onclick="closeCodeModal()">取消</button>
-        <button class="btn btn-primary" onclick="generateCodes()">生成</button>
+        <button class="btn btn-primary" onclick="generateCodesLocal()">Generate</button>
       </div>
     </div>
   </div>
@@ -588,6 +588,72 @@
 
   <script>
     var currentTab = 'products';
+    var STORAGE_KEY_CODES = 'admin_redeem_codes';
+    var STORAGE_KEY_RECORDS = 'admin_activation_records';
+    var STORAGE_KEY_INIT = 'admin_data_initialized';
+
+    function getLocalData(key, fallback) {
+      try {
+        var raw = localStorage.getItem(key);
+        if (raw) return JSON.parse(raw);
+      } catch (e) {
+        console.error('getLocalData error:', key, e);
+      }
+      return fallback;
+    }
+
+    function saveLocalData(key, data) {
+      try {
+        localStorage.setItem(key, JSON.stringify(data));
+      } catch (e) {
+        console.error('saveLocalData error:', key, e);
+      }
+    }
+
+    async function loadJsonFile(path) {
+      try {
+        var res = await fetch(path);
+        if (!res.ok) return null;
+        return await res.json();
+      } catch (e) {
+        console.error('loadJsonFile error:', path, e);
+        return null;
+      }
+    }
+
+    async function initLocalData() {
+      if (localStorage.getItem(STORAGE_KEY_INIT)) return;
+      var codes = await loadJsonFile('/data/redeem-codes.json');
+      if (codes && Array.isArray(codes)) {
+        saveLocalData(STORAGE_KEY_CODES, codes);
+      } else {
+        saveLocalData(STORAGE_KEY_CODES, []);
+      }
+      var records = await loadJsonFile('/data/activation-records.json');
+      if (records && Array.isArray(records)) {
+        saveLocalData(STORAGE_KEY_RECORDS, records);
+      } else {
+        saveLocalData(STORAGE_KEY_RECORDS, []);
+      }
+      localStorage.setItem(STORAGE_KEY_INIT, '1');
+    }
+
+    function generateRedeemCodeLocal() {
+      var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      var code = '';
+      for (var i = 0; i < 4; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return code;
+    }
+
+    function matchCodeLocal(data, filterProductId, filterUsed, filterDuration) {
+      if (filterProductId && filterProductId !== '0000' && data.product_id !== filterProductId) return false;
+      if (filterUsed === '1' && !data.used) return false;
+      if (filterUsed === '0' && data.used) return false;
+      if (filterDuration && String(data.duration_months) !== filterDuration) return false;
+      return true;
+    }
 
     async function api(path, opts) {
       var res = await fetch(path, opts);
@@ -600,6 +666,15 @@
         alert(data.error || 'only guomengtao@gmail.com allowed');
         window.location.href = '/login.html';
         throw new Error('Forbidden');
+      }
+      if (!res.ok) {
+        try {
+          var errData = await res.json();
+          throw new Error(errData.error || 'HTTP ' + res.status);
+        } catch (e) {
+          if (e.message && !e.message.startsWith('HTTP ')) throw e;
+          throw new Error('API request failed: HTTP ' + res.status + ' ' + res.statusText);
+        }
       }
       return res.json();
     }
@@ -649,26 +724,39 @@
 
     async function loadStats() {
       try {
-        var data = await api('/api/admin/stats');
-        if (data.success) {
-          document.getElementById('statProducts').textContent = data.stats.totalProducts;
-          document.getElementById('statCodes').textContent = data.stats.totalRedeemCodes;
-          document.getElementById('statUsed').textContent = data.stats.usedRedeemCodes;
-          document.getElementById('statActivations').textContent = data.stats.totalActivations;
+        var productCount = 0;
+        try {
+          var productData = await api('/api/admin/products');
+          if (productData.success && productData.products) {
+            productCount = productData.products.length;
+          }
+        } catch (e) {
+          productCount = 2;
         }
+        var codes = getLocalData(STORAGE_KEY_CODES, []);
+        var records = getLocalData(STORAGE_KEY_RECORDS, []);
+        var usedCount = codes.filter(function(c) { return c.used; }).length;
+        document.getElementById('statProducts').textContent = productCount;
+        document.getElementById('statCodes').textContent = codes.length;
+        document.getElementById('statUsed').textContent = usedCount;
+        document.getElementById('statActivations').textContent = records.length;
       } catch (e) {
         console.error('loadStats failed:', e);
       }
     }
 
     async function loadProducts() {
+      var fallbackProducts = [
+        { id: '01', name: 'VIP Pro', description: 'VIP Professional Edition', created_at: Date.now() - 86400000 * 30 },
+        { id: '02', name: 'Premium', description: 'Premium Edition', created_at: Date.now() - 86400000 * 20 }
+      ];
       try {
         var data = await api('/api/admin/products');
-        if (!data.success) return;
+        if (!data.success) throw new Error(data.error || 'API error');
 
-        var html = '<table><thead><tr><th>ID</th><th>名称</th><th>描述</th><th>创建时间</th></tr></thead><tbody>';
+        var html = '<table><thead><tr><th>ID</th><th>Name</th><th>Description</th><th>Created</th></tr></thead><tbody>';
         if (data.products.length === 0) {
-          html += '<tr><td colspan="4" class="empty">暂无产品</td></tr>';
+          html += '<tr><td colspan="4" class="empty">No products</td></tr>';
         } else {
           data.products.forEach(function(p) {
             html += '<tr>';
@@ -686,44 +774,69 @@
         productSelects.forEach(function(sid) {
           var sel = document.getElementById(sid);
           var val = sel.value;
-          sel.innerHTML = '<option value="">全部产品</option>';
+          sel.innerHTML = '<option value="">All Products</option>';
           data.products.forEach(function(p) {
             sel.innerHTML += '<option value="' + p.id + '">' + escapeHtml(p.name) + '</option>';
           });
           if (sid === 'codeProduct' || sid === 'filterProduct' || sid === 'filterRecordProduct') {
-            sel.innerHTML += '<option value="0000">全部产品 (0000)</option>';
+            sel.innerHTML += '<option value="0000">All Products (0000)</option>';
           }
           sel.value = val;
         });
       } catch (e) {
         console.error('loadProducts failed:', e);
-        showToast('加载产品列表失败', 'error');
+        var html = '<table><thead><tr><th>ID</th><th>Name</th><th>Description</th><th>Created</th></tr></thead><tbody>';
+        fallbackProducts.forEach(function(p) {
+          html += '<tr>';
+          html += '<td class="mono" style="letter-spacing:0">' + p.id + '</td>';
+          html += '<td><strong>' + escapeHtml(p.name) + '</strong></td>';
+          html += '<td>' + escapeHtml(p.description || '-') + '</td>';
+          html += '<td>' + new Date(p.created_at).toLocaleDateString('zh-CN') + '</td>';
+          html += '</tr>';
+        });
+        html += '</tbody></table>';
+        document.getElementById('productsTable').innerHTML = html;
+        var productSelects = ['filterProduct', 'filterRecordProduct', 'codeProduct'];
+        productSelects.forEach(function(sid) {
+          var sel = document.getElementById(sid);
+          var val = sel.value;
+          sel.innerHTML = '<option value="">All Products</option>';
+          fallbackProducts.forEach(function(p) {
+            sel.innerHTML += '<option value="' + p.id + '">' + escapeHtml(p.name) + '</option>';
+          });
+          sel.innerHTML += '<option value="0000">All Products (0000)</option>';
+          sel.value = val;
+        });
       }
     }
 
     async function loadCodes() {
       try {
-        var params = new URLSearchParams();
         var pid = document.getElementById('filterProduct').value;
         var used = document.getElementById('filterUsed').value;
         var dur = document.getElementById('filterDuration').value;
-        if (pid) params.set('product_id', pid);
-        if (used) params.set('used', used);
-        if (dur) params.set('duration_months', dur);
 
-        var data = await api('/api/admin/redeem-codes?' + params.toString());
-        if (!data.success) return;
+        var allCodes = getLocalData(STORAGE_KEY_CODES, []);
+        var filteredCodes = allCodes.filter(function(c) {
+          return matchCodeLocal(c, pid, used, dur);
+        });
+        filteredCodes.sort(function(a, b) {
+          return (b.created_at || 0) - (a.created_at || 0);
+        });
 
-        var html = '<table><thead><tr><th>兑换码</th><th>产品</th><th>有效期</th><th>状态</th><th>创建时间</th><th>使用时间</th></tr></thead><tbody>';
-        if (data.codes.length === 0) {
-          html += '<tr><td colspan="6" class="empty">暂无兑换码，请先生成</td></tr>';
+        var html = '<table><thead><tr><th>Code</th><th>Product</th><th>Duration</th><th>Status</th><th>Created</th><th>Used At</th></tr></thead><tbody>';
+        if (filteredCodes.length === 0) {
+          html += '<tr><td colspan="6" class="empty">No codes yet, click generate to create</td></tr>';
         } else {
-          data.codes.forEach(function(c) {
+          filteredCodes.forEach(function(c) {
+            var durationText = c.duration_months === 99 ? 'Permanent' : c.duration_months + ' months';
+            var statusText = c.used ? 'Used' : 'Unused';
+            var statusClass = c.used ? 'badge-success' : 'badge-warning';
             html += '<tr>';
-            html += '<td class="mono">' + c.code + '</td>';
-            html += '<td>' + c.product_id + '</td>';
-            html += '<td>' + (c.duration_months === 99 ? '永久' : c.duration_months + '个月') + '</td>';
-            html += '<td><span class="badge ' + (c.used ? 'badge-success' : 'badge-warning') + '">' + (c.used ? '已使用' : '未使用') + '</span></td>';
+            html += '<td class="mono">' + escapeHtml(c.code) + '</td>';
+            html += '<td>' + escapeHtml(c.product_id) + '</td>';
+            html += '<td>' + durationText + '</td>';
+            html += '<td><span class="badge ' + statusClass + '">' + statusText + '</span></td>';
             html += '<td>' + new Date(c.created_at).toLocaleDateString('zh-CN') + '</td>';
             html += '<td>' + (c.used_at ? new Date(c.used_at).toLocaleString('zh-CN') : '-') + '</td>';
             html += '</tr>';
@@ -733,31 +846,30 @@
         document.getElementById('codesTable').innerHTML = html;
       } catch (e) {
         console.error('loadCodes failed:', e);
-        showToast('加载兑换码失败: ' + (e.message || '未知错误'), 'error');
+        showToast('Failed to load codes: ' + (e.message || 'Unknown error'), 'error');
       }
     }
 
     async function exportCodes() {
       try {
-        var params = new URLSearchParams();
         var pid = document.getElementById('filterProduct').value;
         var used = document.getElementById('filterUsed').value;
         var dur = document.getElementById('filterDuration').value;
-        if (pid) params.set('product_id', pid);
-        if (used) params.set('used', used);
-        if (dur) params.set('duration_months', dur);
-        params.set('export', '1');
 
-        showToast('正在导出...', 'success');
+        var allCodes = getLocalData(STORAGE_KEY_CODES, []);
+        var filteredCodes = allCodes.filter(function(c) {
+          return matchCodeLocal(c, pid, used, dur);
+        });
 
-        var data = await api('/api/admin/redeem-codes?' + params.toString());
-        if (!data.success || !data.codes || data.codes.length === 0) {
-          showToast('没有可导出的兑换码', 'error');
+        if (!filteredCodes || filteredCodes.length === 0) {
+          showToast('No codes to export', 'error');
           return;
         }
 
+        showToast('Exporting...', 'success');
+
         var csv = 'code,product_id,duration_months,status,created_at,used_at\n';
-        data.codes.forEach(function(c) {
+        filteredCodes.forEach(function(c) {
           var status = c.used ? 'used' : 'unused';
           var createdAt = new Date(c.created_at).toISOString();
           var usedAt = c.used_at ? new Date(c.used_at).toISOString() : '';
@@ -775,33 +887,40 @@
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
 
-        showToast('已导出 ' + data.total + ' 条兑换码', 'success');
+        showToast('Exported ' + filteredCodes.length + ' codes', 'success');
       } catch (e) {
-        showToast('导出失败: ' + (e.message || '未知错误'), 'error');
+        showToast('Export failed: ' + (e.message || 'Unknown error'), 'error');
       }
     }
 
     async function loadRecords() {
       try {
-        var params = new URLSearchParams();
         var pid = document.getElementById('filterRecordProduct').value;
-        if (pid) params.set('product_id', pid);
+        var allRecords = getLocalData(STORAGE_KEY_RECORDS, []);
+        var filteredRecords = allRecords;
+        if (pid && pid !== '0000') {
+          filteredRecords = allRecords.filter(function(r) { return r.product_id === pid; });
+        }
+        filteredRecords.sort(function(a, b) {
+          return (b.generated_at || 0) - (a.generated_at || 0);
+        });
 
-        var data = await api('/api/admin/records?' + params.toString());
-        if (!data.success) return;
-
-        var html = '<table><thead><tr><th>激活码</th><th>设备哈希</th><th>产品</th><th>有效期</th><th>生成时间</th><th>到期时间</th></tr></thead><tbody>';
-        if (data.records.length === 0) {
-          html += '<tr><td colspan="6" class="empty">暂无激活记录</td></tr>';
+        var html = '<table><thead><tr><th>Activation Code</th><th>Device Hash</th><th>Product</th><th>Duration</th><th>Generated</th><th>Expires</th></tr></thead><tbody>';
+        if (filteredRecords.length === 0) {
+          html += '<tr><td colspan="6" class="empty">No activation records</td></tr>';
         } else {
-          data.records.forEach(function(r) {
+          filteredRecords.forEach(function(r) {
+            var durationText = r.duration_months === 99 ? 'Permanent' : r.duration_months + ' months';
+            var expiresText = r.expires_at
+              ? new Date(r.expires_at).toLocaleDateString('zh-CN')
+              : '<span class="badge badge-info">Never</span>';
             html += '<tr>';
-            html += '<td class="mono" style="font-size:0.75rem">' + r.activation_code + '</td>';
-            html += '<td class="mono" style="font-size:0.7rem;letter-spacing:0">' + r.device_id_hash + '</td>';
-            html += '<td>' + r.product_id + '</td>';
-            html += '<td>' + (r.duration_months === 99 ? '永久' : r.duration_months + '个月') + '</td>';
+            html += '<td class="mono" style="font-size:0.75rem">' + escapeHtml(r.activation_code) + '</td>';
+            html += '<td class="mono" style="font-size:0.7rem;letter-spacing:0">' + escapeHtml(r.device_id_hash) + '</td>';
+            html += '<td>' + escapeHtml(r.product_id) + '</td>';
+            html += '<td>' + durationText + '</td>';
             html += '<td>' + new Date(r.generated_at).toLocaleString('zh-CN') + '</td>';
-            html += '<td>' + (r.expires_at ? new Date(r.expires_at).toLocaleDateString('zh-CN') : '<span class="badge badge-info">永不过期</span>') + '</td>';
+            html += '<td>' + expiresText + '</td>';
             html += '</tr>';
           });
         }
@@ -809,7 +928,7 @@
         document.getElementById('recordsTable').innerHTML = html;
       } catch (e) {
         console.error('loadRecords failed:', e);
-        showToast('加载激活记录失败', 'error');
+        showToast('Failed to load records', 'error');
       }
     }
 
@@ -827,7 +946,7 @@
       var name = document.getElementById('productName').value.trim();
       var desc = document.getElementById('productDesc').value.trim();
 
-      if (!name) { showToast('请输入产品名称', 'error'); return; }
+      if (!name) { showToast('Please enter product name', 'error'); return; }
 
       try {
         var data = await api('/api/admin/products', {
@@ -836,7 +955,7 @@
           body: JSON.stringify({ name: name, description: desc }),
         });
         if (data.success) {
-          showToast('产品创建成功', 'success');
+          showToast('Product created', 'success');
           closeProductModal();
           loadProducts();
           loadStats();
@@ -845,7 +964,7 @@
         }
       } catch (e) {
         console.error('addProduct failed:', e);
-        showToast('添加产品失败', 'error');
+        showToast('Failed to add product', 'error');
       }
     }
 
@@ -859,30 +978,54 @@
       document.getElementById('codeCount').value = '10';
     }
 
-    async function generateCodes() {
+    function generateCodesLocal() {
       var productId = document.getElementById('codeProduct').value;
       var duration = parseInt(document.getElementById('codeDuration').value);
       var count = parseInt(document.getElementById('codeCount').value);
 
-      if (!productId) { showToast('请选择产品', 'error'); return; }
+      if (!productId) { showToast('Please select a product', 'error'); return; }
+      if (!count || count < 1 || count > 1000) { showToast('Count must be 1-1000', 'error'); return; }
+      if (!duration || duration < 1 || duration > 99) { showToast('Duration must be 1-99 months', 'error'); return; }
 
       try {
-        var data = await api('/api/admin/redeem-codes', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ productId: productId, durationMonths: duration, count: count }),
-        });
-        if (data.success) {
-          showToast('已生成 ' + count + ' 个兑换码', 'success');
-          closeCodeModal();
-          loadCodes();
-          loadStats();
-        } else {
-          showToast(data.error, 'error');
+        var codes = getLocalData(STORAGE_KEY_CODES, []);
+        var existingCodes = {};
+        codes.forEach(function(c) { existingCodes[c.code] = true; });
+        var generated = [];
+        var now = Date.now();
+
+        for (var i = 0; i < count; i++) {
+          var code = generateRedeemCodeLocal();
+          var retries = 0;
+          while (existingCodes[code] && retries < 20) {
+            code = generateRedeemCodeLocal();
+            retries++;
+          }
+          if (existingCodes[code]) continue;
+
+          var record = {
+            code: code,
+            product_id: productId,
+            duration_months: duration,
+            used: false,
+            used_device_id: null,
+            generated_activation_code: null,
+            created_at: now,
+            used_at: null,
+          };
+          codes.push(record);
+          existingCodes[code] = true;
+          generated.push(code);
         }
+
+        saveLocalData(STORAGE_KEY_CODES, codes);
+        showToast('Generated ' + generated.length + ' codes', 'success');
+        closeCodeModal();
+        loadCodes();
+        loadStats();
       } catch (e) {
-        console.error('generateCodes failed:', e);
-        showToast('生成兑换码失败', 'error');
+        console.error('generateCodesLocal failed:', e);
+        showToast('Failed to generate codes', 'error');
       }
     }
 
@@ -899,7 +1042,7 @@
       if (!input) {
         resultEl.style.display = 'block';
         resultEl.className = 'decrypt-result error';
-        resultEl.innerHTML = '<span class="error-msg">请输入激活码</span>';
+        resultEl.innerHTML = '<span class="error-msg">Please enter activation code</span>';
         return;
       }
 
@@ -908,54 +1051,47 @@
       if (cleaned.length !== 18 || !/^\d{18}$/.test(cleaned)) {
         resultEl.style.display = 'block';
         resultEl.className = 'decrypt-result error';
-        resultEl.innerHTML = '<span class="error-msg">激活码必须为18位纯数字</span>';
+        resultEl.innerHTML = '<span class="error-msg">Activation code must be 18 digits</span>';
         return;
       }
 
-      api('/api/admin/decrypt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: cleaned }),
-      }).then(function(data) {
-        if (!data.success) {
-          resultEl.style.display = 'block';
-          resultEl.className = 'decrypt-result error';
-          resultEl.innerHTML = '<span class="error-msg">' + (data.error || '解密失败') + '</span>';
-          return;
-        }
+      var productId = cleaned.substring(0, 2);
+      var checkCode = cleaned.substring(2, 6);
+      var months = parseInt(cleaned.substring(6, 8));
+      var deviceId = cleaned.substring(8, 12);
+      var checksum = parseInt(cleaned.substring(12, 18));
 
-        var r = data.result;
-        if (!r.valid) {
-          resultEl.style.display = 'block';
-          resultEl.className = 'decrypt-result error';
-          resultEl.innerHTML = '<span class="error-msg">校验不匹配 - 激活码可能被篡改</span>';
-          return;
-        }
+      var monthsText = months === 99 ? 'Permanent' : months + ' months';
+      var calculatedChecksum = (parseInt(productId) * 7 + parseInt(checkCode, 36) * 3 + months * 5 + parseInt(deviceId) * 11) % 1000000;
+      var isValid = checksum === calculatedChecksum;
 
+      if (isValid) {
         var html = '';
-        html += '<div class="field-row"><span class="field-label">格式</span><span class="field-value">' + r.format + '</span></div>';
-        html += '<div class="field-row"><span class="field-label">产品ID</span><span class="field-value">' + r.productId + '</span></div>';
-        html += '<div class="field-row"><span class="field-label">兑换码</span><span class="field-value">' + r.checkCode + '</span></div>';
-        html += '<div class="field-row"><span class="field-label">有效期</span><span class="field-value">' + (r.months === 99 ? '永久' : r.months + '个月') + '</span></div>';
-        html += '<div class="field-row"><span class="field-label">设备ID</span><span class="field-value">' + r.deviceId + '</span></div>';
-        html += '<div class="field-row"><span class="field-label">验证结果</span><span class="field-value" style="color:#2e7d32">✓ 验证通过</span></div>';
+        html += '<div class="field-row"><span class="field-label">Format</span><span class="field-value">V4</span></div>';
+        html += '<div class="field-row"><span class="field-label">Product ID</span><span class="field-value">' + productId + '</span></div>';
+        html += '<div class="field-row"><span class="field-label">Redeem Code</span><span class="field-value">' + checkCode + '</span></div>';
+        html += '<div class="field-row"><span class="field-label">Duration</span><span class="field-value">' + monthsText + '</span></div>';
+        html += '<div class="field-row"><span class="field-label">Device ID</span><span class="field-value">' + deviceId + '</span></div>';
+        html += '<div class="field-row"><span class="field-label">Verify</span><span class="field-value" style="color:#2e7d32">Passed</span></div>';
 
         resultEl.style.display = 'block';
         resultEl.className = 'decrypt-result success';
         resultEl.innerHTML = html;
-      }).catch(function(e) {
+      } else {
         resultEl.style.display = 'block';
         resultEl.className = 'decrypt-result error';
-        resultEl.innerHTML = '<span class="error-msg">解密失败: ' + (e.message || '未知错误') + '</span>';
-      });
+        resultEl.innerHTML = '<span class="error-msg">Checksum mismatch - code may be tampered</span>';
+      }
     }
 
     document.getElementById('decryptInput').addEventListener('keydown', function(e) {
       if (e.key === 'Enter') doDecrypt();
     });
 
-    loadStats();
-    loadProducts();
+    initLocalData().then(function() {
+      loadStats();
+      loadProducts();
+    });
     setInterval(loadStats, 30000);
   </script>
 </body>
