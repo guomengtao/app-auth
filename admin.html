@@ -758,6 +758,121 @@
       color: var(--muted);
     }
 
+    .pg-msg-form {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .pg-msg-form h3 {
+      font-size: 0.95rem;
+      margin-bottom: 14px;
+      color: var(--ink);
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px 16px;
+    }
+    .form-grid .field-full { grid-column: 1 / -1; }
+    .pg-msg-form label {
+      display: block;
+      font-size: 0.74rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 5px;
+    }
+    .pg-msg-form input,
+    .pg-msg-form select,
+    .pg-msg-form textarea {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-size: 0.88rem;
+      outline: none;
+      font-family: inherit;
+      box-sizing: border-box;
+    }
+    .pg-msg-form input:focus,
+    .pg-msg-form select:focus,
+    .pg-msg-form textarea:focus {
+      border-color: var(--accent);
+    }
+    .pg-msg-form textarea {
+      resize: vertical;
+      min-height: 90px;
+    }
+    .pg-msg-actions {
+      margin-top: 14px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .pg-msg-actions .spacer { flex: 1; }
+    .badge-type-info { background: #e3f2fd; color: #1565c0; }
+    .badge-type-warning { background: #fff3e0; color: #e65100; }
+    .badge-type-success { background: #e8f5e9; color: #2e7d32; }
+    .badge-type-error { background: #ffebee; color: #c62828; }
+    .badge-type-announcement { background: #f3e5f5; color: #6a1b9a; }
+    .pg-status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    .pg-status-dot.active { background: #2e7d32; }
+    .pg-status-dot.inactive { background: #9e9e9e; }
+    .pg-msg-content {
+      max-width: 420px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .pg-stat-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .pg-stat-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 14px;
+    }
+    .pg-stat-card .num {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .pg-stat-card .lab {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .inline-check {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 0;
+    }
+    .inline-check input { width: auto; accent-color: var(--accent); }
+    .inline-check label {
+      margin: 0;
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--ink);
+    }
+    @media (max-width: 720px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .pg-stat-cards { grid-template-columns: 1fr; }
+    }
+
     .sidebar-backdrop {
       display: none;
       position: fixed;
@@ -819,6 +934,7 @@
         <li><a href="javascript:void(0)" onclick="switchTab('products')" class="active" data-tab="products"><span class="menu-icon">📦</span><span class="menu-text">产品管理</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('codes')" data-tab="codes"><span class="menu-icon">🎫</span><span class="menu-text">兑换码管理</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('records')" data-tab="records"><span class="menu-icon">📋</span><span class="menu-text">激活记录</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('pg-messages')" data-tab="pg-messages"><span class="menu-icon">💬</span><span class="menu-text">消息中心 (Postgres)</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('decrypt')" data-tab="decrypt"><span class="menu-icon">🔍</span><span class="menu-text">解密验证</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('health')" data-tab="health"><span class="menu-icon">🩺</span><span class="menu-text">服务器状态</span></a></li>
       </ul>
@@ -955,6 +1071,71 @@
               <div class="health-summary-text" id="healthSummaryText">点击「开始检测」分析 Redis、鉴权、编解码与激活链路，定位添加产品/激活失败原因。</div>
             </div>
             <div class="health-grid" id="healthChecks"></div>
+          </div>
+
+          <div class="panel" id="panel-pg-messages">
+            <div class="toolbar">
+              <div class="filter-label" style="padding:0;font-weight:700;font-size:0.88rem;color:var(--ink);display:flex;align-items:center;">
+                🐘 消息中心 · Vercel Postgres 持久化存储
+              </div>
+              <span class="spacer"></span>
+              <button class="btn btn-outline" onclick="loadPgMessages()">🔄 刷新列表</button>
+            </div>
+
+            <div class="pg-stat-cards">
+              <div class="pg-stat-card">
+                <div class="num" id="pgStatTotal">0</div>
+                <div class="lab">消息总数</div>
+              </div>
+              <div class="pg-stat-card">
+                <div class="num" id="pgStatActive">0</div>
+                <div class="lab">启用中</div>
+              </div>
+              <div class="pg-stat-card">
+                <div class="num" id="pgStatAnnc">0</div>
+                <div class="lab">公告类</div>
+              </div>
+            </div>
+
+            <div class="pg-msg-form">
+              <h3>✏️ 发布新消息</h3>
+              <div class="form-grid">
+                <div>
+                  <label>消息标题 (可选)</label>
+                  <input type="text" id="pgMsgTitle" placeholder="例如：系统维护通知" maxlength="255" autocomplete="off">
+                </div>
+                <div>
+                  <label>消息类型</label>
+                  <select id="pgMsgType">
+                    <option value="info">ℹ️ 一般信息 (info)</option>
+                    <option value="success">✅ 成功/通知 (success)</option>
+                    <option value="warning">⚠️ 警告 (warning)</option>
+                    <option value="error">❌ 错误/严重 (error)</option>
+                    <option value="announcement">📢 公告 (announcement)</option>
+                  </select>
+                </div>
+                <div>
+                  <label>优先级 (0 最低, 10 最高)</label>
+                  <input type="number" id="pgMsgPriority" value="0" min="0" max="10">
+                </div>
+                <div class="inline-check">
+                  <input type="checkbox" id="pgMsgActive" checked>
+                  <label for="pgMsgActive">立即可见 (is_active)</label>
+                </div>
+                <div class="field-full">
+                  <label>消息内容 <span style="color:#e94560">*</span> <span style="font-weight:400;color:#aaa">(最多 10000 字符)</span></label>
+                  <textarea id="pgMsgContent" placeholder="输入消息正文内容..." maxlength="10000"></textarea>
+                </div>
+              </div>
+              <div class="pg-msg-actions">
+                <span style="font-size:0.74rem;color:var(--muted)" id="pgMsgCount">0 / 10000 字符</span>
+                <span class="spacer"></span>
+                <button class="btn btn-outline" onclick="clearPgMsgForm()">清空</button>
+                <button class="btn btn-primary" id="pgSubmitBtn" onclick="submitPgMessage()">📤 发送消息</button>
+              </div>
+            </div>
+
+            <div class="table-wrap" id="pgMessagesTable"></div>
           </div>
         </div>
       </main>
@@ -1136,6 +1317,7 @@
       products: { title: '产品管理', sub: '管理可授权的产品列表' },
       codes: { title: '兑换码管理', sub: '生成、筛选与导出兑换码' },
       records: { title: '激活记录', sub: '查看设备激活历史' },
+      'pg-messages': { title: '消息中心 (Postgres)', sub: '使用 Vercel Postgres 发布和管理持久化消息' },
       decrypt: { title: '解密验证', sub: '离线解析激活码内容' },
       health: { title: '服务器状态', sub: '检测 Redis / 鉴权 / 激活链路是否正常' }
     };
@@ -1164,6 +1346,7 @@
       if (tab === 'products') loadProducts();
       if (tab === 'codes') loadCodes();
       if (tab === 'records') loadRecords();
+      if (tab === 'pg-messages') loadPgMessages();
       if (tab === 'decrypt') { /* no auto-load needed */ }
       if (tab === 'health') runHealthCheck();
     }
@@ -1842,6 +2025,186 @@
 
     document.getElementById('decryptInput').addEventListener('keydown', function(e) {
       if (e.key === 'Enter') doDecrypt();
+    });
+
+    function pgMsgTypeLabel(t) {
+      switch (t) {
+        case 'success': return 'Success';
+        case 'warning': return 'Warning';
+        case 'error': return 'Error';
+        case 'announcement': return 'Announcement';
+        default: return 'Info';
+      }
+    }
+
+    function pgMsgTypeBadgeClass(t) {
+      switch (t) {
+        case 'success': return 'badge-type-success';
+        case 'warning': return 'badge-type-warning';
+        case 'error': return 'badge-type-error';
+        case 'announcement': return 'badge-type-announcement';
+        default: return 'badge-type-info';
+      }
+    }
+
+    function updatePgMsgCount() {
+      var ta = document.getElementById('pgMsgContent');
+      var lab = document.getElementById('pgMsgCount');
+      if (!ta || !lab) return;
+      var len = ta.value ? ta.value.length : 0;
+      lab.textContent = len + ' / 10000 字符';
+    }
+
+    function clearPgMsgForm() {
+      document.getElementById('pgMsgTitle').value = '';
+      document.getElementById('pgMsgType').value = 'info';
+      document.getElementById('pgMsgPriority').value = '0';
+      document.getElementById('pgMsgActive').checked = true;
+      document.getElementById('pgMsgContent').value = '';
+      updatePgMsgCount();
+    }
+
+    async function submitPgMessage() {
+      var btn = document.getElementById('pgSubmitBtn');
+      var title = (document.getElementById('pgMsgTitle').value || '').trim();
+      var msgType = document.getElementById('pgMsgType').value;
+      var priority = parseInt(document.getElementById('pgMsgPriority').value, 10);
+      var isActive = document.getElementById('pgMsgActive').checked;
+      var content = (document.getElementById('pgMsgContent').value || '').trim();
+
+      if (!content) {
+        showToast('请输入消息内容', 'error');
+        return;
+      }
+      if (content.length > 10000) {
+        showToast('消息内容过长（最多 10000 字符）', 'error');
+        return;
+      }
+      if (!Number.isFinite(priority)) priority = 0;
+      priority = Math.max(0, Math.min(10, priority));
+
+      if (btn) { btn.disabled = true; btn.textContent = '发送中...'; }
+      try {
+        var data = await api('/api/admin/postgres-messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: title,
+            content: content,
+            message_type: msgType,
+            priority: priority,
+            is_active: isActive,
+          }),
+        });
+        if (data.success) {
+          showToast('消息发送成功', 'success');
+          clearPgMsgForm();
+          loadPgMessages();
+        } else {
+          showToast(data.error || '发送失败', 'error');
+        }
+      } catch (e) {
+        console.error('submitPgMessage failed:', e);
+        showToast('发送失败: ' + (e.message || '未知错误'), 'error');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '📤 发送消息'; }
+      }
+    }
+
+    async function loadPgMessages() {
+      var tableEl = document.getElementById('pgMessagesTable');
+      if (!tableEl) return;
+      tableEl.innerHTML = '<div class="empty">加载中...</div>';
+
+      try {
+        var data = await api('/api/admin/postgres-messages?limit=100');
+        if (!data.success) throw new Error(data.error || '加载失败');
+
+        var messages = data.messages || [];
+        var total = typeof data.total === 'number' ? data.total : messages.length;
+        var activeCount = messages.filter(function(m) { return m.is_active; }).length;
+        var anncCount = messages.filter(function(m) { return m.message_type === 'announcement'; }).length;
+
+        document.getElementById('pgStatTotal').textContent = total;
+        document.getElementById('pgStatActive').textContent = activeCount;
+        document.getElementById('pgStatAnnc').textContent = anncCount;
+
+        var html = '<table><thead><tr>';
+        html += '<th style="width:60px">ID</th>';
+        html += '<th style="width:90px">类型</th>';
+        html += '<th>标题 / 内容</th>';
+        html += '<th style="width:70px">优先级</th>';
+        html += '<th style="width:90px">状态</th>';
+        html += '<th style="width:150px">创建信息</th>';
+        html += '<th style="width:90px">操作</th>';
+        html += '</tr></thead><tbody>';
+
+        if (messages.length === 0) {
+          html += '<tr><td colspan="7" class="empty">暂无消息。使用上方表单发送第一条消息。<br><br><span style="color:#aaa;font-size:0.74rem">如需使用 Postgres，请在 Vercel 项目中添加 Postgres 存储并设置 POSTGRES_URL 环境变量</span></td></tr>';
+        } else {
+          messages.forEach(function(m) {
+            var typeLabel = pgMsgTypeLabel(m.message_type);
+            var typeCls = pgMsgTypeBadgeClass(m.message_type);
+            var activeLabel = m.is_active ? '启用' : '禁用';
+            var dotCls = m.is_active ? 'active' : 'inactive';
+            var createdText = m.created_at ? new Date(m.created_at).toLocaleString('zh-CN') : '-';
+            var byText = m.created_by ? ('<br><span style="color:#aaa;font-size:0.7rem">by ' + escapeHtml(m.created_by) + '</span>') : '';
+
+            var titleHtml = m.title ? ('<strong style="display:block;margin-bottom:4px;">' + escapeHtml(m.title) + '</strong>') : '';
+            var contentHtml = '<div class="pg-msg-content">' + escapeHtml(m.content) + '</div>';
+
+            html += '<tr>';
+            html += '<td class="mono" style="font-size:0.78rem">' + escapeHtml(String(m.id)) + '</td>';
+            html += '<td><span class="badge ' + typeCls + '">' + typeLabel + '</span></td>';
+            html += '<td>' + titleHtml + contentHtml + '</td>';
+            html += '<td class="mono">' + escapeHtml(String(m.priority || 0)) + '</td>';
+            html += '<td><span class="pg-status-dot ' + dotCls + '"></span>' + activeLabel + '</td>';
+            html += '<td style="font-size:0.76rem;line-height:1.5">' + createdText + byText + '</td>';
+            html += '<td><button class="btn btn-outline" style="padding:4px 10px;font-size:0.72rem" onclick="deletePgMessage(' + parseInt(m.id) + ')">删除</button></td>';
+            html += '</tr>';
+          });
+        }
+
+        html += '</tbody></table>';
+        tableEl.innerHTML = html;
+      } catch (e) {
+        console.error('loadPgMessages failed:', e);
+        var errMsg = e.message || '加载失败';
+        var hint = '';
+        if (/not configured|POSTGRES_URL/i.test(errMsg)) {
+          hint = '<br><br><span style="color:#e65100;font-size:0.76rem">💡 需要在 Vercel 项目中创建 Postgres 数据库并设置环境变量 POSTGRES_URL</span>';
+        }
+        document.getElementById('pgStatTotal').textContent = '0';
+        document.getElementById('pgStatActive').textContent = '0';
+        document.getElementById('pgStatAnnc').textContent = '0';
+        tableEl.innerHTML = '<div class="empty" style="color:#c62828">加载消息失败: ' + escapeHtml(errMsg) + hint + '</div>';
+      }
+    }
+
+    async function deletePgMessage(id) {
+      if (!confirm('确认删除该消息？此操作不可撤销。')) return;
+      try {
+        var data = await api('/api/admin/postgres-messages?id=' + encodeURIComponent(id), {
+          method: 'DELETE',
+        });
+        if (data.success) {
+          showToast('已删除', 'success');
+          loadPgMessages();
+        } else {
+          showToast(data.error || '删除失败', 'error');
+        }
+      } catch (e) {
+        console.error('deletePgMessage failed:', e);
+        showToast('删除失败: ' + (e.message || '未知错误'), 'error');
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      var ta = document.getElementById('pgMsgContent');
+      if (ta) {
+        ta.addEventListener('input', updatePgMsgCount);
+        updatePgMsgCount();
+      }
     });
 
     initLocalData().then(function() {
