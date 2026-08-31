@@ -1282,6 +1282,129 @@
       return true;
     }
 
+    var _B36 = BigInt(36);
+    var _B10 = BigInt(10);
+    var _B62 = BigInt(62);
+    var _B36_4 = _B36 ** BigInt(4);
+    var _B10_2 = _B10 ** BigInt(2);
+    var _B62_4 = _B62 ** BigInt(4);
+    var _B10_2_B62_4 = _B10_2 * _B62_4;
+    var _B36_4_B10_2_B62_4 = _B36_4 * _B10_2 * _B62_4;
+
+    function _pad2(n) {
+      var num = parseInt(n, 10);
+      if (!isFinite(num) || num < 0) num = 0;
+      num = num % 100;
+      var s = String(num);
+      while (s.length < 2) s = '0' + s;
+      return s;
+    }
+
+    function _charToBase36(c) {
+      var code = c.charCodeAt(0);
+      if (code >= 48 && code <= 57) return code - 48;
+      if (code >= 65 && code <= 90) return code - 65 + 10;
+      return -1;
+    }
+    function _base36ToChar(n) {
+      if (n >= 0 && n <= 9) return String.fromCharCode(48 + n);
+      if (n >= 10 && n <= 35) return String.fromCharCode(65 + n - 10);
+      return '?';
+    }
+    function _base36ToBigInt(s) {
+      var result = BigInt(0);
+      for (var i = 0; i < s.length; i++) {
+        result = result * _B36 + BigInt(_charToBase36(s[i]));
+      }
+      return result;
+    }
+    function _bigIntToBase36(num, len) {
+      var result = '';
+      var n = num;
+      for (var i = 0; i < len; i++) {
+        result = _base36ToChar(Number(n % _B36)) + result;
+        n = n / _B36;
+      }
+      return result;
+    }
+    function _charToBase62(c) {
+      var code = c.charCodeAt(0);
+      if (code >= 48 && code <= 57) return code - 48;
+      if (code >= 65 && code <= 90) return code - 65 + 10;
+      if (code >= 97 && code <= 122) return code - 97 + 36;
+      return 0;
+    }
+    function _base62ToChar(n) {
+      if (n >= 0 && n <= 9) return String.fromCharCode(48 + n);
+      if (n >= 10 && n <= 35) return String.fromCharCode(65 + n - 10);
+      if (n >= 36 && n <= 61) return String.fromCharCode(97 + n - 36);
+      return '?';
+    }
+    function _base62ToBigInt(s) {
+      var result = BigInt(0);
+      for (var i = 0; i < s.length; i++) {
+        result = result * _B62 + BigInt(_charToBase62(s[i]));
+      }
+      return result;
+    }
+    function _bigIntToBase62(num, len) {
+      var result = '';
+      var n = num;
+      for (var i = 0; i < len; i++) {
+        result = _base62ToChar(Number(n % _B62)) + result;
+        n = n / _B62;
+      }
+      return result;
+    }
+    function _decode18(code) {
+      if (!code || code.length !== 18 || !/^\d{18}$/.test(code)) {
+        return { valid: false, reason: 'bad-length' };
+      }
+      var total = BigInt(code);
+      var n4 = total % _B62_4;
+      var rem = total / _B62_4;
+      var n3 = rem % _B10_2;
+      rem = rem / _B10_2;
+      var n2 = rem % _B36_4;
+      var n1 = rem / _B36_4;
+      var g1 = n1.toString().padStart(2, '0');
+      var g2 = _bigIntToBase36(n2, 4);
+      var g3 = n3.toString().padStart(2, '0');
+      var g4 = _bigIntToBase62(n4, 4);
+      var input = g1 + g2 + g3 + g4;
+      if (!/^\d{2}[A-Z0-9]{4}\d{2}[A-Za-z0-9]{4}$/.test(input)) {
+        return { valid: false, reason: 'bad-format' };
+      }
+      return {
+        valid: true,
+        input: input,
+        productId: g1,
+        checkCode: g2,
+        months: parseInt(g3, 10),
+        deviceId: g4,
+      };
+    }
+    function _encode18(productId, redeem4, months, device4) {
+      var g1 = _pad2(productId);
+      var g2 = String(redeem4 || '').trim().toUpperCase();
+      var g3 = _pad2(months);
+      var g4 = device4;
+      var input = g1 + g2 + g3 + g4;
+      if (input.length !== 12 || !/^\d{2}[A-Z0-9]{4}\d{2}[A-Za-z0-9]{4}$/.test(input)) {
+        return null;
+      }
+      var n1 = BigInt(parseInt(g1, 10));
+      var n2 = _base36ToBigInt(g2);
+      var n3 = BigInt(parseInt(g3, 10));
+      var n4 = _base62ToBigInt(g4);
+      var combined = n1 * _B36_4_B10_2_B62_4 + n2 * _B10_2_B62_4 + n3 * _B62_4 + n4;
+      var code18 = combined.toString().padStart(18, '0');
+      if (code18.length !== 18) return null;
+      var roundTrip = _decode18(code18);
+      if (!roundTrip.valid) return null;
+      return code18;
+    }
+
     async function api(path, opts) {
       var res = await fetch(path, opts);
       if (res.status === 401) {
@@ -1981,7 +2104,7 @@
       if (!input) {
         resultEl.style.display = 'block';
         resultEl.className = 'decrypt-result error';
-        resultEl.innerHTML = '<span class="error-msg">Please enter activation code</span>';
+        resultEl.innerHTML = '<span class="error-msg">请输入激活码</span>';
         return;
       }
 
@@ -1990,28 +2113,26 @@
       if (cleaned.length !== 18 || !/^\d{18}$/.test(cleaned)) {
         resultEl.style.display = 'block';
         resultEl.className = 'decrypt-result error';
-        resultEl.innerHTML = '<span class="error-msg">Activation code must be 18 digits</span>';
+        resultEl.innerHTML = '<span class="error-msg">激活码必须是 18 位纯数字</span>';
         return;
       }
 
-      var productId = cleaned.substring(0, 2);
-      var checkCode = cleaned.substring(2, 6);
-      var months = parseInt(cleaned.substring(6, 8));
-      var deviceId = cleaned.substring(8, 12);
-      var checksum = parseInt(cleaned.substring(12, 18));
+      var dec = _decode18(cleaned);
+      var verified = false;
+      if (dec.valid) {
+        var roundTrip = _encode18(dec.productId, dec.checkCode, dec.months, dec.deviceId);
+        verified = roundTrip === cleaned;
+      }
 
-      var monthsText = months === 99 ? 'Permanent' : months + ' months';
-      var calculatedChecksum = (parseInt(productId) * 7 + parseInt(checkCode, 36) * 3 + months * 5 + parseInt(deviceId) * 11) % 1000000;
-      var isValid = checksum === calculatedChecksum;
-
-      if (isValid) {
+      if (dec.valid && verified) {
+        var monthsText = dec.months === 99 ? '永久' : dec.months + ' 个月';
         var html = '';
-        html += '<div class="field-row"><span class="field-label">Format</span><span class="field-value">V4</span></div>';
-        html += '<div class="field-row"><span class="field-label">Product ID</span><span class="field-value">' + productId + '</span></div>';
-        html += '<div class="field-row"><span class="field-label">Redeem Code</span><span class="field-value">' + checkCode + '</span></div>';
-        html += '<div class="field-row"><span class="field-label">Duration</span><span class="field-value">' + monthsText + '</span></div>';
-        html += '<div class="field-row"><span class="field-label">Device ID</span><span class="field-value">' + deviceId + '</span></div>';
-        html += '<div class="field-row"><span class="field-label">Verify</span><span class="field-value" style="color:#2e7d32">Passed</span></div>';
+        html += '<div class="field-row"><span class="field-label">格式版本</span><span class="field-value">V4</span></div>';
+        html += '<div class="field-row"><span class="field-label">产品 ID</span><span class="field-value">' + dec.productId + '</span></div>';
+        html += '<div class="field-row"><span class="field-label">兑换码</span><span class="field-value">' + dec.checkCode + '</span></div>';
+        html += '<div class="field-row"><span class="field-label">有效期</span><span class="field-value">' + monthsText + '</span></div>';
+        html += '<div class="field-row"><span class="field-label">设备 ID</span><span class="field-value">' + dec.deviceId + '</span></div>';
+        html += '<div class="field-row"><span class="field-label">验证结果</span><span class="field-value" style="color:#2e7d32">通过</span></div>';
 
         resultEl.style.display = 'block';
         resultEl.className = 'decrypt-result success';
@@ -2019,7 +2140,7 @@
       } else {
         resultEl.style.display = 'block';
         resultEl.className = 'decrypt-result error';
-        resultEl.innerHTML = '<span class="error-msg">Checksum mismatch - code may be tampered</span>';
+        resultEl.innerHTML = '<span class="error-msg">校验失败，激活码可能已被篡改</span>';
       }
     }
 
