@@ -1083,6 +1083,7 @@
         <li><a href="javascript:void(0)" onclick="switchTab('products')" class="active" data-tab="products"><span class="menu-icon">📦</span><span class="menu-text">产品管理</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('codes')" data-tab="codes"><span class="menu-icon">🎫</span><span class="menu-text">兑换码管理</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('records')" data-tab="records"><span class="menu-icon">📋</span><span class="menu-text">激活记录</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('sync')" data-tab="sync"><span class="menu-icon">📡</span><span class="menu-text">数据同步</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('pg-messages')" data-tab="pg-messages"><span class="menu-icon">💬</span><span class="menu-text">消息中心 (Postgres)</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('decrypt')" data-tab="decrypt"><span class="menu-icon">🔍</span><span class="menu-text">解密验证</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('quota')" data-tab="quota"><span class="menu-icon">🪙</span><span class="menu-text">免费额度</span></a></li>
@@ -1213,6 +1214,66 @@
             </div>
             <div id="recordFilterHint" style="display:none;margin-bottom:8px;font-size:0.85rem;color:#667eea"></div>
             <div class="table-wrap" id="recordsTable"></div>
+          </div>
+
+          <div class="panel" id="panel-sync">
+            <div class="toolbar">
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <span id="syncPageMode" class="badge badge-success">📴 本地优先</span>
+                <span id="syncPageDirty" style="display:none" class="badge badge-warning">● 有未同步的本地变更</span>
+              </div>
+              <span class="spacer"></span>
+              <button class="btn btn-outline" onclick="loadSyncPage()" title="刷新本页所有统计/历史">🔄 刷新本页</button>
+              <button class="btn btn-primary" onclick="doSync('merge')">⬆⬇ 一键双向同步（推荐）</button>
+            </div>
+
+            <div class="section-title" style="margin-top:16px">📊 数据概览对比（本地 vs 服务器）</div>
+            <div id="syncCompareCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:20px">
+              <div class="empty" style="grid-column:1/-1">点击「🔄 刷新本页」可连接一次数据库获取服务器实时数据进行对比。</div>
+            </div>
+
+            <div class="section-title">🧰 同步操作区</div>
+            <div class="toolbar filter-row" style="margin:10px 0 16px;padding:14px;gap:14px;flex-wrap:wrap;background:linear-gradient(135deg,#f5f3ff 0%,#ecfeff 100%);border:1px solid #c7d2fe;border-radius:12px">
+              <div style="flex:1;min-width:240px">
+                <div style="font-weight:700;color:#3730a3;margin-bottom:4px">⬆⬇ 一键双向同步 (merge)</div>
+                <div style="font-size:0.78rem;color:#475569;line-height:1.6">① 拉取服务器最新快照合并到本地 → ② 收集本地未同步变更推送到服务器 → ③ 用服务器最终快照覆盖本地，保证一致。<b style="color:#065f46">这是最推荐的日常操作。</b></div>
+              </div>
+              <button class="btn btn-primary" style="padding:10px 18px;font-size:0.9rem" onclick="doSync('merge')">立即同步</button>
+
+              <div style="width:100%;height:1px;background:#e0e7ff;margin:2px 0"></div>
+
+              <div style="flex:1;min-width:240px">
+                <div style="font-weight:700;color:#1d4ed8;margin-bottom:4px">⬇ 仅拉取 (pull)</div>
+                <div style="font-size:0.78rem;color:#475569;line-height:1.6"><b>用服务器数据强制覆盖本地</b>。适用于：换设备登录、想丢弃本地改动、怀疑本地数据损坏时。<b style="color:#b91c1c">本地所有未推送改动会被覆盖丢失！</b></div>
+              </div>
+              <button class="btn btn-outline" style="padding:8px 14px" onclick="if(confirm('确定要用服务器最新数据强制覆盖本地吗？本地所有未推送的新增/编辑/删除都会丢失！')) doSync('pull')">仅拉取覆盖</button>
+
+              <div style="width:100%;height:1px;background:#e0e7ff;margin:2px 0"></div>
+
+              <div style="flex:1;min-width:240px">
+                <div style="font-weight:700;color:#047857;margin-bottom:4px">⬆ 仅推送 (push)</div>
+                <div style="font-size:0.78rem;color:#475569;line-height:1.6">只把本地的新增/编辑/删除推送到服务器，<b>不会主动合并服务器上已有的新数据</b>。适合离线批量操作后集中上传。</div>
+              </div>
+              <button class="btn btn-outline" style="padding:8px 14px" onclick="doSync('push')">仅推送本端</button>
+            </div>
+
+            <div class="section-title">📋 待同步变更详情（本地 ↔ 服务器差值）</div>
+            <div id="syncPendingDetail" style="margin:10px 0 20px"></div>
+
+            <div class="section-title">📜 最近同步历史记录</div>
+            <div class="table-wrap" id="syncHistoryTable" style="margin:10px 0 20px"></div>
+
+            <div class="section-title">⚠️ 危险操作（本地存储管理）</div>
+            <div class="toolbar filter-row" style="margin-top:10px;padding:14px;gap:12px;flex-wrap:wrap;background:#fff1f2;border:1px solid #fecdd3;border-radius:12px">
+              <button class="btn btn-outline" style="color:#be123c;border-color:#fecdd3" onclick="exportLocalStorageJSON()">📥 导出本地所有数据为 JSON（备份）</button>
+              <button class="btn btn-outline" style="color:#be123c;border-color:#fecdd3" onclick="document.getElementById('importJsonFile').click()">📤 从 JSON 文件恢复到本地</button>
+              <input type="file" id="importJsonFile" accept="application/json" style="display:none" onchange="importLocalStorageJSON(event)">
+              <span class="spacer"></span>
+              <button class="btn btn-outline" style="color:#be123c;border-color:#fecdd3" onclick="if(confirm('确定要清空本地浏览器存储吗？\n\n• 本地尚未同步的变更将全部丢失\n• 下次点「一键同步」会从服务器重新拉取\n• 服务器上的真实数据不会受影响')) clearLocalStorageAll()">🧨 清空本地浏览器存储（只清本地，服务器不动）</button>
+            </div>
+
+            <div class="section-title" style="margin-top:22px">❓ 工作原理 / FAQ</div>
+            <div id="syncFaqArea" style="margin:10px 0 30px"></div>
           </div>
 
           <div class="panel" id="panel-decrypt">
@@ -1837,8 +1898,10 @@
       products: { title: '产品管理', sub: '管理可授权的产品列表' },
       codes: { title: '兑换码管理', sub: '生成、筛选与导出兑换码' },
       records: { title: '激活记录', sub: '查看设备激活历史' },
+      sync: { title: '数据同步', sub: '本地浏览器存储 ↔ Postgres 数据库 双向同步管理' },
       'pg-messages': { title: '消息中心 (Postgres)', sub: '使用 Vercel Postgres 发布和管理持久化消息' },
       decrypt: { title: '解密验证', sub: '离线解析激活码内容' },
+      quota: { title: '免费额度', sub: 'Neon Postgres 免费资源消耗与剩余额度估算' },
       health: { title: '服务器状态', sub: '检测 Postgres / 鉴权 / 激活链路是否正常' }
     };
 
@@ -1866,6 +1929,7 @@
       if (tab === 'products') loadProducts();
       if (tab === 'codes') loadCodes();
       if (tab === 'records') loadRecords();
+      if (tab === 'sync') loadSyncPage();
       if (tab === 'pg-messages') loadPgMessages();
       if (tab === 'quota') loadQuota();
       if (tab === 'decrypt') {
@@ -3208,6 +3272,286 @@
         showSyncBanner('❌ 同步失败: ' + escapeHtml((e && e.message) || String(e)), 'err');
         showToast('同步失败: ' + (e.message || '未知错误'), 'error');
       }
+      // after any sync, refresh sync page if open
+      try { if (currentTab === 'sync') loadSyncPage(); } catch (_) {}
+    }
+
+    var STORAGE_KEY_SYNC_HISTORY = 'app_auth_sync_history_v2';
+
+    function getSyncHistory() {
+      try {
+        var raw = localStorage.getItem(STORAGE_KEY_SYNC_HISTORY);
+        var arr = raw ? JSON.parse(raw) : [];
+        return Array.isArray(arr) ? arr : [];
+      } catch (e) { return []; }
+    }
+    function addSyncHistory(entry) {
+      var list = getSyncHistory();
+      list.unshift(Object.assign({ at: Date.now() }, entry || {}));
+      if (list.length > 50) list = list.slice(0, 50);
+      try { localStorage.setItem(STORAGE_KEY_SYNC_HISTORY, JSON.stringify(list)); } catch (_) {}
+    }
+    // monkey-patch doSync to auto-log history (wrap once)
+    (function wrapDoSyncForHistory() {
+      var orig = window.doSync;
+      if (!orig || orig.__wrapped) return;
+      window.doSync = async function(mode) {
+        var t0 = Date.now();
+        var errMsg = null;
+        var captured = { summary: null };
+        var origShow = window.showSyncBanner;
+        window.showSyncBanner = function(msg, level) {
+          if (level === 'ok' && typeof msg === 'string') captured.summary = msg.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+          if (origShow) return origShow.apply(window, arguments);
+        };
+        try { await orig(mode); }
+        catch (e) { errMsg = (e && e.message) || String(e); throw e; }
+        finally {
+          window.showSyncBanner = origShow;
+          addSyncHistory({
+            mode: mode || 'merge',
+            ok: !errMsg,
+            durationMs: Date.now() - t0,
+            error: errMsg,
+            summary: captured.summary
+          });
+        }
+      };
+      window.doSync.__wrapped = true;
+    })();
+
+    function _card(t, localVal, remoteVal, hint) {
+      var hasDiff = (remoteVal != null) && String(localVal) !== String(remoteVal);
+      var diffBadge = '';
+      if (hasDiff) diffBadge = ' <span class="badge badge-warning" style="margin-left:4px">不一致</span>';
+      var remoteHtml = remoteVal == null
+        ? '<span style="color:#94a3b8">未连接数据库</span>'
+        : ('<b style="color:#1e293b;font-size:1.15rem">' + escapeHtml(String(remoteVal)) + '</b>');
+      return '<div style="background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:0 1px 2px rgba(16,24,40,.05)">'
+        + '<div style="font-size:0.8rem;color:#64748b;margin-bottom:8px">' + escapeHtml(t) + diffBadge + '</div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px">'
+        + '  <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 10px">'
+        + '    <div style="font-size:0.68rem;color:#065f46;font-weight:700;margin-bottom:2px">📴 本地</div>'
+        + '    <div style="font-size:1.1rem;font-weight:800;color:#065f46">' + escapeHtml(String(localVal)) + '</div>'
+        + '  </div>'
+        + '  <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 10px">'
+        + '    <div style="font-size:0.68rem;color:#1d4ed8;font-weight:700;margin-bottom:2px">☁️ 服务器</div>'
+        + '    <div>' + remoteHtml + '</div>'
+        + '  </div>'
+        + '</div>'
+        + (hint ? '<div style="font-size:0.7rem;color:#94a3b8;margin-top:8px;line-height:1.5">' + hint + '</div>' : '')
+        + '</div>';
+    }
+
+    async function loadSyncPage() {
+      var pageModeEl = document.getElementById('syncPageMode');
+      var pageDirtyEl = document.getElementById('syncPageDirty');
+      var mode = ADMIN_MODE;
+      if (pageModeEl) {
+        pageModeEl.textContent = (mode === 'api-always') ? '☁️ API 直达模式' : '📴 本地优先';
+        pageModeEl.className = 'badge ' + (mode === 'api-always' ? 'badge-info' : 'badge-success');
+      }
+      if (pageDirtyEl) {
+        var m = syncMeta();
+        if (m.dirty) { pageDirtyEl.style.display = 'inline-block'; } else { pageDirtyEl.style.display = 'none'; }
+      }
+
+      // 1. local-only stats
+      var products = getLocalProducts() || {};
+      var codes = getLocalCodes() || [];
+      var records = getLocalRecords() || [];
+      var counters = getLocalCounters() || {};
+      var deletes = getLocalDeletes() || {};
+      var delPrd = (deletes.deletedProductIds || []).length;
+      var delCde = (deletes.deletedRedeemCodes || []).length;
+
+      var usedCodes = codes.filter(function(c){ return c && c.used; }).length;
+      var unusedCodes = codes.length - usedCodes;
+
+      // 2. optionally fetch server stats if user explicitly wants
+      var remote = null;
+      var cardsEl = document.getElementById('syncCompareCards');
+      if (cardsEl) cardsEl.innerHTML = '<div class="empty" style="grid-column:1/-1">正在连接数据库获取服务器数据（仅此一次）...</div>';
+      try {
+        var snap = await api('/api/admin/sync');
+        if (snap && snap.success) remote = snap;
+      } catch (e) {
+        // ignore, we will show "no connection"
+      }
+
+      var rProducts = remote && remote.snapshot && remote.snapshot.products ? remote.snapshot.products.length : null;
+      var rCodesAll = remote && remote.snapshot && remote.snapshot.redeemCodes ? remote.snapshot.redeemCodes.length : null;
+      var rUsed = remote && remote.snapshot && remote.snapshot.redeemCodes
+        ? remote.snapshot.redeemCodes.filter(function(c){ return c && c.used; }).length : null;
+      var rActs = remote && remote.snapshot && remote.snapshot.activationRecords ? remote.snapshot.activationRecords.length : null;
+      var rCtr = remote && remote.snapshot && remote.snapshot.counters && remote.snapshot.counters.product_counter != null ? remote.snapshot.counters.product_counter : null;
+
+      if (cardsEl) {
+        cardsEl.innerHTML =
+          _card('产品数', Object.keys(products).length, rProducts, '「不一致」说明本地有新增/编辑/删除尚未同步。')
+          + _card('兑换码总数', codes.length, rCodesAll, '服务器端的兑换码为权威数据，建议定期一键同步。')
+          + _card('已使用兑换码', usedCodes, rUsed, '「已使用」状态服务器优先，不会被本地覆盖。')
+          + _card('未使用兑换码', unusedCodes, (rCodesAll!=null && rUsed!=null) ? (rCodesAll - rUsed) : null, '本地批量生成的未使用兑换码会在同步时推送到服务器。')
+          + _card('激活记录数', records.length, rActs, '激活记录服务器权威，本地只做缓存展示。')
+          + _card('产品计数器 (下一个产品ID)', counters.product_counter || 1, rCtr, '用于产品 ID 自增，如两边不一致以服务器最大值为准。')
+          + _card('待删除：产品 / 兑换码', delPrd + ' / ' + delCde, '—', '只有点同步按钮时，才会在服务器端真正执行删除。');
+      }
+
+      // 3. pending changes detail
+      var pendingEl = document.getElementById('syncPendingDetail');
+      if (pendingEl) {
+        var p = await collectLocalPushPatch();
+        var rows = [];
+        var newProducts = 0, updProducts = 0;
+        Object.keys((p.products && p.products.objects) || {}).forEach(function(id) {
+          var exists = products[id];
+          if (exists && exists.created_at) updProducts++; else newProducts++;
+        });
+        var prodIdsToDel = [];
+        if (p.deletes && p.deletes.productIds) prodIdsToDel = p.deletes.productIds;
+        else if (p.deletedProductIds) prodIdsToDel = p.deletedProductIds;
+
+        var newCodes = 0, updCodes = 0;
+        Object.keys((p.redeemCodes && p.redeemCodes.objects) || {}).forEach(function(code) {
+          var found = codes.find(function(c){ return c && c.code === code; });
+          if (found && found.created_at) updCodes++; else newCodes++;
+        });
+        var codesToDel = [];
+        if (p.deletes && p.deletes.redeemCodes) codesToDel = p.deletes.redeemCodes;
+        else if (p.deletedRedeemCodes) codesToDel = p.deletedRedeemCodes;
+
+        rows.push('<div class="table-wrap"><table><thead><tr>'
+          + '<th>变更类型</th><th>产品</th><th>兑换码</th><th>激活记录</th><th>总计</th>'
+          + '</tr></thead><tbody>');
+        rows.push('<tr><td>本地新增（待推送到服务器）</td>'
+          + '<td style="color:#065f46;font-weight:700">' + newProducts + '</td>'
+          + '<td style="color:#065f46;font-weight:700">' + newCodes + '</td>'
+          + '<td style="color:#94a3b8">— (激活记录服务器权威)</td>'
+          + '<td style="font-weight:800">' + (newProducts+newCodes) + '</td></tr>');
+        rows.push('<tr><td>本地编辑（待推送到服务器）</td>'
+          + '<td style="color:#b45309;font-weight:700">' + updProducts + '</td>'
+          + '<td style="color:#b45309;font-weight:700">' + updCodes + '</td>'
+          + '<td style="color:#94a3b8">—</td>'
+          + '<td style="font-weight:800">' + (updProducts+updCodes) + '</td></tr>');
+        rows.push('<tr><td>本地删除（待服务器端执行）</td>'
+          + '<td style="color:#b91c1c;font-weight:700">' + prodIdsToDel.length + (prodIdsToDel.length ? ' （' + prodIdsToDel.join(', ') + '）' : '') + '</td>'
+          + '<td style="color:#b91c1c;font-weight:700">' + codesToDel.length + '</td>'
+          + '<td style="color:#94a3b8">— (激活记录不允许删除)</td>'
+          + '<td style="font-weight:800">' + (prodIdsToDel.length + codesToDel.length) + '</td></tr>');
+        rows.push('</tbody></table></div>');
+        if (!(newProducts+updProducts+newCodes+updCodes+prodIdsToDel.length+codesToDel.length)) {
+          rows.push('<div class="empty" style="margin-top:10px;padding:14px;background:#f0fdf4;border:1px dashed #bbf7d0;border-radius:10px;color:#065f46">✅ 本地没有未同步的变更，和服务器是一致的。</div>');
+        }
+        pendingEl.innerHTML = rows.join('');
+      }
+
+      // 4. history
+      var histEl = document.getElementById('syncHistoryTable');
+      if (histEl) {
+        var hist = getSyncHistory();
+        if (!hist.length) {
+          histEl.innerHTML = '<div class="empty">暂无同步历史。点右上角「一键双向同步」开始第一次同步。</div>';
+        } else {
+          var htm = ['<table><thead><tr><th>时间</th><th>模式</th><th>结果</th><th>耗时</th><th>摘要 / 错误</th></tr></thead><tbody>'];
+          hist.slice(0, 20).forEach(function(h) {
+            var d = new Date(h.at || 0);
+            var time = isNaN(d.getTime()) ? '-' : (d.toLocaleString('zh-CN'));
+            var modeMap = { merge:'⬆⬇ 双向同步 (merge)', pull:'⬇ 仅拉取 (pull)', push:'⬆ 仅推送 (push)' };
+            htm.push('<tr>'
+              + '<td class="mono" style="font-size:0.78rem">' + escapeHtml(time) + '</td>'
+              + '<td>' + escapeHtml(modeMap[h.mode] || (h.mode || '-')) + '</td>'
+              + '<td>' + (h.ok ? '<span class="badge badge-success">成功</span>' : '<span class="badge badge-warning">失败</span>') + '</td>'
+              + '<td>' + (h.durationMs != null ? (h.durationMs + ' ms') : '-') + '</td>'
+              + '<td style="max-width:520px;font-size:0.8rem;line-height:1.5">'
+              + (h.error ? ('<span style="color:#b91c1c">' + escapeHtml(h.error) + '</span>') : escapeHtml(String(h.summary || '—')))
+              + '</td></tr>');
+          });
+          htm.push('</tbody></table>');
+          histEl.innerHTML = htm.join('');
+        }
+      }
+
+      // 5. FAQ
+      var faq = document.getElementById('syncFaqArea');
+      if (faq) {
+        faq.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px">'
+          + '<div style="background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px"><b style="color:#1e293b">Q1. 为什么默认要使用浏览器本地存储？</b><p style="margin:8px 0 0;font-size:0.8rem;color:#475569;line-height:1.65">Neon Postgres 免费版每月只有 <b style="color:#b91c1c">100 小时</b> 的计算时间（只要有一次数据库访问就会唤醒至少 5 分钟计费）。如果后台每次打开/每次点 Tab 都直连数据库，很容易在月中就把额度耗尽导致服务打不开。<b>本地优先方案把 99% 的操作变成纯浏览器内存访问</b>，只有点「同步」按钮时才会真实连接一次数据库。</p></div>'
+          + '<div style="background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px"><b style="color:#1e293b">Q2. 本地数据会丢吗？</b><p style="margin:8px 0 0;font-size:0.8rem;color:#475569;line-height:1.65">① 浏览器本身不会随便清空 localStorage（除非手动清理站点数据/无痕模式）。② 本页下方提供了「📥 导出 JSON 备份」功能，<b>建议在每次大批量新增兑换码后先同步再导出一份 JSON 备份</b>。③ 定期使用「一键同步」把数据推送回服务器即可获得 Postgres 的持久化保障。</p></div>'
+          + '<div style="background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px"><b style="color:#1e293b">Q3. 两边数据冲突时以谁为准？</b><p style="margin:8px 0 0;font-size:0.8rem;color:#475569;line-height:1.65">• <b>激活记录</b>：<b>服务器绝对权威</b>，因为只有服务器记录的真实激活才会被激活接口信任。<br>• <b>兑换码「已使用」状态</b>：服务器优先。<br>• <b>产品/未使用兑换码</b>：比较时间戳，较新的一方胜出；本地删除会在推送时从服务器真正删除。</p></div>'
+          + '<div style="background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px"><b style="color:#1e293b">Q4. 日常应该怎么用？</b><p style="margin:8px 0 0;font-size:0.8rem;color:#475569;line-height:1.65">1️⃣ 打开后台 → <b>直接本地操作</b>：新增产品、批量生成兑换码、删除过期数据，全部秒开、零等待、零数据库连接。<br>2️⃣ 完成一批操作后 → <b>点一次「⬆⬇ 一键同步」</b>（推荐，每天 1~2 次足够）。<br>3️⃣ 换电脑/清理浏览器前 → 先同步，再去新设备点一次「⬇ 仅拉取」即可。</p></div>'
+          + '</div>';
+      }
+    }
+
+    function exportLocalStorageJSON() {
+      var data = { exportedAt: Date.now(), exportedAtStr: new Date().toLocaleString('zh-CN'), version: 2 };
+      [
+        STORAGE_KEY_PRODUCTS, STORAGE_KEY_CODES, STORAGE_KEY_RECORDS,
+        STORAGE_KEY_COUNTERS, STORAGE_KEY_DELETES, STORAGE_KEY_META,
+        STORAGE_KEY_SYNC_HISTORY
+      ].forEach(function(k) {
+        try {
+          var raw = localStorage.getItem(k);
+          if (raw) data[k] = JSON.parse(raw);
+        } catch (_) {}
+      });
+      var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'app-auth-local-backup-' + (new Date().toISOString().slice(0,10)) + '.json';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ try { URL.revokeObjectURL(url); } catch(_) {} }, 4000);
+      showToast('已导出本地备份 JSON', 'success');
+    }
+
+    function importLocalStorageJSON(ev) {
+      var file = (ev && ev.target && ev.target.files && ev.target.files[0]) || null;
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          var obj = JSON.parse(String(e.target.result || ''));
+          if (!obj || typeof obj !== 'object') throw new Error('文件格式错误');
+          var allowedKeys = [
+            STORAGE_KEY_PRODUCTS, STORAGE_KEY_CODES, STORAGE_KEY_RECORDS,
+            STORAGE_KEY_COUNTERS, STORAGE_KEY_DELETES, STORAGE_KEY_META,
+            STORAGE_KEY_SYNC_HISTORY
+          ];
+          var cnt = 0;
+          allowedKeys.forEach(function(k) {
+            if (obj[k] !== undefined) {
+              try { localStorage.setItem(k, JSON.stringify(obj[k])); cnt++; } catch(_) {}
+            }
+          });
+          initLocalData();
+          renderSyncStatusChip();
+          queueRefreshPanels(true);
+          if (currentTab === 'sync') loadSyncPage();
+          showToast('已从 JSON 恢复 ' + cnt + ' 个本地数据表 → 建议立即点「一键同步」让服务器也更新', 'success');
+          showSyncBanner('✅ 已恢复本地备份（覆盖 ' + cnt + ' 张本地表）。建议立刻点击一键同步把恢复的数据推送到服务器。', 'ok');
+        } catch (err) {
+          showToast('导入失败: ' + (err.message || err), 'error');
+        } finally {
+          try { ev.target.value = ''; } catch(_) {}
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function clearLocalStorageAll() {
+      var keys = [
+        STORAGE_KEY_PRODUCTS, STORAGE_KEY_CODES, STORAGE_KEY_RECORDS,
+        STORAGE_KEY_COUNTERS, STORAGE_KEY_DELETES, STORAGE_KEY_META,
+        STORAGE_KEY_SYNC_HISTORY
+      ];
+      keys.forEach(function(k){ try { localStorage.removeItem(k); } catch(_) {} });
+      initLocalData();
+      renderSyncStatusChip();
+      queueRefreshPanels(true);
+      if (currentTab === 'sync') loadSyncPage();
+      showToast('本地存储已清空，下一次同步将从服务器重新拉取所有数据', 'success');
+      showSyncBanner('✅ 本地浏览器存储已清空（服务器数据完全不受影响）。点击「⬇ 仅拉取」可立即从服务器恢复全部数据。', 'ok');
     }
 
     function mergeServerDataIntoLocal(serverSnapshot, opts) {
