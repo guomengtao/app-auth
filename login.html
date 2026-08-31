@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>管理员登录</title>
+  <title>管理员登录 - 激活码系统</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -32,38 +32,32 @@
     .icon { font-size: 48px; margin-bottom: 16px; }
     h1 { font-size: 1.6rem; color: #1a1a2e; margin-bottom: 6px; }
     .subtitle { font-size: 0.85rem; color: #888; margin-bottom: 32px; }
-    .btn-vercel {
-      width: 100%;
-      padding: 16px;
-      background: #000;
-      color: #fff;
-      border: none;
-      border-radius: 12px;
-      font-size: 1.1rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: opacity 0.2s, transform 0.1s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
+    .field { margin-bottom: 16px; text-align: left; }
+    .field input {
+      width: 100%; padding: 12px 16px;
+      border: 2px solid #e8e8e8; border-radius: 10px;
+      font-size: 0.95rem; outline: none; transition: border-color 0.2s;
     }
-    .btn-vercel:hover { opacity: 0.85; }
-    .btn-vercel:active { transform: scale(0.98); }
-    .btn-vercel svg { width: 20px; height: 20px; }
-    .hint {
-      margin-top: 24px;
-      font-size: 0.75rem;
-      color: #aaa;
-      line-height: 1.6;
+    .field input:focus { border-color: #6c63ff; }
+    .btn-login {
+      width: 100%; padding: 14px;
+      background: linear-gradient(135deg, #6c63ff, #e94560);
+      color: #fff; border: none; border-radius: 12px;
+      font-size: 1rem; font-weight: 700; cursor: pointer;
+      transition: opacity 0.2s; margin-top: 8px;
     }
+    .btn-login:hover { opacity: 0.88; }
+    .btn-login:disabled { opacity: 0.5; cursor: not-allowed; }
+    .error-msg {
+      background: #ffebee; color: #c62828;
+      padding: 10px 14px; border-radius: 8px;
+      font-size: 0.82rem; margin-bottom: 12px; display: none;
+    }
+    .error-msg.show { display: block; }
+    .hint { margin-top: 24px; font-size: 0.75rem; color: #aaa; line-height: 1.6; }
     .back-link {
-      display: block;
-      text-align: center;
-      margin-top: 16px;
-      font-size: 0.8rem;
-      color: #6c63ff;
-      text-decoration: none;
+      display: block; text-align: center; margin-top: 16px;
+      font-size: 0.8rem; color: #6c63ff; text-decoration: none;
     }
     .back-link:hover { text-decoration: underline; }
   </style>
@@ -72,19 +66,70 @@
   <div class="card">
     <div class="icon">🛡️</div>
     <h1>管理员登录</h1>
-    <p class="subtitle">仅限管理员通过 Vercel 认证登录</p>
+    <p class="subtitle">请输入管理员账号密码</p>
 
-    <button class="btn-vercel" onclick="location.href='/admin.html'">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18.5L4.5 12 12 4.5 19.5 12 12 20.5z"/></svg>
-      Vercel 认证登录
-    </button>
+    <form id="loginForm" onsubmit="return false;">
+      <div class="field">
+        <input type="text" id="username" placeholder="用户名" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <input type="password" id="password" placeholder="密码" autocomplete="current-password" required>
+      </div>
+      <div class="error-msg" id="loginError"></div>
+      <button type="submit" class="btn-login" id="loginBtn" onclick="doLogin()">登录</button>
+    </form>
 
     <p class="hint">
-      仅允许 <strong>guomengtao@gmail.com</strong> 登录<br>
-      需在 Vercel 后台 → Settings → Deployment Protection<br>
-      开启 <strong>Vercel Authentication</strong>
+      默认账号: <strong>admin</strong> / 密码: <strong>admin123</strong>
     </p>
     <a href="/" class="back-link">← 返回首页</a>
   </div>
+
+  <script>
+    async function doLogin() {
+      var username = document.getElementById('username').value.trim();
+      var password = document.getElementById('password').value.trim();
+      var errorEl = document.getElementById('loginError');
+      var btn = document.getElementById('loginBtn');
+
+      if (!username || !password) {
+        errorEl.textContent = '请输入用户名和密码';
+        errorEl.classList.add('show');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = '登录中...';
+      errorEl.classList.remove('show');
+
+      try {
+        var res = await fetch('/api/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: username, password: password }),
+        });
+        var data = await res.json();
+        if (data.success) {
+          window.location.href = '/admin.html';
+        } else {
+          errorEl.textContent = data.error || '登录失败';
+          errorEl.classList.add('show');
+        }
+      } catch (e) {
+        errorEl.textContent = '网络错误: ' + (e.message || '无法连接');
+        errorEl.classList.add('show');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '登录';
+      }
+    }
+
+    document.getElementById('password').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') doLogin();
+    });
+    document.getElementById('username').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') doLogin();
+    });
+  </script>
 </body>
 </html>
