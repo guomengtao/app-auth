@@ -370,6 +370,62 @@
     .toolbar select:focus { border-color: var(--accent); }
     .toolbar .spacer { flex: 1; min-width: 8px; }
 
+    .filter-panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      margin-bottom: 14px;
+    }
+    .filter-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .filter-row:last-child { margin-bottom: 0; }
+    .filter-label {
+      flex-shrink: 0;
+      width: 40px;
+      padding-top: 7px;
+      font-size: 0.74rem;
+      font-weight: 600;
+      color: var(--muted);
+    }
+    .filter-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      flex: 1;
+      min-width: 0;
+    }
+    .filter-chip {
+      border: 1px solid var(--line);
+      background: #f7f8fb;
+      color: var(--ink);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 0.78rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+      line-height: 1.3;
+    }
+    .filter-chip:hover {
+      border-color: #c5c0ff;
+      background: #f3f1ff;
+    }
+    .filter-chip.active {
+      background: rgba(108, 99, 255, 0.12);
+      border-color: var(--accent);
+      color: var(--accent);
+      font-weight: 650;
+    }
+    @media (max-width: 720px) {
+      .filter-row { flex-direction: column; gap: 6px; }
+      .filter-label { width: auto; padding-top: 0; }
+    }
+
     .btn {
       padding: 8px 16px;
       border: none;
@@ -732,25 +788,39 @@
           <div class="panel" id="panel-codes">
             <div class="toolbar">
               <button class="btn btn-primary" onclick="openCodeModal()">+ 生成兑换码</button>
-              <select id="filterProduct" onchange="loadCodes()">
-                <option value="">全部产品</option>
-              </select>
-              <select id="filterUsed" onchange="loadCodes()">
-                <option value="">全部状态</option>
-                <option value="0">未使用</option>
-                <option value="1">已使用</option>
-              </select>
-              <select id="filterDuration" onchange="loadCodes()">
-                <option value="">全部时长</option>
-                <option value="1">1个月</option>
-                <option value="3">3个月</option>
-                <option value="6">6个月</option>
-                <option value="12">12个月</option>
-                <option value="99">永久</option>
-              </select>
               <button class="btn btn-outline" onclick="loadCodes()">刷新</button>
               <span class="spacer"></span>
               <button class="btn btn-outline" onclick="openExportModal()">导出 CSV</button>
+            </div>
+            <div class="filter-panel">
+              <input type="hidden" id="filterProduct" value="">
+              <input type="hidden" id="filterUsed" value="">
+              <input type="hidden" id="filterDuration" value="">
+              <div class="filter-row">
+                <div class="filter-label">产品</div>
+                <div class="filter-chips" id="filterProductChips">
+                  <button type="button" class="filter-chip active" data-value="" onclick="setCodeFilter('product', '', this)">全部</button>
+                </div>
+              </div>
+              <div class="filter-row">
+                <div class="filter-label">状态</div>
+                <div class="filter-chips" id="filterUsedChips">
+                  <button type="button" class="filter-chip active" data-value="" onclick="setCodeFilter('used', '', this)">全部</button>
+                  <button type="button" class="filter-chip" data-value="0" onclick="setCodeFilter('used', '0', this)">未使用</button>
+                  <button type="button" class="filter-chip" data-value="1" onclick="setCodeFilter('used', '1', this)">已使用</button>
+                </div>
+              </div>
+              <div class="filter-row">
+                <div class="filter-label">时长</div>
+                <div class="filter-chips" id="filterDurationChips">
+                  <button type="button" class="filter-chip active" data-value="" onclick="setCodeFilter('duration', '', this)">全部</button>
+                  <button type="button" class="filter-chip" data-value="1" onclick="setCodeFilter('duration', '1', this)">1个月</button>
+                  <button type="button" class="filter-chip" data-value="3" onclick="setCodeFilter('duration', '3', this)">3个月</button>
+                  <button type="button" class="filter-chip" data-value="6" onclick="setCodeFilter('duration', '6', this)">6个月</button>
+                  <button type="button" class="filter-chip" data-value="12" onclick="setCodeFilter('duration', '12', this)">12个月</button>
+                  <button type="button" class="filter-chip" data-value="99" onclick="setCodeFilter('duration', '99', this)">永久</button>
+                </div>
+              </div>
             </div>
             <div class="table-wrap" id="codesTable"></div>
           </div>
@@ -1075,22 +1145,7 @@
         }
         html += '</tbody></table>';
         document.getElementById('productsTable').innerHTML = html;
-
-        var productSelects = ['filterProduct', 'filterRecordProduct', 'codeProduct'];
-        productSelects.forEach(function(sid) {
-          var sel = document.getElementById(sid);
-          var val = sel.value;
-          sel.innerHTML = sid === 'codeProduct'
-            ? '<option value="">选择产品</option>'
-            : '<option value="">全部产品</option>';
-          data.products.forEach(function(p) {
-            sel.innerHTML += '<option value="' + p.id + '">' + escapeHtml(p.name) + ' (' + p.id + ')</option>';
-          });
-          if (sid !== 'codeProduct') {
-            // keep previous filter value if still valid
-          }
-          sel.value = val;
-        });
+        fillProductFilters(data.products);
       } catch (e) {
         console.error('loadProducts failed:', e);
         var html = '<table><thead><tr><th>ID</th><th>Name</th><th>Description</th><th>Created</th></tr></thead><tbody>';
@@ -1104,19 +1159,44 @@
         });
         html += '</tbody></table>';
         document.getElementById('productsTable').innerHTML = html;
-        var productSelects = ['filterProduct', 'filterRecordProduct', 'codeProduct'];
-        productSelects.forEach(function(sid) {
-          var sel = document.getElementById(sid);
-          var val = sel.value;
-          sel.innerHTML = sid === 'codeProduct'
-            ? '<option value="">选择产品</option>'
-            : '<option value="">全部产品</option>';
-          fallbackProducts.forEach(function(p) {
-            sel.innerHTML += '<option value="' + p.id + '">' + escapeHtml(p.name) + ' (' + p.id + ')</option>';
-          });
-          sel.value = val;
-        });
+        fillProductFilters(fallbackProducts);
       }
+    }
+
+    function fillProductFilters(products) {
+      var codeSel = document.getElementById('codeProduct');
+      var recordSel = document.getElementById('filterRecordProduct');
+      var codeVal = codeSel.value;
+      var recordVal = recordSel.value;
+
+      codeSel.innerHTML = '<option value="">选择产品</option>';
+      recordSel.innerHTML = '<option value="">全部产品</option>';
+      products.forEach(function(p) {
+        var label = escapeHtml(p.name) + ' (' + p.id + ')';
+        codeSel.innerHTML += '<option value="' + p.id + '">' + label + '</option>';
+        recordSel.innerHTML += '<option value="' + p.id + '">' + label + '</option>';
+      });
+      codeSel.value = codeVal;
+      recordSel.value = recordVal;
+
+      var currentPid = document.getElementById('filterProduct').value;
+      var chips = document.getElementById('filterProductChips');
+      var html = '<button type="button" class="filter-chip' + (currentPid === '' ? ' active' : '') + '" data-value="" onclick="setCodeFilter(\'product\', \'\', this)">全部</button>';
+      products.forEach(function(p) {
+        var active = currentPid === p.id ? ' active' : '';
+        html += '<button type="button" class="filter-chip' + active + '" data-value="' + escapeHtml(p.id) + '" onclick="setCodeFilter(\'product\', \'' + escapeHtml(p.id) + '\', this)">' + escapeHtml(p.name) + '</button>';
+      });
+      chips.innerHTML = html;
+    }
+
+    function setCodeFilter(type, value, btn) {
+      var inputId = type === 'product' ? 'filterProduct' : (type === 'used' ? 'filterUsed' : 'filterDuration');
+      var chipsId = type === 'product' ? 'filterProductChips' : (type === 'used' ? 'filterUsedChips' : 'filterDurationChips');
+      document.getElementById(inputId).value = value;
+      var chips = document.getElementById(chipsId);
+      chips.querySelectorAll('.filter-chip').forEach(function(el) { el.classList.remove('active'); });
+      if (btn) btn.classList.add('active');
+      loadCodes();
     }
 
     async function loadCodes() {
@@ -1292,14 +1372,23 @@
         var used = document.getElementById('filterUsed').value;
         var dur = document.getElementById('filterDuration').value;
 
-        var params = new URLSearchParams();
-        params.set('export', '1');
-        if (pid) params.set('product_id', pid);
-        if (used) params.set('used', used);
-        if (dur) params.set('duration_months', dur);
+        var filteredCodes = [];
+        var fromApi = false;
+        try {
+          var params = new URLSearchParams();
+          params.set('export', '1');
+          if (pid) params.set('product_id', pid);
+          if (used) params.set('used', used);
+          if (dur) params.set('duration_months', dur);
 
-        var data = await api('/api/admin/redeem-codes?' + params.toString());
-        var filteredCodes = (data && data.codes) ? data.codes : [];
+          var data = await api('/api/admin/redeem-codes?' + params.toString());
+          if (data && data.success && Array.isArray(data.codes)) {
+            filteredCodes = data.codes;
+            fromApi = true;
+          }
+        } catch (apiErr) {
+          console.error('export API failed, try local:', apiErr);
+        }
 
         if (!filteredCodes.length) {
           var allCodes = getLocalData(STORAGE_KEY_CODES, []);
@@ -1309,7 +1398,7 @@
         }
 
         if (!filteredCodes || filteredCodes.length === 0) {
-          showToast('没有可导出的兑换码', 'error');
+          showToast(fromApi ? '没有可导出的兑换码' : '导出失败：服务端异常且本地无数据', 'error');
           return;
         }
 
@@ -1332,7 +1421,7 @@
         URL.revokeObjectURL(url);
 
         closeExportModal();
-        showToast('已导出 ' + filteredCodes.length + ' 条（' + keys.length + ' 列）', 'success');
+        showToast('已导出 ' + filteredCodes.length + ' 条（' + keys.length + ' 列）' + (fromApi ? '' : ' · 本地数据'), 'success');
       } catch (e) {
         showToast('导出失败: ' + (e.message || '未知错误'), 'error');
       }

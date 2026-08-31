@@ -19,20 +19,27 @@ module.exports = async (req, res) => {
     ]);
 
     let usedCount = 0;
-    let cursor = 0;
+    let cursor = "0";
+    let guard = 0;
     do {
-      const codes = await redis.sscan("auth:redeem_codes", cursor, { count: 500 });
-      cursor = codes[0];
-      if (codes[1].length > 0) {
+      const codes = await redis.sscan("auth:redeem_codes", cursor, { count: 200 });
+      const nextCursor = Array.isArray(codes) ? String(codes[0] ?? "0") : String(codes?.cursor ?? "0");
+      const keys = Array.isArray(codes) ? (codes[1] || []) : (codes?.keys || []);
+      cursor = nextCursor;
+      if (keys.length > 0) {
         const pipeline = redis.pipeline();
-        codes[1].forEach((code) => pipeline.get(`auth:redeem:${code}`));
+        keys.forEach((code) => pipeline.get(`auth:redeem:${code}`));
         const results = await pipeline.exec();
-        usedCount += results.filter((r) => {
-          const data = typeof r === "string" ? JSON.parse(r) : r;
+        usedCount += (results || []).filter((r) => {
+          let data = r;
+          if (typeof data === "string") {
+            try { data = JSON.parse(data); } catch (e) { return false; }
+          }
           return data && data.used;
         }).length;
       }
-    } while (cursor !== 0);
+      guard++;
+    } while (cursor !== "0" && guard < 500);
 
     return res.json({
       success: true,
