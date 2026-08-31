@@ -292,7 +292,7 @@
 <body>
   <div class="header">
     <div>
-      <h1>激活码管理系统</h1>
+      <h1>激活码管理系统 <span style="display:inline-block;background:rgba(255,255,255,0.2);color:#ffd700;font-size:0.65rem;padding:2px 10px;border-radius:20px;vertical-align:middle;margin-left:8px;font-weight:500;border:1px solid rgba(255,215,0,0.4)">中文项目</span></h1>
       <span class="user" id="usernameDisplay"></span>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
@@ -302,7 +302,7 @@
   </div>
 
   <div class="desc-banner">
-    <strong>System Description:</strong> This system provides activation code management for Xiaomi Band/Watch apps. Admin generates <strong>4-character redeem codes (A-Z, 0-9)</strong> for users. After activation, the system generates a <strong>18-digit activation code</strong> based on device ID using mixed-radix encoding (product ID 2-digit + check code 4-char + months 2-digit + device ID 4-char), compatible with band-side verification.
+    <strong>系统说明：</strong>本系统为小米手环/手表应用提供激活码管理服务。管理员生成 <strong>4位兑换码（A-Z, 0-9）</strong> 发放给用户。用户激活后，系统基于设备ID生成唯一 <strong>18位纯数字激活码</strong>（产品ID 2位 + 兑换码编码 4位 + 月数 2位 + 设备ID 4位），兼容手环端验证。
   </div>
 
   <div class="stats-bar">
@@ -346,17 +346,17 @@
           <option value="">全部产品</option>
         </select>
         <select id="filterUsed" onchange="loadCodes()" style="padding:8px 12px;border:2px solid #e8e8e8;border-radius:8px;">
-          <option value="">All Status</option>
-          <option value="false">Unused</option>
-          <option value="true">Used</option>
+          <option value="">全部状态</option>
+          <option value="false">未使用</option>
+          <option value="true">已使用</option>
         </select>
         <select id="filterDuration" onchange="loadCodes()" style="padding:8px 12px;border:2px solid #e8e8e8;border-radius:8px;">
-          <option value="">All Duration</option>
-          <option value="1">1 month</option>
-          <option value="3">3 months</option>
-          <option value="6">6 months</option>
-          <option value="12">12 months</option>
-          <option value="99">Permanent</option>
+          <option value="">全部时长</option>
+          <option value="1">1个月</option>
+          <option value="3">3个月</option>
+          <option value="6">6个月</option>
+          <option value="12">12个月</option>
+          <option value="99">永久</option>
         </select>
         <button class="btn btn-outline" onclick="loadCodes()">刷新</button>
         <button class="btn btn-outline" onclick="exportCodes()" style="margin-left:auto">导出 CSV</button>
@@ -377,9 +377,9 @@
     <div class="panel" id="panel-decrypt">
       <div class="decrypt-box">
         <h3>激活码解密</h3>
-        <p class="decrypt-desc">Decrypt activation code via algorithm to extract product ID, check code, months, and device ID (no database query)</p>
+        <p class="decrypt-desc">通过算法解密激活码，提取产品ID、兑换码、月数和设备ID（无需数据库查询）</p>
         <div class="decrypt-input-row">
-          <input type="text" id="decryptInput" class="decrypt-input" placeholder="Enter 18-digit activation code" maxlength="20" autocomplete="off">
+          <input type="text" id="decryptInput" class="decrypt-input" placeholder="输入18位激活码" maxlength="20" autocomplete="off">
           <button class="btn btn-primary" onclick="doDecrypt()">解密</button>
         </div>
         <div class="decrypt-result" id="decryptResult" style="display:none"></div>
@@ -392,7 +392,7 @@
       <h3>添加产品</h3>
       <div class="field">
         <label>产品名称</label>
-        <input type="text" id="productName" placeholder="例如：VIP Pro">
+        <input type="text" id="productName" placeholder="例如：VIP专业版">
       </div>
       <div class="field">
         <label>描述</label>
@@ -534,16 +534,16 @@
         var data = await api('/api/admin/redeem-codes?' + params.toString());
         if (!data.success) return;
 
-        var html = '<table><thead><tr><th>Redeem Code</th><th>Product</th><th>Duration</th><th>Status</th><th>Created</th><th>Used At</th></tr></thead><tbody>';
+        var html = '<table><thead><tr><th>兑换码</th><th>产品</th><th>有效期</th><th>状态</th><th>创建时间</th><th>使用时间</th></tr></thead><tbody>';
         if (data.codes.length === 0) {
-          html += '<tr><td colspan="6" class="empty">No redeem codes</td></tr>';
+          html += '<tr><td colspan="6" class="empty">暂无兑换码，请先生成</td></tr>';
         } else {
           data.codes.forEach(function(c) {
             html += '<tr>';
             html += '<td class="mono">' + c.code + '</td>';
             html += '<td>' + c.product_id + '</td>';
-            html += '<td>' + (c.duration_months === 99 ? 'Permanent' : c.duration_months + ' month(s)') + '</td>';
-            html += '<td><span class="badge ' + (c.used ? 'badge-success' : 'badge-warning') + '">' + (c.used ? 'Used' : 'Unused') + '</span></td>';
+            html += '<td>' + (c.duration_months === 99 ? '永久' : c.duration_months + '个月') + '</td>';
+            html += '<td><span class="badge ' + (c.used ? 'badge-success' : 'badge-warning') + '">' + (c.used ? '已使用' : '未使用') + '</span></td>';
             html += '<td>' + new Date(c.created_at).toLocaleDateString('zh-CN') + '</td>';
             html += '<td>' + (c.used_at ? new Date(c.used_at).toLocaleString('zh-CN') : '-') + '</td>';
             html += '</tr>';
@@ -565,11 +565,11 @@
         if (dur) params.set('duration_months', dur);
         params.set('export', '1');
 
-        showToast('Exporting...', 'success');
+        showToast('正在导出...', 'success');
 
         var data = await api('/api/admin/redeem-codes?' + params.toString());
         if (!data.success || !data.codes || data.codes.length === 0) {
-          showToast('No redeem codes to export', 'error');
+          showToast('没有可导出的兑换码', 'error');
           return;
         }
 
@@ -592,9 +592,9 @@
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
 
-        showToast('Exported ' + data.total + ' redeem codes', 'success');
+        showToast('已导出 ' + data.total + ' 条兑换码', 'success');
       } catch (e) {
-        showToast('Export failed: ' + (e.message || 'Unknown error'), 'error');
+        showToast('导出失败: ' + (e.message || '未知错误'), 'error');
       }
     }
 
@@ -616,7 +616,7 @@
             html += '<td class="mono" style="font-size:0.75rem">' + r.activation_code + '</td>';
             html += '<td class="mono" style="font-size:0.7rem;letter-spacing:0">' + r.device_id_hash + '</td>';
             html += '<td>' + r.product_id + '</td>';
-            html += '<td>' + (r.duration_months === 99 ? 'Permanent' : r.duration_months + ' month(s)') + '</td>';
+            html += '<td>' + (r.duration_months === 99 ? '永久' : r.duration_months + '个月') + '</td>';
             html += '<td>' + new Date(r.generated_at).toLocaleString('zh-CN') + '</td>';
             html += '<td>' + (r.expires_at ? new Date(r.expires_at).toLocaleDateString('zh-CN') : '<span class="badge badge-info">永不过期</span>') + '</td>';
             html += '</tr>';
@@ -675,7 +675,7 @@
       var duration = parseInt(document.getElementById('codeDuration').value);
       var count = parseInt(document.getElementById('codeCount').value);
 
-      if (!productId) { showToast('Please select a product', 'error'); return; }
+      if (!productId) { showToast('请选择产品', 'error'); return; }
 
       try {
         var data = await api('/api/admin/redeem-codes', {
@@ -684,7 +684,7 @@
           body: JSON.stringify({ productId: productId, durationMonths: duration, count: count }),
         });
         if (data.success) {
-          showToast('Generated ' + count + ' redeem codes', 'success');
+          showToast('已生成 ' + count + ' 个兑换码', 'success');
           closeCodeModal();
           loadCodes();
           loadStats();
@@ -707,7 +707,7 @@
       if (!input) {
         resultEl.style.display = 'block';
         resultEl.className = 'decrypt-result error';
-        resultEl.innerHTML = '<span class="error-msg">Please enter activation code</span>';
+        resultEl.innerHTML = '<span class="error-msg">请输入激活码</span>';
         return;
       }
 
@@ -716,7 +716,7 @@
       if (cleaned.length !== 18 || !/^\d{18}$/.test(cleaned)) {
         resultEl.style.display = 'block';
         resultEl.className = 'decrypt-result error';
-        resultEl.innerHTML = '<span class="error-msg">Activation code must be 18 pure digits</span>';
+        resultEl.innerHTML = '<span class="error-msg">激活码必须为18位纯数字</span>';
         return;
       }
 
@@ -728,7 +728,7 @@
         if (!data.success) {
           resultEl.style.display = 'block';
           resultEl.className = 'decrypt-result error';
-          resultEl.innerHTML = '<span class="error-msg">' + (data.error || 'Decrypt failed') + '</span>';
+          resultEl.innerHTML = '<span class="error-msg">' + (data.error || '解密失败') + '</span>';
           return;
         }
 
@@ -736,19 +736,17 @@
         if (!r.valid) {
           resultEl.style.display = 'block';
           resultEl.className = 'decrypt-result error';
-          resultEl.innerHTML = '<span class="error-msg">Checksum mismatch - code may be tampered</span>';
+          resultEl.innerHTML = '<span class="error-msg">校验不匹配 - 激活码可能被篡改</span>';
           return;
         }
 
         var html = '';
-        html += '<div class="field-row"><span class="field-label">Format</span><span class="field-value">' + r.format + '</span></div>';
-        html += '<div class="field-row"><span class="field-label">Product ID</span><span class="field-value">' + r.productId + '</span></div>';
-        html += '<div class="field-row"><span class="field-label">Check Code</span><span class="field-value">' + r.checkCode + '</span></div>';
-        html += '<div class="field-row"><span class="field-label">Duration</span><span class="field-value">' + (r.months === 99 ? 'Permanent' : r.months + ' month(s)') + '</span></div>';
-        html += '<div class="field-row"><span class="field-label">Device ID</span><span class="field-value">' + r.deviceId + '</span></div>';
-        html += '<div class="field-row"><span class="field-label">Product Salt</span><span class="field-value">' + r.productSalt + '</span></div>';
-        html += '<div class="field-row"><span class="field-label">Checksum</span><span class="field-value">' + r.checksum + '</span></div>';
-        html += '<div class="field-row"><span class="field-label">Verification</span><span class="field-value" style="color:#2e7d32">✓ Verified</span></div>';
+        html += '<div class="field-row"><span class="field-label">格式</span><span class="field-value">' + r.format + '</span></div>';
+        html += '<div class="field-row"><span class="field-label">产品ID</span><span class="field-value">' + r.productId + '</span></div>';
+        html += '<div class="field-row"><span class="field-label">兑换码</span><span class="field-value">' + r.checkCode + '</span></div>';
+        html += '<div class="field-row"><span class="field-label">有效期</span><span class="field-value">' + (r.months === 99 ? '永久' : r.months + '个月') + '</span></div>';
+        html += '<div class="field-row"><span class="field-label">设备ID</span><span class="field-value">' + r.deviceId + '</span></div>';
+        html += '<div class="field-row"><span class="field-label">验证结果</span><span class="field-value" style="color:#2e7d32">✓ 验证通过</span></div>';
 
         resultEl.style.display = 'block';
         resultEl.className = 'decrypt-result success';
@@ -756,7 +754,7 @@
       }).catch(function(e) {
         resultEl.style.display = 'block';
         resultEl.className = 'decrypt-result error';
-        resultEl.innerHTML = '<span class="error-msg">Decrypt failed: ' + (e.message || 'Unknown error') + '</span>';
+        resultEl.innerHTML = '<span class="error-msg">解密失败: ' + (e.message || '未知错误') + '</span>';
       });
     }
 
@@ -766,6 +764,7 @@
 
     loadStats();
     loadProducts();
+    loadCodes();
     setInterval(loadStats, 30000);
   </script>
 </body>

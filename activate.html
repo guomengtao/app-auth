@@ -164,27 +164,27 @@
   <div class="card">
     <div class="icon">🔐</div>
     <h1>设备激活</h1>
-    <p class="subtitle">Enter your redeem code to get activation code</p>
+    <p class="subtitle">输入兑换码获取激活码</p>
 
     <div class="steps">
-      <div class="steps-title">Steps</div>
+      <div class="steps-title">操作步骤</div>
       <ol>
-        <li>Confirm your device ID below matches your device</li>
-        <li>Enter your <strong>4-character redeem code</strong></li>
-        <li>Click activate to get your <strong>18-digit activation code</strong></li>
-        <li>Enter the activation code into your band/watch app</li>
+        <li>确认下方设备ID与您的设备匹配</li>
+        <li>输入您的 <strong>4位兑换码</strong></li>
+        <li>点击激活获取 <strong>18位激活码</strong></li>
+        <li>将激活码输入到手环/手表应用中</li>
       </ol>
     </div>
 
     <div class="field">
-      <label>Device ID (4 chars)</label>
+      <label>设备ID（4位）</label>
       <input type="text" id="deviceId" class="readonly" readonly>
     </div>
     <div class="field">
-      <label>Redeem Code (4 chars A-Z, 0-9)</label>
-      <input type="text" id="redeemCode" placeholder="Enter 4-char redeem code" maxlength="4" autocomplete="off">
+      <label>兑换码（4位 A-Z, 0-9）</label>
+      <input type="text" id="redeemCode" placeholder="输入4位兑换码" maxlength="4" autocomplete="off">
     </div>
-    <button class="btn" id="activateBtn" onclick="activate()">Activate</button>
+    <button class="btn" id="activateBtn" onclick="activate()">立即激活</button>
 
     <div class="result" id="result"></div>
     <div class="device-info" id="deviceInfo"></div>
@@ -210,7 +210,7 @@
     }
 
     document.getElementById('deviceId').value = deviceId;
-    document.getElementById('deviceInfo').textContent = 'Device ID source: ' + (getDeviceIdFromUrl() ? 'URL parameter' : 'Local generated');
+    document.getElementById('deviceInfo').textContent = '设备ID来源: ' + (getDeviceIdFromUrl() ? 'URL参数' : '本地生成');
 
     function setLoading(loading) {
       var btn = document.getElementById('activateBtn');
