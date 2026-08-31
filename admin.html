@@ -939,6 +939,79 @@
       .stats-bar { grid-template-columns: repeat(2, 1fr); gap: 8px; }
       .decrypt-input-row { flex-direction: column; }
     }
+
+    /* Quota Page */
+    .quota-card {
+      background:#fff;
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:18px;
+      box-shadow:0 1px 2px rgba(16,24,40,0.04);
+      position:relative;
+      overflow:hidden;
+    }
+    .quota-card::before {
+      content:"";
+      position:absolute; top:0; left:0; right:0; height:4px;
+      background:linear-gradient(90deg,#4c51bf,#818cf8);
+    }
+    .quota-card.qc-warn::before { background:linear-gradient(90deg,#f59e0b,#fbbf24); }
+    .quota-card.qc-danger::before { background:linear-gradient(90deg,#dc2626,#f87171); }
+    .quota-card.qc-ok::before { background:linear-gradient(90deg,#059669,#34d399); }
+    .qc-title {
+      font-size:0.78rem; color:#6b7280; font-weight:600; letter-spacing:0.3px;
+      margin-bottom:10px; text-transform:uppercase;
+    }
+    .qc-main {
+      display:flex; align-items:baseline; justify-content:space-between; gap:10px;
+      margin-bottom:12px;
+    }
+    .qc-used {
+      font-size:2rem; font-weight:800; color:#111827; letter-spacing:-0.5px;
+    }
+    .qc-used small { font-size:0.9rem; font-weight:500; color:#6b7280; margin-left:4px; }
+    .qc-total { font-size:0.85rem; color:#9ca3af; white-space:nowrap; }
+    .qc-progress {
+      height:10px; background:#eef2ff; border-radius:999px; overflow:hidden; margin-bottom:8px;
+    }
+    .qc-progress > div {
+      height:100%; border-radius:999px; transition:width .4s ease;
+      background:linear-gradient(90deg,#4c51bf,#818cf8);
+    }
+    .qc-progress.warn > div { background:linear-gradient(90deg,#f59e0b,#fbbf24); }
+    .qc-progress.danger > div { background:linear-gradient(90deg,#dc2626,#f87171); }
+    .qc-foot { display:flex; justify-content:space-between; font-size:0.75rem; color:#6b7280; margin-top:6px; }
+    .qc-foot strong { color:#111827; }
+    .info-card {
+      background:#fff;
+      border:1px solid var(--line);
+      border-left:4px solid #818cf8;
+      border-radius:10px;
+      padding:14px 16px;
+    }
+    .info-card.ic-warn { border-left-color:#f59e0b; }
+    .info-card.ic-danger { border-left-color:#dc2626; }
+    .info-card.ic-ok { border-left-color:#10b981; }
+    .info-card h4 {
+      margin:0 0 6px; font-size:0.95rem; color:#111827; line-height:1.35; display:flex; align-items:center; gap:8px;
+    }
+    .info-card p { margin:0; font-size:0.82rem; color:#4b5563; line-height:1.7; }
+    .tag {
+      display:inline-block; padding:2px 8px; border-radius:999px;
+      font-size:0.7rem; font-weight:700; letter-spacing:0.4px;
+      background:#eef2ff; color:#4c51bf;
+    }
+    .tag.t-warn { background:#fef3c7; color:#b45309; }
+    .tag.t-danger { background:#fee2e2; color:#b91c1c; }
+    .tag.t-ok { background:#d1fae5; color:#065f46; }
+    .tag.t-code { background:#111827; color:#f9fafb; font-weight:500; letter-spacing:0.3px; }
+    .breakdown-card {
+      background:#fafbff; border:1px dashed #c7d2fe; border-radius:10px; padding:12px 14px;
+    }
+    .breakdown-card .b-title { font-size:0.75rem; color:#6b7280; margin-bottom:6px; }
+    .breakdown-card .b-val { font-size:1.25rem; font-weight:800; color:#111827; }
+    .breakdown-card .b-sub { font-size:0.75rem; color:#9ca3af; margin-top:4px; }
+    .storage-detail-table { margin-top:8px; }
   </style>
 </head>
 <body>
@@ -956,6 +1029,7 @@
         <li><a href="javascript:void(0)" onclick="switchTab('records')" data-tab="records"><span class="menu-icon">📋</span><span class="menu-text">激活记录</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('pg-messages')" data-tab="pg-messages"><span class="menu-icon">💬</span><span class="menu-text">消息中心 (Postgres)</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('decrypt')" data-tab="decrypt"><span class="menu-icon">🔍</span><span class="menu-text">解密验证</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('quota')" data-tab="quota"><span class="menu-icon">🪙</span><span class="menu-text">免费额度</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('health')" data-tab="health"><span class="menu-icon">🩺</span><span class="menu-text">服务器状态</span></a></li>
       </ul>
       <div class="sidebar-footer">
@@ -1078,6 +1152,38 @@
               </div>
               <div class="decrypt-result" id="decryptResult" style="display:none"></div>
             </div>
+          </div>
+
+          <div class="panel" id="panel-quota">
+            <div class="toolbar">
+              <button class="btn btn-primary" onclick="loadQuota()">刷新额度</button>
+              <span class="spacer"></span>
+              <span id="quotaCheckedAt" class="health-meta">尚未检测</span>
+            </div>
+
+            <div class="toolbar filter-row" id="quotaSummaryBar" style="margin-top:10px">
+              <div style="flex:1">
+                <div class="section-title" style="margin:0 0 6px">免费额度使用情况</div>
+                <div style="color:#6b7280;font-size:0.8rem" id="quotaMetaInfo">-</div>
+              </div>
+              <a href="https://console.neon.tech/app/billing" target="_blank" class="btn btn-outline" style="font-size:0.8rem">到 Neon 控制台看精确值 ↗</a>
+            </div>
+
+            <div class="quota-cards" id="quotaCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin:16px 0 20px">
+              <div class="empty" style="grid-column:1/-1">点击「刷新额度」获取本月免费额度使用情况。</div>
+            </div>
+
+            <div class="section-title" style="margin-top:10px">📐 每月 100 小时怎么计算的？</div>
+            <div id="quotaHowTo" class="info-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-bottom:18px"></div>
+
+            <div class="section-title" style="margin-top:10px">💡 怎么节省免费额度（防止月底打不开）</div>
+            <div id="quotaTips" class="info-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-bottom:18px"></div>
+
+            <div class="section-title" style="margin-top:10px">📊 本月数据库活跃估算明细</div>
+            <div id="quotaBreakdownEl" class="breakdown-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:18px"></div>
+
+            <div class="section-title" style="margin-top:10px">🗄️ 数据库存储明细 (当前月)</div>
+            <div id="quotaStorageEl"></div>
           </div>
 
           <div class="panel" id="panel-health">
@@ -1495,6 +1601,7 @@
       if (tab === 'codes') loadCodes();
       if (tab === 'records') loadRecords();
       if (tab === 'pg-messages') loadPgMessages();
+      if (tab === 'quota') loadQuota();
       if (tab === 'decrypt') {
         if (_pendingDecryptCode) {
           var code = _pendingDecryptCode;
@@ -2681,6 +2788,170 @@
       loadProducts();
     });
     setInterval(loadStats, 30000);
+
+    function _qLvl(pct) {
+      var n = Number(pct) || 0;
+      if (n >= 90) return 'danger';
+      if (n >= 65) return 'warn';
+      return 'ok';
+    }
+    function _quotaCard(title, usedUnit, totalUnit, pct, remainingText, extraFootHtml) {
+      var lvl = _qLvl(pct);
+      var displayPct = Math.max(0, Math.min(100, Math.round(pct || 0)));
+      var html = '<div class="quota-card qc-' + lvl + '">';
+      html += '<div class="qc-title">' + escapeHtml(title) + '</div>';
+      html += '<div class="qc-main">';
+      html +=   '<div class="qc-used">' + usedUnit + '</div>';
+      html +=   '<div class="qc-total">配额 ' + totalUnit + '</div>';
+      html += '</div>';
+      html += '<div class="qc-progress ' + lvl + '"><div style="width:' + displayPct + '%"></div></div>';
+      html += '<div class="qc-foot">';
+      html +=   '<span>已用 <strong>' + displayPct + '%</strong></span>';
+      html +=   '<span>' + remainingText + '</span>';
+      html += '</div>';
+      if (extraFootHtml) html += '<div style="margin-top:10px;font-size:0.75rem;color:#6b7280;line-height:1.6;border-top:1px dashed #eef2ff;padding-top:8px">' + extraFootHtml + '</div>';
+      html += '</div>';
+      return html;
+    }
+
+    function loadQuota() {
+      var cardsEl = document.getElementById('quotaCards');
+      if (cardsEl) cardsEl.innerHTML = '<div class="empty" style="grid-column:1/-1">正在拉取本月免费额度数据...</div>';
+      var metaEl = document.getElementById('quotaMetaInfo');
+      var howToEl = document.getElementById('quotaHowTo');
+      var tipsEl = document.getElementById('quotaTips');
+      var breakEl = document.getElementById('quotaBreakdownEl');
+      var storeEl = document.getElementById('quotaStorageEl');
+      api('/api/admin/quota').then(function(d) {
+        if (!d || !d.success) throw new Error(d && d.error ? d.error : '接口返回失败');
+        document.getElementById('quotaCheckedAt').textContent = '最后检测：' + new Date().toLocaleString('zh-CN');
+        var s = d.summary || {};
+        var c = s.compute || {};
+        var st = s.storage || {};
+        var eg = s.egress || {};
+        var m = s.month || {};
+        // meta info
+        if (metaEl) {
+          metaEl.innerHTML =
+            '账单月份 <span class="tag t-code" style="margin-left:2px;margin-right:10px">' + escapeHtml(m.key || '-') + '</span>' +
+            '本月已过 <strong>' + escapeHtml(String(m.percentMonthElapsed || 0)) + '%</strong> (' + escapeHtml(String(m.elapsedDays || 0)) + ' / ' + escapeHtml(String(m.totalDaysInMonth || 0)) + ' 天)' +
+            ' · 下次重置：<strong>' + new Date(m.nextResetUtcIso || new Date()).toLocaleDateString('zh-CN') + '</strong>（UTC 00:00）' +
+            (s.neon && s.neon.apiKeyConfigured ? ' · <span class="tag t-ok">NEON_API_KEY 已配置（可切换到精确接口查询）</span>' : ' · <span class="tag t-warn">未配置 NEON_API_KEY，数据为本页估算值</span>');
+        }
+        // Cards
+        if (cardsEl) {
+          var html = '';
+          var freeH = Number(c.freeHours) || 100;
+          var usedH = Number(c.usedHoursEstimate) || 0;
+          var pctH = (usedH / freeH) * 100;
+          html += _quotaCard(
+            '🖥️ 计算小时 (Compute Hours · 每月100h)',
+            Number(usedH).toFixed(2) + '<small>小时</small>',
+            freeH + ' 小时',
+            pctH,
+            '剩余约 <strong>' + Math.max(0, Number(c.remainingHoursEstimate || 0)).toFixed(1) + ' h</strong>',
+            '冷启动 <strong>' + escapeHtml(String(c.coldStarts || 0)) + '</strong> 次 · 日均 <strong>' + escapeHtml(String(c.dailyAverageHours || 0)) + ' h</strong> · 按当前速率估算月末会用 <strong style="color:' + (Number(c.projectedHoursAtCurrentRate || 0) > freeH ? '#b91c1c' : '#111827') + '">' + escapeHtml(String(c.projectedHoursAtCurrentRate || 0)) + ' h</strong>'
+          );
+          var freeGiB = Number(st.freeGiB) || 0.5;
+          var usedGiB = Number(st.dbSizeGiB) || 0;
+          var pctG = (usedGiB / freeGiB) * 100;
+          html += _quotaCard(
+            '💾 数据库存储 (Storage · 512MB)',
+            Number(usedGiB * 1024).toFixed(1) + '<small>MB</small>',
+            (freeGiB * 1024).toFixed(0) + ' MB',
+            pctG,
+            '剩余约 <strong>' + Math.max(0, ((freeGiB - usedGiB) * 1024)).toFixed(1) + ' MB</strong>',
+            '表数量 <strong>' + escapeHtml(String(st.tableCount || 0)) + '</strong> · relation size 合计 <strong>' + Number(st.relationGiB || 0).toFixed(3) + ' GB</strong>'
+          );
+          // Egress: SQL 不能直接拿，只能展示说明
+          var freeEg = Number(eg.freeGiB) || 1;
+          html += _quotaCard(
+            '🌐 跨区出流量 (Inter-Region Egress · 1GB/月)',
+            '<span style="color:#9ca3af">—</span><small>无法直查</small>',
+            freeEg + ' GB',
+            0,
+            '请到 Neon 控制台查看',
+            '建议：Vercel 函数和 Neon 项目选同一区域（us-east-2）；跨区响应每 >1KB 都计费，可通过 Data API + 客户端缓存降低。'
+          );
+          // 分支 / 历史天数：虚拟卡片，显示上限
+          html += _quotaCard(
+            '🌳 项目分支 (Branches · 最多 10 个) + 历史窗口',
+            '— <small style="color:#9ca3af">请点右侧按钮查 Neon 控制台</small>',
+            String(s.limits && s.limits.maxBranches ? s.limits.maxBranches : 10) + ' 分支',
+            0,
+            '保留历史 ' + String(s.limits && s.limits.historyDays ? s.limits.historyDays : 1) + ' 天',
+            'Preview/Dev 分支用完要清理；默认 1 天快照历史可随时回滚，超过将自动清理。'
+          );
+          cardsEl.innerHTML = html;
+        }
+        // How to calculate
+        if (howToEl && Array.isArray(d.howToCalculate)) {
+          var hs = '';
+          d.howToCalculate.forEach(function(item, i) {
+            var cls = i === 4 ? 'ic-danger' : (i === 3 ? 'ic-warn' : '');
+            hs += '<div class="info-card ' + cls + '"><h4>' + (i + 1) + '. ' + escapeHtml(item.t || '') + '</h4><p>' + escapeHtml(item.v || '') + '</p></div>';
+          });
+          howToEl.innerHTML = hs;
+        }
+        // Tips
+        if (tipsEl && Array.isArray(d.tips)) {
+          var ts = '';
+          d.tips.forEach(function(item) {
+            var tagCls = 't-ok';
+            if (item.tag === '避坑') tagCls = 't-danger';
+            else if (item.tag === '后台' || item.tag === '防刷') tagCls = 't-warn';
+            else if (item.tag === '最省') tagCls = 't-ok';
+            else tagCls = '';
+            ts += '<div class="info-card"><h4>';
+            ts += item.tag ? ('<span class="tag ' + tagCls + '">' + escapeHtml(item.tag) + '</span>') : '';
+            ts += escapeHtml(item.title || '') + '</h4><p>' + escapeHtml(item.detail || '') + '</p></div>';
+          });
+          tipsEl.innerHTML = ts;
+        }
+        // Breakdown
+        if (breakEl) {
+          var bs = '';
+          bs += '<div class="breakdown-card"><div class="b-title">本月估算活跃总时长</div><div class="b-val">' + escapeHtml(String(Number(c.usedHoursEstimate || 0).toFixed(3))) + ' h</div><div class="b-sub">scale-to-zero 不计时 · 精确值以 Neon 为准</div></div>';
+          bs += '<div class="breakdown-card"><div class="b-title">冷启动次数</div><div class="b-val">' + escapeHtml(String(c.coldStarts || 0)) + '<small style="font-size:0.75rem;color:#9ca3af;margin-left:4px">次</small></div><div class="b-sub">每 5 分钟空闲后首次请求算一次</div></div>';
+          bs += '<div class="breakdown-card"><div class="b-title">本月累计观察到的请求数</div><div class="b-val">' + escapeHtml(String(c.totalPings || 0)) + '</div><div class="b-sub">API 访问（激活/后台/健康检查 等）</div></div>';
+          bs += '<div class="breakdown-card"><div class="b-title">月末预估消耗</div><div class="b-val" style="color:' + (Number(c.projectedHoursAtCurrentRate || 0) > Number(c.freeHours || 100) ? '#b91c1c' : '#065f46') + '">' + escapeHtml(String(c.projectedHoursAtCurrentRate || 0)) + ' h</div><div class="b-sub">按已过天数等比线性推算</div></div>';
+          bs += '<div class="breakdown-card"><div class="b-title">每日平均活跃</div><div class="b-val">' + escapeHtml(String(c.dailyAverageHours || 0)) + '<small style="font-size:0.75rem;color:#9ca3af;margin-left:4px">h / 天</small></div><div class="b-sub">理想日使用应 < 3.33 小时（100h / 30d）</div></div>';
+          bs += '<div class="breakdown-card"><div class="b-title">下次免费额度重置</div><div class="b-val">' + new Date(m.nextResetUtcIso || new Date()).toLocaleDateString('zh-CN') + '</div><div class="b-sub">届时 Compute、Egress 会重新从 0 开始计</div></div>';
+          breakEl.innerHTML = bs;
+        }
+        // Storage detail table
+        if (storeEl) {
+          var byTable = (st && st.byTable && typeof st.byTable === 'object') ? st.byTable : {};
+          var keys = Object.keys(byTable).sort(function(a, b) {
+            return Number(byTable[b].bytes || 0) - Number(byTable[a].bytes || 0);
+          });
+          var head = '<table class="storage-detail-table"><thead><tr><th>数据表名</th><th style="width:180px;text-align:right">估算行数</th><th style="width:180px;text-align:right">总大小 (含索引)</th><th style="width:220px;text-align:right">占存储配额</th></tr></thead><tbody>';
+          var body = '';
+          if (keys.length === 0) {
+            body += '<tr><td colspan="4" class="empty">暂无表统计数据或无权限读 pg_stat_user_tables</td></tr>';
+          } else {
+            keys.forEach(function(k) {
+              var info = byTable[k] || {};
+              var r = Number(info.est_rows) || 0;
+              var b = Number(info.bytes) || 0;
+              var mb = b / (1024 * 1024);
+              var pctT = mb / (Number(st.freeGiB || 0.5) * 1024) * 100;
+              var lvl = _qLvl(pctT);
+              body += '<tr><td class="mono">' + escapeHtml(k) + '</td>';
+              body += '<td style="text-align:right">' + r.toLocaleString('zh-CN') + '</td>';
+              body += '<td style="text-align:right">' + mb.toFixed(2) + ' MB</td>';
+              body += '<td style="text-align:right"><div class="qc-progress ' + lvl + '" style="margin:0 0 4px auto;max-width:160px;display:inline-block;vertical-align:middle;height:6px;width:140px"><div style="width:' + Math.max(0, Math.min(100, pctT)) + '%"></div></div> <span style="font-size:0.78rem;color:#374151;margin-left:6px">' + pctT.toFixed(2) + '%</span></td></tr>';
+            });
+          }
+          storeEl.innerHTML = head + body + '</tbody></table>';
+        }
+        showToast('额度数据已更新', 'success');
+      }).catch(function(e) {
+        console.error('loadQuota failed:', e);
+        if (cardsEl) cardsEl.innerHTML = '<div class="empty" style="grid-column:1/-1">加载失败：' + escapeHtml(e.message || '未知错误') + '。请检查 /api/admin/quota 是否部署成功，或重新登录。</div>';
+        showToast('加载额度数据失败: ' + (e.message || '未知错误'), 'error');
+      });
+    }
   </script>
 </body>
 </html>

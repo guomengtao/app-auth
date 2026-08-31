@@ -1,6 +1,7 @@
 var redis = require("../lib/redis");
 var crypto = require("../lib/crypto");
 var { validateRedeemCode, validateDeviceId } = require("../lib/validate");
+var quota = require("../lib/quota");
 
 function parseBody(req) {
   var body = req.body;
@@ -42,6 +43,7 @@ function normalizeMonths(months) {
 }
 
 module.exports = async (req, res) => {
+  try { quota.bumpQuotaTick("/api/activate"); } catch (_) {}
   if (req.method !== "POST") {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
