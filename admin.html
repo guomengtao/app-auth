@@ -479,6 +479,50 @@
       justify-content: flex-end;
       margin-top: 22px;
     }
+    .export-cols {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 12px;
+      margin-top: 4px;
+    }
+    .export-cols label {
+      display: flex !important;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.82rem !important;
+      font-weight: 500 !important;
+      color: var(--ink) !important;
+      margin-bottom: 0 !important;
+      cursor: pointer;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fafbfe;
+      user-select: none;
+    }
+    .export-cols label:hover { border-color: var(--accent); background: #f5f4ff; }
+    .export-cols input { width: auto !important; margin: 0; accent-color: var(--accent); }
+    .export-col-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .export-col-actions button {
+      padding: 4px 10px;
+      font-size: 0.72rem;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      border-radius: 6px;
+      cursor: pointer;
+      color: var(--muted);
+    }
+    .export-col-actions button:hover { color: var(--ink); border-color: var(--muted); }
+    .export-hint {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 8px;
+      line-height: 1.5;
+    }
 
     .toast {
       position: fixed;
@@ -706,7 +750,7 @@
               </select>
               <button class="btn btn-outline" onclick="loadCodes()">刷新</button>
               <span class="spacer"></span>
-              <button class="btn btn-outline" onclick="exportCodes()">导出 CSV</button>
+              <button class="btn btn-outline" onclick="openExportModal()">导出 CSV</button>
             </div>
             <div class="table-wrap" id="codesTable"></div>
           </div>
@@ -773,6 +817,35 @@
       <div class="actions">
         <button class="btn btn-outline" onclick="closeCodeModal()">取消</button>
         <button class="btn btn-primary" onclick="generateCodesLocal()">生成</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="exportModal">
+    <div class="modal">
+      <h3>导出 CSV</h3>
+      <div class="field">
+        <label>选择导出列</label>
+        <div class="export-cols" id="exportColumns">
+          <label><input type="checkbox" value="code" checked> 兑换码</label>
+          <label><input type="checkbox" value="product_id" checked> 产品ID</label>
+          <label><input type="checkbox" value="duration_months" checked> 有效期</label>
+          <label><input type="checkbox" value="status" checked> 状态</label>
+          <label><input type="checkbox" value="created_at" checked> 创建时间</label>
+          <label><input type="checkbox" value="used_at" checked> 使用时间</label>
+          <label><input type="checkbox" value="used_device_id"> 设备哈希</label>
+          <label><input type="checkbox" value="generated_activation_code"> 激活码</label>
+        </div>
+        <div class="export-col-actions">
+          <button type="button" onclick="setExportColumns(true)">全选</button>
+          <button type="button" onclick="setExportColumns(false)">全不选</button>
+          <button type="button" onclick="setExportColumns('default')">默认列</button>
+        </div>
+        <p class="export-hint">将按当前筛选条件导出；至少选择一列。</p>
+      </div>
+      <div class="actions">
+        <button class="btn btn-outline" onclick="closeExportModal()">取消</button>
+        <button class="btn btn-primary" onclick="confirmExportCsv()">确认导出</button>
       </div>
     </div>
   </div>
@@ -942,6 +1015,9 @@
     async function loadStats() {
       try {
         var productCount = 0;
+        var codeCount = 0;
+        var usedCount = 0;
+        var activationCount = 0;
         try {
           var productData = await api('/api/admin/products');
           if (productData.success && productData.products) {
@@ -950,13 +1026,26 @@
         } catch (e) {
           productCount = 2;
         }
-        var codes = getLocalData(STORAGE_KEY_CODES, []);
-        var records = getLocalData(STORAGE_KEY_RECORDS, []);
-        var usedCount = codes.filter(function(c) { return c.used; }).length;
+        try {
+          var statsData = await api('/api/admin/stats');
+          if (statsData.success && statsData.stats) {
+            var s = statsData.stats;
+            if (typeof s.totalProducts === 'number') productCount = s.totalProducts;
+            if (typeof s.totalRedeemCodes === 'number') codeCount = s.totalRedeemCodes;
+            if (typeof s.usedRedeemCodes === 'number') usedCount = s.usedRedeemCodes;
+            if (typeof s.totalActivations === 'number') activationCount = s.totalActivations;
+          }
+        } catch (e) {
+          var codes = getLocalData(STORAGE_KEY_CODES, []);
+          var records = getLocalData(STORAGE_KEY_RECORDS, []);
+          codeCount = codes.length;
+          usedCount = codes.filter(function(c) { return c.used; }).length;
+          activationCount = records.length;
+        }
         document.getElementById('statProducts').textContent = productCount;
-        document.getElementById('statCodes').textContent = codes.length;
+        document.getElementById('statCodes').textContent = codeCount;
         document.getElementById('statUsed').textContent = usedCount;
-        document.getElementById('statActivations').textContent = records.length;
+        document.getElementById('statActivations').textContent = activationCount;
       } catch (e) {
         console.error('loadStats failed:', e);
       }
@@ -991,12 +1080,14 @@
         productSelects.forEach(function(sid) {
           var sel = document.getElementById(sid);
           var val = sel.value;
-          sel.innerHTML = '<option value="">All Products</option>';
+          sel.innerHTML = sid === 'codeProduct'
+            ? '<option value="">选择产品</option>'
+            : '<option value="">全部产品</option>';
           data.products.forEach(function(p) {
-            sel.innerHTML += '<option value="' + p.id + '">' + escapeHtml(p.name) + '</option>';
+            sel.innerHTML += '<option value="' + p.id + '">' + escapeHtml(p.name) + ' (' + p.id + ')</option>';
           });
-          if (sid === 'codeProduct' || sid === 'filterProduct' || sid === 'filterRecordProduct') {
-            sel.innerHTML += '<option value="0000">All Products (0000)</option>';
+          if (sid !== 'codeProduct') {
+            // keep previous filter value if still valid
           }
           sel.value = val;
         });
@@ -1017,11 +1108,12 @@
         productSelects.forEach(function(sid) {
           var sel = document.getElementById(sid);
           var val = sel.value;
-          sel.innerHTML = '<option value="">All Products</option>';
+          sel.innerHTML = sid === 'codeProduct'
+            ? '<option value="">选择产品</option>'
+            : '<option value="">全部产品</option>';
           fallbackProducts.forEach(function(p) {
-            sel.innerHTML += '<option value="' + p.id + '">' + escapeHtml(p.name) + '</option>';
+            sel.innerHTML += '<option value="' + p.id + '">' + escapeHtml(p.name) + ' (' + p.id + ')</option>';
           });
-          sel.innerHTML += '<option value="0000">All Products (0000)</option>';
           sel.value = val;
         });
       }
@@ -1033,21 +1125,24 @@
         var used = document.getElementById('filterUsed').value;
         var dur = document.getElementById('filterDuration').value;
 
-        var allCodes = getLocalData(STORAGE_KEY_CODES, []);
-        var filteredCodes = allCodes.filter(function(c) {
-          return matchCodeLocal(c, pid, used, dur);
-        });
-        filteredCodes.sort(function(a, b) {
-          return (b.created_at || 0) - (a.created_at || 0);
-        });
+        var params = new URLSearchParams();
+        if (pid) params.set('product_id', pid);
+        if (used) params.set('used', used);
+        if (dur) params.set('duration_months', dur);
+        params.set('limit', '100');
 
-        var html = '<table><thead><tr><th>Code</th><th>Product</th><th>Duration</th><th>Status</th><th>Created</th><th>Used At</th></tr></thead><tbody>';
+        var data = await api('/api/admin/redeem-codes?' + params.toString());
+        if (!data.success) throw new Error(data.error || 'API error');
+
+        var filteredCodes = data.codes || [];
+
+        var html = '<table><thead><tr><th>兑换码</th><th>产品</th><th>时长</th><th>状态</th><th>创建时间</th><th>使用时间</th></tr></thead><tbody>';
         if (filteredCodes.length === 0) {
-          html += '<tr><td colspan="6" class="empty">No codes yet, click generate to create</td></tr>';
+          html += '<tr><td colspan="6" class="empty">暂无兑换码，点击上方按钮生成</td></tr>';
         } else {
           filteredCodes.forEach(function(c) {
-            var durationText = c.duration_months === 99 ? 'Permanent' : c.duration_months + ' months';
-            var statusText = c.used ? 'Used' : 'Unused';
+            var durationText = c.duration_months === 99 ? '永久' : c.duration_months + ' 个月';
+            var statusText = c.used ? '已使用' : '未使用';
             var statusClass = c.used ? 'badge-success' : 'badge-warning';
             html += '<tr>';
             html += '<td class="mono">' + escapeHtml(c.code) + '</td>';
@@ -1063,34 +1158,166 @@
         document.getElementById('codesTable').innerHTML = html;
       } catch (e) {
         console.error('loadCodes failed:', e);
-        showToast('Failed to load codes: ' + (e.message || 'Unknown error'), 'error');
+        // fallback to localStorage if API unavailable
+        try {
+          var pid2 = document.getElementById('filterProduct').value;
+          var used2 = document.getElementById('filterUsed').value;
+          var dur2 = document.getElementById('filterDuration').value;
+          var allCodes = getLocalData(STORAGE_KEY_CODES, []);
+          var filteredCodes = allCodes.filter(function(c) {
+            return matchCodeLocal(c, pid2, used2, dur2);
+          });
+          filteredCodes.sort(function(a, b) {
+            return (b.created_at || 0) - (a.created_at || 0);
+          });
+          var html = '<table><thead><tr><th>兑换码</th><th>产品</th><th>时长</th><th>状态</th><th>创建时间</th><th>使用时间</th></tr></thead><tbody>';
+          if (filteredCodes.length === 0) {
+            html += '<tr><td colspan="6" class="empty">暂无兑换码（API 不可用，本地也无数据）</td></tr>';
+          } else {
+            filteredCodes.forEach(function(c) {
+              var durationText = c.duration_months === 99 ? '永久' : c.duration_months + ' 个月';
+              var statusText = c.used ? '已使用' : '未使用';
+              var statusClass = c.used ? 'badge-success' : 'badge-warning';
+              html += '<tr>';
+              html += '<td class="mono">' + escapeHtml(c.code) + '</td>';
+              html += '<td>' + escapeHtml(c.product_id) + '</td>';
+              html += '<td>' + durationText + '</td>';
+              html += '<td><span class="badge ' + statusClass + '">' + statusText + '</span></td>';
+              html += '<td>' + new Date(c.created_at).toLocaleDateString('zh-CN') + '</td>';
+              html += '<td>' + (c.used_at ? new Date(c.used_at).toLocaleString('zh-CN') : '-') + '</td>';
+              html += '</tr>';
+            });
+          }
+          html += '</tbody></table>';
+          document.getElementById('codesTable').innerHTML = html;
+          showToast('兑换码列表改用本地缓存（API 失败）', 'error');
+        } catch (e2) {
+          showToast('加载兑换码失败: ' + (e.message || '未知错误'), 'error');
+        }
       }
     }
 
-    async function exportCodes() {
+    var EXPORT_COLUMNS = [
+      { key: 'code', label: '兑换码', def: true },
+      { key: 'product_id', label: '产品ID', def: true },
+      { key: 'duration_months', label: '有效期', def: true },
+      { key: 'status', label: '状态', def: true },
+      { key: 'created_at', label: '创建时间', def: true },
+      { key: 'used_at', label: '使用时间', def: true },
+      { key: 'used_device_id', label: '设备哈希', def: false },
+      { key: 'generated_activation_code', label: '激活码', def: false }
+    ];
+    var STORAGE_KEY_EXPORT_COLS = 'admin_export_columns';
+
+    function getExportColumnKeys() {
+      var boxes = document.querySelectorAll('#exportColumns input[type="checkbox"]');
+      var keys = [];
+      boxes.forEach(function(box) {
+        if (box.checked) keys.push(box.value);
+      });
+      return keys;
+    }
+
+    function setExportColumns(mode) {
+      var boxes = document.querySelectorAll('#exportColumns input[type="checkbox"]');
+      boxes.forEach(function(box) {
+        if (mode === true) {
+          box.checked = true;
+        } else if (mode === false) {
+          box.checked = false;
+        } else {
+          var meta = EXPORT_COLUMNS.find(function(c) { return c.key === box.value; });
+          box.checked = meta ? !!meta.def : false;
+        }
+      });
+    }
+
+    function restoreExportColumns() {
+      try {
+        var raw = localStorage.getItem(STORAGE_KEY_EXPORT_COLS);
+        if (!raw) return;
+        var saved = JSON.parse(raw);
+        if (!Array.isArray(saved)) return;
+        var boxes = document.querySelectorAll('#exportColumns input[type="checkbox"]');
+        boxes.forEach(function(box) {
+          box.checked = saved.indexOf(box.value) >= 0;
+        });
+      } catch (e) {}
+    }
+
+    function openExportModal() {
+      restoreExportColumns();
+      document.getElementById('exportModal').classList.add('show');
+    }
+
+    function closeExportModal() {
+      document.getElementById('exportModal').classList.remove('show');
+    }
+
+    function csvEscape(val) {
+      var s = val == null ? '' : String(val);
+      if (/[",\n\r]/.test(s)) {
+        return '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    }
+
+    function formatExportCell(key, row) {
+      if (key === 'status') return row.used ? 'used' : 'unused';
+      if (key === 'created_at') return row.created_at ? new Date(row.created_at).toISOString() : '';
+      if (key === 'used_at') return row.used_at ? new Date(row.used_at).toISOString() : '';
+      if (key === 'duration_months') {
+        if (row.duration_months === 99) return '99';
+        return row.duration_months == null ? '' : String(row.duration_months);
+      }
+      if (key === 'generated_activation_code') return row.generated_activation_code || '';
+      if (key === 'used_device_id') return row.used_device_id || '';
+      if (key === 'code') return row.code || '';
+      if (key === 'product_id') return row.product_id || '';
+      return row[key] == null ? '' : String(row[key]);
+    }
+
+    async function confirmExportCsv() {
+      var keys = getExportColumnKeys();
+      if (!keys.length) {
+        showToast('请至少选择一列', 'error');
+        return;
+      }
+      try {
+        localStorage.setItem(STORAGE_KEY_EXPORT_COLS, JSON.stringify(keys));
+      } catch (e) {}
+
       try {
         var pid = document.getElementById('filterProduct').value;
         var used = document.getElementById('filterUsed').value;
         var dur = document.getElementById('filterDuration').value;
 
-        var allCodes = getLocalData(STORAGE_KEY_CODES, []);
-        var filteredCodes = allCodes.filter(function(c) {
-          return matchCodeLocal(c, pid, used, dur);
-        });
+        var params = new URLSearchParams();
+        params.set('export', '1');
+        if (pid) params.set('product_id', pid);
+        if (used) params.set('used', used);
+        if (dur) params.set('duration_months', dur);
+
+        var data = await api('/api/admin/redeem-codes?' + params.toString());
+        var filteredCodes = (data && data.codes) ? data.codes : [];
+
+        if (!filteredCodes.length) {
+          var allCodes = getLocalData(STORAGE_KEY_CODES, []);
+          filteredCodes = allCodes.filter(function(c) {
+            return matchCodeLocal(c, pid, used, dur);
+          });
+        }
 
         if (!filteredCodes || filteredCodes.length === 0) {
-          showToast('No codes to export', 'error');
+          showToast('没有可导出的兑换码', 'error');
           return;
         }
 
-        showToast('Exporting...', 'success');
-
-        var csv = 'code,product_id,duration_months,status,created_at,used_at\n';
+        var headerMap = {};
+        EXPORT_COLUMNS.forEach(function(c) { headerMap[c.key] = c.key; });
+        var csv = keys.map(function(k) { return headerMap[k] || k; }).join(',') + '\n';
         filteredCodes.forEach(function(c) {
-          var status = c.used ? 'used' : 'unused';
-          var createdAt = new Date(c.created_at).toISOString();
-          var usedAt = c.used_at ? new Date(c.used_at).toISOString() : '';
-          csv += c.code + ',' + c.product_id + ',' + c.duration_months + ',' + status + ',' + createdAt + ',' + usedAt + '\n';
+          csv += keys.map(function(k) { return csvEscape(formatExportCell(k, c)); }).join(',') + '\n';
         });
 
         var bom = '\uFEFF';
@@ -1104,10 +1331,15 @@
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
 
-        showToast('Exported ' + filteredCodes.length + ' codes', 'success');
+        closeExportModal();
+        showToast('已导出 ' + filteredCodes.length + ' 条（' + keys.length + ' 列）', 'success');
       } catch (e) {
-        showToast('Export failed: ' + (e.message || 'Unknown error'), 'error');
+        showToast('导出失败: ' + (e.message || '未知错误'), 'error');
       }
+    }
+
+    async function exportCodes() {
+      openExportModal();
     }
 
     async function loadRecords() {
@@ -1200,49 +1432,74 @@
       var duration = parseInt(document.getElementById('codeDuration').value);
       var count = parseInt(document.getElementById('codeCount').value);
 
-      if (!productId) { showToast('Please select a product', 'error'); return; }
-      if (!count || count < 1 || count > 1000) { showToast('Count must be 1-1000', 'error'); return; }
-      if (!duration || duration < 1 || duration > 99) { showToast('Duration must be 1-99 months', 'error'); return; }
+      if (!productId) { showToast('请选择产品', 'error'); return; }
+      if (!count || count < 1 || count > 1000) { showToast('数量需为 1-1000', 'error'); return; }
+      if (!duration || duration < 1 || duration > 99) { showToast('有效期需为 1-99 个月', 'error'); return; }
 
+      generateCodes(productId, duration, count);
+    }
+
+    async function generateCodes(productId, duration, count) {
       try {
-        var codes = getLocalData(STORAGE_KEY_CODES, []);
-        var existingCodes = {};
-        codes.forEach(function(c) { existingCodes[c.code] = true; });
-        var generated = [];
-        var now = Date.now();
-
-        for (var i = 0; i < count; i++) {
-          var code = generateRedeemCodeLocal();
-          var retries = 0;
-          while (existingCodes[code] && retries < 20) {
-            code = generateRedeemCodeLocal();
-            retries++;
-          }
-          if (existingCodes[code]) continue;
-
-          var record = {
-            code: code,
-            product_id: productId,
-            duration_months: duration,
-            used: false,
-            used_device_id: null,
-            generated_activation_code: null,
-            created_at: now,
-            used_at: null,
-          };
-          codes.push(record);
-          existingCodes[code] = true;
-          generated.push(code);
+        var data = await api('/api/admin/redeem-codes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            productId: productId,
+            durationMonths: duration,
+            count: count,
+          }),
+        });
+        if (!data.success) {
+          showToast(data.error || '生成失败', 'error');
+          return;
         }
-
-        saveLocalData(STORAGE_KEY_CODES, codes);
-        showToast('Generated ' + generated.length + ' codes', 'success');
+        showToast('已生成 ' + data.count + ' 个兑换码', 'success');
         closeCodeModal();
         loadCodes();
         loadStats();
       } catch (e) {
-        console.error('generateCodesLocal failed:', e);
-        showToast('Failed to generate codes', 'error');
+        console.error('generateCodes API failed, fallback local:', e);
+        try {
+          var codes = getLocalData(STORAGE_KEY_CODES, []);
+          var existingCodes = {};
+          codes.forEach(function(c) { existingCodes[c.code] = true; });
+          var generated = [];
+          var now = Date.now();
+
+          for (var i = 0; i < count; i++) {
+            var code = generateRedeemCodeLocal();
+            var retries = 0;
+            while (existingCodes[code] && retries < 20) {
+              code = generateRedeemCodeLocal();
+              retries++;
+            }
+            if (existingCodes[code]) continue;
+
+            var record = {
+              code: code,
+              product_id: productId,
+              duration_months: duration,
+              used: false,
+              used_device_id: null,
+              generated_activation_code: null,
+              created_at: now,
+              used_at: null,
+            };
+            codes.push(record);
+            existingCodes[code] = true;
+            generated.push(code);
+          }
+
+          saveLocalData(STORAGE_KEY_CODES, codes);
+          showToast('API 不可用，已本地生成 ' + generated.length + ' 个（无法用于线上激活）', 'error');
+          closeCodeModal();
+          loadCodes();
+          loadStats();
+        } catch (e2) {
+          console.error('generateCodesLocal failed:', e2);
+          showToast('生成兑换码失败', 'error');
+        }
       }
     }
 

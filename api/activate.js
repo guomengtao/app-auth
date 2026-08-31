@@ -2,13 +2,54 @@ var redis = require("../lib/redis");
 var crypto = require("../lib/crypto");
 var { validateRedeemCode, validateDeviceId } = require("../lib/validate");
 
+function parseBody(req) {
+  var body = req.body;
+  if (body == null || body === "") return {};
+  if (typeof body === "string") {
+    try {
+      return JSON.parse(body);
+    } catch (e) {
+      return {};
+    }
+  }
+  return body;
+}
+
+function parseRedisJson(value) {
+  var cur = value;
+  var guard = 0;
+  while (typeof cur === "string" && guard < 3) {
+    try {
+      cur = JSON.parse(cur);
+    } catch (e) {
+      break;
+    }
+    guard++;
+  }
+  return cur && typeof cur === "object" ? cur : null;
+}
+
+function normalizeProductId(productId) {
+  var n = parseInt(productId, 10);
+  if (!Number.isFinite(n) || n < 0 || n > 99) return null;
+  return crypto.pad2(n);
+}
+
+function normalizeMonths(months) {
+  var n = parseInt(months, 10);
+  if (!Number.isFinite(n) || n < 1 || n > 99) return null;
+  return n;
+}
+
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
     return res.status(405).json({ success: false, error: "请求方法不允许" });
   }
 
   try {
-    var { deviceId, redeemCode } = req.body || {};
+    var body = parseBody(req);
+    var deviceId = body.deviceId;
+    var redeemCode = body.redeemCode;
 
     var deviceCheck = validateDeviceId(deviceId);
     if (!deviceCheck.valid) {
@@ -32,20 +73,36 @@ module.exports = async (req, res) => {
       return res.status(400).json({ success: false, error: "兑换码无效，请检查后重试" });
     }
 
-    var info = typeof codeData === "string" ? JSON.parse(codeData) : codeData;
+    var info = parseRedisJson(codeData);
+    if (!info) {
+      console.error("Activate: invalid redeem payload", typeof codeData, codeData);
+      return res.status(500).json({ success: false, error: "兑换码数据异常，请联系管理员" });
+    }
+
+    var productId = normalizeProductId(info.product_id);
+    var months = normalizeMonths(info.duration_months);
+    if (!productId || !months) {
+      console.error("Activate: bad product/duration", info.product_id, info.duration_months);
+      return res.status(500).json({
+        success: false,
+        error: "兑换码配置异常（产品或有效期无效），请联系管理员",
+      });
+    }
 
     if (info.used) {
       if (info.used_device_id === deviceHash) {
-        var activationCode = crypto.generateActivationCode(
-          info.product_id,
+        var activationCodeReuse = crypto.generateActivationCode(
+          productId,
           device,
-          info.duration_months,
+          months,
           code
         );
-        info.generated_activation_code = activationCode;
+        info.generated_activation_code = activationCodeReuse;
+        info.product_id = productId;
+        info.duration_months = months;
         await redis.set("auth:redeem:" + code, JSON.stringify(info));
-        await redis.set("auth:device:" + deviceHash, activationCode);
-        return res.json({ success: true, activationCode: activationCode });
+        await redis.set("auth:device:" + deviceHash, activationCodeReuse);
+        return res.json({ success: true, activationCode: activationCodeReuse });
       }
       return res.status(400).json({
         success: false,
@@ -54,20 +111,20 @@ module.exports = async (req, res) => {
     }
 
     var activationCode = crypto.generateActivationCode(
-      info.product_id,
+      productId,
       device,
-      info.duration_months,
+      months,
       code
     );
 
     var updated = {
-      code: info.code,
-      product_id: info.product_id,
-      duration_months: info.duration_months,
+      code: info.code || code,
+      product_id: productId,
+      duration_months: months,
       used: true,
       used_device_id: deviceHash,
       generated_activation_code: activationCode,
-      created_at: info.created_at,
+      created_at: info.created_at || Date.now(),
       used_at: Date.now(),
     };
     await redis.set("auth:redeem:" + code, JSON.stringify(updated));
@@ -75,8 +132,8 @@ module.exports = async (req, res) => {
     var record = {
       activation_code: activationCode,
       device_id_hash: deviceHash,
-      product_id: info.product_id,
-      duration_months: info.duration_months,
+      product_id: productId,
+      duration_months: months,
       redeem_code: code,
       generated_at: Date.now(),
     };
@@ -87,7 +144,7 @@ module.exports = async (req, res) => {
 
     return res.json({ success: true, activationCode: activationCode });
   } catch (error) {
-    console.error("Activate error:", error);
+    console.error("Activate error:", error && error.message ? error.message : error, error);
     return res.status(500).json({ success: false, error: "服务器内部错误，请稍后重试" });
   }
 };
