@@ -1490,7 +1490,20 @@
       if (tab === 'codes') loadCodes();
       if (tab === 'records') loadRecords();
       if (tab === 'pg-messages') loadPgMessages();
-      if (tab === 'decrypt') { /* no auto-load needed */ }
+      if (tab === 'decrypt') {
+        if (_pendingDecryptCode) {
+          var code = _pendingDecryptCode;
+          _pendingDecryptCode = null;
+          setTimeout(function() {
+            var inp = document.getElementById('decryptInput');
+            var res = document.getElementById('decryptResult');
+            if (inp) inp.value = code;
+            if (res) { res.style.display = 'none'; res.className = 'decrypt-result'; res.innerHTML = ''; }
+            showToast('已跳转解密验证：' + code, 'success');
+            try { doDecrypt(); } catch (e) { console.error(e); }
+          }, 50);
+        }
+      }
       if (tab === 'health') runHealthCheck();
     }
 
@@ -1910,6 +1923,18 @@
       switchTab('records');
     }
 
+    var _pendingDecryptCode = null;
+
+    function openDecryptForActivationCode(activationCode) {
+      var ac = String(activationCode || '').replace(/\s/g, '');
+      if (!ac) {
+        showToast('激活码为空', 'error');
+        return;
+      }
+      _pendingDecryptCode = ac;
+      switchTab('decrypt');
+    }
+
     async function loadRecords() {
       var highlightRc = null;
       var highlightAc = null;
@@ -1985,7 +2010,7 @@
           }
         }
 
-        var html = '<table><thead><tr><th>激活码</th><th>兑换码</th><th>设备哈希 (device_id_hash)</th><th>产品</th><th>时长</th><th>激活时间</th><th>到期时间</th></tr></thead><tbody>';
+        var html = '<table><thead><tr><th>激活码</th><th>兑换码</th><th>设备ID</th><th>产品</th><th>时长</th><th>激活时间</th><th>到期时间</th></tr></thead><tbody>';
         if (allRecords.length === 0) {
           var emptyReason = rc
             ? '没有找到兑换码「' + rc + '」对应的激活记录。如果该兑换码刚使用，尝试点「刷新」或检查 API 是否连通。'
@@ -2000,15 +2025,30 @@
             var rcCell = r.redeem_code
               ? ('<span class="mono" style="font-weight:700">' + escapeHtml(r.redeem_code) + '</span>')
               : '<span style="color:#aaa">-</span>';
+            var rawDeviceId = r.device_id || '';
+            var hashDeviceId = r.device_id_hash || r.used_device_id || '';
+            var deviceCell;
+            if (rawDeviceId) {
+              deviceCell = '<span class="mono" style="font-size:0.75rem;letter-spacing:0.5px" title="原文 device_id">' + escapeHtml(rawDeviceId) + '</span>';
+            } else if (hashDeviceId) {
+              deviceCell = '<span class="mono" style="font-size:0.7rem;letter-spacing:0;opacity:0.65" title="旧数据未保存原文，显示哈希值 (device_id_hash)">' + escapeHtml(hashDeviceId) + '</span>';
+            } else {
+              deviceCell = '<span style="color:#aaa">-</span>';
+            }
             var hl = '';
             if ((highlightRc && String(r.redeem_code || '').toUpperCase() === highlightRc) ||
                 (highlightAc && String(r.activation_code || '') === highlightAc)) {
               hl = ' record-row-hl';
             }
             html += '<tr class="' + hl.trim() + '">';
-            html += '<td class="mono" style="font-size:0.78rem;letter-spacing:0.5px">' + escapeHtml(r.activation_code || '') + '</td>';
+            var ac = r.activation_code || '';
+            if (ac) {
+              html += '<td class="mono" style="font-size:0.78rem;letter-spacing:0.5px"><a href="javascript:void(0)" class="redeem-link" onclick="openDecryptForActivationCode(\'' + escapeJs(ac) + '\')" title="点击跳转到解密验证">' + escapeHtml(ac) + ' →</a></td>';
+            } else {
+              html += '<td style="color:#aaa">-</td>';
+            }
             html += '<td>' + rcCell + '</td>';
-            html += '<td class="mono" style="font-size:0.7rem;letter-spacing:0;opacity:0.85">' + escapeHtml(r.device_id_hash || r.used_device_id || '') + '</td>';
+            html += '<td>' + deviceCell + '</td>';
             html += '<td>' + escapeHtml(r.product_id || '') + '</td>';
             html += '<td>' + durationText + '</td>';
             html += '<td>' + new Date(r.generated_at || 0).toLocaleString('zh-CN') + '</td>';

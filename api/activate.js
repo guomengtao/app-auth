@@ -130,6 +130,7 @@ module.exports = async (req, res) => {
     var record = {
       activation_code: activationCode,
       device_id_hash: deviceHash,
+      device_id: device,
       product_id: productId,
       duration_months: months,
       redeem_code: code,
