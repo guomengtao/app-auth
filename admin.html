@@ -10,6 +10,8 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
       background: #f0f2f5;
       min-height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
     .header {
       background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
@@ -287,6 +289,99 @@
     .decrypt-result .field-label { color: #666; font-weight: 600; }
     .decrypt-result .field-value { color: #1a1a2e; font-family: 'SF Mono', 'Fira Code', monospace; }
     .decrypt-result .error-msg { color: #c62828; font-weight: 600; }
+
+    .layout {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+    }
+    .sidebar {
+      width: 220px;
+      background: #fff;
+      box-shadow: 2px 0 12px rgba(0,0,0,0.06);
+      transition: width 0.3s ease;
+      overflow: hidden;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+    .sidebar.collapsed {
+      width: 60px;
+    }
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 12px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .sidebar-toggle {
+      width: 36px;
+      height: 36px;
+      border: none;
+      background: #f5f5f5;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      color: #555;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+    .sidebar-toggle:hover {
+      background: #6c63ff;
+      color: #fff;
+    }
+    .sidebar-menu {
+      list-style: none;
+      padding: 8px 0;
+      margin: 0;
+    }
+    .sidebar-menu li a {
+      display: flex;
+      align-items: center;
+      padding: 12px 20px;
+      color: #555;
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: all 0.2s;
+      white-space: nowrap;
+      gap: 12px;
+      cursor: pointer;
+      border-radius: 0;
+    }
+    .sidebar-menu li a:hover {
+      background: #f5f0ff;
+      color: #6c63ff;
+    }
+    .sidebar-menu li a.active {
+      background: linear-gradient(135deg, #6c63ff, #302b63);
+      color: #fff;
+    }
+    .sidebar-menu .menu-icon {
+      font-size: 1.1rem;
+      min-width: 24px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .sidebar-menu .menu-text {
+      transition: opacity 0.2s;
+    }
+    .sidebar.collapsed .menu-text {
+      display: none;
+    }
+    .sidebar.collapsed .sidebar-menu li a {
+      justify-content: center;
+      padding: 12px;
+    }
+    .main-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 32px;
+      max-width: 1200px;
+    }
   </style>
 </head>
 <body>
@@ -324,14 +419,19 @@
     </div>
   </div>
 
-  <div class="tabs">
-    <button class="tab active" onclick="switchTab('products')">产品管理</button>
-    <button class="tab" onclick="switchTab('codes')">兑换码管理</button>
-    <button class="tab" onclick="switchTab('records')">激活记录</button>
-    <button class="tab" onclick="switchTab('decrypt')">解密验证</button>
-  </div>
-
-  <div class="content">
+  <div class="layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <button class="sidebar-toggle" onclick="toggleSidebar()" title="Collapse menu">◀</button>
+      </div>
+      <ul class="sidebar-menu">
+        <li><a onclick="switchTab('products')" class="active" data-tab="products"><span class="menu-icon">📦</span><span class="menu-text">产品管理</span></a></li>
+        <li><a onclick="switchTab('codes')" data-tab="codes"><span class="menu-icon">🎫</span><span class="menu-text">兑换码管理</span></a></li>
+        <li><a onclick="switchTab('records')" data-tab="records"><span class="menu-icon">📋</span><span class="menu-text">激活记录</span></a></li>
+        <li><a onclick="switchTab('decrypt')" data-tab="decrypt"><span class="menu-icon">🔍</span><span class="menu-text">解密验证</span></a></li>
+      </ul>
+    </aside>
+    <main class="main-content">
     <div class="panel active" id="panel-products">
       <div class="toolbar">
         <button class="btn btn-primary" onclick="openProductModal()">+ 添加产品</button>
@@ -347,8 +447,8 @@
         </select>
         <select id="filterUsed" onchange="loadCodes()" style="padding:8px 12px;border:2px solid #e8e8e8;border-radius:8px;">
           <option value="">全部状态</option>
-          <option value="false">未使用</option>
-          <option value="true">已使用</option>
+          <option value="0">未使用</option>
+          <option value="1">已使用</option>
         </select>
         <select id="filterDuration" onchange="loadCodes()" style="padding:8px 12px;border:2px solid #e8e8e8;border-radius:8px;">
           <option value="">全部时长</option>
@@ -385,6 +485,7 @@
         <div class="decrypt-result" id="decryptResult" style="display:none"></div>
       </div>
     </div>
+    </main>
   </div>
 
   <div class="modal-overlay" id="productModal">
@@ -456,15 +557,27 @@
 
     function switchTab(tab) {
       currentTab = tab;
-      document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+      document.querySelectorAll('.sidebar-menu li a').forEach(function(a) { a.classList.remove('active'); });
       document.querySelectorAll('.panel').forEach(function(p) { p.classList.remove('active'); });
-      event.target.classList.add('active');
+      var activeLink = document.querySelector('.sidebar-menu li a[data-tab="' + tab + '"]');
+      if (activeLink) activeLink.classList.add('active');
       document.getElementById('panel-' + tab).classList.add('active');
 
       if (tab === 'products') loadProducts();
       if (tab === 'codes') loadCodes();
       if (tab === 'records') loadRecords();
       if (tab === 'decrypt') { /* no auto-load needed */ }
+    }
+
+    function toggleSidebar() {
+      var sidebar = document.getElementById('sidebar');
+      var toggleBtn = sidebar.querySelector('.sidebar-toggle');
+      sidebar.classList.toggle('collapsed');
+      if (sidebar.classList.contains('collapsed')) {
+        toggleBtn.innerHTML = '▶';
+      } else {
+        toggleBtn.innerHTML = '◀';
+      }
     }
 
     function logout() {
