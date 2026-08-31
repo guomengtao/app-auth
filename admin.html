@@ -1327,23 +1327,20 @@
       }
       return result;
     }
+    var _DEVICE_BASE62 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     function _charToBase62(c) {
-      var code = c.charCodeAt(0);
-      if (code >= 48 && code <= 57) return code - 48;
-      if (code >= 65 && code <= 90) return code - 65 + 10;
-      if (code >= 97 && code <= 122) return code - 97 + 36;
-      return 0;
+      var i = _DEVICE_BASE62.indexOf(c);
+      return i >= 0 ? i : 0;
     }
     function _base62ToChar(n) {
-      if (n >= 0 && n <= 9) return String.fromCharCode(48 + n);
-      if (n >= 10 && n <= 35) return String.fromCharCode(65 + n - 10);
-      if (n >= 36 && n <= 61) return String.fromCharCode(97 + n - 36);
+      if (n >= 0 && n < _DEVICE_BASE62.length) return _DEVICE_BASE62[n];
       return '?';
     }
     function _base62ToBigInt(s) {
       var result = BigInt(0);
       for (var i = 0; i < s.length; i++) {
-        result = result * _B62 + BigInt(_charToBase62(s[i]));
+        var idx = _DEVICE_BASE62.indexOf(s[i]);
+        result = result * _B62 + BigInt(idx < 0 ? 0 : idx);
       }
       return result;
     }
@@ -1351,7 +1348,7 @@
       var result = '';
       var n = num;
       for (var i = 0; i < len; i++) {
-        result = _base62ToChar(Number(n % _B62)) + result;
+        result = _DEVICE_BASE62[Number(n % _B62)] + result;
         n = n / _B62;
       }
       return result;

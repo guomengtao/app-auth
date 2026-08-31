@@ -42,17 +42,13 @@ function bs36(n, l) {
   }
   return r;
 }
+var DEVICE_BASE62 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 function cB62(c) {
-  var o = c.charCodeAt(0);
-  if (o >= 48 && o <= 57) return o - 48;
-  if (o >= 65 && o <= 90) return o - 65 + 10;
-  if (o >= 97 && o <= 122) return o - 97 + 36;
-  return 0;
+  var i = DEVICE_BASE62.indexOf(c);
+  return i >= 0 ? i : 0;
 }
 function b62C(n) {
-  if (n <= 9) return String.fromCharCode(48 + n);
-  if (n <= 35) return String.fromCharCode(65 + n - 10);
-  if (n <= 61) return String.fromCharCode(97 + n - 36);
+  if (n >= 0 && n < DEVICE_BASE62.length) return DEVICE_BASE62[n];
   return "?";
 }
 function sb62(s) {
