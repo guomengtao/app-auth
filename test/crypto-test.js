@@ -160,13 +160,12 @@ function runEncryptThenDecrypt(productId, deviceId, days) {
   var daysMatch = result.days === days;
   var allMatch = pidMatch && devMatch && daysMatch;
 
-  console.log("  " + bold("解密结果:"));
-  console.log("  ┌────────────────────────────────────────────┐");
-  console.log("  │  " + bold(cyan("产品ID   = " + result.productId)) + "                        │");
-  console.log("  │  " + bold(cyan("设备哈希 = " + result.deviceHash)) + "                        │");
-  console.log("  │  " + bold(cyan("授权天数 = " + result.days + (result.isPermanent ? " (永久)" : ""))) + "                  │");
-  console.log("  │  " + bold(cyan("有效性   = " + result.valid)) + "                             │");
-  console.log("  └────────────────────────────────────────────┘");
+  console.log("  " + bold("解密结果 (与原始输入对比):"));
+  console.log("  ┌──────────────────────────────────────────────────────┐");
+  console.log("  │  " + bold(cyan("产品ID哈希 = " + result.productId)) + "  ← hash(\"" + productId + "\") = " + pidHash + "  " + (pidMatch ? green("✓") : red("✗")) + "  │");
+  console.log("  │  " + bold(cyan("设备ID哈希 = " + result.deviceHash)) + "  ← hash(\"" + deviceId + "\") = " + devHash + "  " + (devMatch ? green("✓") : red("✗")) + "  │");
+  console.log("  │  " + bold(cyan("授权天数   = " + result.days + (result.isPermanent ? " (永久)" : ""))) + "  ← 原始输入 " + days + "  " + (daysMatch ? green("✓") : red("✗")) + "   │");
+  console.log("  └──────────────────────────────────────────────────────┘");
   console.log("");
 
   console.log("  " + dim("产品:" + (pidMatch ? green("通过") : red("失败")) + "  设备:" + (devMatch ? green("通过") : red("失败")) + "  天数:" + (daysMatch ? green("通过") : red("失败"))));
