@@ -665,6 +665,99 @@
     .decrypt-result .field-value { color: var(--ink); font-family: 'SF Mono', 'Fira Code', monospace; }
     .decrypt-result .error-msg { color: #c62828; font-weight: 600; }
 
+    .health-summary {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      margin-bottom: 14px;
+    }
+    .health-summary.ok { border-left: 4px solid #2e7d32; }
+    .health-summary.degraded { border-left: 4px solid #e65100; }
+    .health-summary.down { border-left: 4px solid #c62828; }
+    .health-overall {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .health-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+    .health-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #9ca3af;
+    }
+    .health-summary.ok .health-dot { background: #2e7d32; }
+    .health-summary.degraded .health-dot { background: #e65100; }
+    .health-summary.down .health-dot { background: #c62828; }
+    .health-meta {
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .health-summary-text {
+      font-size: 0.84rem;
+      color: var(--ink);
+      line-height: 1.6;
+    }
+    .health-grid {
+      display: grid;
+      gap: 10px;
+    }
+    .health-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+    }
+    .health-card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+    .health-card-title {
+      font-size: 0.88rem;
+      font-weight: 650;
+    }
+    .health-status {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .health-status.pass { background: #e8f5e9; color: #2e7d32; }
+    .health-status.warn { background: #fff3e0; color: #e65100; }
+    .health-status.fail { background: #ffebee; color: #c62828; }
+    .health-detail {
+      font-size: 0.8rem;
+      color: #374151;
+      line-height: 1.55;
+      word-break: break-word;
+    }
+    .health-hint {
+      margin-top: 6px;
+      font-size: 0.74rem;
+      color: var(--accent);
+      line-height: 1.5;
+    }
+    .health-latency {
+      margin-top: 6px;
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+
     .sidebar-backdrop {
       display: none;
       position: fixed;
@@ -727,6 +820,7 @@
         <li><a href="javascript:void(0)" onclick="switchTab('codes')" data-tab="codes"><span class="menu-icon">🎫</span><span class="menu-text">兑换码管理</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('records')" data-tab="records"><span class="menu-icon">📋</span><span class="menu-text">激活记录</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('decrypt')" data-tab="decrypt"><span class="menu-icon">🔍</span><span class="menu-text">解密验证</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('health')" data-tab="health"><span class="menu-icon">🩺</span><span class="menu-text">服务器状态</span></a></li>
       </ul>
       <div class="sidebar-footer">
         <button class="sidebar-toggle" onclick="toggleSidebar()" title="折叠菜单">◀</button>
@@ -845,6 +939,22 @@
               </div>
               <div class="decrypt-result" id="decryptResult" style="display:none"></div>
             </div>
+          </div>
+
+          <div class="panel" id="panel-health">
+            <div class="toolbar">
+              <button class="btn btn-primary" id="healthRunBtn" onclick="runHealthCheck()">开始检测</button>
+              <button class="btn btn-outline" onclick="runHealthCheck()">重新检测</button>
+              <span class="spacer"></span>
+              <span class="health-meta" id="healthCheckedAt"></span>
+            </div>
+            <div class="health-summary" id="healthSummary">
+              <div class="health-overall">
+                <div class="health-badge"><span class="health-dot"></span><span id="healthOverallText">尚未检测</span></div>
+              </div>
+              <div class="health-summary-text" id="healthSummaryText">点击「开始检测」分析 Redis、鉴权、编解码与激活链路，定位添加产品/激活失败原因。</div>
+            </div>
+            <div class="health-grid" id="healthChecks"></div>
           </div>
         </div>
       </main>
@@ -1026,7 +1136,8 @@
       products: { title: '产品管理', sub: '管理可授权的产品列表' },
       codes: { title: '兑换码管理', sub: '生成、筛选与导出兑换码' },
       records: { title: '激活记录', sub: '查看设备激活历史' },
-      decrypt: { title: '解密验证', sub: '离线解析激活码内容' }
+      decrypt: { title: '解密验证', sub: '离线解析激活码内容' },
+      health: { title: '服务器状态', sub: '检测 Redis / 鉴权 / 激活链路是否正常' }
     };
 
     function switchTab(tab) {
@@ -1054,6 +1165,7 @@
       if (tab === 'codes') loadCodes();
       if (tab === 'records') loadRecords();
       if (tab === 'decrypt') { /* no auto-load needed */ }
+      if (tab === 'health') runHealthCheck();
     }
 
     function toggleSidebar() {
@@ -1484,7 +1596,7 @@
       var name = document.getElementById('productName').value.trim();
       var desc = document.getElementById('productDesc').value.trim();
 
-      if (!name) { showToast('Please enter product name', 'error'); return; }
+      if (!name) { showToast('请输入产品名称', 'error'); return; }
 
       try {
         var data = await api('/api/admin/products', {
@@ -1493,16 +1605,16 @@
           body: JSON.stringify({ name: name, description: desc }),
         });
         if (data.success) {
-          showToast('Product created', 'success');
+          showToast('产品已创建', 'success');
           closeProductModal();
           loadProducts();
           loadStats();
         } else {
-          showToast(data.error, 'error');
+          showToast(data.error || '添加产品失败', 'error');
         }
       } catch (e) {
         console.error('addProduct failed:', e);
-        showToast('Failed to add product', 'error');
+        showToast('添加产品失败: ' + (e.message || '未知错误'), 'error');
       }
     }
 
@@ -1596,6 +1708,87 @@
       var div = document.createElement('div');
       div.textContent = str;
       return div.innerHTML;
+    }
+
+    function escapeHtml(str) {
+      var div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function healthStatusLabel(status) {
+      if (status === 'pass') return '正常';
+      if (status === 'warn') return '告警';
+      if (status === 'fail') return '故障';
+      return status || '-';
+    }
+
+    function healthOverallLabel(overall) {
+      if (overall === 'ok') return '服务正常';
+      if (overall === 'degraded') return '部分异常';
+      if (overall === 'down') return '服务故障';
+      return '未知';
+    }
+
+    async function runHealthCheck() {
+      var btn = document.getElementById('healthRunBtn');
+      var summaryEl = document.getElementById('healthSummary');
+      var checksEl = document.getElementById('healthChecks');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = '检测中...';
+      }
+      document.getElementById('healthOverallText').textContent = '检测中...';
+      document.getElementById('healthSummaryText').textContent = '正在检查环境变量、Redis、产品/兑换码数据、编解码与激活链路...';
+      checksEl.innerHTML = '<div class="empty">检测进行中，请稍候...</div>';
+
+      try {
+        var data = await api('/api/admin/health');
+        if (!data.success) throw new Error(data.error || '健康检查失败');
+
+        summaryEl.className = 'health-summary ' + (data.overall || '');
+        document.getElementById('healthOverallText').textContent = healthOverallLabel(data.overall);
+        document.getElementById('healthSummaryText').textContent = data.summary || '';
+        var meta = [];
+        if (data.checkedAt) meta.push('检测时间 ' + new Date(data.checkedAt).toLocaleString('zh-CN'));
+        if (data.runtime) {
+          if (data.runtime.region) meta.push('区域 ' + data.runtime.region);
+          if (data.runtime.node) meta.push('Node ' + data.runtime.node);
+          if (data.runtime.env) meta.push('环境 ' + data.runtime.env);
+        }
+        meta.push('失败 ' + (data.failCount || 0) + ' / 告警 ' + (data.warnCount || 0));
+        document.getElementById('healthCheckedAt').textContent = meta.join(' · ');
+
+        var html = '';
+        (data.checks || []).forEach(function(c) {
+          html += '<div class="health-card">';
+          html += '<div class="health-card-head">';
+          html += '<div class="health-card-title">' + escapeHtml(c.name || c.id) + '</div>';
+          html += '<span class="health-status ' + escapeHtml(c.status || '') + '">' + healthStatusLabel(c.status) + '</span>';
+          html += '</div>';
+          html += '<div class="health-detail">' + escapeHtml(c.detail || '') + '</div>';
+          if (c.hint) html += '<div class="health-hint">' + escapeHtml(c.hint) + '</div>';
+          html += '<div class="health-latency">耗时 ' + (c.latencyMs == null ? '-' : c.latencyMs + ' ms') + '</div>';
+          html += '</div>';
+        });
+        checksEl.innerHTML = html || '<div class="empty">无检查项</div>';
+
+        if (data.overall === 'ok') showToast('服务器状态正常', 'success');
+        else if (data.overall === 'degraded') showToast('检测到告警，请查看详情', 'error');
+        else showToast('检测到故障，请查看详情', 'error');
+      } catch (e) {
+        console.error('runHealthCheck failed:', e);
+        summaryEl.className = 'health-summary down';
+        document.getElementById('healthOverallText').textContent = '检测失败';
+        document.getElementById('healthSummaryText').textContent = '无法完成健康检查: ' + (e.message || '未知错误') + '。这通常意味着后台鉴权失败，或 API 路由不可用。';
+        checksEl.innerHTML = '<div class="empty">检测请求失败</div>';
+        showToast('服务器状态检测失败: ' + (e.message || '未知错误'), 'error');
+      }
+
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '开始检测';
+      }
     }
 
     function doDecrypt() {

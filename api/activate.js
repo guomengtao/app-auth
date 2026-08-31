@@ -145,6 +145,12 @@ module.exports = async (req, res) => {
     return res.json({ success: true, activationCode: activationCode });
   } catch (error) {
     console.error("Activate error:", error && error.message ? error.message : error, error);
-    return res.status(500).json({ success: false, error: "服务器内部错误，请稍后重试" });
+    var msg = "服务器内部错误，请稍后重试";
+    if (error && error.code === "REDIS_ENV_MISSING") {
+      msg = "服务器未配置数据库（Redis），请联系管理员";
+    } else if (error && /fetch failed|ENOTFOUND|ECONNREFUSED|Unauthorized|401|403|Redis/i.test(String(error.message || ""))) {
+      msg = "服务器数据库连接失败，请稍后重试或联系管理员";
+    }
+    return res.status(500).json({ success: false, error: msg });
   }
 };
