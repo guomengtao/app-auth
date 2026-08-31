@@ -11,7 +11,7 @@ function randomPick(arr) {
   return arr[randomInt(0, arr.length - 1)];
 }
 
-function runTest(groupNum) {
+function runRandomTest(groupNum) {
   var productId = randomPick(PRODUCT_IDS);
   var deviceId = randomPick(DEVICE_IDS);
   var days = randomPick([7, 30, 90, 180, 365, 9999]);
@@ -58,20 +58,103 @@ function runTest(groupNum) {
   return allMatch;
 }
 
+function runCustomTest(code) {
+  var cleaned = code.replace(/\s/g, "");
+
+  console.log("═══════════════════════════════════════");
+  console.log("  Custom Code Verification");
+  console.log("═══════════════════════════════════════");
+  console.log("");
+  console.log("  Raw Input:    " + code);
+  console.log("  Cleaned:      " + cleaned);
+  console.log("  Length:       " + cleaned.length + (cleaned.length === 16 ? " (valid)" : " (invalid, expected 16)"));
+  console.log("  All Digits:   " + (/^\d{16}$/.test(cleaned) ? "yes" : "no"));
+  console.log("");
+
+  if (cleaned.length !== 16) {
+    console.log("  Result: FAIL - must be 16 digits");
+    console.log("");
+    return false;
+  }
+
+  if (!/^\d{16}$/.test(cleaned)) {
+    console.log("  Result: FAIL - must be all digits");
+    console.log("");
+    return false;
+  }
+
+  var scrambledPid = cleaned.substring(0, 4);
+  var idHash = cleaned.substring(4, 8);
+  var scrambledDays = cleaned.substring(8, 12);
+  var checksum = cleaned.substring(12, 16);
+
+  console.log("  Structure:");
+  console.log("    scrambledPid  = " + scrambledPid + "  (positions 1-4)");
+  console.log("    deviceHash    = " + idHash + "  (positions 5-8)");
+  console.log("    scrambledDays = " + scrambledDays + "  (positions 9-12)");
+  console.log("    checksum      = " + checksum + "  (positions 13-16)");
+  console.log("");
+
+  var plain = scrambledPid + idHash + scrambledDays;
+  var expectedChecksum = crypto.generateChecksum4(plain);
+  console.log("  Checksum Check:");
+  console.log("    computed = " + expectedChecksum);
+  console.log("    provided = " + checksum);
+  console.log("    match    = " + (expectedChecksum === checksum ? "PASS" : "FAIL"));
+  console.log("");
+
+  var unscrambledPid = crypto.unscramble4(scrambledPid, crypto.ACTIVATION_SECRET);
+  var unscrambledDays = crypto.unscramble4(scrambledDays, crypto.ACTIVATION_SECRET);
+  var days = parseInt(unscrambledDays, 10);
+
+  console.log("  Unscrambling (secret: " + crypto.ACTIVATION_SECRET + "):");
+  console.log("    productId:  " + scrambledPid + " -> " + unscrambledPid);
+  console.log("    days:       " + scrambledDays + " -> " + unscrambledDays + (days === 9999 ? " (permanent)" : ""));
+  console.log("");
+
+  var result = crypto.decryptActivationCode(cleaned);
+  console.log("  Full Decrypt Result:");
+  console.log("    valid       = " + result.valid);
+  console.log("    productId   = " + result.productId);
+  console.log("    deviceHash  = " + result.deviceHash);
+  console.log("    days        = " + result.days + (result.isPermanent ? " (permanent)" : ""));
+  console.log("    format      = " + result.format);
+  console.log("");
+
+  if (result.valid) {
+    console.log("  Result: PASS - valid activation code");
+  } else {
+    console.log("  Result: FAIL - " + result.reason);
+  }
+  console.log("");
+
+  return result.valid;
+}
+
+var customCode = process.argv[2];
+
 console.log("");
-console.log("  Crypto Encrypt/Decrypt Round-Trip Test");
+console.log("  Crypto Encrypt/Decrypt Test");
 console.log("  Secret Key: " + crypto.ACTIVATION_SECRET);
 console.log("");
 
-var pass1 = runTest(1);
-var pass2 = runTest(2);
+if (customCode) {
+  runCustomTest(customCode);
+} else {
+  console.log("  Usage: node test/crypto-test.js [16-digit-code]");
+  console.log("  No code provided, running 2 random tests...");
+  console.log("");
 
-console.log("═══════════════════════════════════════");
-console.log("  Summary");
-console.log("═══════════════════════════════════════");
-console.log("  Group 1: " + (pass1 ? "PASS" : "FAIL"));
-console.log("  Group 2: " + (pass2 ? "PASS" : "FAIL"));
-console.log("  Overall: " + (pass1 && pass2 ? "ALL PASS" : "SOME FAILED"));
-console.log("");
+  var pass1 = runRandomTest(1);
+  var pass2 = runRandomTest(2);
 
-process.exit(pass1 && pass2 ? 0 : 1);
+  console.log("═══════════════════════════════════════");
+  console.log("  Summary");
+  console.log("═══════════════════════════════════════");
+  console.log("  Group 1: " + (pass1 ? "PASS" : "FAIL"));
+  console.log("  Group 2: " + (pass2 ? "PASS" : "FAIL"));
+  console.log("  Overall: " + (pass1 && pass2 ? "ALL PASS" : "SOME FAILED"));
+  console.log("");
+
+  process.exit(pass1 && pass2 ? 0 : 1);
+}
