@@ -478,10 +478,10 @@
       </div>
       <div class="sidebar-nav-label">Navigation</div>
       <ul class="sidebar-menu">
-        <li><a onclick="switchTab('products')" class="active" data-tab="products"><span class="menu-icon">📦</span><span class="menu-text">产品管理</span></a></li>
-        <li><a onclick="switchTab('codes')" data-tab="codes"><span class="menu-icon">🎫</span><span class="menu-text">兑换码管理</span></a></li>
-        <li><a onclick="switchTab('records')" data-tab="records"><span class="menu-icon">📋</span><span class="menu-text">激活记录</span></a></li>
-        <li><a onclick="switchTab('decrypt')" data-tab="decrypt"><span class="menu-icon">🔍</span><span class="menu-text">解密验证</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('products')" class="active" data-tab="products"><span class="menu-icon">📦</span><span class="menu-text">产品管理</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('codes')" data-tab="codes"><span class="menu-icon">🎫</span><span class="menu-text">兑换码管理</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('records')" data-tab="records"><span class="menu-icon">📋</span><span class="menu-text">激活记录</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('decrypt')" data-tab="decrypt"><span class="menu-icon">🔍</span><span class="menu-text">解密验证</span></a></li>
       </ul>
       <div class="sidebar-footer">v1.0</div>
     </aside>
@@ -617,7 +617,13 @@
       document.querySelectorAll('.panel').forEach(function(p) { p.classList.remove('active'); });
       var activeLink = document.querySelector('.sidebar-menu li a[data-tab="' + tab + '"]');
       if (activeLink) activeLink.classList.add('active');
-      document.getElementById('panel-' + tab).classList.add('active');
+      var panel = document.getElementById('panel-' + tab);
+      if (panel) {
+        panel.classList.add('active');
+      } else {
+        console.error('Panel not found: panel-' + tab);
+        return;
+      }
 
       if (tab === 'products') loadProducts();
       if (tab === 'codes') loadCodes();
@@ -650,7 +656,9 @@
           document.getElementById('statUsed').textContent = data.stats.usedRedeemCodes;
           document.getElementById('statActivations').textContent = data.stats.totalActivations;
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error('loadStats failed:', e);
+      }
     }
 
     async function loadProducts() {
@@ -687,7 +695,10 @@
           }
           sel.value = val;
         });
-      } catch (e) {}
+      } catch (e) {
+        console.error('loadProducts failed:', e);
+        showToast('加载产品列表失败', 'error');
+      }
     }
 
     async function loadCodes() {
@@ -720,7 +731,10 @@
         }
         html += '</tbody></table>';
         document.getElementById('codesTable').innerHTML = html;
-      } catch (e) {}
+      } catch (e) {
+        console.error('loadCodes failed:', e);
+        showToast('加载兑换码失败: ' + (e.message || '未知错误'), 'error');
+      }
     }
 
     async function exportCodes() {
@@ -793,7 +807,10 @@
         }
         html += '</tbody></table>';
         document.getElementById('recordsTable').innerHTML = html;
-      } catch (e) {}
+      } catch (e) {
+        console.error('loadRecords failed:', e);
+        showToast('加载激活记录失败', 'error');
+      }
     }
 
     function openProductModal() {
@@ -826,7 +843,10 @@
         } else {
           showToast(data.error, 'error');
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error('addProduct failed:', e);
+        showToast('添加产品失败', 'error');
+      }
     }
 
     function openCodeModal() {
@@ -860,7 +880,10 @@
         } else {
           showToast(data.error, 'error');
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error('generateCodes failed:', e);
+        showToast('生成兑换码失败', 'error');
+      }
     }
 
     function escapeHtml(str) {
@@ -933,7 +956,6 @@
 
     loadStats();
     loadProducts();
-    loadCodes();
     setInterval(loadStats, 30000);
   </script>
 </body>
