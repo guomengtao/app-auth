@@ -2,6 +2,7 @@ const crypto = require("../lib/crypto");
 
 const PRODUCT_IDS = ["prod-001", "prod-002", "my-app", "test-prod", "app-pro", "tool-vip", "game-pass", "cloud-sync"];
 const DEVICE_IDS = ["device-abc-123", "sensor-xyz-456", "watch-007", "band-pro-99", "phone-a1b2", "tablet-c3d4"];
+const SHORT_DEVICE_IDS = ["AAAA", "BBBB", "CCCC", "Xy99", "AbCd", "TeSt", "DeMo", "Aa09", "Bb19"];
 
 var C = { reset: "\x1b[0m", bold: "\x1b[1m", dim: "\x1b[2m", green: "\x1b[32m", yellow: "\x1b[33m", cyan: "\x1b[36m", red: "\x1b[31m", magenta: "\x1b[35m", blue: "\x1b[34m" };
 function color(c, s) { return c + s + C.reset; }
@@ -23,77 +24,142 @@ function randomPick(arr) {
 
 function runRandomTest(groupNum) {
   var productId = randomPick(PRODUCT_IDS);
-  var deviceId = randomPick(DEVICE_IDS);
-  var days = randomPick([7, 30, 90, 180, 365, 9999]);
+  var deviceId = randomPick(SHORT_DEVICE_IDS);
+  var days = randomPick([7, 30, 90, 99, 60, 14, 1, 98]);
   var salt = crypto.generateRedeemCode();
 
-  var pidHash = crypto.productIdTo4Digit(productId);
-  var devHash = crypto.deviceIdTo4Digit(deviceId);
-
   var code = crypto.generateActivationCode(productId, deviceId, days, salt);
-  var formatted = crypto.fmtCode16(code);
+  var formatted = crypto.fmtCode20(code);
   var result = crypto.decryptActivationCode(code);
 
-  var pidMatch = result.productId === pidHash;
-  var devMatch = result.deviceHash === devHash;
+  var pidMatch = result.productId === productId;
+  var devMatch = result.deviceId === deviceId;
   var daysMatch = result.days === days;
-  var allMatch = pidMatch && devMatch && daysMatch;
+  var redeemMatch = result.redeemCode === salt;
+  var allMatch = pidMatch && devMatch && daysMatch && redeemMatch;
 
   var pass = green("PASS");
   var fail = red("FAIL");
 
-  var daysLabel = days === 9999 ? " (permanent)" : "";
+  var daysLabel = days === 99 ? " (permanent)" : "";
 
   console.log(bold("\n--- test group " + groupNum + " ---"));
-  console.log(dim("  input:   productId=" + productId + "  deviceId=" + deviceId + "  days=" + days + daysLabel + "  salt=" + salt));
+  console.log(dim("  input:   productId=" + productId + "  deviceId=" + deviceId + "  days=" + days + daysLabel + "  redeemCode=" + salt));
   console.log("");
-  console.log("  " + bold(yellow(" encrypted 16-digit:  " + formatted + " ")));
-  console.log("  " + bold(cyan(" decrypted            productId=" + result.productId + "  deviceHash=" + result.deviceHash + "  days=" + result.days + daysLabel)));
+  console.log("  " + bold(yellow(" encrypted 20-digit:  " + formatted + " ")));
+  console.log("  " + bold(cyan(" decrypted            pid=" + result.productId + "  dev=" + result.deviceId + "  days=" + result.days + "  redeem=" + result.redeemCode)));
   console.log("");
-  console.log("  " + dim("pid:" + (pidMatch ? pass : fail) + "  dev:" + (devMatch ? pass : fail) + "  days:" + (daysMatch ? pass : fail)) + "  -> " + bold(allMatch ? green("ALL PASS") : red("FAILED")));
+  console.log("  " + dim("pid:" + (pidMatch ? pass : fail) + "  dev:" + (devMatch ? pass : fail) + "  days:" + (daysMatch ? pass : fail) + "  redeem:" + (redeemMatch ? pass : fail)) + "  -> " + bold(allMatch ? green("ALL PASS") : red("FAILED")));
 
   return allMatch;
 }
 
 function runCustomTest(code) {
   var cleaned = code.replace(/\s/g, "");
-  var formatted = crypto.fmtCode16(cleaned);
+  var formatted;
+  if (cleaned.length === 20) {
+    formatted = crypto.fmtCode20(cleaned);
+  } else {
+    formatted = crypto.fmtCode16(cleaned);
+  }
 
   var parts = formatted.split(" ");
-  var highlighted = bold(yellow(parts[0] + " " + parts[1] + " " + parts[2] + " " + parts[3]));
+  var highlighted = bold(yellow(parts.join(" ")));
 
   console.log("");
   console.log(bold("  === Activation Code Verification ==="));
   console.log("");
 
-  console.log("  " + bold("Encrypted 16-digit Code:"));
-  console.log("  +----------------------+");
+  console.log("  " + bold("Encrypted Code:"));
+  console.log("  +----------------------------+");
   console.log("  |  " + highlighted + "  |");
-  console.log("  +----------------------+");
+  console.log("  +----------------------------+");
   console.log("");
 
-  if (cleaned.length !== 16) {
-    console.log("  " + red("ERROR: must be exactly 16 digits, got " + cleaned.length));
+  if (cleaned.length !== 16 && cleaned.length !== 20) {
+    console.log("  " + red("ERROR: must be 16 or 20 digits, got " + cleaned.length));
     console.log("");
     return false;
   }
-  if (!/^\d{16}$/.test(cleaned)) {
+  if (!/^\d+$/.test(cleaned)) {
     console.log("  " + red("ERROR: must be all numeric digits"));
     console.log("");
     return false;
   }
 
+  if (cleaned.length === 20) {
+    var scrambledDev = cleaned.substring(0, 8);
+    var scrambledRedeem = cleaned.substring(8, 15);
+    var scrambledIdx = cleaned.substring(15, 17);
+    var scrambledDays = cleaned.substring(17, 19);
+    var checksumDigit = cleaned.substring(19, 20);
+
+    var first19 = scrambledDev + scrambledRedeem + scrambledIdx + scrambledDays;
+    var expectedChecksum = crypto.generateChecksum1(first19);
+
+    console.log(dim("  Structure:"));
+    console.log(dim("    [" + scrambledDev + "] [" + scrambledRedeem + "] [" + scrambledIdx + "] [" + scrambledDays + "] [" + checksumDigit + "]"));
+    console.log(dim("    scrambledDev(8)  scrambledRedeem(7)  idx(2)  days(2)  checksum(1)"));
+    console.log("");
+
+    console.log("  " + dim("Checksum: " + checksumDigit + " (expected " + expectedChecksum + ")"));
+    console.log("");
+
+    var redeemEncoded = crypto.unscrambleN(scrambledRedeem, crypto.ACTIVATION_SECRET);
+    var redeemCode = crypto.digit7ToRedeemCode(redeemEncoded);
+    console.log(dim("  RedeemCode (fixed-key unscramble):"));
+    console.log(dim("    " + scrambledRedeem + " -> " + redeemEncoded + " -> " + bold(redeemCode)));
+    console.log("");
+
+    var saltHash = crypto.generateChecksum4(redeemCode);
+    var perCodeSecret = crypto.scramble4(crypto.ACTIVATION_SECRET, saltHash);
+    console.log(dim("  PerCodeSecret: " + perCodeSecret + "  (saltHash=" + saltHash + ")"));
+    console.log("");
+
+    var devEncoded = crypto.unscrambleN(scrambledDev, perCodeSecret);
+    var deviceId = crypto.decodeDeviceId(devEncoded);
+    var productIdx = crypto.unscrambleN(scrambledIdx, perCodeSecret);
+    var productId = crypto.indexToProductId(productIdx);
+    var days = parseInt(crypto.unscrambleN(scrambledDays, perCodeSecret), 10);
+
+    console.log(dim("  Unscramble (perCodeSecret " + perCodeSecret + "):"));
+    console.log(dim("    dev:     " + scrambledDev + " -> " + devEncoded + " -> " + bold(deviceId)));
+    console.log(dim("    idx:     " + scrambledIdx + " -> " + productIdx + " -> " + bold(productId)));
+    console.log(dim("    days:    " + scrambledDays + " -> " + (days === 99 ? "99 (permanent)" : String(days))));
+    console.log("");
+
+    var result = crypto.decryptActivationCode(cleaned);
+    console.log("  " + bold("Decrypted Result:"));
+    console.log("  +--------------------------------------------------+");
+    console.log("  |  " + bold(cyan("productId  = " + result.productId)) + "                          |");
+    console.log("  |  " + bold(cyan("deviceId   = " + result.deviceId)) + "                          |");
+    console.log("  |  " + bold(cyan("days       = " + result.days + (result.isPermanent ? " (permanent)" : ""))) + "                        |");
+    console.log("  |  " + bold(cyan("redeemCode = " + result.redeemCode)) + "                          |");
+    console.log("  |  " + bold(cyan("valid      = " + result.valid)) + "                                   |");
+    console.log("  +--------------------------------------------------+");
+    console.log("");
+
+    if (result.valid) {
+      console.log("  " + bold(green("=== VERIFICATION PASSED ===")));
+    } else {
+      console.log("  " + bold(red("=== VERIFICATION FAILED: " + result.reason + " ===")));
+    }
+    console.log("");
+    return result.valid;
+  }
+
+  // 16-digit format
   var scrambledPid = cleaned.substring(0, 4);
-  var scrambledIdHash = cleaned.substring(4, 8);
+  var embedded = cleaned.substring(4, 8);
   var scrambledDays = cleaned.substring(8, 12);
-  var embedded = cleaned.substring(12, 16);
+  var scrambledIdHash = cleaned.substring(12, 16);
   var plain = scrambledPid + scrambledIdHash + scrambledDays;
   var checksum = crypto.generateChecksum4(plain);
   var saltHash = crypto.unscramble4(embedded, checksum);
 
   console.log(dim("  Structure:"));
-  console.log(dim("    [" + scrambledPid + "] [" + scrambledIdHash + "] [" + scrambledDays + "] [" + embedded + "]"));
-  console.log(dim("    scrambledPid  scrambledIdHash  scrambledDays  embedded(saltHash^checksum)"));
+  console.log(dim("    [" + scrambledPid + "] [" + embedded + "] [" + scrambledDays + "] [" + scrambledIdHash + "]"));
+  console.log(dim("    scrambledPid  embedded(checksum)  scrambledDays  scrambledIdHash"));
   console.log("");
 
   console.log("  " + dim("Checksum: " + checksum + "  SaltHash: " + saltHash));
@@ -108,9 +174,10 @@ function runCustomTest(code) {
   var days = parseInt(unscrambledDays, 10);
 
   console.log(dim("  Unscramble (perCodeSecret " + perCodeSecret + "):"));
-  console.log(dim("    pid:   " + scrambledPid + " -> " + unscrambledPid));
-  console.log(dim("    idHash: " + scrambledIdHash + " -> " + unscrambledIdHash));
-  console.log(dim("    days:  " + scrambledDays + " -> " + unscrambledDays + (days === 9999 ? " (permanent)" : "")));
+  console.log(dim("    pid:      " + scrambledPid + " -> " + unscrambledPid));
+  console.log(dim("    embedded: " + embedded + " (saltHash^checksum)"));
+  console.log(dim("    days:     " + scrambledDays + " -> " + unscrambledDays + (days === 9999 ? " (permanent)" : "")));
+  console.log(dim("    idHash:   " + scrambledIdHash + " -> " + unscrambledIdHash));
   console.log("");
 
   var result = crypto.decryptActivationCode(cleaned);
@@ -136,18 +203,16 @@ function runCustomTest(code) {
 function runEncryptThenDecrypt(productId, deviceId, days, salt) {
   days = parseInt(days, 10);
 
-  var pidHash = crypto.productIdTo4Digit(productId);
-  var devHash = crypto.deviceIdTo4Digit(deviceId);
-
   var code = crypto.generateActivationCode(productId, deviceId, days, salt);
-  var formatted = crypto.fmtCode16(code);
+  var formatted = crypto.fmtCode20(code);
 
   var result = crypto.decryptActivationCode(code);
 
-  var pidMatch = result.productId === pidHash;
-  var devMatch = result.deviceHash === devHash;
+  var pidMatch = result.productId === productId;
+  var devMatch = result.deviceId === deviceId;
   var daysMatch = result.days === days;
-  var allMatch = pidMatch && devMatch && daysMatch;
+  var redeemMatch = result.redeemCode === salt;
+  var allMatch = pidMatch && devMatch && daysMatch && redeemMatch;
 
   var daysLabel = result.isPermanent ? " days(permanent)" : " days";
 
@@ -155,14 +220,15 @@ function runEncryptThenDecrypt(productId, deviceId, days, salt) {
   var cross = " " + red("✗");
 
   console.log("");
-  console.log("  " + bold("Input:     ") + dim(productId + " | " + deviceId + " | " + days + daysLabel + " | salt=" + salt));
+  console.log("  " + bold("Input:     ") + dim(productId + " | " + deviceId + " | " + days + daysLabel + " | redeemCode=" + salt));
   console.log("");
   console.log("  " + bold("Encrypted: ") + bold(yellow(formatted)));
   console.log("");
   console.log("  " + bold("Decrypt Result:"));
-  console.log("    pid:   " + bold(cyan(result.productId)) + (pidMatch ? check : cross + " expect " + pidHash));
-  console.log("    dev:   " + bold(cyan(result.deviceHash)) + (devMatch ? check : cross + " expect " + devHash));
-  console.log("    days:  " + bold(cyan(String(result.days))) + (daysMatch ? check : cross + " expect " + days));
+  console.log("    productId:  " + bold(cyan(result.productId)) + (pidMatch ? check : cross + " expect " + productId));
+  console.log("    deviceId:   " + bold(cyan(result.deviceId)) + (devMatch ? check : cross + " expect " + deviceId));
+  console.log("    days:       " + bold(cyan(String(result.days))) + (daysMatch ? check : cross + " expect " + days));
+  console.log("    redeemCode: " + bold(cyan(result.redeemCode)) + (redeemMatch ? check : cross + " expect " + salt));
   console.log("");
   console.log("  " + bold(allMatch ? green("  round-trip OK") : red("  round-trip FAIL")));
   console.log("");
@@ -191,15 +257,19 @@ if (!raw) {
   process.exit(pass1 && pass2 ? 0 : 1);
 }
 
-// 16 pure digits -> verify existing activation code
+// 20 pure digits -> verify existing activation code (new format)
+if (raw.length === 20 && /^\d{20}$/.test(raw)) {
+  runCustomTest(raw);
+  process.exit(0);
+}
+
+// 16 pure digits -> verify existing activation code (legacy format)
 if (raw.length === 16 && /^\d{16}$/.test(raw)) {
   runCustomTest(raw);
   process.exit(0);
 }
 
 // Otherwise -> parse as: productId(4) + deviceId(4) + days(4) + salt(rest)
-// salt participates in encryption, each unique salt produces unique activation code
-
 var pid = raw.substring(0, 4);
 var did = raw.substring(4, 8);
 var daysStr = raw.substring(8, 12);

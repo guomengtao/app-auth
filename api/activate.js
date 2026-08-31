@@ -32,7 +32,11 @@ module.exports = async (req, res) => {
 
     if (info.used) {
       if (info.used_device_id === deviceHash) {
-        return res.json({ success: true, activationCode: info.generated_activation_code });
+        const activationCode = generateActivationCode(info.product_id, deviceCheck.value, info.duration_days, code);
+        info.generated_activation_code = activationCode;
+        await redis.set(`auth:redeem:${code}`, JSON.stringify(info));
+        await redis.set(`auth:device:${deviceHash}`, activationCode);
+        return res.json({ success: true, activationCode });
       }
       return res.status(400).json({
         success: false,
