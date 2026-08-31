@@ -1,143 +1,166 @@
-const redis = require("../../lib/redis");
-const { requireAuth } = require("../../lib/auth");
-const { generateRedeemCode } = require("../../lib/crypto");
-const { validateDuration, validateCount } = require("../../lib/validate");
+var redis = require("../../lib/redis");
+var { requireAuth } = require("../../lib/auth");
+var { generateRedeemCode, pad2 } = require("../../lib/crypto");
+var { validateCount, validateDuration } = require("../../lib/validate");
 
 module.exports = async (req, res) => {
-  const auth = requireAuth(req);
+  var auth = requireAuth(req);
   if (!auth.authorized) {
     return res.status(auth.status).json({ success: false, error: auth.error });
   }
 
   try {
     if (req.method === "GET") {
-      const { cursor, used, product_id, duration_days, export: exportAll } = req.query;
+      var exportAll = req.query.export;
+      var filterProductId = req.query.product_id;
+      var filterUsed = req.query.used;
+      var filterDuration = req.query.duration_months;
 
       if (exportAll === "1") {
-        let allKeys = [];
-        let scanCursor = 0;
+        var keys = [];
+        var cursor = 0;
         do {
-          const [next, keys] = await redis.sscan("auth:redeem_codes", scanCursor, { count: 200 });
-          scanCursor = next;
-          allKeys = allKeys.concat(keys);
-        } while (scanCursor !== 0);
+          var scanResult = await redis.scan(cursor, { match: "auth:redeem:*", count: 200 });
+          cursor = scanResult[0];
+          keys = keys.concat(scanResult[1]);
+        } while (cursor !== 0);
 
-        let codes = [];
-        if (allKeys.length > 0) {
-          const pipeline = redis.pipeline();
-          allKeys.forEach((code) => pipeline.get(`auth:redeem:${code}`));
-          const results = await pipeline.exec();
-          codes = results
-            .map((r) => (typeof r === "string" ? JSON.parse(r) : r))
-            .filter(Boolean);
-        }
-
-        if (used !== undefined) {
-          const isUsed = used === "true";
-          codes = codes.filter((c) => c.used === isUsed);
-        }
-        if (product_id) {
-          codes = codes.filter((c) => c.product_id === product_id);
-        }
-        if (duration_days) {
-          codes = codes.filter((c) => c.duration_days === parseInt(duration_days, 10));
+        var codes = [];
+        if (keys.length > 0) {
+          var pipeline = redis.pipeline();
+          keys.forEach(function (k) {
+            pipeline.get(k);
+          });
+          var values = await pipeline.exec();
+          values.forEach(function ([err, val]) {
+            if (!err && val) {
+              var data = typeof val === "string" ? JSON.parse(val) : val;
+              var match = true;
+              if (filterProductId && data.product_id !== filterProductId) match = false;
+              if (filterUsed === "1" && !data.used) match = false;
+              if (filterUsed === "0" && data.used) match = false;
+              if (filterDuration && String(data.duration_months) !== filterDuration) match = false;
+              if (match) codes.push(data);
+            }
+          });
         }
 
         return res.json({
           success: true,
-          codes,
+          codes: codes,
           total: codes.length,
         });
       }
 
-      const count = Math.min(parseInt(req.query.count) || 50, 200);
+      var page = parseInt(req.query.page) || 1;
+      var limit = parseInt(req.query.limit) || 20;
+      var offset = (page - 1) * limit;
 
-      const [nextCursor, keys] = await redis.sscan("auth:redeem_codes", cursor || 0, {
-        count,
+      var keys = [];
+      var cursor = 0;
+      do {
+        var scanResult = await redis.scan(cursor, { match: "auth:redeem:*", count: 200 });
+        cursor = scanResult[0];
+        keys = keys.concat(scanResult[1]);
+      } while (cursor !== 0);
+
+      var allCodes = [];
+      if (keys.length > 0) {
+        var pipeline = redis.pipeline();
+        keys.forEach(function (k) {
+          pipeline.get(k);
+        });
+        var values = await pipeline.exec();
+        values.forEach(function ([err, val]) {
+          if (!err && val) {
+            var data = typeof val === "string" ? JSON.parse(val) : val;
+            var match = true;
+            if (filterProductId && data.product_id !== filterProductId) match = false;
+            if (filterUsed === "1" && !data.used) match = false;
+            if (filterUsed === "0" && data.used) match = false;
+            if (filterDuration && String(data.duration_months) !== filterDuration) match = false;
+            if (match) allCodes.push(data);
+          }
+        });
+      }
+
+      allCodes.sort(function (a, b) {
+        return (b.created_at || 0) - (a.created_at || 0);
       });
 
-      let codes = [];
-      if (keys.length > 0) {
-        const pipeline = redis.pipeline();
-        keys.forEach((code) => pipeline.get(`auth:redeem:${code}`));
-        const results = await pipeline.exec();
-        codes = results
-          .map((r) => (typeof r === "string" ? JSON.parse(r) : r))
-          .filter(Boolean);
-      }
-
-      if (used !== undefined) {
-        const isUsed = used === "true";
-        codes = codes.filter((c) => c.used === isUsed);
-      }
-      if (product_id) {
-        codes = codes.filter((c) => c.product_id === product_id);
-      }
-      if (duration_days) {
-        codes = codes.filter((c) => c.duration_days === parseInt(duration_days, 10));
-      }
+      var total = allCodes.length;
+      var pageCodes = allCodes.slice(offset, offset + limit);
 
       return res.json({
         success: true,
-        codes,
-        cursor: nextCursor,
-        hasMore: nextCursor !== 0,
+        codes: pageCodes,
+        total: total,
+        page: page,
+        limit: limit,
       });
     }
 
     if (req.method === "POST") {
-      const { product_id, duration_days, count } = req.body || {};
+      var { productId, count, durationMonths } = req.body || {};
 
-      if (!product_id || typeof product_id !== "string") {
+      if (!productId || typeof productId !== "string") {
         return res.status(400).json({ success: false, error: "Product ID is required" });
       }
 
-      const durCheck = validateDuration(duration_days);
-      if (!durCheck.valid) {
-        return res.status(400).json({ success: false, error: durCheck.error });
+      var productData = await redis.hget("auth:products", productId);
+      if (!productData) {
+        return res.status(400).json({ success: false, error: "Product not found" });
       }
 
-      const countCheck = validateCount(count || 1);
+      var countCheck = validateCount(count);
       if (!countCheck.valid) {
         return res.status(400).json({ success: false, error: countCheck.error });
       }
 
-      const productExists = product_id === "0000" ? true : await redis.hexists("auth:products", product_id);
-      if (!productExists) {
-        return res.status(400).json({ success: false, error: "Product not found" });
+      var durationCheck = validateDuration(durationMonths);
+      if (!durationCheck.valid) {
+        return res.status(400).json({ success: false, error: durationCheck.error });
       }
 
-      const generated = [];
-      const pipeline = redis.pipeline();
+      var numCodes = countCheck.value;
+      var months = durationCheck.value;
+      var generated = [];
 
-      for (let i = 0; i < countCheck.value; i++) {
-        const code = generateRedeemCode();
-        const exists = await redis.exists(`auth:redeem:${code}`);
-        if (exists) {
-          i--;
+      for (var i = 0; i < numCodes; i++) {
+        var code = generateRedeemCode();
+
+        var existing = await redis.get("auth:redeem:" + code);
+        var retries = 0;
+        while (existing && retries < 10) {
+          code = generateRedeemCode();
+          existing = await redis.get("auth:redeem:" + code);
+          retries++;
+        }
+        if (existing) {
           continue;
         }
 
-        const data = {
-          code,
-          product_id,
-          duration_days: durCheck.value,
+        var record = {
+          code: code,
+          product_id: productId,
+          duration_months: months,
           used: false,
           used_device_id: null,
           generated_activation_code: null,
           created_at: Date.now(),
           used_at: null,
-          expire_at: null,
         };
 
-        pipeline.set(`auth:redeem:${code}`, JSON.stringify(data));
-        pipeline.sadd("auth:redeem_codes", code);
-        generated.push(data);
+        await redis.set("auth:redeem:" + code, JSON.stringify(record));
+        await redis.sadd("auth:redeem_codes", code);
+        generated.push(code);
       }
 
-      await pipeline.exec();
-
-      return res.json({ success: true, codes: generated });
+      return res.json({
+        success: true,
+        codes: generated,
+        count: generated.length,
+      });
     }
 
     return res.status(405).json({ success: false, error: "Method not allowed" });

@@ -1,8 +1,8 @@
-const { requireAuth } = require("../../lib/auth");
-const { decryptActivationCode } = require("../../lib/crypto");
+var { requireAuth } = require("../../lib/auth");
+var { decryptActivationCode } = require("../../lib/crypto");
 
 module.exports = async (req, res) => {
-  const auth = requireAuth(req);
+  var auth = requireAuth(req);
   if (!auth.authorized) {
     return res.status(auth.status).json({ success: false, error: auth.error });
   }
@@ -12,15 +12,15 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { code } = req.body || {};
+    var { code } = req.body || {};
     if (!code || typeof code !== "string") {
-      return res.status(400).json({ success: false, error: "请输入激活码" });
+      return res.status(400).json({ success: false, error: "Please enter activation code" });
     }
 
-    const result = decryptActivationCode(code.trim());
-    return res.json({ success: true, result });
+    var result = decryptActivationCode(code.trim());
+    return res.json({ success: true, result: result });
   } catch (error) {
     console.error("Decrypt error:", error);
-    return res.status(500).json({ success: false, error: "解密失败" });
+    return res.status(500).json({ success: false, error: "Decrypt failed" });
   }
 };

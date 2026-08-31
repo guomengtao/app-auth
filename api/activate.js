@@ -1,6 +1,6 @@
-const redis = require("../lib/redis");
-const { generateActivationCode, sha256 } = require("../lib/crypto");
-const { validateRedeemCode, validateDeviceId } = require("../lib/validate");
+var redis = require("../lib/redis");
+var crypto = require("../lib/crypto");
+var { validateRedeemCode, validateDeviceId } = require("../lib/validate");
 
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
@@ -8,72 +8,83 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { deviceId, redeemCode } = req.body || {};
+    var { deviceId, redeemCode } = req.body || {};
 
-    const deviceCheck = validateDeviceId(deviceId);
+    var deviceCheck = validateDeviceId(deviceId);
     if (!deviceCheck.valid) {
       return res.status(400).json({ success: false, error: deviceCheck.error });
     }
 
-    const codeCheck = validateRedeemCode(redeemCode);
+    var codeCheck = validateRedeemCode(redeemCode);
     if (!codeCheck.valid) {
       return res.status(400).json({ success: false, error: codeCheck.error });
     }
 
-    const code = codeCheck.value;
-    const deviceHash = sha256(deviceCheck.value);
+    var code = codeCheck.value;
+    var device = deviceCheck.value;
+    var deviceHash = crypto.sha256(device);
 
-    const codeData = await redis.get(`auth:redeem:${code}`);
+    var codeData = await redis.get("auth:redeem:" + code);
     if (!codeData) {
-      return res.status(400).json({ success: false, error: "无效兑换码" });
+      return res.status(400).json({ success: false, error: "Invalid redeem code" });
     }
 
-    const info = typeof codeData === "string" ? JSON.parse(codeData) : codeData;
+    var info = typeof codeData === "string" ? JSON.parse(codeData) : codeData;
 
     if (info.used) {
       if (info.used_device_id === deviceHash) {
-        const activationCode = generateActivationCode(info.product_id, deviceCheck.value, info.duration_days, code);
+        var activationCode = crypto.generateActivationCode(
+          info.product_id,
+          device,
+          info.duration_months,
+          code
+        );
         info.generated_activation_code = activationCode;
-        await redis.set(`auth:redeem:${code}`, JSON.stringify(info));
-        await redis.set(`auth:device:${deviceHash}`, activationCode);
-        return res.json({ success: true, activationCode });
+        await redis.set("auth:redeem:" + code, JSON.stringify(info));
+        await redis.set("auth:device:" + deviceHash, activationCode);
+        return res.json({ success: true, activationCode: activationCode });
       }
       return res.status(400).json({
         success: false,
-        error: "该兑换码已被其他设备使用",
+        error: "This redeem code has been used by another device",
       });
     }
 
-    const activationCode = generateActivationCode(info.product_id, deviceCheck.value, info.duration_days, code);
+    var activationCode = crypto.generateActivationCode(
+      info.product_id,
+      device,
+      info.duration_months,
+      code
+    );
 
-    const updated = {
-      ...info,
+    var updated = {
+      code: info.code,
+      product_id: info.product_id,
+      duration_months: info.duration_months,
       used: true,
       used_device_id: deviceHash,
       generated_activation_code: activationCode,
+      created_at: info.created_at,
       used_at: Date.now(),
     };
-    await redis.set(`auth:redeem:${code}`, JSON.stringify(updated));
+    await redis.set("auth:redeem:" + code, JSON.stringify(updated));
 
-    const record = {
+    var record = {
       activation_code: activationCode,
       device_id_hash: deviceHash,
       product_id: info.product_id,
-      duration_days: info.duration_days,
+      duration_months: info.duration_months,
+      redeem_code: code,
       generated_at: Date.now(),
-      expires_at:
-        info.duration_days === 9999
-          ? null
-          : Date.now() + info.duration_days * 24 * 60 * 60 * 1000,
     };
-    await redis.set(`auth:activation:${activationCode}`, JSON.stringify(record));
+    await redis.set("auth:activation:" + activationCode, JSON.stringify(record));
     await redis.sadd("auth:activation_codes", activationCode);
 
-    await redis.set(`auth:device:${deviceHash}`, activationCode);
+    await redis.set("auth:device:" + deviceHash, activationCode);
 
-    return res.json({ success: true, activationCode });
+    return res.json({ success: true, activationCode: activationCode });
   } catch (error) {
     console.error("Activate error:", error);
-    return res.status(500).json({ success: false, error: "服务器内部错误" });
+    return res.status(500).json({ success: false, error: "Internal server error" });
   }
 };

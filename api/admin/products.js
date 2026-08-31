@@ -1,37 +1,40 @@
-const redis = require("../../lib/redis");
-const { requireAuth } = require("../../lib/auth");
-const { validateProductName } = require("../../lib/validate");
-const { pad4 } = require("../../lib/crypto");
+var redis = require("../../lib/redis");
+var { requireAuth } = require("../../lib/auth");
+var { validateProductName } = require("../../lib/validate");
+var { pad2 } = require("../../lib/crypto");
 
 module.exports = async (req, res) => {
-  const auth = requireAuth(req);
+  var auth = requireAuth(req);
   if (!auth.authorized) {
     return res.status(auth.status).json({ success: false, error: auth.error });
   }
 
   try {
     if (req.method === "GET") {
-      const raw = await redis.hgetall("auth:products");
-      const products = raw
-        ? Object.entries(raw).map(([id, val]) => {
-            const data = typeof val === "string" ? JSON.parse(val) : val;
-            return { id, ...data };
+      var raw = await redis.hgetall("auth:products");
+      var products = raw
+        ? Object.entries(raw).map(function ([id, val]) {
+            var data = typeof val === "string" ? JSON.parse(val) : val;
+            return { id: id, ...data };
           })
         : [];
-      return res.json({ success: true, products });
+      return res.json({ success: true, products: products });
     }
 
     if (req.method === "POST") {
-      const { name, description } = req.body || {};
+      var { name, description } = req.body || {};
 
-      const nameCheck = validateProductName(name);
+      var nameCheck = validateProductName(name);
       if (!nameCheck.valid) {
         return res.status(400).json({ success: false, error: nameCheck.error });
       }
 
-      const counter = await redis.incr("auth:product_counter");
-      const id = pad4(counter);
-      const product = {
+      var counter = await redis.incr("auth:product_counter");
+      if (counter > 99) {
+        return res.status(400).json({ success: false, error: "Maximum 99 products reached" });
+      }
+      var id = pad2(counter);
+      var product = {
         name: nameCheck.value,
         description: (description || "").trim(),
         created_at: Date.now(),
@@ -40,7 +43,7 @@ module.exports = async (req, res) => {
       await redis.hset("auth:products", { [id]: JSON.stringify(product) });
       await redis.sadd("auth:product_ids", id);
 
-      return res.json({ success: true, product: { id, ...product } });
+      return res.json({ success: true, product: { id: id, ...product } });
     }
 
     return res.status(405).json({ success: false, error: "Method not allowed" });

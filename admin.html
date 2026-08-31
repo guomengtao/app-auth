@@ -302,7 +302,7 @@
   </div>
 
   <div class="desc-banner">
-    <strong>系统说明：</strong>本系统为小米手环/手表应用提供激活码管理服务。后台生成<strong>4位字母+数字混合兑换码</strong>发放给用户，用户激活后系统基于设备ID生成<strong>20位激活码</strong>（产品ID 4位数字 + 设备ID编码 8位 + 天数 4位数字 + 校验码 4位数字），兼容手环端解密验证，可还原原始产品ID和设备ID。
+    <strong>System Description:</strong> This system provides activation code management for Xiaomi Band/Watch apps. Admin generates <strong>4-character redeem codes (A-Z, 0-9)</strong> for users. After activation, the system generates a <strong>18-digit activation code</strong> based on device ID using mixed-radix encoding (product ID 2-digit + check code 4-char + months 2-digit + device ID 4-char), compatible with band-side verification.
   </div>
 
   <div class="stats-bar">
@@ -346,17 +346,17 @@
           <option value="">全部产品</option>
         </select>
         <select id="filterUsed" onchange="loadCodes()" style="padding:8px 12px;border:2px solid #e8e8e8;border-radius:8px;">
-          <option value="">全部状态</option>
-          <option value="false">未使用</option>
-          <option value="true">已使用</option>
+          <option value="">All Status</option>
+          <option value="false">Unused</option>
+          <option value="true">Used</option>
         </select>
         <select id="filterDuration" onchange="loadCodes()" style="padding:8px 12px;border:2px solid #e8e8e8;border-radius:8px;">
-          <option value="">全部有效期</option>
-          <option value="30">30 天</option>
-          <option value="90">90 天</option>
-          <option value="180">180 天</option>
-          <option value="365">365 天</option>
-          <option value="9999">永久</option>
+          <option value="">All Duration</option>
+          <option value="1">1 month</option>
+          <option value="3">3 months</option>
+          <option value="6">6 months</option>
+          <option value="12">12 months</option>
+          <option value="99">Permanent</option>
         </select>
         <button class="btn btn-outline" onclick="loadCodes()">刷新</button>
         <button class="btn btn-outline" onclick="exportCodes()" style="margin-left:auto">导出 CSV</button>
@@ -377,9 +377,9 @@
     <div class="panel" id="panel-decrypt">
       <div class="decrypt-box">
         <h3>激活码解密</h3>
-        <p class="decrypt-desc">通过算法解密激活码，提取产品ID、设备ID后四位、天数等信息（不查询数据库）</p>
+        <p class="decrypt-desc">Decrypt activation code via algorithm to extract product ID, check code, months, and device ID (no database query)</p>
         <div class="decrypt-input-row">
-          <input type="text" id="decryptInput" class="decrypt-input" placeholder="输入20位或16位激活码" maxlength="24" autocomplete="off">
+          <input type="text" id="decryptInput" class="decrypt-input" placeholder="Enter 18-digit activation code" maxlength="20" autocomplete="off">
           <button class="btn btn-primary" onclick="doDecrypt()">解密</button>
         </div>
         <div class="decrypt-result" id="decryptResult" style="display:none"></div>
@@ -413,8 +413,8 @@
         <select id="codeProduct"></select>
       </div>
       <div class="field">
-        <label>有效期（天）</label>
-        <input type="number" id="codeDuration" value="365" min="1" max="9999">
+        <label>有效期（月）</label>
+        <input type="number" id="codeDuration" value="12" min="1" max="99">
       </div>
       <div class="field">
         <label>生成数量</label>
@@ -529,21 +529,21 @@
         var dur = document.getElementById('filterDuration').value;
         if (pid) params.set('product_id', pid);
         if (used) params.set('used', used);
-        if (dur) params.set('duration_days', dur);
+        if (dur) params.set('duration_months', dur);
 
         var data = await api('/api/admin/redeem-codes?' + params.toString());
         if (!data.success) return;
 
-        var html = '<table><thead><tr><th>兑换码</th><th>产品</th><th>有效期</th><th>状态</th><th>创建时间</th><th>使用时间</th></tr></thead><tbody>';
+        var html = '<table><thead><tr><th>Redeem Code</th><th>Product</th><th>Duration</th><th>Status</th><th>Created</th><th>Used At</th></tr></thead><tbody>';
         if (data.codes.length === 0) {
-          html += '<tr><td colspan="6" class="empty">暂无兑换码</td></tr>';
+          html += '<tr><td colspan="6" class="empty">No redeem codes</td></tr>';
         } else {
           data.codes.forEach(function(c) {
             html += '<tr>';
             html += '<td class="mono">' + c.code + '</td>';
             html += '<td>' + c.product_id + '</td>';
-            html += '<td>' + (c.duration_days === 9999 ? '永久' : c.duration_days + ' 天') + '</td>';
-            html += '<td><span class="badge ' + (c.used ? 'badge-success' : 'badge-warning') + '">' + (c.used ? '已使用' : '未使用') + '</span></td>';
+            html += '<td>' + (c.duration_months === 99 ? 'Permanent' : c.duration_months + ' month(s)') + '</td>';
+            html += '<td><span class="badge ' + (c.used ? 'badge-success' : 'badge-warning') + '">' + (c.used ? 'Used' : 'Unused') + '</span></td>';
             html += '<td>' + new Date(c.created_at).toLocaleDateString('zh-CN') + '</td>';
             html += '<td>' + (c.used_at ? new Date(c.used_at).toLocaleString('zh-CN') : '-') + '</td>';
             html += '</tr>';
@@ -562,23 +562,23 @@
         var dur = document.getElementById('filterDuration').value;
         if (pid) params.set('product_id', pid);
         if (used) params.set('used', used);
-        if (dur) params.set('duration_days', dur);
+        if (dur) params.set('duration_months', dur);
         params.set('export', '1');
 
-        showToast('正在导出...', 'success');
+        showToast('Exporting...', 'success');
 
         var data = await api('/api/admin/redeem-codes?' + params.toString());
         if (!data.success || !data.codes || data.codes.length === 0) {
-          showToast('没有可导出的兑换码', 'error');
+          showToast('No redeem codes to export', 'error');
           return;
         }
 
-        var csv = 'code,product_id,duration_days,status,created_at,used_at\n';
+        var csv = 'code,product_id,duration_months,status,created_at,used_at\n';
         data.codes.forEach(function(c) {
           var status = c.used ? 'used' : 'unused';
           var createdAt = new Date(c.created_at).toISOString();
           var usedAt = c.used_at ? new Date(c.used_at).toISOString() : '';
-          csv += c.code + ',' + c.product_id + ',' + c.duration_days + ',' + status + ',' + createdAt + ',' + usedAt + '\n';
+          csv += c.code + ',' + c.product_id + ',' + c.duration_months + ',' + status + ',' + createdAt + ',' + usedAt + '\n';
         });
 
         var bom = '\uFEFF';
@@ -592,9 +592,9 @@
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
 
-        showToast('成功导出 ' + data.total + ' 个兑换码', 'success');
+        showToast('Exported ' + data.total + ' redeem codes', 'success');
       } catch (e) {
-        showToast('导出失败', 'error');
+        showToast('Export failed: ' + (e.message || 'Unknown error'), 'error');
       }
     }
 
@@ -616,7 +616,7 @@
             html += '<td class="mono" style="font-size:0.75rem">' + r.activation_code + '</td>';
             html += '<td class="mono" style="font-size:0.7rem;letter-spacing:0">' + r.device_id_hash + '</td>';
             html += '<td>' + r.product_id + '</td>';
-            html += '<td>' + (r.duration_days === 9999 ? '永久' : r.duration_days + ' 天') + '</td>';
+            html += '<td>' + (r.duration_months === 99 ? 'Permanent' : r.duration_months + ' month(s)') + '</td>';
             html += '<td>' + new Date(r.generated_at).toLocaleString('zh-CN') + '</td>';
             html += '<td>' + (r.expires_at ? new Date(r.expires_at).toLocaleDateString('zh-CN') : '<span class="badge badge-info">永不过期</span>') + '</td>';
             html += '</tr>';
@@ -666,7 +666,7 @@
 
     function closeCodeModal() {
       document.getElementById('codeModal').classList.remove('show');
-      document.getElementById('codeDuration').value = '365';
+      document.getElementById('codeDuration').value = '12';
       document.getElementById('codeCount').value = '10';
     }
 
@@ -675,16 +675,16 @@
       var duration = parseInt(document.getElementById('codeDuration').value);
       var count = parseInt(document.getElementById('codeCount').value);
 
-      if (!productId) { showToast('请选择产品', 'error'); return; }
+      if (!productId) { showToast('Please select a product', 'error'); return; }
 
       try {
         var data = await api('/api/admin/redeem-codes', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ product_id: productId, duration_days: duration, count: count }),
+          body: JSON.stringify({ productId: productId, durationMonths: duration, count: count }),
         });
         if (data.success) {
-          showToast('成功生成 ' + count + ' 个兑换码', 'success');
+          showToast('Generated ' + count + ' redeem codes', 'success');
           closeCodeModal();
           loadCodes();
           loadStats();
@@ -700,235 +700,6 @@
       return div.innerHTML;
     }
 
-    function pad4(n) {
-      var s = String(n);
-      while (s.length < 4) { s = "0" + s; }
-      return s;
-    }
-
-    function generateChecksum4(str) {
-      var hash = 0;
-      for (var i = 0; i < str.length; i++) {
-        hash = ((hash << 5) - hash) + str.charCodeAt(i);
-        hash = hash & hash;
-      }
-      return pad4(Math.abs(hash) % 10000);
-    }
-
-    var ACTIVATION_SECRET = "7319";
-
-    function scramble4(digits, secret) {
-      var result = "";
-      for (var i = 0; i < 4; i++) {
-        result += ((parseInt(digits[i], 10) + parseInt(secret[i], 10)) % 10).toString();
-      }
-      return result;
-    }
-
-    function unscramble4(digits, secret) {
-      var result = "";
-      for (var i = 0; i < 4; i++) {
-        result += ((parseInt(digits[i], 10) - parseInt(secret[i], 10) + 10) % 10).toString();
-      }
-      return result;
-    }
-
-    function scrambleN(digits, secret) {
-      var result = "";
-      for (var i = 0; i < digits.length; i++) {
-        var s = parseInt(secret[i % secret.length], 10);
-        result += ((parseInt(digits[i], 10) + s) % 10).toString();
-      }
-      return result;
-    }
-
-    function unscrambleN(digits, secret) {
-      var result = "";
-      for (var i = 0; i < digits.length; i++) {
-        var s = parseInt(secret[i % secret.length], 10);
-        result += ((parseInt(digits[i], 10) - s + 10) % 10).toString();
-      }
-      return result;
-    }
-
-    function charToDigit2(c) {
-      var code = c.charCodeAt(0);
-      if (code >= 48 && code <= 57) return pad2(code - 48 + 53);
-      if (code >= 65 && code <= 90) return pad2(code - 65 + 1);
-      if (code >= 97 && code <= 122) return pad2(code - 97 + 27);
-      return "00";
-    }
-
-    function digit2ToChar(d) {
-      var n = parseInt(d, 10);
-      if (n >= 53 && n <= 62) return String.fromCharCode(48 + n - 53);
-      if (n >= 1 && n <= 26) return String.fromCharCode(65 + n - 1);
-      if (n >= 27 && n <= 52) return String.fromCharCode(97 + n - 27);
-      return "?";
-    }
-
-    function pad2(n) {
-      var s = String(n);
-      while (s.length < 2) { s = "0" + s; }
-      return s;
-    }
-
-    function pad7(n) {
-      var s = String(n);
-      while (s.length < 7) { s = "0" + s; }
-      return s;
-    }
-
-    function generateChecksum1(str) {
-      var sum = 0;
-      for (var i = 0; i < str.length; i++) {
-        sum += parseInt(str[i], 10);
-      }
-      return String(sum % 10);
-    }
-
-    function charIndex36(c) {
-      var code = c.charCodeAt(0);
-      if (code >= 48 && code <= 57) return code - 48;
-      if (code >= 97 && code <= 122) return code - 97 + 10;
-      if (code >= 65 && code <= 90) return code - 65 + 10;
-      return 0;
-    }
-
-    function indexToChar36(idx) {
-      if (idx >= 0 && idx <= 9) return String.fromCharCode(48 + idx);
-      if (idx >= 10 && idx <= 35) return String.fromCharCode(65 + idx - 10);
-      return "0";
-    }
-
-    function redeemCodeTo7Digit(code) {
-      var value = 0;
-      for (var i = 0; i < 4; i++) {
-        value = value * 36 + charIndex36(code[i] || "0");
-      }
-      return pad7(value);
-    }
-
-    function digit7ToRedeemCode(digits) {
-      var value = parseInt(digits, 10);
-      var result = "";
-      for (var i = 0; i < 4; i++) {
-        result = indexToChar36(value % 36) + result;
-        value = Math.floor(value / 36);
-      }
-      return result;
-    }
-
-    var PRODUCT_LIST = [
-      "prod-001",
-      "prod-002",
-      "my-app",
-      "test-prod",
-      "app-pro",
-      "tool-vip",
-      "game-pass",
-      "cloud-sync",
-    ];
-
-    function productIdToIndex(productId) {
-      var idx = PRODUCT_LIST.indexOf(productId);
-      if (idx >= 0) return pad2(idx);
-      var num = parseInt(productId, 10);
-      if (!isNaN(num) && num >= 0 && num < 100) {
-        while (PRODUCT_LIST.length <= num) {
-          PRODUCT_LIST.push(String(PRODUCT_LIST.length));
-        }
-        PRODUCT_LIST[num] = productId;
-        return pad2(num);
-      }
-      PRODUCT_LIST.push(productId);
-      return pad2(PRODUCT_LIST.length - 1);
-    }
-
-    function indexToProductId(index) {
-      var idx = parseInt(index, 10);
-      if (idx >= 0 && idx < PRODUCT_LIST.length) {
-        return PRODUCT_LIST[idx];
-      }
-      return "?";
-    }
-
-    function decodeDeviceId(encoded) {
-      var result = "";
-      for (var i = 0; i < 8; i += 2) {
-        var pair = encoded.substring(i, i + 2);
-        var ch = digit2ToChar(pair);
-        if (ch !== "?") result += ch;
-      }
-      return result;
-    }
-
-    function decryptCode(code) {
-      var cleaned = code.replace(/\s/g, "");
-
-      if (cleaned.length === 20) {
-        var scrambledDev = cleaned.substring(0, 8);
-        var scrambledRedeem = cleaned.substring(8, 15);
-        var scrambledIdx = cleaned.substring(15, 17);
-        var scrambledDays = cleaned.substring(17, 19);
-        var checksumDigit = cleaned.substring(19, 20);
-
-        var first19 = scrambledDev + scrambledRedeem + scrambledIdx + scrambledDays;
-        var expectedChecksum = generateChecksum1(first19);
-        if (checksumDigit !== expectedChecksum) {
-          return { valid: false, reason: "checksum mismatch" };
-        }
-
-        var redeemEncoded = unscrambleN(scrambledRedeem, ACTIVATION_SECRET);
-        var redeemCode = digit7ToRedeemCode(redeemEncoded);
-
-        var saltHash = generateChecksum4(redeemCode);
-        var perCodeSecret = scramble4(ACTIVATION_SECRET, saltHash);
-
-        var devEncoded = unscrambleN(scrambledDev, perCodeSecret);
-        var deviceId = decodeDeviceId(devEncoded);
-        var productIdx = unscrambleN(scrambledIdx, perCodeSecret);
-        var productId = indexToProductId(productIdx);
-        var days = parseInt(unscrambleN(scrambledDays, perCodeSecret), 10);
-
-        return {
-          valid: true,
-          productId: productId,
-          deviceId: deviceId,
-          days: days,
-          redeemCode: redeemCode,
-          isPermanent: days === 99,
-          format: "20位",
-        };
-      }
-
-      if (cleaned.length === 16) {
-        var scrambledPid = cleaned.substring(0, 4);
-        var scrambledIdHash = cleaned.substring(4, 8);
-        var scrambledDays = cleaned.substring(8, 12);
-        var embedded = cleaned.substring(12, 16);
-        var plain = scrambledPid + scrambledIdHash + scrambledDays;
-        var checksum = generateChecksum4(plain);
-
-        var saltHash = unscramble4(embedded, checksum);
-        var perCodeSecret = scramble4(ACTIVATION_SECRET, saltHash);
-
-        var pid = unscramble4(scrambledPid, perCodeSecret);
-        var idHash = unscramble4(scrambledIdHash, perCodeSecret);
-        var days = parseInt(unscramble4(scrambledDays, perCodeSecret), 10);
-        return {
-          valid: true,
-          productId: pid,
-          deviceHash: idHash,
-          days: days,
-          isPermanent: days === 9999,
-          format: "16位",
-        };
-      }
-
-      return { valid: false, reason: "激活码长度无效（需16位或20位）" };
-    }
-
     function doDecrypt() {
       var input = document.getElementById('decryptInput').value.trim();
       var resultEl = document.getElementById('decryptResult');
@@ -936,36 +707,57 @@
       if (!input) {
         resultEl.style.display = 'block';
         resultEl.className = 'decrypt-result error';
-        resultEl.innerHTML = '<span class="error-msg">请输入激活码</span>';
+        resultEl.innerHTML = '<span class="error-msg">Please enter activation code</span>';
         return;
       }
 
-      var result = decryptCode(input);
+      var cleaned = input.replace(/\s/g, '');
 
-      if (!result.valid) {
+      if (cleaned.length !== 18 || !/^\d{18}$/.test(cleaned)) {
         resultEl.style.display = 'block';
         resultEl.className = 'decrypt-result error';
-        resultEl.innerHTML = '<span class="error-msg">' + result.reason + '</span>';
+        resultEl.innerHTML = '<span class="error-msg">Activation code must be 18 pure digits</span>';
         return;
       }
 
-      var html = '';
-      html += '<div class="field-row"><span class="field-label">格式版本</span><span class="field-value">' + result.format + '</span></div>';
-      html += '<div class="field-row"><span class="field-label">产品ID</span><span class="field-value">' + result.productId + '</span></div>';
-      if (result.deviceId) {
-        html += '<div class="field-row"><span class="field-label">设备ID</span><span class="field-value">' + result.deviceId + '</span></div>';
-      } else {
-        html += '<div class="field-row"><span class="field-label">设备ID哈希</span><span class="field-value">' + result.deviceHash + '</span></div>';
-      }
-      if (result.redeemCode) {
-        html += '<div class="field-row"><span class="field-label">兑换码</span><span class="field-value">' + result.redeemCode + '</span></div>';
-      }
-      html += '<div class="field-row"><span class="field-label">授权天数</span><span class="field-value">' + (result.isPermanent ? '永久' : result.days + ' 天') + '</span></div>';
-      html += '<div class="field-row"><span class="field-label">校验状态</span><span class="field-value" style="color:#2e7d32">✓ 校验通过</span></div>';
+      api('/api/admin/decrypt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: cleaned }),
+      }).then(function(data) {
+        if (!data.success) {
+          resultEl.style.display = 'block';
+          resultEl.className = 'decrypt-result error';
+          resultEl.innerHTML = '<span class="error-msg">' + (data.error || 'Decrypt failed') + '</span>';
+          return;
+        }
 
-      resultEl.style.display = 'block';
-      resultEl.className = 'decrypt-result success';
-      resultEl.innerHTML = html;
+        var r = data.result;
+        if (!r.valid) {
+          resultEl.style.display = 'block';
+          resultEl.className = 'decrypt-result error';
+          resultEl.innerHTML = '<span class="error-msg">Checksum mismatch - code may be tampered</span>';
+          return;
+        }
+
+        var html = '';
+        html += '<div class="field-row"><span class="field-label">Format</span><span class="field-value">' + r.format + '</span></div>';
+        html += '<div class="field-row"><span class="field-label">Product ID</span><span class="field-value">' + r.productId + '</span></div>';
+        html += '<div class="field-row"><span class="field-label">Check Code</span><span class="field-value">' + r.checkCode + '</span></div>';
+        html += '<div class="field-row"><span class="field-label">Duration</span><span class="field-value">' + (r.months === 99 ? 'Permanent' : r.months + ' month(s)') + '</span></div>';
+        html += '<div class="field-row"><span class="field-label">Device ID</span><span class="field-value">' + r.deviceId + '</span></div>';
+        html += '<div class="field-row"><span class="field-label">Product Salt</span><span class="field-value">' + r.productSalt + '</span></div>';
+        html += '<div class="field-row"><span class="field-label">Checksum</span><span class="field-value">' + r.checksum + '</span></div>';
+        html += '<div class="field-row"><span class="field-label">Verification</span><span class="field-value" style="color:#2e7d32">✓ Verified</span></div>';
+
+        resultEl.style.display = 'block';
+        resultEl.className = 'decrypt-result success';
+        resultEl.innerHTML = html;
+      }).catch(function(e) {
+        resultEl.style.display = 'block';
+        resultEl.className = 'decrypt-result error';
+        resultEl.innerHTML = '<span class="error-msg">Decrypt failed: ' + (e.message || 'Unknown error') + '</span>';
+      });
     }
 
     document.getElementById('decryptInput').addEventListener('keydown', function(e) {

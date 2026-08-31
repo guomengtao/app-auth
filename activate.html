@@ -123,11 +123,11 @@
     .result.error { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
     .result .code {
       font-family: 'SF Mono', 'Fira Code', 'Menlo', monospace;
-      font-size: 1.4rem;
+      font-size: 1.6rem;
       font-weight: 700;
-      margin: 8px 0;
-      word-break: break-all;
-      letter-spacing: 3px;
+      margin: 12px 0;
+      letter-spacing: 6px;
+      line-height: 1.8;
     }
     .copy-btn {
       margin-top: 8px;
@@ -164,27 +164,27 @@
   <div class="card">
     <div class="icon">🔐</div>
     <h1>设备激活</h1>
-    <p class="subtitle">输入您的爱发电兑换码，获取激活码</p>
+    <p class="subtitle">Enter your redeem code to get activation code</p>
 
     <div class="steps">
-      <div class="steps-title">操作步骤</div>
+      <div class="steps-title">Steps</div>
       <ol>
-        <li>确认下方「设备ID」与您的设备一致</li>
-        <li>输入从爱发电获得的 <strong>4位兑换码</strong></li>
-        <li>点击「立即激活」获取 <strong>20位激活码</strong></li>
-        <li>将激活码输入到手环应用中完成激活</li>
+        <li>Confirm your device ID below matches your device</li>
+        <li>Enter your <strong>4-character redeem code</strong></li>
+        <li>Click activate to get your <strong>18-digit activation code</strong></li>
+        <li>Enter the activation code into your band/watch app</li>
       </ol>
     </div>
 
     <div class="field">
-      <label>设备ID</label>
+      <label>Device ID (4 chars)</label>
       <input type="text" id="deviceId" class="readonly" readonly>
     </div>
     <div class="field">
-      <label>兑换码（4位字母+数字）</label>
-      <input type="text" id="redeemCode" placeholder="输入4位兑换码" maxlength="4" autocomplete="off">
+      <label>Redeem Code (4 chars A-Z, 0-9)</label>
+      <input type="text" id="redeemCode" placeholder="Enter 4-char redeem code" maxlength="4" autocomplete="off">
     </div>
-    <button class="btn" id="activateBtn" onclick="activate()">立即激活</button>
+    <button class="btn" id="activateBtn" onclick="activate()">Activate</button>
 
     <div class="result" id="result"></div>
     <div class="device-info" id="deviceInfo"></div>
@@ -201,12 +201,16 @@
       deviceId = localStorage.getItem('deviceId') || '';
     }
     if (!deviceId) {
-      deviceId = 'DEV-' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+      var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+      deviceId = '';
+      for (var i = 0; i < 4; i++) {
+        deviceId += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
       localStorage.setItem('deviceId', deviceId);
     }
 
     document.getElementById('deviceId').value = deviceId;
-    document.getElementById('deviceInfo').textContent = '设备ID来源: ' + (getDeviceIdFromUrl() ? 'URL参数' : '本地生成');
+    document.getElementById('deviceInfo').textContent = 'Device ID source: ' + (getDeviceIdFromUrl() ? 'URL parameter' : 'Local generated');
 
     function setLoading(loading) {
       var btn = document.getElementById('activateBtn');
@@ -221,11 +225,11 @@
 
     function fmtCode(code) {
       if (!code) return code;
-      if (code.length === 20) {
-        return code.substring(0, 8) + ' ' + code.substring(8, 15) + ' ' + code.substring(15, 17) + ' ' + code.substring(17, 19) + ' ' + code.substring(19, 20);
+      if (code.length === 18) {
+        return code.substring(0, 6) + '<br>' + code.substring(6, 12) + '<br>' + code.substring(12, 18);
       }
       if (code.length === 16) {
-        return code.substring(0, 4) + ' ' + code.substring(4, 8) + ' ' + code.substring(8, 12) + ' ' + code.substring(12, 16);
+        return code.substring(0, 4) + '<br>' + code.substring(4, 8) + '<br>' + code.substring(8, 12) + '<br>' + code.substring(12, 16);
       }
       return code;
     }

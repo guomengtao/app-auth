@@ -29,7 +29,7 @@ function runRandomTest(groupNum) {
   var salt = crypto.generateRedeemCode();
 
   var code = crypto.generateActivationCode(productId, deviceId, days, salt);
-  var formatted = crypto.fmtCode20(code);
+  var formatted = crypto.fmtCode18(code);
   var result = crypto.decryptActivationCode(code);
 
   var pidMatch = result.productId === productId;
@@ -46,7 +46,7 @@ function runRandomTest(groupNum) {
   console.log(bold("\n--- test group " + groupNum + " ---"));
   console.log(dim("  input:   productId=" + productId + "  deviceId=" + deviceId + "  days=" + days + daysLabel + "  redeemCode=" + salt));
   console.log("");
-  console.log("  " + bold(yellow(" encrypted 20-digit:  " + formatted + " ")));
+  console.log("  " + bold(yellow(" encrypted 18-digit:  " + formatted + " ")));
   console.log("  " + bold(cyan(" decrypted            pid=" + result.productId + "  dev=" + result.deviceId + "  days=" + result.days + "  redeem=" + result.redeemCode)));
   console.log("");
   console.log("  " + dim("pid:" + (pidMatch ? pass : fail) + "  dev:" + (devMatch ? pass : fail) + "  days:" + (daysMatch ? pass : fail) + "  redeem:" + (redeemMatch ? pass : fail)) + "  -> " + bold(allMatch ? green("ALL PASS") : red("FAILED")));
@@ -57,8 +57,8 @@ function runRandomTest(groupNum) {
 function runCustomTest(code) {
   var cleaned = code.replace(/\s/g, "");
   var formatted;
-  if (cleaned.length === 20) {
-    formatted = crypto.fmtCode20(cleaned);
+  if (cleaned.length === 18) {
+    formatted = crypto.fmtCode18(cleaned);
   } else {
     formatted = crypto.fmtCode16(cleaned);
   }
@@ -76,8 +76,8 @@ function runCustomTest(code) {
   console.log("  +----------------------------+");
   console.log("");
 
-  if (cleaned.length !== 16 && cleaned.length !== 20) {
-    console.log("  " + red("ERROR: must be 16 or 20 digits, got " + cleaned.length));
+  if (cleaned.length !== 16 && cleaned.length !== 18) {
+    console.log("  " + red("ERROR: must be 16 or 18 digits, got " + cleaned.length));
     console.log("");
     return false;
   }
@@ -87,7 +87,7 @@ function runCustomTest(code) {
     return false;
   }
 
-  if (cleaned.length === 20) {
+  if (cleaned.length === 18) {
     var scrambledDev = cleaned.substring(0, 8);
     var scrambledRedeem = cleaned.substring(8, 15);
     var scrambledIdx = cleaned.substring(15, 17);
@@ -204,7 +204,7 @@ function runEncryptThenDecrypt(productId, deviceId, days, salt) {
   days = parseInt(days, 10);
 
   var code = crypto.generateActivationCode(productId, deviceId, days, salt);
-  var formatted = crypto.fmtCode20(code);
+  var formatted = crypto.fmtCode18(code);
 
   var result = crypto.decryptActivationCode(code);
 
@@ -257,8 +257,8 @@ if (!raw) {
   process.exit(pass1 && pass2 ? 0 : 1);
 }
 
-// 20 pure digits -> verify existing activation code (new format)
-if (raw.length === 20 && /^\d{20}$/.test(raw)) {
+// 18 pure digits -> verify existing activation code
+if (raw.length === 18 && /^\d{18}$/.test(raw)) {
   runCustomTest(raw);
   process.exit(0);
 }
