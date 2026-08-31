@@ -1,7 +1,15 @@
 var redis = require("../../lib/redis");
 var { requireAuth } = require("../../lib/auth");
-var { generateRedeemCode, pad2 } = require("../../lib/crypto");
+var { generateRedeemCode } = require("../../lib/crypto");
 var { validateCount, validateDuration } = require("../../lib/validate");
+
+function matchCode(data, filterProductId, filterUsed, filterDuration) {
+  if (filterProductId && data.product_id !== filterProductId) return false;
+  if (filterUsed === "true" && !data.used) return false;
+  if (filterUsed === "false" && data.used) return false;
+  if (filterDuration && String(data.duration_months) !== filterDuration) return false;
+  return true;
+}
 
 module.exports = async (req, res) => {
   var auth = requireAuth(req);
@@ -17,30 +25,27 @@ module.exports = async (req, res) => {
       var filterDuration = req.query.duration_months;
 
       if (exportAll === "1") {
-        var keys = [];
-        var cursor = 0;
+        var allMemberKeys = [];
+        var memberCursor = 0;
         do {
-          var scanResult = await redis.scan(cursor, { match: "auth:redeem:*", count: 200 });
-          cursor = scanResult[0];
-          keys = keys.concat(scanResult[1]);
-        } while (cursor !== 0);
+          var memberResult = await redis.sscan("auth:redeem_codes", memberCursor, { count: 200 });
+          memberCursor = memberResult[0];
+          allMemberKeys = allMemberKeys.concat(memberResult[1]);
+        } while (memberCursor !== 0);
 
         var codes = [];
-        if (keys.length > 0) {
+        if (allMemberKeys.length > 0) {
           var pipeline = redis.pipeline();
-          keys.forEach(function (k) {
-            pipeline.get(k);
+          allMemberKeys.forEach(function (code) {
+            pipeline.get("auth:redeem:" + code);
           });
           var values = await pipeline.exec();
-          values.forEach(function ([err, val]) {
-            if (!err && val) {
+          values.forEach(function (val) {
+            if (val) {
               var data = typeof val === "string" ? JSON.parse(val) : val;
-              var match = true;
-              if (filterProductId && data.product_id !== filterProductId) match = false;
-              if (filterUsed === "1" && !data.used) match = false;
-              if (filterUsed === "0" && data.used) match = false;
-              if (filterDuration && String(data.duration_months) !== filterDuration) match = false;
-              if (match) codes.push(data);
+              if (matchCode(data, filterProductId, filterUsed, filterDuration)) {
+                codes.push(data);
+              }
             }
           });
         }
@@ -56,30 +61,27 @@ module.exports = async (req, res) => {
       var limit = parseInt(req.query.limit) || 20;
       var offset = (page - 1) * limit;
 
-      var keys = [];
-      var cursor = 0;
+      var allMemberKeys = [];
+      var memberCursor = 0;
       do {
-        var scanResult = await redis.scan(cursor, { match: "auth:redeem:*", count: 200 });
-        cursor = scanResult[0];
-        keys = keys.concat(scanResult[1]);
-      } while (cursor !== 0);
+        var memberResult = await redis.sscan("auth:redeem_codes", memberCursor, { count: 200 });
+        memberCursor = memberResult[0];
+        allMemberKeys = allMemberKeys.concat(memberResult[1]);
+      } while (memberCursor !== 0);
 
       var allCodes = [];
-      if (keys.length > 0) {
+      if (allMemberKeys.length > 0) {
         var pipeline = redis.pipeline();
-        keys.forEach(function (k) {
-          pipeline.get(k);
+        allMemberKeys.forEach(function (code) {
+          pipeline.get("auth:redeem:" + code);
         });
         var values = await pipeline.exec();
-        values.forEach(function ([err, val]) {
-          if (!err && val) {
+        values.forEach(function (val) {
+          if (val) {
             var data = typeof val === "string" ? JSON.parse(val) : val;
-            var match = true;
-            if (filterProductId && data.product_id !== filterProductId) match = false;
-            if (filterUsed === "1" && !data.used) match = false;
-            if (filterUsed === "0" && data.used) match = false;
-            if (filterDuration && String(data.duration_months) !== filterDuration) match = false;
-            if (match) allCodes.push(data);
+            if (matchCode(data, filterProductId, filterUsed, filterDuration)) {
+              allCodes.push(data);
+            }
           }
         });
       }
