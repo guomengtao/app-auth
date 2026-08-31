@@ -1104,18 +1104,24 @@
           </div>
         </div>
         <div class="topbar-right">
-          <div id="syncStatusChip" class="sync-status" style="margin-right:12px" title="离线优先模式：默认只读写本地浏览器存储；点击同步按钮才会连接数据库">
-            <span id="syncModeLabel" class="sync-mode" style="font-size:0.75rem;font-weight:700;background:#f0fdf4;color:#065f46;padding:3px 10px;border-radius:999px;border:1px solid #86efac">📴 本地优先</span>
-            <span id="syncDirtyBadge" style="display:none;font-size:0.72rem;font-weight:700;background:#fff7ed;color:#9a3412;padding:3px 8px;border-radius:999px;border:1px solid #fdba74;margin-left:6px">● 待同步变更</span>
-            <button class="btn btn-primary sync-btn" onclick="doSync('merge')" style="margin-left:8px;padding:5px 12px;font-size:0.8rem;box-shadow:0 1px 2px rgba(16,24,40,.08)">⬆⬇ 一键同步</button>
-            <button class="btn btn-outline sync-btn-sm" onclick="doSync('pull')" style="margin-left:4px;padding:5px 10px;font-size:0.75rem" title="仅从服务器数据库拉取全量，覆盖本地">⬇ 拉取</button>
-            <button class="btn btn-outline sync-btn-sm" onclick="doSync('push')" style="margin-left:4px;padding:5px 10px;font-size:0.75rem" title="仅把本地未同步变更推送服务器（不合并服务器新数据）">⬆ 推送</button>
-          </div>
           <span class="user-chip" id="usernameDisplay"></span>
           <a href="/" class="topbar-link">首页</a>
           <button class="logout" onclick="logout()">退出</button>
         </div>
       </header>
+
+      <div id="syncStatusBar" style="margin:10px 16px 0;padding:10px 14px;background:linear-gradient(135deg,#f5f3ff 0%,#ecfeff 100%);border:1px solid #c7d2fe;border-radius:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;box-shadow:0 1px 3px rgba(99,102,241,.08)">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-right:auto">
+          <span id="syncModeLabel2" style="font-size:0.78rem;font-weight:800;background:#065f46;color:#fff;padding:4px 12px;border-radius:999px;letter-spacing:0.02em">📴 本地优先模式</span>
+          <span id="syncDirtyBadge2" style="display:none;font-size:0.78rem;font-weight:800;background:#9a3412;color:#fff;padding:4px 10px;border-radius:999px;animation:dirtyPulse 1.4s ease infinite">● 本地有待同步变更</span>
+          <span id="syncMetaText" style="font-size:0.74rem;color:#475569"></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="doSync('merge')" style="padding:7px 14px;font-size:0.82rem;box-shadow:0 1px 2px rgba(16,24,40,.08)">⬆⬇ 一键同步（推荐）</button>
+          <button class="btn btn-outline" onclick="doSync('pull')" style="padding:7px 12px;font-size:0.78rem" title="从服务器数据库拉取全量，强制覆盖本地浏览器数据">⬇ 仅拉取</button>
+          <button class="btn btn-outline" onclick="doSync('push')" style="padding:7px 12px;font-size:0.78rem" title="仅把本地浏览器里的变更推送到服务器（不会合并服务器上可能已有的新数据）">⬆ 仅推送</button>
+        </div>
+      </div>
 
       <div id="syncBanner" class="sync-banner" style="display:none;margin:8px 16px 0;border:1px solid #ddd6fe;background:#f5f3ff;border-radius:10px;padding:8px 12px;font-size:0.8rem;color:#3730a3;line-height:1.6">
         <span id="syncBannerMsg">-</span>
@@ -1454,30 +1460,44 @@
     }
     function markDirty(yes) { saveSyncMeta({ dirty: !!yes }); }
     function renderSyncStatusChip() {
-      var labelEl = document.getElementById('syncModeLabel');
-      var badEl = document.getElementById('syncDirtyBadge');
+      var labelEl = document.getElementById('syncModeLabel2');
+      var badEl = document.getElementById('syncDirtyBadge2');
+      var metaEl = document.getElementById('syncMetaText');
       var meta = syncMeta();
       if (labelEl) {
         if (ADMIN_MODE === 'api-always') {
-          labelEl.style.background = '#eff6ff';
-          labelEl.style.color = '#1d4ed8';
-          labelEl.style.borderColor = '#93c5fd';
+          labelEl.style.background = '#1d4ed8';
           labelEl.textContent = '☁️ API 直达模式';
         } else {
-          labelEl.style.background = '#f0fdf4';
-          labelEl.style.color = '#065f46';
-          labelEl.style.borderColor = '#86efac';
-          labelEl.textContent = '📴 本地优先 (离线模式)';
+          labelEl.style.background = '#065f46';
+          labelEl.textContent = '📴 本地优先模式';
         }
       }
       if (badEl) {
         if (meta.dirty) {
           badEl.style.display = 'inline-block';
-          badEl.classList.add('pulse');
         } else {
           badEl.style.display = 'none';
-          badEl.classList.remove('pulse');
         }
+      }
+      if (metaEl) {
+        var last = meta.lastSyncAt;
+        var txt = '';
+        if (last) {
+          try {
+            var d = new Date(last);
+            if (!isNaN(d.getTime())) {
+              var diff = (Date.now() - d.getTime()) / 1000;
+              if (diff < 60) txt = '上次同步：刚刚';
+              else if (diff < 3600) txt = '上次同步：' + Math.floor(diff / 60) + ' 分钟前';
+              else if (diff < 86400) txt = '上次同步：' + Math.floor(diff / 3600) + ' 小时前';
+              else txt = '上次同步：' + d.toLocaleDateString('zh-CN');
+            }
+          } catch (_) {}
+        } else {
+          txt = '尚未与服务器同步过，建议点「一键同步」合并服务器数据';
+        }
+        metaEl.textContent = txt;
       }
     }
     function showSyncBanner(msg, level) {
