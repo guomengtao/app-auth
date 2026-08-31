@@ -2018,10 +2018,22 @@
           html += '<tr><td colspan="7" class="empty">' + escapeHtml(emptyReason) + '</td></tr>';
         } else {
           allRecords.forEach(function(r) {
-            var durationText = r.duration_months === 99 ? '永久' : r.duration_months + ' 个月';
-            var expiresText = r.expires_at
-              ? new Date(r.expires_at).toLocaleDateString('zh-CN')
-              : '<span class="badge badge-info">永久</span>';
+            var durationMonths = Number(r.duration_months);
+            var isPermanent = durationMonths === 99;
+            var durationText = isPermanent ? '永久' : durationMonths + ' 个月';
+            var expiresText;
+            if (isPermanent) {
+              expiresText = '<span class="badge badge-info">永久</span>';
+            } else if (r.expires_at && Number(r.expires_at) > 0) {
+              expiresText = new Date(Number(r.expires_at)).toLocaleDateString('zh-CN');
+            } else {
+              var genTs = Number(r.generated_at) || Date.now();
+              var d = new Date(genTs);
+              if (durationMonths > 0 && durationMonths < 99) {
+                d.setUTCMonth(d.getUTCMonth() + durationMonths);
+              }
+              expiresText = new Date(d).toLocaleDateString('zh-CN') + '<span style="color:#e65100;font-size:0.75rem;margin-left:4px" title="旧数据无 expires_at，已按激活时间+月数推算">推算</span>';
+            }
             var rcCell = r.redeem_code
               ? ('<span class="mono" style="font-weight:700">' + escapeHtml(r.redeem_code) + '</span>')
               : '<span style="color:#aaa">-</span>';

@@ -94,13 +94,47 @@ module.exports = async (req, res) => {
           months,
           code
         );
+        var reuseNow = Date.now();
+        var reuseExpires = null;
+        if (months !== 99) {
+          var existingRecordRaw = await redis.get("auth:activation:" + activationCodeReuse);
+          var existing = parseRedisJson(existingRecordRaw);
+          var baseTs = reuseNow;
+          if (existing && existing.expires_at && Number(existing.expires_at) > baseTs) {
+            baseTs = Number(existing.expires_at);
+          }
+          var rd = new Date(baseTs);
+          rd.setUTCMonth(rd.getUTCMonth() + months);
+          reuseExpires = rd.getTime();
+        }
+        var mergedRecord = null;
+        if (activationCodeReuse) {
+          var _existingRaw = await redis.get("auth:activation:" + activationCodeReuse);
+          var _existing = parseRedisJson(_existingRaw) || {};
+          mergedRecord = Object.assign({}, _existing, {
+            activation_code: activationCodeReuse,
+            device_id_hash: deviceHash,
+            device_id: device,
+            product_id: productId,
+            duration_months: months,
+            redeem_code: code,
+            generated_at: _existing.generated_at || reuseNow,
+            expires_at: reuseExpires,
+          });
+        }
         info.generated_activation_code = activationCodeReuse;
         info.product_id = productId;
         info.duration_months = months;
-        await Promise.all([
+        info.used_at = reuseNow;
+        var tasks = [
           redis.set("auth:redeem:" + code, JSON.stringify(info)),
-          redis.set("auth:device:" + deviceHash, activationCodeReuse)
-        ]);
+          redis.set("auth:device:" + deviceHash, activationCodeReuse),
+        ];
+        if (mergedRecord) {
+          tasks.push(redis.set("auth:activation:" + activationCodeReuse, JSON.stringify(mergedRecord)));
+          tasks.push(redis.sadd("auth:activation_codes", activationCodeReuse).catch(function () {}));
+        }
+        await Promise.all(tasks);
         return res.json({ success: true, activationCode: activationCodeReuse });
       }
       return res.status(400).json({
@@ -116,6 +150,14 @@ module.exports = async (req, res) => {
       code
     );
 
+    var now = Date.now();
+    var expiresAt = null;
+    if (months !== 99) {
+      var d = new Date(now);
+      d.setUTCMonth(d.getUTCMonth() + months);
+      expiresAt = d.getTime();
+    }
+
     var updated = {
       code: info.code || code,
       product_id: productId,
@@ -123,8 +165,8 @@ module.exports = async (req, res) => {
       used: true,
       used_device_id: deviceHash,
       generated_activation_code: activationCode,
-      created_at: info.created_at || Date.now(),
-      used_at: Date.now(),
+      created_at: info.created_at || now,
+      used_at: now,
     };
 
     var record = {
@@ -134,7 +176,8 @@ module.exports = async (req, res) => {
       product_id: productId,
       duration_months: months,
       redeem_code: code,
-      generated_at: Date.now(),
+      generated_at: now,
+      expires_at: expiresAt,
     };
 
     var USED_COUNTER_KEY = "auth:counter:used_redeem_codes";
