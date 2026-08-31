@@ -133,14 +133,87 @@ function runCustomTest(code) {
   return result.valid;
 }
 
-var customCode = process.argv[2];
+function runEncryptThenDecrypt(productId, deviceId, days) {
+  days = parseInt(days, 10);
 
-if (customCode) {
-  runCustomTest(customCode);
+  var pidHash = crypto.productIdTo4Digit(productId);
+  var devHash = crypto.deviceIdTo4Digit(deviceId);
+
+  var code = crypto.generateActivationCode(productId, deviceId, days);
+  var formatted = crypto.fmtCode16(code);
+  var parts = formatted.split(" ");
+  var highlighted = bold(yellow(parts[0] + " " + parts[1] + " " + parts[2] + " " + parts[3]));
+
+  console.log("");
+  console.log(bold("  === Encrypt -> Decrypt Round-Trip ==="));
+  console.log("");
+  console.log(dim("  Input:"));
+  console.log(dim("    productId  = " + productId + "  -> hash: " + pidHash));
+  console.log(dim("    deviceId   = " + deviceId + "  -> hash: " + devHash));
+  console.log(dim("    days       = " + days + (days === 9999 ? " (permanent)" : "")));
+  console.log("");
+
+  console.log("  " + bold("Encrypted 16-digit Code:"));
+  console.log("  ┌──────────────────────┐");
+  console.log("  │  " + highlighted + "  │");
+  console.log("  └──────────────────────┘");
+  console.log("");
+
+  var result = crypto.decryptActivationCode(code);
+
+  var pidMatch = result.productId === pidHash;
+  var devMatch = result.deviceHash === devHash;
+  var daysMatch = result.days === days;
+  var allMatch = pidMatch && devMatch && daysMatch;
+
+  console.log("  " + bold("Decrypted Result:"));
+  console.log("  ┌────────────────────────────────────────────┐");
+  console.log("  │  " + bold(cyan("productId  = " + result.productId)) + "                        │");
+  console.log("  │  " + bold(cyan("deviceHash = " + result.deviceHash)) + "                        │");
+  console.log("  │  " + bold(cyan("days       = " + result.days + (result.isPermanent ? " (permanent)" : ""))) + "                  │");
+  console.log("  │  " + bold(cyan("valid      = " + result.valid)) + "                             │");
+  console.log("  └────────────────────────────────────────────┘");
+  console.log("");
+
+  console.log("  " + dim("pid:" + (pidMatch ? green("PASS") : red("FAIL")) + "  dev:" + (devMatch ? green("PASS") : red("FAIL")) + "  days:" + (daysMatch ? green("PASS") : red("FAIL"))));
+  console.log("");
+  console.log("  " + bold(allMatch ? green("=== ROUND-TRIP PASSED ===") : red("=== ROUND-TRIP FAILED ===")));
+  console.log("");
+
+  return allMatch;
+}
+
+var arg1 = process.argv[2];
+var arg2 = process.argv[3];
+var arg3 = process.argv[4];
+
+if (arg1 && arg2 && arg3) {
+  runEncryptThenDecrypt(arg1, arg2, arg3);
+} else if (arg1) {
+  var cleaned = arg1.replace(/\s/g, "");
+  if (cleaned.length === 16 && /^\d{16}$/.test(cleaned)) {
+    runCustomTest(arg1);
+  } else {
+    console.log("");
+    console.log(bold("  Crypto Encrypt/Decrypt Test"));
+    console.log(dim("  Secret: " + crypto.ACTIVATION_SECRET));
+    console.log("");
+    console.log("  " + red("Invalid input. Must be either:"));
+    console.log("");
+    console.log("  " + bold("  1) Verify mode:"));
+    console.log(dim("     node test/crypto-test.js <16-digit-code>"));
+    console.log("");
+    console.log("  " + bold("  2) Encrypt mode:"));
+    console.log(dim("     node test/crypto-test.js <productId> <deviceId> <days>"));
+    console.log("");
+    console.log("  " + bold("  3) Random test mode:"));
+    console.log(dim("     node test/crypto-test.js"));
+    console.log("");
+  }
 } else {
   console.log("");
   console.log(bold("  Crypto Encrypt/Decrypt Test"));
-  console.log(dim("  Secret: " + crypto.ACTIVATION_SECRET + "  |  Usage: node test/crypto-test.js [16-digit-code]"));
+  console.log(dim("  Secret: " + crypto.ACTIVATION_SECRET + "  |  Usage: node test/crypto-test.js [16-digit-code] | [productId deviceId days]"));
   console.log("");
 
   var pass1 = runRandomTest(1);
