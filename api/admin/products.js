@@ -84,6 +84,56 @@ module.exports = async (req, res) => {
       return res.json({ success: true, product: { id: id, ...product } });
     }
 
+    if (req.method === "PUT") {
+      var putBody = parseBody(req);
+      var putId = String(putBody.id || "").trim();
+      var putName = putBody.name;
+      var putDesc = putBody.description;
+
+      if (!putId || !/^\d{2}$/.test(putId)) {
+        return res.status(400).json({ success: false, error: "Invalid product id, must be 2 digits like 01" });
+      }
+      var putNameCheck = validateProductName(putName);
+      if (!putNameCheck.valid) {
+        return res.status(400).json({ success: false, error: putNameCheck.error });
+      }
+      var oldRaw = await redis.hget("auth:products", putId);
+      var old = parseProductValue(oldRaw) || { name: "", description: "", created_at: Date.now() };
+      var updatedProduct = {
+        name: putNameCheck.value,
+        description: (putDesc == null ? (old.description || "") : String(putDesc).trim()),
+        created_at: Number(old.created_at) || Date.now(),
+        updated_at: Date.now(),
+      };
+      await redis.hset("auth:products", { [putId]: JSON.stringify(updatedProduct) });
+      try {
+        await redis.sadd("auth:product_ids", putId);
+      } catch (e) {
+        console.error("product_ids sadd(update) failed:", e);
+      }
+      return res.json({ success: true, product: { id: putId, ...updatedProduct } });
+    }
+
+    if (req.method === "DELETE") {
+      var delBody = parseBody(req);
+      var delId = String(delBody && delBody.id ? delBody.id : (req.query && req.query.id ? req.query.id : "")).trim();
+      if (!delId || !/^\d{2}$/.test(delId)) {
+        return res.status(400).json({ success: false, error: "Invalid product id" });
+      }
+      var existedRaw = await redis.hget("auth:products", delId);
+      var existed = parseProductValue(existedRaw);
+      if (!existed) {
+        return res.status(404).json({ success: false, error: "Product not found" });
+      }
+      await redis.hdel("auth:products", delId);
+      try {
+        await redis.srem("auth:product_ids", delId);
+      } catch (e) {
+        console.error("product_ids srem failed:", e);
+      }
+      return res.json({ success: true, id: delId, removed: true });
+    }
+
     return res.status(405).json({ success: false, error: "Method not allowed" });
   } catch (error) {
     console.error("Products error:", error && error.message ? error.message : error, error);

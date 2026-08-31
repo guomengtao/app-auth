@@ -1167,7 +1167,12 @@
 
   <div class="modal-overlay" id="productModal">
     <div class="modal">
-      <h3>添加产品</h3>
+      <h3 id="productModalTitle">添加产品</h3>
+      <input type="hidden" id="productId">
+      <div class="field" id="productIdField" style="display:none">
+        <label>产品 ID（不可修改）</label>
+        <input type="text" id="productIdDisplay" disabled class="input-mono" style="background:#f5f6fa">
+      </div>
       <div class="field">
         <label>产品名称</label>
         <input type="text" id="productName" placeholder="例如：VIP专业版">
@@ -1178,7 +1183,7 @@
       </div>
       <div class="actions">
         <button class="btn btn-outline" onclick="closeProductModal()">取消</button>
-        <button class="btn btn-primary" onclick="addProduct()">创建</button>
+        <button class="btn btn-primary" id="productModalSubmitBtn" onclick="submitProduct()">创建</button>
       </div>
     </div>
   </div>
@@ -1581,16 +1586,20 @@
         var data = await api('/api/admin/products');
         if (!data.success) throw new Error(data.error || 'API error');
 
-        var html = '<table><thead><tr><th>ID</th><th>Name</th><th>Description</th><th>Created</th></tr></thead><tbody>';
+        var html = '<table><thead><tr><th>ID</th><th>名称 (Name)</th><th>描述 (Description)</th><th>创建时间 (Created)</th><th style="width:170px">操作</th></tr></thead><tbody>';
         if (data.products.length === 0) {
-          html += '<tr><td colspan="4" class="empty">No products</td></tr>';
+          html += '<tr><td colspan="5" class="empty">暂无产品，点击左上角「+ 添加产品」创建</td></tr>';
         } else {
           data.products.forEach(function(p) {
             html += '<tr>';
-            html += '<td class="mono" style="letter-spacing:0">' + p.id + '</td>';
+            html += '<td class="mono" style="letter-spacing:0">' + escapeHtml(p.id) + '</td>';
             html += '<td><strong>' + escapeHtml(p.name) + '</strong></td>';
             html += '<td>' + escapeHtml(p.description || '-') + '</td>';
-            html += '<td>' + new Date(p.created_at).toLocaleDateString('zh-CN') + '</td>';
+            html += '<td>' + new Date(p.created_at || 0).toLocaleDateString('zh-CN') + '</td>';
+            html += '<td style="white-space:nowrap">';
+            html += '<button class="btn btn-outline" style="padding:4px 10px;font-size:0.8rem;margin-right:6px" onclick="openProductModal(\'' + escapeJs(p.id) + '\')">编辑</button>';
+            html += '<button class="btn btn-outline" style="padding:4px 10px;font-size:0.8rem;color:#c0392b;border-color:#e6b3b3" onclick="deleteProduct(\'' + escapeJs(p.id) + '\', \'' + escapeJs(p.name) + '\')">删除</button>';
+            html += '</td>';
             html += '</tr>';
           });
         }
@@ -1599,19 +1608,32 @@
         fillProductFilters(data.products);
       } catch (e) {
         console.error('loadProducts failed:', e);
-        var html = '<table><thead><tr><th>ID</th><th>Name</th><th>Description</th><th>Created</th></tr></thead><tbody>';
-        fallbackProducts.forEach(function(p) {
-          html += '<tr>';
-          html += '<td class="mono" style="letter-spacing:0">' + p.id + '</td>';
-          html += '<td><strong>' + escapeHtml(p.name) + '</strong></td>';
-          html += '<td>' + escapeHtml(p.description || '-') + '</td>';
-          html += '<td>' + new Date(p.created_at).toLocaleDateString('zh-CN') + '</td>';
-          html += '</tr>';
-        });
+        var html = '<table><thead><tr><th>ID</th><th>名称 (Name)</th><th>描述 (Description)</th><th>创建时间 (Created)</th><th style="width:170px">操作</th></tr></thead><tbody>';
+        if (fallbackProducts.length === 0) {
+          html += '<tr><td colspan="5" class="empty">暂无产品（API 不可用，本地也无数据）</td></tr>';
+        } else {
+          fallbackProducts.forEach(function(p) {
+            html += '<tr>';
+            html += '<td class="mono" style="letter-spacing:0">' + escapeHtml(p.id) + '</td>';
+            html += '<td><strong>' + escapeHtml(p.name) + '</strong></td>';
+            html += '<td>' + escapeHtml(p.description || '-') + '</td>';
+            html += '<td>' + new Date(p.created_at || 0).toLocaleDateString('zh-CN') + '</td>';
+            html += '<td style="white-space:nowrap">';
+            html += '<button class="btn btn-outline" style="padding:4px 10px;font-size:0.8rem;margin-right:6px" onclick="openProductModalLocalFallback()">编辑</button>';
+            html += '<span style="color:#e65100;font-size:0.75rem;margin-left:4px">离线模式</span>';
+            html += '</td>';
+            html += '</tr>';
+          });
+        }
         html += '</tbody></table>';
         document.getElementById('productsTable').innerHTML = html;
         fillProductFilters(fallbackProducts);
+        showToast('产品列表改用本地缓存（API 失败），编辑/删除功能不可用', 'error');
       }
+    }
+
+    function openProductModalLocalFallback() {
+      showToast('API 不可用，暂无法编辑产品', 'error');
     }
 
     function fillProductFilters(products) {
@@ -2085,39 +2107,164 @@
       }
     }
 
-    function openProductModal() {
-      document.getElementById('productModal').classList.add('show');
+    function openProductModal(productIdOrNull) {
+      var editingId = productIdOrNull ? String(productIdOrNull).trim() : '';
+      var titleEl = document.getElementById('productModalTitle');
+      var idFieldEl = document.getElementById('productIdField');
+      var idInput = document.getElementById('productId');
+      var idDisplay = document.getElementById('productIdDisplay');
+      var nameInput = document.getElementById('productName');
+      var descInput = document.getElementById('productDesc');
+      var submitBtn = document.getElementById('productModalSubmitBtn');
+
+      idInput.value = editingId;
+      if (editingId) {
+        // 编辑模式：回填数据
+        var existing = null;
+        // 从已渲染的表格里反向取当前产品数据（兜底）
+        try {
+          var tds = document.querySelectorAll('#productsTable table tbody tr td:first-child');
+          for (var i = 0; i < tds.length; i++) {
+            var idTd = tds[i];
+            if (idTd && idTd.textContent && idTd.textContent.trim() === editingId) {
+              var tr = idTd.parentNode;
+              var tcells = tr.querySelectorAll('td');
+              if (tcells && tcells.length >= 4) {
+                existing = {
+                  id: editingId,
+                  name: (tcells[1].querySelector('strong') ? tcells[1].querySelector('strong').innerText : tcells[1].innerText) || '',
+                  description: (tcells[2] && tcells[2].innerText && tcells[2].innerText !== '-' ? tcells[2].innerText : '') || ''
+                };
+              }
+              break;
+            }
+          }
+        } catch (e) { existing = null; }
+        // 如果能取到真实后端数据优先用真实值（通过 API 再查一次确保准确）
+        var modal = document.getElementById('productModal');
+        modal.classList.add('show');
+        titleEl.textContent = '编辑产品 #' + editingId;
+        submitBtn.textContent = '保存';
+        idFieldEl.style.display = 'block';
+        idDisplay.value = editingId;
+        nameInput.value = existing ? existing.name : '';
+        descInput.value = existing ? existing.description : '';
+        nameInput.disabled = true;
+        descInput.disabled = true;
+        submitBtn.disabled = true;
+        // 异步回填真实值
+        api('/api/admin/products').then(function(res) {
+          if (res && res.success && Array.isArray(res.products)) {
+            var real = res.products.find(function(p) { return p.id === editingId; });
+            if (real) {
+              nameInput.value = real.name || '';
+              descInput.value = real.description || '';
+            }
+          }
+          nameInput.disabled = false;
+          descInput.disabled = false;
+          submitBtn.disabled = false;
+          setTimeout(function() { nameInput.focus(); }, 0);
+        }).catch(function() {
+          nameInput.disabled = false;
+          descInput.disabled = false;
+          submitBtn.disabled = false;
+          setTimeout(function() { nameInput.focus(); }, 0);
+        });
+      } else {
+        titleEl.textContent = '添加产品';
+        submitBtn.textContent = '创建';
+        idFieldEl.style.display = 'none';
+        idDisplay.value = '';
+        nameInput.value = '';
+        descInput.value = '';
+        nameInput.disabled = false;
+        descInput.disabled = false;
+        submitBtn.disabled = false;
+        document.getElementById('productModal').classList.add('show');
+        setTimeout(function() { nameInput.focus(); }, 0);
+      }
     }
 
     function closeProductModal() {
       document.getElementById('productModal').classList.remove('show');
+      document.getElementById('productId').value = '';
+      document.getElementById('productIdDisplay').value = '';
       document.getElementById('productName').value = '';
       document.getElementById('productDesc').value = '';
+      document.getElementById('productModalTitle').textContent = '添加产品';
+      document.getElementById('productModalSubmitBtn').textContent = '创建';
+      document.getElementById('productIdField').style.display = 'none';
     }
 
-    async function addProduct() {
+    async function submitProduct() {
+      var editingId = (document.getElementById('productId').value || '').trim();
       var name = document.getElementById('productName').value.trim();
       var desc = document.getElementById('productDesc').value.trim();
 
       if (!name) { showToast('请输入产品名称', 'error'); return; }
 
       try {
+        var data;
+        if (editingId) {
+          // 编辑：PUT
+          data = await api('/api/admin/products', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: editingId, name: name, description: desc }),
+          });
+          if (data && data.success) {
+            showToast('产品已更新', 'success');
+            closeProductModal();
+            loadProducts();
+            loadStats();
+          } else {
+            showToast((data && data.error) || '更新产品失败', 'error');
+          }
+        } else {
+          // 新建：POST
+          data = await api('/api/admin/products', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name, description: desc }),
+          });
+          if (data && data.success) {
+            showToast('产品已创建', 'success');
+            closeProductModal();
+            loadProducts();
+            loadStats();
+          } else {
+            showToast((data && data.error) || '添加产品失败', 'error');
+          }
+        }
+      } catch (e) {
+        console.error('submitProduct failed:', e);
+        showToast((editingId ? '更新产品失败' : '添加产品失败') + ': ' + (e.message || '未知错误'), 'error');
+      }
+    }
+
+    async function deleteProduct(id, name) {
+      var pid = String(id || '').trim();
+      if (!pid) { showToast('产品 ID 缺失', 'error'); return; }
+      var pname = name || ('#' + pid);
+      var ok = confirm('确认删除产品「' + pname + '」(' + pid + ')？\n\n⚠️ 删除后历史兑换码 / 激活记录会保留，但生成新兑换码时该产品将不再可选。');
+      if (!ok) return;
+      try {
         var data = await api('/api/admin/products', {
-          method: 'POST',
+          method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: name, description: desc }),
+          body: JSON.stringify({ id: pid }),
         });
-        if (data.success) {
-          showToast('产品已创建', 'success');
-          closeProductModal();
+        if (data && data.success) {
+          showToast('产品已删除', 'success');
           loadProducts();
           loadStats();
         } else {
-          showToast(data.error || '添加产品失败', 'error');
+          showToast((data && data.error) || '删除产品失败', 'error');
         }
       } catch (e) {
-        console.error('addProduct failed:', e);
-        showToast('添加产品失败: ' + (e.message || '未知错误'), 'error');
+        console.error('deleteProduct failed:', e);
+        showToast('删除产品失败: ' + (e.message || '未知错误'), 'error');
       }
     }
 
