@@ -490,6 +490,26 @@
     .badge-warning { background: #fff3e0; color: #e65100; }
     .badge-info { background: #e3f2fd; color: #1565c0; }
     .mono { font-family: 'SF Mono', 'Fira Code', 'Menlo', monospace; font-size: 0.82rem; letter-spacing: 1px; }
+    .input-mono { font-family: 'SF Mono', 'Fira Code', 'Menlo', monospace; letter-spacing: 1px; text-transform: uppercase; }
+    .redeem-link {
+      color: #667eea;
+      text-decoration: none;
+      font-weight: 600;
+      border-bottom: 1px dashed rgba(102,126,234,0.45);
+      cursor: pointer;
+      padding: 2px 2px;
+      border-radius: 4px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .redeem-link:hover {
+      background: rgba(102,126,234,0.12);
+      color: #4c51bf;
+      border-bottom-color: #4c51bf;
+    }
+    tr.record-row-hl {
+      background: rgba(102,126,234,0.14) !important;
+      box-shadow: inset 3px 0 0 #667eea;
+    }
     .empty { text-align: center; padding: 48px 20px; color: #aaa; }
 
     .modal-overlay {
@@ -1040,8 +1060,11 @@
               <select id="filterRecordProduct" onchange="loadRecords()">
                 <option value="">全部产品</option>
               </select>
+              <input type="text" id="filterRecordRedeemCode" class="input-mono" placeholder="筛选兑换码 (例如 1BZR)" maxlength="16" style="max-width:220px" onkeydown="if(event.key==='Enter')loadRecords()">
+              <button class="btn btn-outline" onclick="clearRecordFilter()">清除筛选</button>
               <button class="btn btn-outline" onclick="loadRecords()">刷新</button>
             </div>
+            <div id="recordFilterHint" style="display:none;margin-bottom:8px;font-size:0.85rem;color:#667eea"></div>
             <div class="table-wrap" id="recordsTable"></div>
           </div>
 
@@ -1640,7 +1663,11 @@
             var statusText = c.used ? '已使用' : '未使用';
             var statusClass = c.used ? 'badge-success' : 'badge-warning';
             html += '<tr>';
-            html += '<td class="mono">' + escapeHtml(c.code) + '</td>';
+            if (c.used) {
+              html += '<td class="mono"><a href="javascript:void(0)" class="redeem-link" onclick="openRecordForRedeemCode(\'' + escapeJs(c.code) + '\')" title="点击查看激活记录">' + escapeHtml(c.code) + ' →</a></td>';
+            } else {
+              html += '<td class="mono">' + escapeHtml(c.code) + '</td>';
+            }
             html += '<td>' + escapeHtml(c.product_id) + '</td>';
             html += '<td>' + durationText + '</td>';
             html += '<td><span class="badge ' + statusClass + '">' + statusText + '</span></td>';
@@ -1674,7 +1701,11 @@
               var statusText = c.used ? '已使用' : '未使用';
               var statusClass = c.used ? 'badge-success' : 'badge-warning';
               html += '<tr>';
-              html += '<td class="mono">' + escapeHtml(c.code) + '</td>';
+              if (c.used) {
+                html += '<td class="mono"><a href="javascript:void(0)" class="redeem-link" onclick="openRecordForRedeemCode(\'' + escapeJs(c.code) + '\')" title="点击查看激活记录">' + escapeHtml(c.code) + ' →</a></td>';
+              } else {
+                html += '<td class="mono">' + escapeHtml(c.code) + '</td>';
+              }
               html += '<td>' + escapeHtml(c.product_id) + '</td>';
               html += '<td>' + durationText + '</td>';
               html += '<td><span class="badge ' + statusClass + '">' + statusText + '</span></td>';
@@ -1846,42 +1877,159 @@
       openExportModal();
     }
 
+    var _pendingRedeemCode = null;
+    var _pendingActivationCode = null;
+
+    function clearRecordFilter() {
+      var sel = document.getElementById('filterRecordProduct');
+      if (sel) sel.value = '';
+      var inp = document.getElementById('filterRecordRedeemCode');
+      if (inp) inp.value = '';
+      var hint = document.getElementById('recordFilterHint');
+      if (hint) hint.style.display = 'none';
+      loadRecords();
+    }
+
+    function openRecordForRedeemCode(redeemCode) {
+      var rc = String(redeemCode || '').trim().toUpperCase();
+      if (!rc) {
+        showToast('兑换码为空', 'error');
+        return;
+      }
+      _pendingRedeemCode = rc;
+      _pendingActivationCode = null;
+      var inp = document.getElementById('filterRecordRedeemCode');
+      if (inp) inp.value = rc;
+      var sel = document.getElementById('filterRecordProduct');
+      if (sel) sel.value = '';
+      var hint = document.getElementById('recordFilterHint');
+      if (hint) {
+        hint.style.display = 'block';
+        hint.innerHTML = '🔎 正在从兑换码 <span class="mono" style="font-weight:700;color:#4c51bf">' + escapeHtml(rc) + '</span> 跳转到激活记录并筛选...';
+      }
+      switchTab('records');
+    }
+
     async function loadRecords() {
+      var highlightRc = null;
+      var highlightAc = null;
       try {
-        var pid = document.getElementById('filterRecordProduct').value;
-        var allRecords = getLocalData(STORAGE_KEY_RECORDS, []);
-        var filteredRecords = allRecords;
-        if (pid && pid !== '0000') {
-          filteredRecords = allRecords.filter(function(r) { return r.product_id === pid; });
+        var selPid = document.getElementById('filterRecordProduct');
+        var inpRc = document.getElementById('filterRecordRedeemCode');
+        var hint = document.getElementById('recordFilterHint');
+
+        var pid = selPid ? selPid.value : '';
+        var redeemRaw = (inpRc ? inpRc.value : '') || '';
+        var rc = String(redeemRaw).trim().toUpperCase();
+
+        if (_pendingRedeemCode) {
+          highlightRc = String(_pendingRedeemCode).toUpperCase();
+          _pendingRedeemCode = null;
         }
-        filteredRecords.sort(function(a, b) {
+        if (_pendingActivationCode) {
+          highlightAc = String(_pendingActivationCode);
+          _pendingActivationCode = null;
+        }
+
+        var allRecords = [];
+        var fromApi = false;
+        var apiErrMsg = null;
+        try {
+          var params = new URLSearchParams();
+          if (pid && pid !== '0000') params.set('product_id', pid);
+          if (rc) params.set('redeem_code', rc);
+          params.set('count', '500');
+          var data = await api('/api/admin/records?' + params.toString());
+          if (data && data.success && Array.isArray(data.records)) {
+            allRecords = data.records;
+            fromApi = true;
+          } else {
+            apiErrMsg = (data && data.error) ? data.error : 'API returned empty';
+          }
+        } catch (e) {
+          apiErrMsg = e && e.message ? e.message : String(e);
+        }
+
+        if (!fromApi) {
+          allRecords = getLocalData(STORAGE_KEY_RECORDS, []);
+          var filtered = allRecords;
+          if (pid && pid !== '0000') {
+            filtered = filtered.filter(function(r) { return r.product_id === pid; });
+          }
+          if (rc) {
+            filtered = filtered.filter(function(r) {
+              return String(r.redeem_code || '').toUpperCase() === rc;
+            });
+          }
+          allRecords = filtered;
+        }
+
+        allRecords.sort(function(a, b) {
           return (b.generated_at || 0) - (a.generated_at || 0);
         });
 
-        var html = '<table><thead><tr><th>Activation Code</th><th>Device Hash</th><th>Product</th><th>Duration</th><th>Generated</th><th>Expires</th></tr></thead><tbody>';
-        if (filteredRecords.length === 0) {
-          html += '<tr><td colspan="6" class="empty">No activation records</td></tr>';
+        if (hint) {
+          if (rc) {
+            var foundCount = allRecords.length;
+            var msg = '🔎 当前筛选：兑换码 <span class="mono" style="font-weight:700;color:#4c51bf">' + escapeHtml(rc) + '</span>，命中 <b>' + foundCount + '</b> 条。';
+            if (!fromApi) msg += ' <span style="color:#e65100">(API 不可用：' + escapeHtml(apiErrMsg || 'fallback 本地缓存') + ')</span>';
+            msg += ' 可点击「清除筛选」返回全量列表。';
+            hint.style.display = 'block';
+            hint.innerHTML = msg;
+          } else if (!fromApi) {
+            hint.style.display = 'block';
+            hint.innerHTML = '⚠️ 已回退到本地缓存（' + escapeHtml(apiErrMsg || 'API 不可用') + '），数据可能是旧的。';
+          } else {
+            hint.style.display = 'none';
+            hint.innerHTML = '';
+          }
+        }
+
+        var html = '<table><thead><tr><th>激活码</th><th>兑换码</th><th>设备哈希 (device_id_hash)</th><th>产品</th><th>时长</th><th>激活时间</th><th>到期时间</th></tr></thead><tbody>';
+        if (allRecords.length === 0) {
+          var emptyReason = rc
+            ? '没有找到兑换码「' + rc + '」对应的激活记录。如果该兑换码刚使用，尝试点「刷新」或检查 API 是否连通。'
+            : (fromApi ? '暂无激活记录' : '暂无激活记录（API 失败，本地缓存也为空）');
+          html += '<tr><td colspan="7" class="empty">' + escapeHtml(emptyReason) + '</td></tr>';
         } else {
-          filteredRecords.forEach(function(r) {
-            var durationText = r.duration_months === 99 ? 'Permanent' : r.duration_months + ' months';
+          allRecords.forEach(function(r) {
+            var durationText = r.duration_months === 99 ? '永久' : r.duration_months + ' 个月';
             var expiresText = r.expires_at
               ? new Date(r.expires_at).toLocaleDateString('zh-CN')
-              : '<span class="badge badge-info">Never</span>';
-            html += '<tr>';
-            html += '<td class="mono" style="font-size:0.75rem">' + escapeHtml(r.activation_code) + '</td>';
-            html += '<td class="mono" style="font-size:0.7rem;letter-spacing:0">' + escapeHtml(r.device_id_hash) + '</td>';
-            html += '<td>' + escapeHtml(r.product_id) + '</td>';
+              : '<span class="badge badge-info">永久</span>';
+            var rcCell = r.redeem_code
+              ? ('<span class="mono" style="font-weight:700">' + escapeHtml(r.redeem_code) + '</span>')
+              : '<span style="color:#aaa">-</span>';
+            var hl = '';
+            if ((highlightRc && String(r.redeem_code || '').toUpperCase() === highlightRc) ||
+                (highlightAc && String(r.activation_code || '') === highlightAc)) {
+              hl = ' record-row-hl';
+            }
+            html += '<tr class="' + hl.trim() + '">';
+            html += '<td class="mono" style="font-size:0.78rem;letter-spacing:0.5px">' + escapeHtml(r.activation_code || '') + '</td>';
+            html += '<td>' + rcCell + '</td>';
+            html += '<td class="mono" style="font-size:0.7rem;letter-spacing:0;opacity:0.85">' + escapeHtml(r.device_id_hash || r.used_device_id || '') + '</td>';
+            html += '<td>' + escapeHtml(r.product_id || '') + '</td>';
             html += '<td>' + durationText + '</td>';
-            html += '<td>' + new Date(r.generated_at).toLocaleString('zh-CN') + '</td>';
+            html += '<td>' + new Date(r.generated_at || 0).toLocaleString('zh-CN') + '</td>';
             html += '<td>' + expiresText + '</td>';
             html += '</tr>';
           });
         }
         html += '</tbody></table>';
         document.getElementById('recordsTable').innerHTML = html;
+
+        if (highlightRc || highlightAc) {
+          setTimeout(function() {
+            var el = document.querySelector('#recordsTable tr.record-row-hl');
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 60);
+        }
       } catch (e) {
         console.error('loadRecords failed:', e);
-        showToast('Failed to load records', 'error');
+        showToast('加载激活记录失败: ' + (e.message || '未知错误'), 'error');
       }
     }
 
@@ -2013,10 +2161,14 @@
       return div.innerHTML;
     }
 
-    function escapeHtml(str) {
-      var div = document.createElement('div');
-      div.textContent = str;
-      return div.innerHTML;
+    function escapeJs(str) {
+      return String(str == null ? '' : str)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '\\"')
+        .replace(/\n/g, '\\n')
+        .replace(/\r/g, '\\r')
+        .replace(/\t/g, '\\t');
     }
 
     function healthStatusLabel(status) {

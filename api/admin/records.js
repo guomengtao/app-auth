@@ -12,7 +12,7 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { cursor, product_id } = req.query;
+    const { cursor, product_id, redeem_code } = req.query;
     const count = Math.min(parseInt(req.query.count) || 100, 200);
 
     const [nextCursor, keys] = await redis.sscan("auth:activation_codes", cursor || 0, {
@@ -31,6 +31,13 @@ module.exports = async (req, res) => {
 
     if (product_id) {
       records = records.filter((r) => r.product_id === product_id);
+    }
+
+    if (redeem_code) {
+      const rc = String(redeem_code).trim().toUpperCase();
+      if (rc) {
+        records = records.filter((r) => String(r.redeem_code || "").toUpperCase() === rc);
+      }
     }
 
     records.sort((a, b) => b.generated_at - a.generated_at);
