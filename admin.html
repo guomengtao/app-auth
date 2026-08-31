@@ -614,7 +614,7 @@
           data.records.forEach(function(r) {
             html += '<tr>';
             html += '<td class="mono" style="font-size:0.75rem">' + r.activation_code + '</td>';
-            html += '<td class="mono" style="font-size:0.7rem;letter-spacing:0">' + r.device_id_hash.slice(0, 12) + '...</td>';
+            html += '<td class="mono" style="font-size:0.7rem;letter-spacing:0">' + r.device_id_hash + '</td>';
             html += '<td>' + r.product_id + '</td>';
             html += '<td>' + (r.duration_days === 9999 ? '永久' : r.duration_days + ' 天') + '</td>';
             html += '<td>' + new Date(r.generated_at).toLocaleString('zh-CN') + '</td>';
