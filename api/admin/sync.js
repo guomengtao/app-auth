@@ -35,6 +35,7 @@ async function snapshotAll() {
 
   var codeSet = await redis.smembers("auth:redeem_codes");
   var codeKeys = Array.isArray(codeSet) ? codeSet : [];
+  console.log('📊 snapshotAll redeem smembers returned:', codeKeys.length, codeKeys.slice(0, 10));
   var redeemCodesArray = [];
   if (codeKeys.length) {
     var chunks = [];
@@ -43,6 +44,7 @@ async function snapshotAll() {
       var batch = chunks[c];
       var keys = batch.map(function(x) { return "auth:redeem:" + x; });
       var vals = await redis.mget(keys);
+      console.log('📊 snapshotAll redeem mget:', keys.length, 'keys, vals length:', vals ? vals.length : 'NULL', 'first val:', vals && vals[0] ? String(vals[0]).slice(0, 60) : 'EMPTY');
       for (var j = 0; j < batch.length; j++) {
         var code = batch[j];
         var raw = vals && vals[j];
@@ -52,7 +54,7 @@ async function snapshotAll() {
           if (o.product_id) o.product_id = String(o.product_id).padStart(2, '0');
           redeemCodesArray.push(o);
         } else {
-          console.warn("snapshotAll: redeem set member has no kv_string data, key=", code);
+          console.warn("snapshotAll: redeem set member has no kv_string data, key=", code, "raw=", raw);
         }
       }
     }
@@ -259,7 +261,16 @@ async function applyPatch(patch) {
     if (!existed2 || e2Ts <= nTs || (cv.used && !existed2.used)) {
       if (!existed2) report.redeemCodes.added++; else report.redeemCodes.updated++;
       await redis.set(key, JSON.stringify(cv));
-      try { await redis.sadd("auth:redeem_codes", cv.code); } catch (_) {}
+      try {
+        var sr = await redis.sadd("auth:redeem_codes", cv.code);
+        console.log('📦 applyPatch write redeem:', cv.code, 'set=OK, sadd=' + sr);
+        // 立刻验证能否读回来！
+        var verifyGet = await redis.get(key);
+        var verifySm = await redis.smembers("auth:redeem_codes");
+        console.log('📦 applyPatch verify:', cv.code, 'getBack=', verifyGet ? 'OK(' + String(verifyGet).slice(0,40) + ')' : 'NULL', 'setSizeAfter=', verifySm.length);
+      } catch (se) {
+        console.error('📦 applyPatch redeem sadd failed:', cv.code, se.message);
+      }
     } else {
       report.redeemCodes.skipped++;
     }
