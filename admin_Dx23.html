@@ -1649,7 +1649,7 @@
       </ul>
       <div class="sidebar-footer">
         <button class="sidebar-toggle" onclick="toggleSidebar()" title="折叠菜单">◀</button>
-        <span class="sidebar-ver">v1.0</span>
+        <span class="sidebar-ver" id="sidebarVersion">v1.1.2</span>
       </div>
     </aside>
 
@@ -2402,8 +2402,19 @@
       setTheme(saved);
     }
 
+    function loadVersion() {
+      fetch('/version.json')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var el = document.getElementById('sidebarVersion');
+          if (el && data.version) el.textContent = 'v' + data.version;
+        })
+        .catch(function() {});
+    }
+
     async function initLocalData() {
       loadTheme();
+      loadVersion();
       ADMIN_MODE = readAdminMode();
       renderSyncStatusChip();
 
