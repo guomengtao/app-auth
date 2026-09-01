@@ -5327,11 +5327,11 @@
       var local = getLocalSnapshot();
 
       var body = JSON.stringify({
-        action: 'compare',
+        mode: 'diff-compare',
         local: local
       });
 
-      api('/api/admin/diff', { method: 'POST', body: body }).then(function(res) {
+      api('/api/admin/sync', { method: 'POST', body: body }).then(function(res) {
         if (!res || !res.success) {
           if (grid) grid.innerHTML = '<div class="empty" style="grid-column:1/-1">对比失败：' + escapeHtml((res && res.error) || '未知错误') + '</div>';
           if (ts) ts.textContent = '';
@@ -5532,7 +5532,7 @@
       var local = getLocalSnapshot();
 
       var body = {
-        action: 'fix',
+        mode: 'diff-fix',
         table: table,
         data: null
       };
@@ -5550,7 +5550,7 @@
       if (!confirm('确定要用本地数据修复远程 ' + table + ' 表吗？\n\n本地数据将覆盖远程对应表。')) return;
 
       var payload = JSON.stringify(body);
-      api('/api/admin/diff', { method: 'POST', body: payload }).then(function(res) {
+      api('/api/admin/sync', { method: 'POST', body: payload }).then(function(res) {
         if (res && res.success) {
           showToast('修复成功：' + table + ' 表已同步', 'success');
           loadDiff();

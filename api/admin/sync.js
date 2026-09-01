@@ -499,6 +499,108 @@ async function handlePostgresMessages(req, res, auth) {
   return res.status(405).json({ success: false, error: "Method not allowed" });
 }
 
+function normalizeProductId(id) { return String(id || "").padStart(2, "0"); }
+function redeemCodeKey(c) { return String(c.code || "").toUpperCase().trim(); }
+function activationKey(a) { return String(a.activation_code || "").trim(); }
+
+function compareProducts(localArr, remoteArr) {
+  var localMap = {}, remoteMap = {}, allKeys = {};
+  localArr.forEach(function(p) { var k = normalizeProductId(p.id); localMap[k] = p; allKeys[k] = true; });
+  remoteArr.forEach(function(p) { var k = normalizeProductId(p.id); remoteMap[k] = p; allKeys[k] = true; });
+  var onlyLocal = [], onlyRemote = [], diff = [], same = 0;
+  Object.keys(allKeys).forEach(function(k) {
+    var l = localMap[k], r = remoteMap[k];
+    if (l && !r) { onlyLocal.push({ id: k, local: l }); }
+    else if (!l && r) { onlyRemote.push({ id: k, remote: r }); }
+    else if (l && r) { JSON.stringify(l) !== JSON.stringify(r) ? diff.push({ id: k, local: l, remote: r }) : same++; }
+  });
+  return { localCount: localArr.length, remoteCount: remoteArr.length, same: same, onlyLocal: onlyLocal, onlyRemote: onlyRemote, diff: diff };
+}
+
+function compareRedeemCodes(localArr, remoteArr) {
+  var localMap = {}, remoteMap = {}, allKeys = {};
+  localArr.forEach(function(c) { var k = redeemCodeKey(c); localMap[k] = c; allKeys[k] = true; });
+  remoteArr.forEach(function(c) { var k = redeemCodeKey(c); remoteMap[k] = c; allKeys[k] = true; });
+  var onlyLocal = [], onlyRemote = [], diff = [], same = 0;
+  Object.keys(allKeys).forEach(function(k) {
+    var l = localMap[k], r = remoteMap[k];
+    if (l && !r) { onlyLocal.push({ code: k, local: l }); }
+    else if (!l && r) { onlyRemote.push({ code: k, remote: r }); }
+    else if (l && r) { JSON.stringify(l) !== JSON.stringify(r) ? diff.push({ code: k, local: l, remote: r }) : same++; }
+  });
+  return { localCount: localArr.length, remoteCount: remoteArr.length, same: same, onlyLocal: onlyLocal, onlyRemote: onlyRemote, diff: diff };
+}
+
+function compareActivations(localArr, remoteArr) {
+  var localMap = {}, remoteMap = {}, allKeys = {};
+  localArr.forEach(function(a) { var k = activationKey(a); localMap[k] = a; allKeys[k] = true; });
+  remoteArr.forEach(function(a) { var k = activationKey(a); remoteMap[k] = a; allKeys[k] = true; });
+  var onlyLocal = [], onlyRemote = [], diff = [], same = 0;
+  Object.keys(allKeys).forEach(function(k) {
+    var l = localMap[k], r = remoteMap[k];
+    if (l && !r) { onlyLocal.push({ activation_code: k, local: l }); }
+    else if (!l && r) { onlyRemote.push({ activation_code: k, remote: r }); }
+    else if (l && r) { JSON.stringify(l) !== JSON.stringify(r) ? diff.push({ activation_code: k, local: l, remote: r }) : same++; }
+  });
+  return { localCount: localArr.length, remoteCount: remoteArr.length, same: same, onlyLocal: onlyLocal, onlyRemote: onlyRemote, diff: diff };
+}
+
+function compareCounters(local, remote) {
+  return { local: local || {}, remote: remote || {}, diff: JSON.stringify(local) !== JSON.stringify(remote) };
+}
+
+async function diffFixProducts(data) {
+  var products = Array.isArray(data) ? data : [];
+  for (var fi = 0; fi < products.length; fi++) {
+    var p = products[fi];
+    await redis.hset("auth:products", normalizeProductId(p.id), JSON.stringify(p));
+  }
+  return { fixed: products.length };
+}
+
+async function diffFixRedeemCodes(data) {
+  var codes = Array.isArray(data) ? data : [];
+  var fixed = 0;
+  for (var fj = 0; fj < codes.length; fj++) {
+    var c = codes[fj];
+    var code = redeemCodeKey(c);
+    try {
+      await redis.setWithSadd("auth:redeem:" + code, JSON.stringify(c), "auth:redeem_codes", code);
+      fixed++;
+    } catch (se) {
+      await redis.set("auth:redeem:" + code, JSON.stringify(c));
+      try { await redis.sadd("auth:redeem_codes", code); } catch (_) {}
+      fixed++;
+    }
+  }
+  return { fixed: fixed };
+}
+
+async function diffFixActivationRecords(data) {
+  var records = Array.isArray(data) ? data : [];
+  var fixed = 0;
+  for (var fk = 0; fk < records.length; fk++) {
+    var a = records[fk];
+    var code = activationKey(a);
+    try {
+      await redis.setWithSadd("auth:activation:" + code, JSON.stringify(a), "auth:activation_codes", code);
+      fixed++;
+    } catch (se) {
+      await redis.set("auth:activation:" + code, JSON.stringify(a));
+      try { await redis.sadd("auth:activation_codes", code); } catch (_) {}
+      fixed++;
+    }
+  }
+  return { fixed: fixed };
+}
+
+async function diffFixCounters(data) {
+  if (data && typeof data.product_counter !== "undefined") {
+    await redis.set("auth:product_counter", String(data.product_counter));
+  }
+  return { fixed: true };
+}
+
 module.exports = async (req, res) => {
   var auth = requireAuth(req);
   if (!auth.authorized) {
@@ -523,7 +625,7 @@ module.exports = async (req, res) => {
     var body = parseBody(req);
     // 兼容两种前端：body.mode(新) / body.action(旧)
     var mode = String(body.mode || body.action || "merge");
-    if (!["push", "pull", "merge"].includes(mode)) mode = "merge";
+    if (!["push", "pull", "merge", "diff-compare", "diff-fix"].includes(mode)) mode = "merge";
     try {
       if (mode === "pull") {
         var s = await snapshotAll();
@@ -555,6 +657,33 @@ module.exports = async (req, res) => {
           summary: summary,
           snapshot: after,
         });
+      }
+      if (mode === "diff-compare") {
+        var local = body.local || {};
+        var snap = await snapshotAll();
+        return res.json({
+          success: true,
+          mode: "diff-compare",
+          action: "compare",
+          remoteGeneratedAt: snap.generatedAt,
+          products: compareProducts(Array.isArray(local.products) ? local.products : [], snap.products || []),
+          redeemCodes: compareRedeemCodes(Array.isArray(local.redeemCodes) ? local.redeemCodes : [], snap.redeemCodes || []),
+          activationRecords: compareActivations(Array.isArray(local.activationRecords) ? local.activationRecords : [], snap.activationRecords || []),
+          counters: compareCounters(local.counters || {}, snap.counters || {}),
+        });
+      }
+      if (mode === "diff-fix") {
+        var table = String(body.table || "");
+        if (!table) return res.status(400).json({ success: false, error: "Missing table parameter" });
+        var fixResult = null;
+        switch (table) {
+          case "products": fixResult = await diffFixProducts(body.data || []); break;
+          case "redeemCodes": fixResult = await diffFixRedeemCodes(body.data || []); break;
+          case "activationRecords": fixResult = await diffFixActivationRecords(body.data || []); break;
+          case "counters": fixResult = await diffFixCounters(body.data || {}); break;
+          default: return res.status(400).json({ success: false, error: "Unknown table: " + table });
+        }
+        return res.json({ success: true, mode: "diff-fix", action: "fix", table: table, result: fixResult });
       }
       return res.status(400).json({ success: false, error: "Unknown mode: " + mode });
     } catch (e) {
