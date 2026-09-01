@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>日程详情</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    padding: 20px;
+  }
+
+  .device {
+    width: 220px;
+    height: 490px;
+    background: #0a0a0a;
+    border-radius: 60px;
+    padding: 18px 12px;
+    box-shadow:
+      0 0 0 3px #2a2a2a,
+      0 25px 60px rgba(0,0,0,0.6),
+      inset 0 0 30px rgba(255,255,255,0.03);
+    position: relative;
+  }
+  .device::before {
+    content: "";
+    position: absolute;
+    top: 8px; left: 50%;
+    transform: translateX(-50%);
+    width: 40px; height: 4px;
+    background: #1a1a1a;
+    border-radius: 2px;
+  }
+
+  .screen {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(180deg, #0d1117 0%, #151b26 100%);
+    border-radius: 44px;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* 状态栏 */
+  .status-bar {
+    padding: 14px 18px 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #8b949e;
+    font-size: 10px;
+    font-weight: 500;
+  }
+  .status-bar .time { color: #e6edf3; font-size: 11px; font-weight: 600; }
+  .status-bar .icons { display: flex; gap: 4px; align-items: center; }
+  .battery { width: 18px; height: 8px; border: 0.5px solid #8b949e; border-radius: 2px; position: relative; padding: 1px; }
+  .battery::after { content: ""; position: absolute; right: -2px; top: 2px; width: 1.5px; height: 3px; background: #8b949e; border-radius: 0 1px 1px 0; }
+  .battery-level { width: 80%; height: 100%; background: linear-gradient(90deg, #ff6b35, #ffa535); border-radius: 1px; }
+
+  /* 顶部导航 */
+  .nav-bar {
+    padding: 4px 12px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .nav-btn {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.05);
+    display: flex; align-items: center; justify-content: center;
+    color: #e6edf3;
+    font-size: 12px;
+    transition: all 0.15s;
+  }
+  .nav-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.1); }
+  .nav-title {
+    font-size: 11px;
+    color: #8b949e;
+    font-weight: 500;
+  }
+
+  /* 内容滚动区 */
+  .content-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 14px 90px;
+    scrollbar-width: none;
+  }
+  .content-scroll::-webkit-scrollbar { display: none; }
+
+  /* 日程头部大卡片 */
+  .hero-card {
+    background: linear-gradient(135deg, rgba(255,107,53,0.2), rgba(59,130,246,0.1));
+    border: 0.5px solid rgba(255,107,53,0.3);
+    border-radius: 18px;
+    padding: 16px 14px;
+    margin-bottom: 12px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-card::before {
+    content: "";
+    position: absolute;
+    top: -40px; right: -40px;
+    width: 100px; height: 100px;
+    background: radial-gradient(circle, rgba(255,107,53,0.2), transparent 70%);
+    border-radius: 50%;
+  }
+  .hero-category {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 9px;
+    color: #ffa535;
+    background: rgba(255,165,53,0.15);
+    padding: 3px 8px;
+    border-radius: 8px;
+    font-weight: 500;
+    margin-bottom: 10px;
+  }
+  .hero-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: #e6edf3;
+    line-height: 1.3;
+    margin-bottom: 8px;
+    position: relative;
+  }
+  .hero-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+  }
+  .status-pill {
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-weight: 600;
+  }
+  .pill-upcoming {
+    background: rgba(255,165,53,0.2);
+    color: #ffa535;
+  }
+  .countdown {
+    color: #8b949e;
+    font-size: 9px;
+  }
+  .countdown strong {
+    color: #e6edf3;
+    font-size: 10px;
+  }
+
+  /* 大时间显示 */
+  .time-display {
+    margin: 14px 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .time-big {
+    font-size: 34px;
+    font-weight: 700;
+    color: #e6edf3;
+    letter-spacing: -1px;
+    line-height: 1;
+    background: linear-gradient(135deg, #fff, #ffa535);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .time-divider {
+    width: 0.5px;
+    height: 32px;
+    background: linear-gradient(180deg, transparent, #30363d, transparent);
+  }
+  .time-meta { display: flex; flex-direction: column; gap: 3px; }
+  .meta-item {
+    font-size: 9px;
+    color: #8b949e;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .meta-item strong { color: #e6edf3; font-weight: 500; }
+
+  /* 信息列表 */
+  .info-section {
+    margin-bottom: 10px;
+  }
+  .info-title {
+    font-size: 9px;
+    color: #6e7681;
+    padding: 6px 4px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .info-list {
+    background: rgba(255,255,255,0.02);
+    border: 0.5px solid rgba(255,255,255,0.05);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .info-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border-bottom: 0.5px solid rgba(255,255,255,0.04);
+    transition: background 0.15s;
+  }
+  .info-item:last-child { border-bottom: none; }
+  .info-item:active { background: rgba(255,255,255,0.04); }
+  .info-icon {
+    width: 24px; height: 24px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+  .icon-loc { background: linear-gradient(135deg, rgba(59,130,246,0.2), rgba(59,130,246,0.1)); }
+  .icon-bell { background: linear-gradient(135deg, rgba(255,107,53,0.2), rgba(255,165,53,0.1)); }
+  .icon-repeat { background: linear-gradient(135deg, rgba(139,92,246,0.2), rgba(167,139,250,0.1)); }
+  .icon-note { background: linear-gradient(135deg, rgba(16,185,129,0.2), rgba(52,211,153,0.1)); }
+  .icon-member { background: linear-gradient(135deg, rgba(236,72,153,0.2), rgba(244,114,182,0.1)); }
+
+  .info-body { flex: 1; min-width: 0; }
+  .info-label {
+    font-size: 9px;
+    color: #6e7681;
+    margin-bottom: 2px;
+  }
+  .info-value {
+    font-size: 11px;
+    color: #e6edf3;
+    font-weight: 500;
+    line-height: 1.4;
+  }
+  .info-sub {
+    font-size: 9px;
+    color: #6e7681;
+    margin-top: 2px;
+  }
+  .arrow { color: #30363d; font-size: 12px; align-self: center; flex-shrink: 0; }
+
+  /* 参与者头像组 */
+  .member-avatars {
+    display: flex;
+    margin-top: 4px;
+  }
+  .avatar {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 1.5px solid #0d1117;
+    margin-left: -5px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 8px;
+    font-weight: 600;
+    color: #fff;
+  }
+  .avatar:first-child { margin-left: 0; }
+  .av-1 { background: linear-gradient(135deg, #3b82f6, #60a5fa); }
+  .av-2 { background: linear-gradient(135deg, #10b981, #34d399); }
+  .av-3 { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
+  .av-more { background: #30363d; color: #e6edf3; }
+
+  /* 底部操作栏 */
+  .action-bar {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    padding: 12px 14px 18px;
+    background: linear-gradient(180deg, transparent, rgba(13,17,23,0.95) 40%);
+    display: flex;
+    gap: 8px;
+  }
+  .action-btn {
+    flex: 1;
+    height: 36px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    gap: 5px;
+    font-size: 10px;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+  .action-btn:active { transform: scale(0.96); }
+  .btn-secondary {
+    background: rgba(255,255,255,0.05);
+    border: 0.5px solid rgba(255,255,255,0.1);
+    color: #e6edf3;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #ff6b35, #f97316);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(255,107,53,0.4);
+  }
+  .btn-icon { font-size: 11px; }
+
+  /* 进度条 */
+  .progress-bar {
+    height: 3px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 12px;
+  }
+  .progress-fill {
+    height: 100%;
+    width: 35%;
+    background: linear-gradient(90deg, #ff6b35, #ffa535);
+    border-radius: 2px;
+    position: relative;
+  }
+  .progress-fill::after {
+    content: "";
+    position: absolute;
+    top: 0; right: 0; bottom: 0;
+    width: 16px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4));
+  }
+</style>
+</head>
+<body>
+
+<div class="device">
+  <div class="screen">
+    <!-- 状态栏 -->
+    <div class="status-bar">
+      <span class="time">09:41</span>
+      <div class="icons">
+        <span style="color:#ff4757;font-size:9px;">♥</span>
+        <span>🔔</span>
+        <div class="battery"><div class="battery-level"></div></div>
+      </div>
+    </div>
+
+    <!-- 导航栏 -->
+    <div class="nav-bar">
+      <div class="nav-btn">‹</div>
+      <div class="nav-title">日程详情</div>
+      <div class="nav-btn">⋯</div>
+    </div>
+
+    <!-- 内容区 -->
+    <div class="content-scroll">
+      <!-- Hero卡片 -->
+      <div class="hero-card">
+        <div class="hero-category">💼 工作事务</div>
+        <div class="hero-title">产品评审会议<br/>Q3设计方案</div>
+        <div class="hero-status">
+          <span class="status-pill pill-upcoming">● 即将开始</span>
+          <span class="countdown">还有 <strong>2小时18分</strong></span>
+        </div>
+
+        <div class="time-display">
+          <div class="time-big">10:00</div>
+          <div class="time-divider"></div>
+          <div class="time-meta">
+            <div class="meta-item">📅 <strong>今天</strong> · 周三 18日</div>
+            <div class="meta-item">⏱ 时长 <strong>60 分钟</strong></div>
+            <div class="meta-item">🔔 <strong>10:00</strong> 准时提醒</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 详细信息 -->
+      <div class="info-section">
+        <div class="info-title">基本信息</div>
+        <div class="info-list">
+          <div class="info-item">
+            <div class="info-icon icon-loc">📍</div>
+            <div class="info-body">
+              <div class="info-label">地点</div>
+              <div class="info-value">会议室 A302</div>
+              <div class="info-sub">创新中心 3楼</div>
+            </div>
+            <div class="arrow">›</div>
+          </div>
+          <div class="info-item">
+            <div class="info-icon icon-member">👥</div>
+            <div class="info-body">
+              <div class="info-label">参与者 · 4人</div>
+              <div class="info-value">李总、王设计、张PM</div>
+              <div class="member-avatars">
+                <div class="avatar av-1">李</div>
+                <div class="avatar av-2">王</div>
+                <div class="avatar av-3">张</div>
+                <div class="avatar av-more">+1</div>
+              </div>
+            </div>
+            <div class="arrow">›</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-section">
+        <div class="info-title">提醒与重复</div>
+        <div class="info-list">
+          <div class="info-item">
+            <div class="info-icon icon-bell">🔔</div>
+            <div class="info-body">
+              <div class="info-label">提醒设置</div>
+              <div class="info-value">提前 10 分钟</div>
+              <div class="info-sub">震动 + 铃声</div>
+            </div>
+            <div class="arrow">›</div>
+          </div>
+          <div class="info-item">
+            <div class="info-icon icon-repeat">🔁</div>
+            <div class="info-body">
+              <div class="info-label">重复规则</div>
+              <div class="info-value">不重复</div>
+              <div class="info-sub">仅本次生效</div>
+            </div>
+            <div class="arrow">›</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-section">
+        <div class="info-title">备注</div>
+        <div class="info-list">
+          <div class="info-item">
+            <div class="info-icon icon-note">📝</div>
+            <div class="info-body">
+              <div class="info-value">准备设计稿v3版本，确认交互流程及排期，讨论资源分配...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="progress-bar">
+        <div class="progress-fill"></div>
+      </div>
+    </div>
+
+    <!-- 底部操作栏 -->
+    <div class="action-bar">
+      <div class="action-btn btn-secondary">
+        <span class="btn-icon">✏️</span>编辑
+      </div>
+      <div class="action-btn btn-primary">
+        <span class="btn-icon">✓</span>标记完成
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('.info-item, .nav-btn, .action-btn').forEach(el => {
+    el.addEventListener('click', () => {
+      el.style.transform = 'scale(0.96)';
+      setTimeout(() => el.style.transform = '', 150);
+    });
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>提醒设置</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    padding: 20px;
+  }
+
+  .device {
+    width: 220px;
+    height: 490px;
+    background: #0a0a0a;
+    border-radius: 60px;
+    padding: 18px 12px;
+    box-shadow:
+      0 0 0 3px #2a2a2a,
+      0 25px 60px rgba(0,0,0,0.6),
+      inset 0 0 30px rgba(255,255,255,0.03);
+    position: relative;
+  }
+  .device::before {
+    content: "";
+    position: absolute;
+    top: 8px; left: 50%;
+    transform: translateX(-50%);
+    width: 40px; height: 4px;
+    background: #1a1a1a;
+    border-radius: 2px;
+  }
+
+  .screen {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(180deg, #0d1117 0%, #151b26 100%);
+    border-radius: 44px;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .status-bar {
+    padding: 14px 18px 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #8b949e;
+    font-size: 10px;
+    font-weight: 500;
+  }
+  .status-bar .time { color: #e6edf3; font-size: 11px; font-weight: 600; }
+  .status-bar .icons { display: flex; gap: 4px; align-items: center; }
+  .battery { width: 18px; height: 8px; border: 0.5px solid #8b949e; border-radius: 2px; position: relative; padding: 1px; }
+  .battery::after { content: ""; position: absolute; right: -2px; top: 2px; width: 1.5px; height: 3px; background: #8b949e; border-radius: 0 1px 1px 0; }
+  .battery-level { width: 80%; height: 100%; background: linear-gradient(90deg, #ff6b35, #ffa535); border-radius: 1px; }
+
+  .nav-bar {
+    padding: 4px 12px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .nav-btn {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.05);
+    display: flex; align-items: center; justify-content: center;
+    color: #e6edf3;
+    font-size: 12px;
+    transition: all 0.15s;
+  }
+  .nav-btn:active { transform: scale(0.9); }
+  .nav-title { font-size: 12px; color: #e6edf3; font-weight: 600; }
+
+  .content-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 14px 90px;
+    scrollbar-width: none;
+  }
+  .content-scroll::-webkit-scrollbar { display: none; }
+
+  /* 顶部预览卡 */
+  .preview-card {
+    background: linear-gradient(135deg, rgba(255,107,53,0.25), rgba(168,85,247,0.15));
+    border: 0.5px solid rgba(255,107,53,0.3);
+    border-radius: 16px;
+    padding: 14px 12px;
+    margin-bottom: 14px;
+    position: relative;
+    overflow: hidden;
+  }
+  .preview-card::before {
+    content: "🔔";
+    position: absolute;
+    font-size: 52px;
+    top: -12px; right: -8px;
+    opacity: 0.08;
+    transform: rotate(-10deg);
+  }
+  .preview-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .preview-icon {
+    width: 30px; height: 30px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #ff6b35, #a855f7);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    box-shadow: 0 4px 12px rgba(255,107,53,0.35);
+    animation: bell-shake 2.5s ease-in-out infinite;
+  }
+  @keyframes bell-shake {
+    0%, 90%, 100% { transform: rotate(0deg); }
+    92%, 96% { transform: rotate(-15deg); }
+    94%, 98% { transform: rotate(15deg); }
+  }
+  .preview-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #e6edf3;
+  }
+  .preview-sub {
+    font-size: 9px;
+    color: #ffa535;
+    font-weight: 500;
+  }
+  .preview-main {
+    background: rgba(0,0,0,0.25);
+    border-radius: 10px;
+    padding: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    backdrop-filter: blur(8px);
+  }
+  .preview-time-block {
+    text-align: center;
+    min-width: 44px;
+  }
+  .preview-time {
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1;
+    background: linear-gradient(135deg, #fff, #ffa535);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .preview-date {
+    font-size: 8px;
+    color: #8b949e;
+    margin-top: 2px;
+  }
+  .preview-sep {
+    width: 0.5px; height: 28px;
+    background: rgba(255,255,255,0.1);
+  }
+  .preview-info { flex: 1; min-width: 0; }
+  .preview-name {
+    font-size: 11px;
+    color: #e6edf3;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .preview-advance {
+    font-size: 9px;
+    color: #c084fc;
+    margin-top: 3px;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+
+  /* 提醒时间选择条 */
+  .section-title {
+    font-size: 9px;
+    color: #6e7681;
+    letter-spacing: 0.5px;
+    padding: 4px 4px 8px;
+    text-transform: uppercase;
+  }
+  .section { margin-bottom: 12px; }
+
+  .time-options {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  .time-chip {
+    font-size: 9px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.03);
+    border: 0.5px solid rgba(255,255,255,0.08);
+    color: #8b949e;
+    font-weight: 500;
+    transition: all 0.15s;
+  }
+  .time-chip:active { transform: scale(0.95); }
+  .time-chip.active {
+    background: linear-gradient(135deg, rgba(255,107,53,0.25), rgba(255,165,53,0.08));
+    border-color: rgba(255,107,53,0.4);
+    color: #ffa535;
+    box-shadow: 0 2px 8px rgba(255,107,53,0.15);
+  }
+  .time-chip.primary {
+    background: linear-gradient(135deg, #ff6b35, #f97316);
+    border-color: transparent;
+    color: #fff;
+    box-shadow: 0 3px 10px rgba(255,107,53,0.4);
+  }
+
+  /* 自定义时间滑杆 */
+  .custom-slider-card {
+    background: rgba(255,255,255,0.02);
+    border: 0.5px solid rgba(255,255,255,0.05);
+    border-radius: 12px;
+    padding: 10px 12px;
+  }
+  .slider-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .slider-label {
+    font-size: 9px;
+    color: #8b949e;
+  }
+  .slider-value {
+    font-size: 11px;
+    font-weight: 700;
+    color: #ffa535;
+    background: rgba(255,165,53,0.1);
+    padding: 2px 7px;
+    border-radius: 6px;
+  }
+  .slider-track {
+    position: relative;
+    height: 5px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 3px;
+  }
+  .slider-fill {
+    position: absolute;
+    left: 0;
+    width: 65%;
+    height: 100%;
+    background: linear-gradient(90deg, #ff6b35, #ffa535);
+    border-radius: 3px;
+  }
+  .slider-thumb {
+    position: absolute;
+    left: calc(65% - 7px);
+    top: 50%;
+    transform: translateY(-50%);
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid #ffa535;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  }
+  .slider-marks {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4px;
+    font-size: 8px;
+    color: #4a5057;
+  }
+
+  /* 提醒方式选项 */
+  .method-card {
+    background: rgba(255,255,255,0.02);
+    border: 0.5px solid rgba(255,255,255,0.05);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .method-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-bottom: 0.5px solid rgba(255,255,255,0.04);
+    transition: background 0.15s;
+  }
+  .method-item:last-child { border-bottom: none; }
+  .method-item:active { background: rgba(255,255,255,0.04); }
+  .method-icon {
+    width: 28px; height: 28px;
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .mi-vibrate { background: linear-gradient(135deg, rgba(255,107,53,0.3), rgba(255,165,53,0.08)); }
+  .mi-sound { background: linear-gradient(135deg, rgba(59,130,246,0.3), rgba(96,165,250,0.08)); }
+  .mi-flash { background: linear-gradient(135deg, rgba(16,185,129,0.3), rgba(52,211,153,0.08)); }
+  .mi-snooze { background: linear-gradient(135deg, rgba(168,85,247,0.3), rgba(192,132,252,0.08)); }
+  .method-body { flex: 1; min-width: 0; }
+  .method-name {
+    font-size: 11px;
+    color: #e6edf3;
+    font-weight: 500;
+  }
+  .method-desc {
+    font-size: 8px;
+    color: #6e7681;
+    margin-top: 2px;
+  }
+  .check {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 1.5px solid #30363d;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .check.checked {
+    background: linear-gradient(135deg, #ff6b35, #ffa535);
+    border-color: transparent;
+  }
+  .check.checked::after {
+    content: "✓";
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+  }
+
+  /* 贪睡小面板 */
+  .snooze-card {
+    background: linear-gradient(135deg, rgba(168,85,247,0.15), rgba(255,107,53,0.08));
+    border: 0.5px solid rgba(168,85,247,0.25);
+    border-radius: 14px;
+    padding: 11px 12px;
+  }
+  .snooze-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .snooze-title {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #e6edf3;
+  }
+  .snooze-title span { font-size: 11px; }
+  .switch {
+    width: 30px; height: 17px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #ff6b35, #a855f7);
+    position: relative;
+    flex-shrink: 0;
+  }
+  .switch::after {
+    content: "";
+    position: absolute;
+    top: 2px; right: 2px;
+    width: 13px; height: 13px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+  .snooze-options {
+    display: flex;
+    gap: 5px;
+    justify-content: space-between;
+  }
+  .snooze-opt {
+    flex: 1;
+    text-align: center;
+    padding: 5px 2px;
+    border-radius: 7px;
+    background: rgba(0,0,0,0.2);
+    font-size: 9px;
+    color: #8b949e;
+    font-weight: 500;
+    transition: all 0.15s;
+  }
+  .snooze-opt.active {
+    background: rgba(255,255,255,0.08);
+    color: #e6edf3;
+    box-shadow: inset 0 0 0 0.5px rgba(168,85,247,0.4);
+  }
+
+  /* 底部保存按钮 */
+  .footer {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    padding: 12px 14px 18px;
+    background: linear-gradient(180deg, transparent, rgba(13,17,23,0.95) 40%);
+  }
+  .save-btn {
+    width: 100%;
+    height: 40px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #ff6b35, #a855f7);
+    display: flex; align-items: center; justify-content: center;
+    gap: 6px;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    box-shadow: 0 6px 18px rgba(255,107,53,0.4);
+    transition: all 0.15s;
+  }
+  .save-btn:active { transform: scale(0.97); }
+</style>
+</head>
+<body>
+
+<div class="device">
+  <div class="screen">
+    <div class="status-bar">
+      <span class="time">09:41</span>
+      <div class="icons">
+        <span style="color:#ff4757;font-size:9px;">♥</span>
+        <span>🔔</span>
+        <div class="battery"><div class="battery-level"></div></div>
+      </div>
+    </div>
+
+    <div class="nav-bar">
+      <div class="nav-btn">‹</div>
+      <div class="nav-title">提醒设置</div>
+      <div class="nav-btn">✓</div>
+    </div>
+
+    <div class="content-scroll">
+      <!-- 预览卡 -->
+      <div class="preview-card">
+        <div class="preview-header">
+          <div class="preview-icon">🔔</div>
+          <div>
+            <div class="preview-title">提醒预览</div>
+            <div class="preview-sub">当前日程</div>
+          </div>
+        </div>
+        <div class="preview-main">
+          <div class="preview-time-block">
+            <div class="preview-time">09:50</div>
+            <div class="preview-date">9月18日</div>
+          </div>
+          <div class="preview-sep"></div>
+          <div class="preview-info">
+            <div class="preview-name">产品评审会议</div>
+            <div class="preview-advance">⏱ 提前 10 分钟</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 提醒时间 -->
+      <div class="section">
+        <div class="section-title">提前提醒</div>
+        <div class="time-options">
+          <div class="time-chip active">准时</div>
+          <div class="time-chip primary">提前5分</div>
+          <div class="time-chip active">提前10分</div>
+          <div class="time-chip">提前15分</div>
+          <div class="time-chip">提前30分</div>
+          <div class="time-chip">提前1小时</div>
+          <div class="time-chip">提前1天</div>
+        </div>
+
+        <div class="custom-slider-card">
+          <div class="slider-row">
+            <span class="slider-label">自定义时间</span>
+            <span class="slider-value">13 分钟</span>
+          </div>
+          <div class="slider-track">
+            <div class="slider-fill"></div>
+            <div class="slider-thumb"></div>
+          </div>
+          <div class="slider-marks">
+            <span>1分</span><span>15分</span><span>30分</span><span>60分</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 提醒方式 -->
+      <div class="section">
+        <div class="section-title">提醒方式</div>
+        <div class="method-card">
+          <div class="method-item">
+            <div class="method-icon mi-vibrate">📳</div>
+            <div class="method-body">
+              <div class="method-name">震动提醒</div>
+              <div class="method-desc">手环连续震动 3 次</div>
+            </div>
+            <div class="check checked"></div>
+          </div>
+          <div class="method-item">
+            <div class="method-icon mi-sound">🔊</div>
+            <div class="method-body">
+              <div class="method-name">提示铃声</div>
+              <div class="method-desc">播放轻柔提醒音效</div>
+            </div>
+            <div class="check checked"></div>
+          </div>
+          <div class="method-item">
+            <div class="method-icon mi-flash">💡</div>
+            <div class="method-body">
+              <div class="method-name">亮屏闪光</div>
+              <div class="method-desc">自动亮起 + 边框闪烁</div>
+            </div>
+            <div class="check"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 贪睡 -->
+      <div class="section">
+        <div class="section-title">贪睡功能</div>
+        <div class="snooze-card">
+          <div class="snooze-header">
+            <div class="snooze-title">
+              <span>💤</span>开启贪睡
+            </div>
+            <div class="switch"></div>
+          </div>
+          <div class="snooze-options">
+            <div class="snooze-opt">5分</div>
+            <div class="snooze-opt active">10分</div>
+            <div class="snooze-opt">15分</div>
+            <div class="snooze-opt">30分</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div class="save-btn">
+        <span>🔔</span>保存提醒设置
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // 时间chip切换（可多选样式）
+  document.querySelectorAll('.time-chip').forEach(chip => {
+    chip.addEventListener('click', () => chip.classList.toggle('active'));
+  });
+  // 复选
+  document.querySelectorAll('.check').forEach(c => {
+    c.addEventListener('click', () => c.classList.toggle('checked'));
+  });
+  // 贪睡选项
+  document.querySelectorAll('.snooze-opt').forEach(o => {
+    o.addEventListener('click', () => {
+      document.querySelectorAll('.snooze-opt').forEach(x => x.classList.remove('active'));
+      o.classList.add('active');
+    });
+  });
+  document.querySelectorAll('.method-item, .nav-btn, .save-btn').forEach(el => {
+    if (el.querySelector('.check')) return;
+    el.addEventListener('click', () => {
+      el.style.transform = 'scale(0.98)';
+      setTimeout(() => el.style.transform = '', 120);
+    });
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>新建日程</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    padding: 20px;
+  }
+
+  .device {
+    width: 220px;
+    height: 490px;
+    background: #0a0a0a;
+    border-radius: 60px;
+    padding: 18px 12px;
+    box-shadow:
+      0 0 0 3px #2a2a2a,
+      0 25px 60px rgba(0,0,0,0.6),
+      inset 0 0 30px rgba(255,255,255,0.03);
+    position: relative;
+  }
+  .device::before {
+    content: "";
+    position: absolute;
+    top: 8px; left: 50%;
+    transform: translateX(-50%);
+    width: 40px; height: 4px;
+    background: #1a1a1a;
+    border-radius: 2px;
+  }
+
+  .screen {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(180deg, #0d1117 0%, #151b26 100%);
+    border-radius: 44px;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .status-bar {
+    padding: 14px 18px 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #8b949e;
+    font-size: 10px;
+    font-weight: 500;
+  }
+  .status-bar .time { color: #e6edf3; font-size: 11px; font-weight: 600; }
+  .status-bar .icons { display: flex; gap: 4px; align-items: center; }
+  .battery { width: 18px; height: 8px; border: 0.5px solid #8b949e; border-radius: 2px; position: relative; padding: 1px; }
+  .battery::after { content: ""; position: absolute; right: -2px; top: 2px; width: 1.5px; height: 3px; background: #8b949e; border-radius: 0 1px 1px 0; }
+  .battery-level { width: 80%; height: 100%; background: linear-gradient(90deg, #ff6b35, #ffa535); border-radius: 1px; }
+
+  /* 导航栏 */
+  .nav-bar {
+    padding: 4px 12px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .nav-btn {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.05);
+    display: flex; align-items: center; justify-content: center;
+    color: #e6edf3;
+    font-size: 12px;
+    transition: all 0.15s;
+  }
+  .nav-btn:active { transform: scale(0.9); }
+  .nav-title {
+    font-size: 12px;
+    color: #e6edf3;
+    font-weight: 600;
+  }
+  .nav-save {
+    font-size: 11px;
+    color: #ffa535;
+    font-weight: 600;
+    padding: 5px 10px;
+    background: rgba(255,165,53,0.1);
+    border-radius: 10px;
+    transition: all 0.15s;
+  }
+  .nav-save:active { background: rgba(255,165,53,0.2); transform: scale(0.95); }
+
+  /* 内容滚动区 */
+  .content-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 14px 80px;
+    scrollbar-width: none;
+  }
+  .content-scroll::-webkit-scrollbar { display: none; }
+
+  /* 标题输入 */
+  .title-input-section {
+    margin-bottom: 14px;
+  }
+  .input-hero {
+    background: rgba(255,255,255,0.03);
+    border: 0.5px solid rgba(255,107,53,0.2);
+    border-radius: 14px;
+    padding: 14px 12px;
+    position: relative;
+  }
+  .input-hero:focus-within {
+    border-color: #ffa535;
+    box-shadow: 0 0 0 1px rgba(255,165,53,0.2);
+  }
+  .input-label-small {
+    font-size: 9px;
+    color: #8b949e;
+    margin-bottom: 4px;
+  }
+  .title-textarea {
+    width: 100%;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #e6edf3;
+    font-size: 14px;
+    font-weight: 600;
+    resize: none;
+    line-height: 1.4;
+    min-height: 32px;
+    font-family: inherit;
+  }
+  .title-textarea::placeholder { color: #4a5057; }
+
+  /* 分类选择 */
+  .section { margin-bottom: 12px; }
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 2px 4px 8px;
+  }
+  .section-title {
+    font-size: 9px;
+    color: #6e7681;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .category-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+  .cat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 4px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.02);
+    border: 0.5px solid rgba(255,255,255,0.05);
+    transition: all 0.15s;
+  }
+  .cat-item:active { transform: scale(0.95); }
+  .cat-item.active {
+    border-color: transparent;
+    background: linear-gradient(135deg, rgba(255,107,53,0.2), rgba(255,107,53,0.05));
+    border: 0.5px solid rgba(255,107,53,0.4);
+  }
+  .cat-icon {
+    width: 26px; height: 26px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+    transition: all 0.15s;
+  }
+  .cat-work { background: linear-gradient(135deg, rgba(59,130,246,0.3), rgba(59,130,246,0.1)); }
+  .cat-personal { background: linear-gradient(135deg, rgba(255,107,53,0.3), rgba(255,165,53,0.1)); }
+  .cat-health { background: linear-gradient(135deg, rgba(16,185,129,0.3), rgba(52,211,153,0.1)); }
+  .cat-reminder { background: linear-gradient(135deg, rgba(168,85,247,0.3), rgba(192,132,252,0.1)); }
+  .cat-item.active .cat-icon {
+    transform: scale(1.08);
+    box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+  }
+  .cat-name {
+    font-size: 8px;
+    color: #8b949e;
+    font-weight: 500;
+  }
+  .cat-item.active .cat-name { color: #ffa535; }
+
+  /* 表单行列表 */
+  .form-list {
+    background: rgba(255,255,255,0.02);
+    border: 0.5px solid rgba(255,255,255,0.05);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .form-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 12px;
+    border-bottom: 0.5px solid rgba(255,255,255,0.04);
+    transition: background 0.15s;
+  }
+  .form-row:last-child { border-bottom: none; }
+  .form-row:active { background: rgba(255,255,255,0.04); }
+
+  .row-icon {
+    width: 24px; height: 24px;
+    border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+  .ri-date { background: linear-gradient(135deg, rgba(255,107,53,0.25), rgba(255,165,53,0.08)); }
+  .ri-time { background: linear-gradient(135deg, rgba(59,130,246,0.25), rgba(96,165,250,0.08)); }
+  .ri-end { background: linear-gradient(135deg, rgba(139,92,246,0.25), rgba(167,139,250,0.08)); }
+  .ri-loc { background: linear-gradient(135deg, rgba(16,185,129,0.25), rgba(52,211,153,0.08)); }
+  .ri-repeat { background: linear-gradient(135deg, rgba(236,72,153,0.25), rgba(244,114,182,0.08)); }
+  .ri-note { background: linear-gradient(135deg, rgba(245,158,11,0.25), rgba(251,191,36,0.08)); }
+
+  .row-body { flex: 1; min-width: 0; }
+  .row-label {
+    font-size: 9px;
+    color: #6e7681;
+    margin-bottom: 2px;
+  }
+  .row-value {
+    font-size: 11px;
+    color: #e6edf3;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .row-value.placeholder { color: #4a5057; font-weight: 400; }
+
+  .row-action { color: #30363d; font-size: 11px; flex-shrink: 0; }
+
+  /* 开关 */
+  .switch {
+    width: 30px; height: 17px;
+    border-radius: 10px;
+    background: #30363d;
+    position: relative;
+    flex-shrink: 0;
+    transition: background 0.2s;
+  }
+  .switch.on {
+    background: linear-gradient(135deg, #ff6b35, #ffa535);
+  }
+  .switch::after {
+    content: "";
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 13px; height: 13px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+  .switch.on::after {
+    transform: translateX(13px);
+  }
+
+  /* 时间范围选中条 */
+  .time-slider-row {
+    padding: 12px;
+  }
+  .time-label-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .time-label-row span {
+    font-size: 9px;
+    color: #8b949e;
+  }
+  .time-slider {
+    position: relative;
+    height: 8px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 4px;
+    margin: 8px 0 10px;
+  }
+  .time-slider-fill {
+    position: absolute;
+    left: 40%; right: 20%;
+    height: 100%;
+    background: linear-gradient(90deg, #ff6b35, #ffa535);
+    border-radius: 4px;
+  }
+  .slider-handle {
+    position: absolute;
+    top: 50%;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    transform: translateY(-50%);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    border: 2px solid #ffa535;
+  }
+  .sh-start { left: calc(40% - 8px); }
+  .sh-end { right: calc(20% - 8px); }
+  .time-marks {
+    display: flex;
+    justify-content: space-between;
+    font-size: 8px;
+    color: #4a5057;
+  }
+
+  /* 底部保存大按钮 */
+  .footer {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    padding: 12px 14px 18px;
+    background: linear-gradient(180deg, transparent, rgba(13,17,23,0.95) 40%);
+  }
+  .save-btn {
+    width: 100%;
+    height: 40px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #ff6b35, #f97316);
+    display: flex; align-items: center; justify-content: center;
+    gap: 6px;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    box-shadow: 0 6px 18px rgba(255,107,53,0.45), inset 0 0.5px 0 rgba(255,255,255,0.3);
+    transition: all 0.15s;
+  }
+  .save-btn:active { transform: scale(0.97); box-shadow: 0 3px 10px rgba(255,107,53,0.4); }
+  .save-btn-icon { font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div class="device">
+  <div class="screen">
+    <!-- 状态栏 -->
+    <div class="status-bar">
+      <span class="time">09:41</span>
+      <div class="icons">
+        <span style="color:#ff4757;font-size:9px;">♥</span>
+        <span>🔔</span>
+        <div class="battery"><div class="battery-level"></div></div>
+      </div>
+    </div>
+
+    <!-- 导航栏 -->
+    <div class="nav-bar">
+      <div class="nav-btn">✕</div>
+      <div class="nav-title">新建日程</div>
+      <div class="nav-save">保存</div>
+    </div>
+
+    <!-- 内容区 -->
+    <div class="content-scroll">
+      <!-- 标题 -->
+      <div class="title-input-section">
+        <div class="input-hero">
+          <div class="input-label-small">日程标题</div>
+          <textarea class="title-textarea" rows="2" placeholder="例如：产品周会">产品评审会议</textarea>
+        </div>
+      </div>
+
+      <!-- 分类 -->
+      <div class="section">
+        <div class="section-header">
+          <div class="section-title">分类</div>
+        </div>
+        <div class="category-grid">
+          <div class="cat-item">
+            <div class="cat-icon cat-work">💼</div>
+            <div class="cat-name">工作</div>
+          </div>
+          <div class="cat-item active">
+            <div class="cat-icon cat-personal">🏠</div>
+            <div class="cat-name">个人</div>
+          </div>
+          <div class="cat-item">
+            <div class="cat-icon cat-health">💪</div>
+            <div class="cat-name">健康</div>
+          </div>
+          <div class="cat-item">
+            <div class="cat-icon cat-reminder">⏰</div>
+            <div class="cat-name">提醒</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 日期时间 -->
+      <div class="section">
+        <div class="section-header"><div class="section-title">日期和时间</div></div>
+        <div class="form-list">
+          <div class="form-row">
+            <div class="row-icon ri-date">📅</div>
+            <div class="row-body">
+              <div class="row-label">开始日期</div>
+              <div class="row-value">今天 · 9月18日 周三</div>
+            </div>
+            <div class="row-action">›</div>
+          </div>
+
+          <div class="form-row time-slider-row" style="border-bottom:none;">
+            <div style="width:100%;">
+              <div class="time-label-row">
+                <span style="color:#ffa535;">● 10:00 开始</span>
+                <span style="color:#60a5fa;">● 11:00 结束</span>
+              </div>
+              <div class="time-slider">
+                <div class="time-slider-fill"></div>
+                <div class="slider-handle sh-start"></div>
+                <div class="slider-handle sh-end"></div>
+              </div>
+              <div class="time-marks">
+                <span>00</span><span>06</span><span>12</span><span>18</span><span>24</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 其他设置 -->
+      <div class="section">
+        <div class="section-header"><div class="section-title">更多选项</div></div>
+        <div class="form-list">
+          <div class="form-row">
+            <div class="row-icon ri-loc">📍</div>
+            <div class="row-body">
+              <div class="row-label">地点</div>
+              <div class="row-value">会议室 A302</div>
+            </div>
+            <div class="row-action">›</div>
+          </div>
+          <div class="form-row">
+            <div class="row-icon ri-repeat">🔁</div>
+            <div class="row-body">
+              <div class="row-label">重复</div>
+              <div class="row-value placeholder">不重复</div>
+            </div>
+            <div class="row-action">›</div>
+          </div>
+          <div class="form-row">
+            <div class="row-icon">🔔</div>
+            <div class="row-body">
+              <div class="row-label">提醒</div>
+              <div class="row-value">提前 10 分钟</div>
+            </div>
+            <div class="switch on"></div>
+          </div>
+          <div class="form-row">
+            <div class="row-icon ri-note">📝</div>
+            <div class="row-body">
+              <div class="row-label">备注</div>
+              <div class="row-value placeholder">添加备注说明...</div>
+            </div>
+            <div class="row-action">›</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部保存按钮 -->
+    <div class="footer">
+      <div class="save-btn">
+        <span class="save-btn-icon">✓</span>
+        创建日程
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // 分类切换
+  document.querySelectorAll('.cat-item').forEach(cat => {
+    cat.addEventListener('click', () => {
+      document.querySelectorAll('.cat-item').forEach(c => c.classList.remove('active'));
+      cat.classList.add('active');
+    });
+  });
+  // 开关
+  document.querySelectorAll('.switch').forEach(sw => {
+    sw.addEventListener('click', () => sw.classList.toggle('on'));
+  });
+  // 其他交互
+  document.querySelectorAll('.form-row, .nav-btn, .save-btn').forEach(el => {
+    if (el.querySelector('.switch')) return;
+    el.addEventListener('click', () => {
+      el.style.transform = 'scale(0.98)';
+      setTimeout(() => el.style.transform = '', 120);
+    });
+  });
+</script>
+</body>
+</html>

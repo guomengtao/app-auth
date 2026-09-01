@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>日历视图</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    padding: 20px;
+  }
+
+  .device {
+    width: 220px;
+    height: 490px;
+    background: #0a0a0a;
+    border-radius: 60px;
+    padding: 18px 12px;
+    box-shadow:
+      0 0 0 3px #2a2a2a,
+      0 25px 60px rgba(0,0,0,0.6),
+      inset 0 0 30px rgba(255,255,255,0.03);
+    position: relative;
+  }
+  .device::before {
+    content: "";
+    position: absolute;
+    top: 8px; left: 50%;
+    transform: translateX(-50%);
+    width: 40px; height: 4px;
+    background: #1a1a1a;
+    border-radius: 2px;
+  }
+
+  .screen {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(180deg, #0d1117 0%, #151b26 100%);
+    border-radius: 44px;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .status-bar {
+    padding: 14px 18px 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #8b949e;
+    font-size: 10px;
+    font-weight: 500;
+  }
+  .status-bar .time { color: #e6edf3; font-size: 11px; font-weight: 600; }
+  .status-bar .icons { display: flex; gap: 4px; align-items: center; }
+  .battery { width: 18px; height: 8px; border: 0.5px solid #8b949e; border-radius: 2px; position: relative; padding: 1px; }
+  .battery::after { content: ""; position: absolute; right: -2px; top: 2px; width: 1.5px; height: 3px; background: #8b949e; border-radius: 0 1px 1px 0; }
+  .battery-level { width: 80%; height: 100%; background: linear-gradient(90deg, #ff6b35, #ffa535); border-radius: 1px; }
+
+  /* 月份导航头 */
+  .month-header {
+    padding: 4px 14px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .month-nav-btn {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.04);
+    display: flex; align-items: center; justify-content: center;
+    color: #8b949e;
+    font-size: 12px;
+    transition: all 0.15s;
+  }
+  .month-nav-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.08); }
+  .month-label {
+    text-align: center;
+  }
+  .month-label .month-big {
+    font-size: 16px;
+    font-weight: 700;
+    color: #e6edf3;
+    letter-spacing: 0.5px;
+    line-height: 1;
+  }
+  .month-label .year-small {
+    font-size: 9px;
+    color: #6e7681;
+    margin-top: 2px;
+    font-weight: 500;
+  }
+  .view-mode-btn {
+    font-size: 9px;
+    padding: 4px 7px;
+    border-radius: 7px;
+    background: rgba(255,165,53,0.12);
+    color: #ffa535;
+    font-weight: 600;
+  }
+
+  /* 月统计条 */
+  .stats-row {
+    margin: 0 14px 10px;
+    padding: 8px 10px;
+    background: linear-gradient(90deg, rgba(255,107,53,0.1), rgba(59,130,246,0.08));
+    border: 0.5px solid rgba(255,107,53,0.2);
+    border-radius: 10px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+  }
+  .stat-item {
+    text-align: center;
+  }
+  .stat-num {
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .n-orange { color: #ffa535; }
+  .n-blue { color: #60a5fa; }
+  .n-green { color: #34d399; }
+  .stat-label {
+    font-size: 8px;
+    color: #6e7681;
+    margin-top: 2px;
+  }
+  .stat-sep {
+    width: 0.5px;
+    height: 20px;
+    background: rgba(255,255,255,0.08);
+  }
+
+  /* 日历 */
+  .calendar {
+    margin: 0 14px;
+    padding: 8px 6px 10px;
+    background: rgba(255,255,255,0.02);
+    border: 0.5px solid rgba(255,255,255,0.05);
+    border-radius: 14px;
+  }
+  .weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    margin-bottom: 6px;
+  }
+  .weekday {
+    text-align: center;
+    font-size: 8px;
+    color: #6e7681;
+    padding: 3px 0;
+    font-weight: 500;
+  }
+  .weekday.weekend { color: #ff6b35; opacity: 0.7; }
+
+  .days-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 3px 2px;
+  }
+  .day-cell {
+    aspect-ratio: 1 / 1.05;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+    position: relative;
+    transition: all 0.15s;
+    cursor: pointer;
+  }
+  .day-cell:active { transform: scale(0.9); }
+  .day-num {
+    font-size: 10px;
+    font-weight: 500;
+    color: #e6edf3;
+    line-height: 1;
+    margin-bottom: 2px;
+  }
+  .day-cell.muted .day-num { color: #30363d; font-weight: 400; }
+  .day-cell.weekend .day-num { color: rgba(255,107,53,0.6); }
+
+  /* 日程指示点 */
+  .day-dots {
+    display: flex;
+    gap: 2px;
+    height: 3px;
+  }
+  .dot {
+    width: 3px; height: 3px;
+    border-radius: 50%;
+  }
+  .dot.o { background: #ff6b35; box-shadow: 0 0 3px rgba(255,107,53,0.6); }
+  .dot.b { background: #3b82f6; box-shadow: 0 0 3px rgba(59,130,246,0.6); }
+  .dot.g { background: #10b981; }
+  .dot.p { background: #a855f7; }
+
+  /* 今天高亮 */
+  .day-cell.today {
+    background: linear-gradient(135deg, #ff6b35, #f97316);
+    box-shadow: 0 3px 10px rgba(255,107,53,0.35), inset 0 0.5px 0 rgba(255,255,255,0.25);
+  }
+  .day-cell.today .day-num {
+    color: #fff;
+    font-weight: 700;
+  }
+  .day-cell.today .day-dots .dot { background: rgba(255,255,255,0.9); box-shadow: none; }
+
+  /* 选中日期 */
+  .day-cell.selected:not(.today) {
+    background: rgba(255,165,53,0.12);
+    box-shadow: inset 0 0 0 1px rgba(255,165,53,0.5);
+  }
+  .day-cell.selected:not(.today) .day-num { color: #ffa535; font-weight: 700; }
+
+  /* 选中日期日程列表 */
+  .section-title {
+    margin: 12px 18px 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 9px;
+    color: #6e7681;
+    letter-spacing: 0.5px;
+  }
+  .section-title .selected-badge {
+    font-size: 10px;
+    color: #ffa535;
+    background: rgba(255,165,53,0.1);
+    padding: 2px 6px;
+    border-radius: 5px;
+    font-weight: 600;
+    letter-spacing: 0;
+  }
+
+  .day-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 14px 90px;
+    scrollbar-width: none;
+  }
+  .day-list::-webkit-scrollbar { display: none; }
+
+  .event-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 9px 11px;
+    background: rgba(255,255,255,0.03);
+    border: 0.5px solid rgba(255,255,255,0.05);
+    border-radius: 11px;
+    margin-bottom: 6px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.15s;
+  }
+  .event-card:active { transform: scale(0.97); }
+  .event-bar {
+    width: 3px;
+    position: absolute;
+    left: 0; top: 6px; bottom: 6px;
+    border-radius: 2px;
+  }
+  .bar-o { background: linear-gradient(180deg, #ff6b35, #ffa535); }
+  .bar-b { background: linear-gradient(180deg, #3b82f6, #60a5fa); }
+  .bar-g { background: linear-gradient(180deg, #10b981, #34d399); }
+  .bar-p { background: linear-gradient(180deg, #a855f7, #c084fc); }
+
+  .event-time {
+    min-width: 38px;
+    padding-top: 1px;
+  }
+  .event-time .time-h {
+    font-size: 10px;
+    font-weight: 700;
+    color: #e6edf3;
+    line-height: 1;
+  }
+  .event-time .time-d {
+    font-size: 8px;
+    color: #6e7681;
+    margin-top: 2px;
+  }
+  .event-body { flex: 1; min-width: 0; }
+  .event-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: #e6edf3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .event-meta {
+    font-size: 8px;
+    color: #6e7681;
+    margin-top: 2px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .event-loc { color: #60a5fa; }
+  .event-bell { color: #ffa535; }
+
+  .event-check {
+    width: 15px; height: 15px;
+    border-radius: 50%;
+    border: 1.2px solid #30363d;
+    flex-shrink: 0;
+    margin-top: 1px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .event-check.done {
+    background: linear-gradient(135deg, #10b981, #34d399);
+    border-color: transparent;
+  }
+  .event-check.done::after {
+    content: "✓";
+    color: #fff;
+    font-size: 7px;
+    font-weight: 700;
+  }
+
+  .empty-hint {
+    padding: 20px 10px;
+    text-align: center;
+  }
+  .empty-icon { font-size: 28px; opacity: 0.4; }
+  .empty-text { font-size: 10px; color: #4a5057; margin-top: 6px; }
+
+  /* 图例 */
+  .legend {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin: 0 14px 8px;
+    padding-top: 6px;
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 8px;
+    color: #6e7681;
+  }
+  .legend-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+  }
+</style>
+</head>
+<body>
+
+<div class="device">
+  <div class="screen">
+    <div class="status-bar">
+      <span class="time">09:41</span>
+      <div class="icons">
+        <span style="color:#ff4757;font-size:9px;">♥</span>
+        <span>🔔</span>
+        <div class="battery"><div class="battery-level"></div></div>
+      </div>
+    </div>
+
+    <!-- 月份导航 -->
+    <div class="month-header">
+      <div class="month-nav-btn">‹</div>
+      <div class="month-label">
+        <div class="month-big">September</div>
+        <div class="year-small">2026 · 九月</div>
+      </div>
+      <div class="month-nav-btn">›</div>
+    </div>
+
+    <!-- 月度统计 -->
+    <div class="stats-row">
+      <div class="stat-item">
+        <div class="stat-num n-orange">12</div>
+        <div class="stat-label">工作</div>
+      </div>
+      <div class="stat-sep"></div>
+      <div class="stat-item">
+        <div class="stat-num n-blue">8</div>
+        <div class="stat-label">个人</div>
+      </div>
+      <div class="stat-sep"></div>
+      <div class="stat-item">
+        <div class="stat-num n-green">5</div>
+        <div class="stat-label">健康</div>
+      </div>
+      <div class="stat-sep"></div>
+      <div class="stat-item">
+        <div class="stat-num n-orange">3</div>
+        <div class="stat-label">已完成</div>
+      </div>
+    </div>
+
+    <!-- 日历 -->
+    <div class="calendar">
+      <div class="weekdays">
+        <div class="weekday weekend">日</div>
+        <div class="weekday">一</div>
+        <div class="weekday">二</div>
+        <div class="weekday">三</div>
+        <div class="weekday">四</div>
+        <div class="weekday">五</div>
+        <div class="weekday weekend">六</div>
+      </div>
+      <div class="days-grid" id="daysGrid">
+        <!-- 生成日期 -->
+      </div>
+    </div>
+
+    <!-- 图例 -->
+    <div class="legend">
+      <div class="legend-item"><span class="legend-dot" style="background:#ff6b35;"></span>个人</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#3b82f6;"></span>工作</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#10b981;"></span>健康</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#a855f7;"></span>提醒</div>
+    </div>
+
+    <!-- 当天日程标题 -->
+    <div class="section-title">
+      <span>📋 选中日期日程</span>
+      <span class="selected-badge">今天 18 日 · 4项</span>
+    </div>
+
+    <!-- 日程列表 -->
+    <div class="day-list">
+      <div class="event-card">
+        <div class="event-bar bar-g"></div>
+        <div class="event-time">
+          <div class="time-h">08:30</div>
+          <div class="time-d">30分</div>
+        </div>
+        <div class="event-body">
+          <div class="event-title">晨跑打卡</div>
+          <div class="event-meta">
+            <span class="event-loc">📍 公园</span>
+          </div>
+        </div>
+        <div class="event-check done"></div>
+      </div>
+
+      <div class="event-card">
+        <div class="event-bar bar-b"></div>
+        <div class="event-time">
+          <div class="time-h">10:00</div>
+          <div class="time-d">60分</div>
+        </div>
+        <div class="event-body">
+          <div class="event-title">产品评审会议</div>
+          <div class="event-meta">
+            <span class="event-loc">📍 A302</span>
+            <span class="event-bell">🔔 10分</span>
+          </div>
+        </div>
+        <div class="event-check"></div>
+      </div>
+
+      <div class="event-card">
+        <div class="event-bar bar-o"></div>
+        <div class="event-time">
+          <div class="time-h">14:30</div>
+          <div class="time-d">90分</div>
+        </div>
+        <div class="event-body">
+          <div class="event-title">牙医预约</div>
+          <div class="event-meta">
+            <span class="event-loc">📍 医院</span>
+            <span class="event-bell">🔔 30分</span>
+          </div>
+        </div>
+        <div class="event-check"></div>
+      </div>
+
+      <div class="event-card">
+        <div class="event-bar bar-p"></div>
+        <div class="event-time">
+          <div class="time-h">19:00</div>
+          <div class="time-d">提醒</div>
+        </div>
+        <div class="event-body">
+          <div class="event-title">给妈妈打电话</div>
+          <div class="event-meta">
+            <span class="event-bell">🔔 准时</span>
+          </div>
+        </div>
+        <div class="event-check"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // 生成 9 月 2026 日历
+  const grid = document.getElementById('daysGrid');
+  const data = [
+    // 8月底（填充）
+    ['muted','30',''],['muted','31',''],
+    // 9月 1日周二
+    ['','1',''],['','2','o'],['','3','b'],['','4',''],['','5','g'],['','6','p'],['weekend','7','o'],
+    ['weekend','8','ob'],['','9','b'],['','10',''],['','11','bp'],['','12','g'],['','13','ob'],['weekend','14',''],
+    ['weekend','15',''],['','16','bg'],['','17','o'],['today selected','18','obgp'],['','19','b'],['','20','op'],['weekend','21','g'],
+    ['weekend','22',''],['','23','bp'],['','24','b'],['','25',''],['','26','og'],['','27','p'],['weekend','28','b'],
+    ['weekend','29',''],['','30','ob']
+  ];
+  // 对应 dot 颜色映射
+  const dotMap = { o:'o', b:'b', g:'g', p:'p' };
+  let html = '';
+  data.forEach(([cls, num, dots]) => {
+    let dotHtml = '';
+    if (dots) {
+      const arr = dots.split('').slice(0,3);
+      dotHtml = `<div class="day-dots">${arr.map(d => `<span class="dot ${dotMap[d]}"></span>`).join('')}</div>`;
+    } else {
+      dotHtml = `<div class="day-dots"></div>`;
+    }
+    html += `<div class="day-cell ${cls}">
+      <span class="day-num">${num}</span>
+      ${dotHtml}
+    </div>`;
+  });
+  grid.innerHTML = html;
+
+  // 日期切换
+  document.querySelectorAll('.day-cell').forEach(cell => {
+    cell.addEventListener('click', () => {
+      document.querySelectorAll('.day-cell').forEach(c => c.classList.remove('selected'));
+      cell.classList.add('selected');
+    });
+  });
+  // 完成勾选
+  document.querySelectorAll('.event-check').forEach(c => {
+    c.addEventListener('click', e => {
+      e.stopPropagation();
+      c.classList.toggle('done');
+    });
+  });
+</script>
+</body>
+</html>
