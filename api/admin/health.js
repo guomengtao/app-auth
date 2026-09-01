@@ -174,7 +174,7 @@ module.exports = async (req, res) => {
       return res.status(405).json({ success: false, error: "Method not allowed" });
     }
     try {
-      var vercelToken = process.env.VERCEL_TOKEN || "";
+      var vercelToken = process.env.VERCEL_TOKEN_ALT || process.env.VERCEL_TOKEN || "";
       var vercelProjectId = process.env.VERCEL_PROJECT_ID || "";
       var vercelTeamId = process.env.VERCEL_TEAM_ID || "";
 
@@ -184,6 +184,7 @@ module.exports = async (req, res) => {
           error: "Vercel API未配置。请在环境变量中设置 VERCEL_TOKEN 和 VERCEL_PROJECT_ID",
           configured: {
             hasToken: !!vercelToken,
+            hasAltToken: !!(process.env.VERCEL_TOKEN_ALT || ""),
             hasProjectId: !!vercelProjectId,
             hasTeamId: !!vercelTeamId,
           },
@@ -191,7 +192,7 @@ module.exports = async (req, res) => {
         });
       }
 
-      var fetchUrl = "https://api.vercel.com/v3/projects/" + encodeURIComponent(vercelProjectId) + "/events?limit=50";
+      var fetchUrl = "https://api.vercel.com/v6/deployments?projectId=" + encodeURIComponent(vercelProjectId) + "&limit=50";
       if (vercelTeamId) fetchUrl += "&teamId=" + encodeURIComponent(vercelTeamId);
       var fetchOpts = {
         method: "GET",
@@ -202,16 +203,15 @@ module.exports = async (req, res) => {
 
       var httpAdapter = null;
       try { httpAdapter = require("https"); } catch (_) {}
-      try { httpAdapter = require("http"); } catch (_) {}
 
       if (!httpAdapter) {
-        return res.json({ success: false, error: "Node.js http 模块不可用" });
+        return res.json({ success: false, error: "Node.js https 模块不可用" });
       }
 
       var url = new URL(fetchUrl);
       var options = {
         hostname: url.hostname,
-        port: url.port || (url.protocol === "https:" ? 443 : 80),
+        port: url.port || 443,
         path: url.pathname + url.search,
         method: "GET",
         headers: fetchOpts.headers,
@@ -228,33 +228,48 @@ module.exports = async (req, res) => {
           });
         });
         req2.on("error", reject);
-        req2.setTimeout(8000, function() { req2.destroy(); reject(new Error("Request timeout")); });
+        req2.setTimeout(10000, function() { req2.destroy(); reject(new Error("Request timeout")); });
         req2.end();
       });
 
       var logs = [];
-      if (body && body.data && body.data.events && Array.isArray(body.data.events)) {
-        body.data.events.forEach(function(ev) {
-          var timeStr = "";
-          if (ev.createdAt) {
-            try { timeStr = new Date(ev.createdAt).toLocaleString("zh-CN"); } catch (_) { timeStr = String(ev.createdAt); }
-          }
-          logs.push({
-            time: timeStr,
-            type: ev.type || ev.name || "unknown",
-            summary: ev.payload && ev.payload.message ? ev.payload.message : (ev.text || ev.name || JSON.stringify(ev).slice(0, 200)),
-            buildId: ev.buildId || "",
-            deploymentId: ev.deploymentId || "",
-          });
+      var deployments = (body.data && body.data.deployments && Array.isArray(body.data.deployments)) ? body.data.deployments : [];
+      deployments.forEach(function(dep) {
+        var timeStr = "";
+        if (dep.created) {
+          try { timeStr = new Date(dep.created).toLocaleString("zh-CN"); } catch (_) { timeStr = String(dep.created); }
+        }
+        var creator = dep.creator ? (dep.creator.username || dep.creator.email || "") : "";
+        var sourceMap = { "cli": "Vercel CLI", "git": "Git Push", "api": "Vercel API", "marketplace": "Marketplace" };
+        var sourceLabel = sourceMap[dep.source] || dep.source || "";
+        var stateMap = {
+          "READY": "✅ 部署成功",
+          "BUILDING": "🔨 构建中",
+          "INITIALIZING": "⏳ 初始化",
+          "CANCELLED": "❌ 已取消",
+          "ERROR": "❌ 错误",
+          "QUEUED": "⏸️ 排队中",
+          "DELETED": "🗑️ 已删除",
+        };
+        var stateLabel = stateMap[dep.state] || dep.state || "";
+        logs.push({
+          time: timeStr,
+          type: dep.target === "production" ? "🚀 生产部署" : "🧪 预览部署",
+          summary: dep.name + " · " + stateLabel + (sourceLabel ? " · " + sourceLabel : "") + (creator ? " · " + creator : ""),
+          deploymentId: dep.uid || "",
+          url: dep.url ? ("https://" + dep.url) : "",
+          state: dep.state || "",
+          target: dep.target || "",
+          source: dep.source || "",
         });
-      }
+      });
 
       return res.json({
         success: true,
         fetchedAt: new Date().toISOString(),
         statusCode: body.status,
+        totalDeployments: deployments.length,
         logs: logs,
-        rawSample: (body.data && typeof body.data === "object") ? JSON.stringify(body.data).slice(0, 500) : "",
       });
     } catch (e) {
       console.error("vercel-logs error:", e);
