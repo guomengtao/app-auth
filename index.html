@@ -115,6 +115,22 @@
       transition: background 0.2s;
     }
     .demo-link:hover { background: #e0e0ff; }
+
+    .quota-mini {
+      margin-top: 16px;
+      padding: 10px 14px;
+      background: #f8f9ff;
+      border-radius: 10px;
+      border: 1px solid #e0e7ff;
+      font-size: 0.75rem;
+      color: #555;
+      text-align: center;
+      line-height: 1.6;
+    }
+    .quota-mini strong { color: #6c63ff; }
+    .quota-mini .quota-warn { color: #e94560; font-weight: 700; }
+    .quota-mini .quota-ok { color: #065f46; }
+    .quota-mini .quota-meta { font-size: 0.65rem; color: #94a3b8; margin-top: 2px; }
   </style>
 </head>
 <body>
@@ -155,6 +171,41 @@
       <a class="demo-link" href="/activate.html?deviceId=Xy99">设备 Xy99</a>
       <a class="demo-link" href="/activate.html?deviceId=TeSt">设备 TeSt</a>
     </div>
+
+    <div class="quota-mini" id="quotaMini">
+      <span id="quotaMiniText">🖥️ 数据库额度：加载中...</span>
+      <div class="quota-meta" id="quotaMiniMeta"></div>
+    </div>
   </div>
+
+  <script>
+    (function() {
+      var STORAGE_KEY_QUOTA = 'app_auth_quota_cache';
+      var textEl = document.getElementById('quotaMiniText');
+      var metaEl = document.getElementById('quotaMiniMeta');
+      try {
+        var raw = localStorage.getItem(STORAGE_KEY_QUOTA);
+        if (!raw) {
+          textEl.innerHTML = '🖥️ 数据库额度：<span class="quota-meta">暂无数据，请登录后台点击「刷新额度」或「一键同步」后更新</span>';
+          return;
+        }
+        var q = JSON.parse(raw);
+        var c = q.compute || {};
+        var m = q.month || {};
+        var freeH = Number(c.freeHours) || 100;
+        var usedH = Number(c.usedHoursEstimate);
+        var apiH = Number(c.neonApiHours);
+        var displayH = (!isNaN(apiH) && apiH > 0) ? apiH : usedH;
+        var pct = ((displayH / freeH) * 100).toFixed(1);
+        var cls = (Number(pct) > 80) ? 'quota-warn' : 'quota-ok';
+        textEl.innerHTML = '🖥️ 本月数据库已用 <strong class="' + cls + '">' + Number(displayH).toFixed(2) + ' h</strong> / ' + freeH + ' h（' + pct + '%）';
+        var updatedAt = q.updatedAt ? new Date(q.updatedAt).toLocaleString('zh-CN') : '未知';
+        var source = (!isNaN(apiH) && apiH > 0) ? 'Neon API 精确数据' : '本地估算';
+        metaEl.textContent = '数据来源：' + source + ' · 更新于 ' + updatedAt + ' · 前往后台「一键同步」更新';
+      } catch (e) {
+        textEl.innerHTML = '🖥️ 数据库额度：<span class="quota-meta">数据读取失败</span>';
+      }
+    })();
+  </script>
 </body>
 </html>

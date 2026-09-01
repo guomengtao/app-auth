@@ -1226,7 +1226,7 @@
                 <span id="syncPageDirty" style="display:none" class="badge badge-warning">● 有未同步的本地变更</span>
               </div>
               <span class="spacer"></span>
-              <button class="btn btn-outline" onclick="loadSyncPage()" title="刷新本页所有统计/历史">🔄 刷新本页</button>
+              <button class="btn btn-outline" onclick="loadSyncPage(true)" title="连接一次数据库获取服务器实时数据进行对比">🔄 刷新本页（连接数据库）</button>
               <button class="btn btn-primary" onclick="doSync('merge')">⬆⬇ 一键双向同步（推荐）</button>
             </div>
 
@@ -3224,6 +3224,7 @@
           saveSyncMeta({ lastSyncAt: Date.now(), lastSyncMode: 'pull', dirty: false });
           showSyncBanner('✅ 拉取完成 ✓ 已用服务器最新数据覆盖本地（产品/兑换码/激活记录/计数器已更新，删除的删除记录已清理）', 'ok');
           showToast('拉取完成', 'success');
+          refreshQuotaCache();
           queueRefreshPanels(true);
           return;
         }
@@ -3246,6 +3247,7 @@
           if (pushRes.summary) okMsg = '✅ 推送完成 ✓ ' + String(pushRes.summary);
           showSyncBanner(okMsg, 'ok');
           showToast('推送完成', 'success');
+          refreshQuotaCache();
           queueRefreshPanels(true);
           return;
         }
@@ -3269,6 +3271,7 @@
         if (patchRes.summary) okMsg2 += ' 结果：' + String(patchRes.summary);
         showSyncBanner(okMsg2, 'ok');
         showToast('双向同步完成', 'success');
+        refreshQuotaCache();
         queueRefreshPanels(true);
       } catch (e) {
         console.error('doSync failed:', e);
@@ -3280,6 +3283,24 @@
     }
 
     var STORAGE_KEY_SYNC_HISTORY = 'app_auth_sync_history_v2';
+    var STORAGE_KEY_QUOTA = 'app_auth_quota_cache';
+
+    function saveQuotaToLocal(data) {
+      try {
+        localStorage.setItem(STORAGE_KEY_QUOTA, JSON.stringify({
+          updatedAt: Date.now(),
+          compute: data.summary ? data.summary.compute : (data.compute || null),
+          month: data.summary ? data.summary.month : (data.month || null),
+          neon: data.summary ? data.summary.neon : (data.neon || null),
+        }));
+      } catch (_) {}
+    }
+
+    function refreshQuotaCache() {
+      api('/api/admin/health?section=quota').then(function(d) {
+        if (d && d.success) saveQuotaToLocal(d);
+      }).catch(function() {});
+    }
 
     function getSyncHistory() {
       try {
@@ -3346,7 +3367,7 @@
         + '</div>';
     }
 
-    async function loadSyncPage() {
+    async function loadSyncPage(fetchRemote) {
       var pageModeEl = document.getElementById('syncPageMode');
       var pageDirtyEl = document.getElementById('syncPageDirty');
       var mode = ADMIN_MODE;
@@ -3374,12 +3395,16 @@
       // 2. optionally fetch server stats if user explicitly wants
       var remote = null;
       var cardsEl = document.getElementById('syncCompareCards');
-      if (cardsEl) cardsEl.innerHTML = '<div class="empty" style="grid-column:1/-1">正在连接数据库获取服务器数据（仅此一次）...</div>';
-      try {
-        var snap = await api('/api/admin/sync');
-        if (snap && snap.success) remote = snap;
-      } catch (e) {
-        // ignore, we will show "no connection"
+      if (fetchRemote) {
+        if (cardsEl) cardsEl.innerHTML = '<div class="empty" style="grid-column:1/-1">正在连接数据库获取服务器数据（仅此一次）...</div>';
+        try {
+          var snap = await api('/api/admin/sync');
+          if (snap && snap.success) remote = snap;
+        } catch (e) {
+          // ignore, we will show "no connection"
+        }
+      } else {
+        if (cardsEl) cardsEl.innerHTML = '<div class="empty" style="grid-column:1/-1">默认不连接数据库（节省免费额度）。点击「🔄 刷新本页（连接数据库）」或「⬆⬇ 一键同步」时才会连接一次。</div>';
       }
 
       var rProducts = remote && remote.snapshot && remote.snapshot.products ? remote.snapshot.products.length : null;
@@ -3491,7 +3516,7 @@
       [
         STORAGE_KEY_PRODUCTS, STORAGE_KEY_CODES, STORAGE_KEY_RECORDS,
         STORAGE_KEY_COUNTERS, STORAGE_KEY_DELETES, STORAGE_KEY_META,
-        STORAGE_KEY_SYNC_HISTORY
+        STORAGE_KEY_SYNC_HISTORY, STORAGE_KEY_QUOTA
       ].forEach(function(k) {
         try {
           var raw = localStorage.getItem(k);
@@ -3519,7 +3544,7 @@
           var allowedKeys = [
             STORAGE_KEY_PRODUCTS, STORAGE_KEY_CODES, STORAGE_KEY_RECORDS,
             STORAGE_KEY_COUNTERS, STORAGE_KEY_DELETES, STORAGE_KEY_META,
-            STORAGE_KEY_SYNC_HISTORY
+            STORAGE_KEY_SYNC_HISTORY, STORAGE_KEY_QUOTA
           ];
           var cnt = 0;
           allowedKeys.forEach(function(k) {
@@ -3546,7 +3571,7 @@
       var keys = [
         STORAGE_KEY_PRODUCTS, STORAGE_KEY_CODES, STORAGE_KEY_RECORDS,
         STORAGE_KEY_COUNTERS, STORAGE_KEY_DELETES, STORAGE_KEY_META,
-        STORAGE_KEY_SYNC_HISTORY
+        STORAGE_KEY_SYNC_HISTORY, STORAGE_KEY_QUOTA
       ];
       keys.forEach(function(k){ try { localStorage.removeItem(k); } catch(_) {} });
       initLocalData();
@@ -4026,6 +4051,7 @@
       var storeEl = document.getElementById('quotaStorageEl');
       api('/api/admin/health?section=quota').then(function(d) {
         if (!d || !d.success) throw new Error(d && d.error ? d.error : '接口返回失败');
+        saveQuotaToLocal(d);
         document.getElementById('quotaCheckedAt').textContent = '最后检测：' + new Date().toLocaleString('zh-CN');
         var s = d.summary || {};
         var c = s.compute || {};

@@ -457,7 +457,7 @@ module.exports = async (req, res) => {
         var patch = body.patch || body.data || {};
         var r = await applyPatch(patch);
         var summary = summarizeReport(r);
-        var after = (mode === "merge") ? await snapshotAll() : null;
+        var after = (mode === "merge" || mode === "push") ? await snapshotAll() : null;
         if (mode === "merge") {
           return res.json({
             success: true,
@@ -472,6 +472,7 @@ module.exports = async (req, res) => {
           mode: "push",
           applied: r,
           summary: summary,
+          snapshot: after,
         });
       }
       return res.status(400).json({ success: false, error: "Unknown mode: " + mode });
