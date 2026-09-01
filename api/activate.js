@@ -2,6 +2,7 @@ var redis = require("../lib/redis");
 var crypto = require("../lib/crypto");
 var { validateRedeemCode, validateDeviceId } = require("../lib/validate");
 var quota = require("../lib/quota");
+var rateLimit = require("../lib/rate-limit");
 
 function parseBody(req) {
   var body = req.body;
@@ -48,6 +49,12 @@ module.exports = async (req, res) => {
     return res.status(405).json({ success: false, error: "请求方式不正确" });
   }
 
+  var ipCheck = await rateLimit.checkIpRateLimit(req);
+  if (ipCheck.blocked) {
+    res.setHeader("Retry-After", Math.ceil(ipCheck.retryAfterMs / 1000));
+    return res.status(429).json({ success: false, error: ipCheck.reason });
+  }
+
   try {
     var body = parseBody(req);
     var deviceId = body.deviceId;
@@ -65,6 +72,13 @@ module.exports = async (req, res) => {
 
     var code = codeCheck.value;
     var device = deviceCheck.value;
+
+    var deviceCheck2 = await rateLimit.checkDeviceRateLimit(device);
+    if (deviceCheck2.blocked) {
+      res.setHeader("Retry-After", Math.ceil(deviceCheck2.retryAfterMs / 1000));
+      return res.status(429).json({ success: false, error: deviceCheck2.reason });
+    }
+
     var deviceHash = crypto.sha256(device);
 
     var codeData = await redis.get("auth:redeem:" + code);
