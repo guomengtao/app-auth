@@ -661,13 +661,15 @@ module.exports = async (req, res) => {
       if (mode === "diff-compare") {
         var local = body.local || {};
         var snap = await snapshotAll();
+        var redeemCodesResult = compareRedeemCodes(Array.isArray(local.redeemCodes) ? local.redeemCodes : [], snap.redeemCodes || []);
         return res.json({
           success: true,
           mode: "diff-compare",
           action: "compare",
           remoteGeneratedAt: snap.generatedAt,
+          _debugStats: snap.stats || null,
           products: compareProducts(Array.isArray(local.products) ? local.products : [], snap.products || []),
-          redeemCodes: compareRedeemCodes(Array.isArray(local.redeemCodes) ? local.redeemCodes : [], snap.redeemCodes || []),
+          redeemCodes: redeemCodesResult,
           activationRecords: compareActivations(Array.isArray(local.activationRecords) ? local.activationRecords : [], snap.activationRecords || []),
           counters: compareCounters(local.counters || {}, snap.counters || {}),
         });

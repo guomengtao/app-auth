@@ -1644,6 +1644,7 @@
             <div class="diff-grid" id="diffGrid">
               <div class="empty" style="grid-column:1/-1">点击「🔍 开始对比」加载本地和远程数据进行逐表对比。</div>
             </div>
+            <div id="diffDebug" style="display:none;font-size:0.72rem;color:var(--muted);margin-top:12px;padding:8px 12px;background:var(--bg);border-radius:6px;border:1px solid var(--border);"></div>
           </div>
 
           <div class="panel" id="panel-decrypt">
@@ -5352,6 +5353,13 @@
         renderDiffCards(res);
         var now = new Date();
         if (ts) ts.textContent = '对比时间：' + now.toLocaleTimeString();
+        if (res._debugStats) {
+          var debugEl = document.getElementById('diffDebug');
+          if (debugEl) {
+            debugEl.textContent = 'Server stats: products=' + res._debugStats.productCount + ' codes=' + res._debugStats.redeemCodeCount + ' activations=' + res._debugStats.activationCount;
+            debugEl.style.display = 'block';
+          }
+        }
       }).catch(function(e) {
         console.error('loadDiff failed:', e);
         if (grid) grid.innerHTML = '<div class="empty" style="grid-column:1/-1">加载失败：' + escapeHtml(e.message || '网络错误') + '。请检查网络连接或重新登录。</div>';
