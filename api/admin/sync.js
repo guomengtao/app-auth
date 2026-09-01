@@ -174,6 +174,14 @@ async function applyPatch(patch) {
   };
   if (!patch || typeof patch !== "object") return report;
 
+  console.log('📦 applyPatch incoming', {
+    productCount: patch.products ? Object.keys(patch.products).length : 0,
+    codeArrayLen: patch.redeemCodes ? patch.redeemCodes.length : 0,
+    recordArrayLen: patch.activationRecords ? patch.activationRecords.length : 0,
+    deletes: patch.deletes,
+    codeSample: Array.isArray(patch.redeemCodes) && patch.redeemCodes.length ? patch.redeemCodes.slice(0, 2).map(function(c){ return c && c.code; }) : [],
+  });
+
   // 1) counters
   if (patch.counters && typeof patch.counters === "object") {
     if (Number.isFinite(Number(patch.counters.product_counter))) {
@@ -256,6 +264,7 @@ async function applyPatch(patch) {
       report.redeemCodes.skipped++;
     }
   }
+  console.log('📦 applyPatch redeemCodes result:', report.redeemCodes);
 
   var delCodes = [];
   if (Array.isArray(patch.deletedRedeemCodes)) delCodes = delCodes.concat(patch.deletedRedeemCodes);

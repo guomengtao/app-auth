@@ -3614,6 +3614,11 @@
         }
 
         if (mode === 'push') {
+          console.log('🔀 [push] local BEFORE push', {
+            products: Object.keys(getLocalProducts()).length,
+            codes: getLocalData(STORAGE_KEY_CODES, []).length,
+            records: getLocalData(STORAGE_KEY_RECORDS, []).length,
+          });
           var snap = await collectLocalPushPatch();
           var pushSanitize = await sanitizePatchDeletes(snap);
           snap = pushSanitize.patch;
@@ -3623,15 +3628,29 @@
             body: JSON.stringify({ mode: 'push', patch: snap })
           });
           if (!pushRes || !pushRes.success) throw new Error((pushRes && pushRes.error) || '推送失败');
+          console.log('🔀 [push] POST response', {
+            applied: pushRes.applied,
+            summary: pushRes.summary,
+            hasSnapshot: !!pushRes.snapshot,
+          });
           saveSyncMeta({ lastSyncAt: Date.now(), lastSyncMode: 'push', dirty: false });
           clearLocalDeletes();
-          // 推送完成后合并服务端返回的最终 products 列表到本地（避免后端分配的不同步）
-          if (pushRes.snapshot) {
-            var pushStats = (pushRes.snapshot.stats) || {};
-            mergeServerDataIntoLocal(pushRes.snapshot, { replace: false, keepLocal: true });
-          } else {
-            var pushStats = {};
+          var pushSnap = pushRes.snapshot || (pushRes.data && pushRes.data.snapshot) || pushRes.data;
+          if (pushSnap) {
+            var localCodeCount2 = getLocalData(STORAGE_KEY_CODES, []).length;
+            var serverCodeCount2 = pushSnap.redeemCodes ? pushSnap.redeemCodes.length : 0;
+            if (serverCodeCount2 === 0 && localCodeCount2 > 0) {
+              console.warn('🛡️ [push] 保护：服务器返回 0 条兑换码，但本地有 ' + localCodeCount2 + ' 条！跳过 merge 保护本地数据');
+            } else {
+              mergeServerDataIntoLocal(pushSnap, { replace: false, keepLocal: true });
+            }
           }
+          var pushStats = (pushSnap && pushSnap.stats) || {};
+          console.log('🔀 [push] local AFTER push', {
+            products: Object.keys(getLocalProducts()).length,
+            codes: getLocalData(STORAGE_KEY_CODES, []).length,
+            records: getLocalData(STORAGE_KEY_RECORDS, []).length,
+          });
           var okMsg = '✅ 推送完成 ✓ 本端 ' + (pushRes.applied || {});
           if (pushRes.summary) okMsg = '✅ 推送完成 ✓ ' + String(pushRes.summary);
           if (pushStats.activationCount != null) okMsg += ' · 服务器激活记录: ' + pushStats.activationCount;
@@ -3647,11 +3666,34 @@
         }
 
         // merge (default): fetch snapshot -> merge into local (server wins unless local is newer / deleted) -> then push local patch
+        console.log('🔀 [merge] Step 1: local BEFORE merge', {
+          products: Object.keys(getLocalProducts()).length,
+          codes: getLocalData(STORAGE_KEY_CODES, []).length,
+          records: getLocalData(STORAGE_KEY_RECORDS, []).length,
+        });
         var snap2 = await api('/api/admin/sync');
         if (!snap2 || !snap2.success) throw new Error((snap2 && snap2.error) || '获取服务端快照失败');
-        var preMergeStats = (snap2.snapshot && snap2.snapshot.stats) || {};
+        var preSnap = snap2.snapshot || snap2.data || snap2;
+        var preMergeStats = (preSnap && preSnap.stats) || {};
+        console.log('🔀 [merge] Step 2: server GET snapshot', {
+          snapStructure: Object.keys(snap2),
+          products: preSnap.products ? preSnap.products.length : 'NO_ARRAY',
+          codes: preSnap.redeemCodes ? preSnap.redeemCodes.length : 'NO_ARRAY',
+          records: preSnap.activationRecords ? preSnap.activationRecords.length : 'NO_ARRAY',
+        });
         mergeServerDataIntoLocal(snap2, { replace: false, keepLocal: true });
+        console.log('🔀 [merge] Step 3: local AFTER first merge', {
+          products: Object.keys(getLocalProducts()).length,
+          codes: getLocalData(STORAGE_KEY_CODES, []).length,
+          records: getLocalData(STORAGE_KEY_RECORDS, []).length,
+        });
         var localPatch = await collectLocalPushPatch();
+        console.log('🔀 [merge] Step 4: localPatch to push', {
+          products: localPatch.products ? Object.keys(localPatch.products).length : 0,
+          codes: localPatch.redeemCodes ? localPatch.redeemCodes.length : 0,
+          records: localPatch.activationRecords ? localPatch.activationRecords.length : 0,
+          deletes: localPatch.deletes,
+        });
         var mergeSanitize = await sanitizePatchDeletes(localPatch);
         localPatch = mergeSanitize.patch;
         var patchRes = await api('/api/admin/sync', {
@@ -3660,9 +3702,42 @@
           body: JSON.stringify({ mode: 'merge', patch: localPatch })
         });
         if (!patchRes || !patchRes.success) throw new Error((patchRes && patchRes.error) || '推送本地变更失败');
+        console.log('🔀 [merge] Step 5: POST response', {
+          applied: patchRes.applied,
+          summary: patchRes.summary,
+          hasSnapshot: !!patchRes.snapshot,
+          hasData: !!patchRes.data,
+          snapKeys: patchRes.snapshot ? Object.keys(patchRes.snapshot) : (patchRes.data ? Object.keys(patchRes.data) : []),
+        });
+        var postSnap = patchRes.snapshot || (patchRes.data && patchRes.data.snapshot) || patchRes.data;
+        console.log('🔀 [merge] Step 5b: post-push snapshot data', {
+          products: postSnap && postSnap.products ? postSnap.products.length : 'MISSING',
+          codes: postSnap && postSnap.redeemCodes ? postSnap.redeemCodes.length : 'MISSING',
+          records: postSnap && postSnap.activationRecords ? postSnap.activationRecords.length : 'MISSING',
+          stats: postSnap && postSnap.stats,
+        });
         // 最终用服务器最新快照再覆盖一次以保证一致
-        if (patchRes.snapshot) mergeServerDataIntoLocal(patchRes.snapshot, { replace: false, keepLocal: true });
-        var postMergeStats = (patchRes.snapshot && patchRes.snapshot.stats) || preMergeStats;
+        if (postSnap && (postSnap.products || postSnap.redeemCodes || postSnap.activationRecords)) {
+          // 防御：如果服务器返回 0 条兑换码但本地有 >0 条，拒绝 merge 以保护本地
+          var localCodeCount = getLocalData(STORAGE_KEY_CODES, []).length;
+          var serverCodeCount = postSnap.redeemCodes ? postSnap.redeemCodes.length : 0;
+          var localActCount = getLocalData(STORAGE_KEY_RECORDS, []).length;
+          var serverActCount = postSnap.activationRecords ? postSnap.activationRecords.length : 0;
+          if (serverCodeCount === 0 && localCodeCount > 0) {
+            console.warn('🛡️ [merge] 保护：服务器返回 0 条兑换码，但本地有 ' + localCodeCount + ' 条！跳过第二次 merge 保护本地数据');
+          } else if (serverActCount === 0 && localActCount > 0) {
+            console.warn('🛡️ [merge] 保护：服务器返回 0 条激活记录，但本地有 ' + localActCount + ' 条！跳过激活记录 merge');
+            mergeServerDataIntoLocal({ products: postSnap.products, redeemCodes: postSnap.redeemCodes, counters: postSnap.counters }, { replace: false, keepLocal: true });
+          } else {
+            mergeServerDataIntoLocal(postSnap, { replace: false, keepLocal: true });
+          }
+        }
+        console.log('🔀 [merge] Step 6: local AFTER final merge', {
+          products: Object.keys(getLocalProducts()).length,
+          codes: getLocalData(STORAGE_KEY_CODES, []).length,
+          records: getLocalData(STORAGE_KEY_RECORDS, []).length,
+        });
+        var postMergeStats = (postSnap && postSnap.stats) || preMergeStats;
         saveSyncMeta({ lastSyncAt: Date.now(), lastSyncMode: 'merge', dirty: false });
         clearLocalDeletes();
         var okMsg2 = '✅ 一键双向同步完成 ✓ <b>' + (postMergeStats.activationCount || 0) + '</b> 激活记录 · <b>' + (postMergeStats.redeemCodeCount || 0) + '</b> 兑换码';
