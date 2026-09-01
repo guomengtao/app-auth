@@ -4034,24 +4034,39 @@
         var m = s.month || {};
         // meta info
         if (metaEl) {
+          var neonStatus = '';
+          var neonConsumption = s.neon && s.neon.consumption;
+          if (neonConsumption && neonConsumption.configured && !neonConsumption.error) {
+            neonStatus = ' · <span class="tag t-ok">NEON_API_KEY 已配置（Neon API 精确数据已合并）</span>';
+          } else if (neonConsumption && neonConsumption.error) {
+            neonStatus = ' · <span class="tag t-warn">NEON_API_KEY 已配置但 API 调用失败: ' + escapeHtml(String(neonConsumption.error).slice(0, 60)) + '</span>';
+          } else {
+            neonStatus = ' · <span class="tag t-warn">未配置 NEON_API_KEY，数据为本页估算值</span>';
+          }
           metaEl.innerHTML =
             '账单月份 <span class="tag t-code" style="margin-left:2px;margin-right:10px">' + escapeHtml(m.key || '-') + '</span>' +
             '本月已过 <strong>' + escapeHtml(String(m.percentMonthElapsed || 0)) + '%</strong> (' + escapeHtml(String(m.elapsedDays || 0)) + ' / ' + escapeHtml(String(m.totalDaysInMonth || 0)) + ' 天)' +
             ' · 下次重置：<strong>' + new Date(m.nextResetUtcIso || new Date()).toLocaleDateString('zh-CN') + '</strong>（UTC 00:00）' +
-            (s.neon && s.neon.apiKeyConfigured ? ' · <span class="tag t-ok">NEON_API_KEY 已配置（可切换到精确接口查询）</span>' : ' · <span class="tag t-warn">未配置 NEON_API_KEY，数据为本页估算值</span>');
+            neonStatus;
         }
         // Cards
         if (cardsEl) {
           var html = '';
           var freeH = Number(c.freeHours) || 100;
           var usedH = Number(c.usedHoursEstimate) || 0;
-          var pctH = (usedH / freeH) * 100;
+          var apiH = Number(c.neonApiHours);
+          var showApi = !isNaN(apiH) && apiH > 0;
+          var displayH = showApi ? apiH : usedH;
+          var pctH = (displayH / freeH) * 100;
+          var computeSubtitle = showApi
+            ? 'Neon API 精确: <strong>' + apiH.toFixed(3) + ' h</strong> · 本地估算: <strong>' + usedH.toFixed(3) + ' h</strong> · 冷启动 <strong>' + escapeHtml(String(c.coldStarts || 0)) + '</strong> 次'
+            : '剩余约 <strong>' + Math.max(0, Number(c.remainingHoursEstimate || 0)).toFixed(1) + ' h</strong>';
           html += _quotaCard(
             '🖥️ 计算小时 (Compute Hours · 每月100h)',
-            Number(usedH).toFixed(2) + '<small>小时</small>',
+            Number(displayH).toFixed(showApi ? 3 : 2) + '<small>小时</small>',
             freeH + ' 小时',
             pctH,
-            '剩余约 <strong>' + Math.max(0, Number(c.remainingHoursEstimate || 0)).toFixed(1) + ' h</strong>',
+            computeSubtitle,
             '冷启动 <strong>' + escapeHtml(String(c.coldStarts || 0)) + '</strong> 次 · 日均 <strong>' + escapeHtml(String(c.dailyAverageHours || 0)) + ' h</strong> · 按当前速率估算月末会用 <strong style="color:' + (Number(c.projectedHoursAtCurrentRate || 0) > freeH ? '#b91c1c' : '#111827') + '">' + escapeHtml(String(c.projectedHoursAtCurrentRate || 0)) + ' h</strong>'
           );
           var freeGiB = Number(st.freeGiB) || 0.5;
