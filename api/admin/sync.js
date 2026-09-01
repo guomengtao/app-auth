@@ -673,14 +673,14 @@ module.exports = async (req, res) => {
   if (req.method === "POST") {
     var body = parseBody(req);
     // 兼容两种前端：body.mode(新) / body.action(旧)
-    var mode = String(body.mode || body.action || "merge");
-    if (!["push", "pull", "merge", "diff-compare", "diff-fix"].includes(mode)) mode = "merge";
+    var mode = String(body.mode || body.action || "pull");
+    if (!["push", "pull", "diff-compare", "diff-fix"].includes(mode)) mode = "pull";
     try {
       if (mode === "pull") {
         var s = await snapshotAll();
         return res.json({ success: true, mode: "pull", snapshot: s, data: s });
       }
-      if (mode === "push" || mode === "merge") {
+      if (mode === "push") {
         if (!body.patch && !body.data) {
           return res.status(400).json({ success: false, error: "Missing patch payload" });
         }
@@ -689,16 +689,7 @@ module.exports = async (req, res) => {
         var summary = summarizeReport(r);
         // Wait 800ms for Neon read-replica to catch up after writes
         await new Promise(function(resolve) { setTimeout(resolve, 800); });
-        var after = (mode === "merge" || mode === "push") ? await snapshotAll() : null;
-        if (mode === "merge") {
-          return res.json({
-            success: true,
-            mode: "merge",
-            applied: r,
-            summary: summary,
-            snapshot: after,
-          });
-        }
+        var after = await snapshotAll();
         return res.json({
           success: true,
           mode: "push",
