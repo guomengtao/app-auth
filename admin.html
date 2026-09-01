@@ -5303,16 +5303,27 @@
     var _diffCache = null;
 
     function getLocalSnapshot() {
-      var products = JSON.parse(localStorage.getItem('auth_products') || '[]');
-      var redeemCodes = JSON.parse(localStorage.getItem('auth_redeem_codes') || '[]');
-      var activationRecords = JSON.parse(localStorage.getItem('auth_activation_records') || '[]');
-      var productCounter = localStorage.getItem('auth_product_counter') || '0';
+      var productsObj = getLocalProducts();
+      var products = [];
+      if (productsObj && typeof productsObj === 'object') {
+        Object.keys(productsObj).forEach(function(id) {
+          var p = productsObj[id];
+          if (p && typeof p === 'object') {
+            products.push(Object.assign({ id: String(id).padStart(2, '0') }, p));
+          }
+        });
+      }
+      var codesRaw = getLocalData(STORAGE_KEY_CODES, []);
+      var redeemCodes = Array.isArray(codesRaw) ? codesRaw : [];
+      var recordsRaw = getLocalData(STORAGE_KEY_RECORDS, []);
+      var activationRecords = Array.isArray(recordsRaw) ? recordsRaw : [];
+      var counters = getLocalCounters();
       return {
         products: products,
         redeemCodes: redeemCodes,
         activationRecords: activationRecords,
         counters: {
-          product_counter: Number(productCounter) || 0
+          product_counter: Number(counters.product_counter) || 0
         }
       };
     }
