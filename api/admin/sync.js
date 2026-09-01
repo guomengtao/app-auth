@@ -271,15 +271,25 @@ async function applyPatch(patch) {
   if (Array.isArray(patch.deletedProductIds)) delPids = delPids.concat(patch.deletedProductIds);
   if (Array.isArray(deletes.productIds)) delPids = delPids.concat(deletes.productIds);
   var seenPid = {};
+  var productDeleteProtected = 0;
   for (var di = 0; di < delPids.length; di++) {
     var did = String(delPids[di]).padStart(2, "0");
     if (seenPid[did]) continue;
     seenPid[did] = true;
     if (/^\d{2}$/.test(did)) {
+      var exists = await redis.hget("auth:products", did);
+      if (!exists) {
+        productDeleteProtected++;
+        console.warn("applyPatch: delete protection - product " + did + " does not exist on server, skip delete");
+        continue;
+      }
       await redis.hdel("auth:products", did);
       try { await redis.srem("auth:product_ids", did); } catch (_) {}
       report.products.deleted++;
     }
+  }
+  if (productDeleteProtected > 0) {
+    report.products.deleteProtected = productDeleteProtected;
   }
 
   // 3) redeem codes: 支持数组（前端）或对象两种输入
@@ -321,15 +331,25 @@ async function applyPatch(patch) {
   if (Array.isArray(patch.deletedRedeemCodes)) delCodes = delCodes.concat(patch.deletedRedeemCodes);
   if (Array.isArray(deletes.redeemCodes)) delCodes = delCodes.concat(deletes.redeemCodes);
   var seenCode = {};
+  var codeDeleteProtected = 0;
   for (var dk = 0; dk < delCodes.length; dk++) {
     var dcode = String(delCodes[dk]).toUpperCase();
     if (seenCode[dcode]) continue;
     seenCode[dcode] = true;
     if (/^[A-Z0-9]{3,16}$/.test(dcode)) {
+      var codeExists = await redis.get("auth:redeem:" + dcode);
+      if (!codeExists) {
+        codeDeleteProtected++;
+        console.warn("applyPatch: delete protection - redeem code " + dcode + " does not exist on server, skip delete");
+        continue;
+      }
       await redis.del("auth:redeem:" + dcode);
       try { await redis.srem("auth:redeem_codes", dcode); } catch (_) {}
       report.redeemCodes.deleted++;
     }
+  }
+  if (codeDeleteProtected > 0) {
+    report.redeemCodes.deleteProtected = codeDeleteProtected;
   }
 
   // 4) activation records: 支持数组（前端）或对象两种；激活记录以服务器为权威（客户端不允许覆盖服务器记录），只有服务器不存在的新激活才插入
@@ -381,11 +401,13 @@ function summarizeReport(r) {
   if (r.products) {
     parts.push(
       "产品: " + r.products.added + "新增/" + r.products.updated + "更新/" + r.products.deleted + "删除/" + r.products.skipped + "跳过"
+      + (r.products.deleteProtected ? "(" + r.products.deleteProtected + "删除保护)" : "")
     );
   }
   if (r.redeemCodes) {
     parts.push(
       "兑换码: " + r.redeemCodes.added + "新增/" + r.redeemCodes.updated + "更新/" + r.redeemCodes.deleted + "删除/" + r.redeemCodes.skipped + "跳过"
+      + (r.redeemCodes.deleteProtected ? "(" + r.redeemCodes.deleteProtected + "删除保护)" : "")
     );
   }
   if (r.activationRecords) {

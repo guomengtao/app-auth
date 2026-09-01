@@ -3769,12 +3769,12 @@
           if (!pull || !pull.success) throw new Error((pull && pull.error) || '拉取失败');
           var serverStats = (pull.snapshot && pull.snapshot.stats) || {};
           mergeServerDataIntoLocal(pull, { replace: true });
+          clearLocalDeletes();
           saveSyncMeta({ lastSyncAt: Date.now(), lastSyncMode: 'pull', dirty: false });
           var statHtml = '📥 服务器返回 <b>' + (serverStats.productCount || 0) + '</b> 产品 / <b>' + (serverStats.redeemCodeCount || 0) + '</b> 兑换码 / <b>' + (serverStats.activationCount || 0) + '</b> 激活记录';
           showSyncBanner('✅ 拉取完成 ✓ ' + statHtml + '（已与本地合并）', 'ok');
           showToast('拉取完成 - ' + (serverStats.activationCount || 0) + ' 条激活记录', 'success');
           refreshQuotaCache();
-          // 🔄 强制刷新所有面板（不管当前 tab 是什么）
           try { if (typeof loadProducts === 'function') loadProducts(); } catch (_) {}
           try { if (typeof loadCodes === 'function') loadCodes(); } catch (_) {}
           try { if (typeof loadRecords === 'function') loadRecords(); } catch (_) {}
@@ -4373,7 +4373,12 @@
       saveLocalData(STORAGE_KEY_RECORDS, out);
     }
 
-    function clearLocalDeletes() { saveLocalDeletes({ deletedProductIds: [], deletedRedeemCodes: [] }); }
+    function clearLocalDeletes() {
+      var s = readSettings();
+      if (s.autoClearDeletes !== false) {
+        saveLocalDeletes({ deletedProductIds: [], deletedRedeemCodes: [] });
+      }
+    }
 
     var _autoSyncCodesTimer = null;
     function autoSyncCodes() {
