@@ -52,6 +52,19 @@
     .btn-login:active { transform: scale(0.98); }
     .btn-login:disabled { opacity: 0.5; cursor: not-allowed; }
     .btn-login svg { width: 20px; height: 20px; }
+    .input-password {
+      width: 100%;
+      padding: 14px 16px;
+      border: 2px solid #e0e0e0;
+      border-radius: 12px;
+      font-size: 1rem;
+      text-align: center;
+      margin-bottom: 16px;
+      outline: none;
+      transition: border-color 0.2s;
+      box-sizing: border-box;
+    }
+    .input-password:focus { border-color: #6c63ff; }
     .hint {
       margin-top: 24px;
       font-size: 0.75rem;
@@ -134,10 +147,12 @@
     <h1>管理员登录</h1>
     <p class="subtitle">仅限管理员登录</p>
 
+    <input type="password" id="passwordInput" class="input-password" placeholder="请输入管理员密码" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
     <button class="btn-login" id="loginBtn" onclick="doLogin()">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 19.5h20L12 2z"/></svg>
       认证登录
     </button>
+    <p class="hint" id="loginError" style="display:none;color:#e53e3e;"></p>
 
     <a href="/" class="back-link">← 返回首页</a>
   </div>
@@ -161,25 +176,40 @@
     }
 
     async function doLogin() {
+      var password = document.getElementById('passwordInput').value.trim();
+      var errorEl = document.getElementById('loginError');
+      errorEl.style.display = 'none';
+
+      if (!password) {
+        errorEl.textContent = '请输入密码';
+        errorEl.style.display = 'block';
+        return;
+      }
+
       var btn = document.getElementById('loginBtn');
       btn.disabled = true;
-      btn.textContent = '检测连接中...';
+      btn.textContent = '验证中...';
 
       try {
-        var res = await fetch('/api/admin/stats');
-        if (res.ok) {
-          window.location.href = '/admin_Dx23.html';
-          return;
-        }
-        if (res.status === 401 || res.status === 403) {
+        var res = await fetch('/api/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: password })
+        });
+        var data = await res.json();
+        if (data.success) {
           window.location.href = '/admin_Dx23.html';
           return;
         }
         btn.disabled = false;
         btn.textContent = '认证登录';
-        showError('服务器返回错误 (HTTP ' + res.status + ')，请稍后重试。');
+        errorEl.textContent = data.error || '密码错误';
+        errorEl.style.display = 'block';
       } catch (e) {
-        window.location.href = '/admin_Dx23.html';
+        btn.disabled = false;
+        btn.textContent = '认证登录';
+        errorEl.textContent = '无法连接到服务器，请检查网络';
+        errorEl.style.display = 'block';
       }
     }
 
