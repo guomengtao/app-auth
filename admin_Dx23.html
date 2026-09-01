@@ -1716,7 +1716,7 @@
         <li><a href="javascript:void(0)" onclick="switchTab('products')" data-tab="products"><span class="menu-icon">📦</span><span class="menu-text">产品管理</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('codes')" data-tab="codes"><span class="menu-icon">🎫</span><span class="menu-text">兑换码管理</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('records')" data-tab="records"><span class="menu-icon">📋</span><span class="menu-text">激活记录</span></a></li>
-        <li><a href="javascript:void(0)" onclick="switchTab('direct-activate')" data-tab="direct-activate"><span class="menu-icon">⚡</span><span class="menu-text">直接生成</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('direct-activate')" data-tab="direct-activate"><span class="menu-icon">⚡</span><span class="menu-text">快捷激活</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('decrypt')" data-tab="decrypt"><span class="menu-icon">🔍</span><span class="menu-text">解密验证</span></a></li>
       </ul>
       <div class="sidebar-nav-label">其他栏目</div>
@@ -1725,6 +1725,7 @@
         <li><a href="javascript:void(0)" onclick="switchTab('health')" data-tab="health"><span class="menu-icon">🩺</span><span class="menu-text">服务器状态</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('vercel-logs')" data-tab="vercel-logs"><span class="menu-icon">📜</span><span class="menu-text">Vercel日志</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('settings')" data-tab="settings"><span class="menu-icon">⚙️</span><span class="menu-text">设置</span></a></li>
+        <li><a href="javascript:void(0)" onclick="logout()" style="color:rgba(255,150,150,0.65)"><span class="menu-icon">🚪</span><span class="menu-text">退出登录</span></a></li>
       </ul>
       <div class="sidebar-footer">
         <button class="sidebar-toggle" onclick="toggleSidebar()" title="折叠菜单">◀</button>
@@ -2200,9 +2201,9 @@
           </div>
 
         <!-- Direct Activate Panel -->
-        <div id="panel-direct-activate" class="panel" style="display:none">
+        <div id="panel-direct-activate" class="panel">
           <div class="toolbar">
-            <h2>直接生成激活码</h2>
+            <h2>快捷激活</h2>
             <span class="muted">跳过兑换码流程，直接为设备生成激活码</span>
           </div>
           <div class="dash-card" style="margin-bottom:16px">
@@ -2777,7 +2778,7 @@
       codes: { title: '兑换码管理', sub: '生成、筛选与导出兑换码' },
       records: { title: '激活记录', sub: '查看设备激活历史' },
       decrypt: { title: '解密验证', sub: '离线解析激活码内容' },
-      'direct-activate': { title: '直接生成', sub: '跳过兑换码流程，直接为设备生成激活码' },
+      'direct-activate': { title: '快捷激活', sub: '跳过兑换码流程，直接为设备生成激活码' },
       quota: { title: '免费额度', sub: 'Neon Postgres 免费资源消耗与剩余额度估算' },
       health: { title: '服务器状态', sub: '检测 Postgres / 鉴权 / 激活链路是否正常' },
       'vercel-logs': { title: 'Vercel日志', sub: '部署事件与函数运行日志（Vercel API）' },
