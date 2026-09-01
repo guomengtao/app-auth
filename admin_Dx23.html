@@ -1622,6 +1622,84 @@
     .diff-detail-tag.local-only { background: #dbeafe; color: #1e40af; }
     .diff-detail-tag.remote-only { background: #ede9fe; color: #6d28d9; }
     .diff-detail-tag.changed { background: #fef3c7; color: #92400e; }
+
+    /* Direct Activate multi-select */
+    .multi-select-wrap {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px;
+      min-height: 42px;
+      background: var(--surface);
+      cursor: pointer;
+      position: relative;
+    }
+    .multi-select-wrap:focus-within { border-color: var(--accent); }
+    .multi-select-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    .multi-select-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--accent);
+      color: #fff;
+      padding: 3px 10px;
+      border-radius: 14px;
+      font-size: 0.8rem;
+    }
+    .multi-select-tag .tag-rm {
+      cursor: pointer;
+      font-weight: bold;
+      opacity: 0.7;
+    }
+    .multi-select-tag .tag-rm:hover { opacity: 1; }
+    .multi-select-drop {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      z-index: 50;
+      max-height: 200px;
+      overflow-y: auto;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+      margin-top: 4px;
+    }
+    .multi-select-drop-item {
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.15s;
+    }
+    .multi-select-drop-item:hover { background: var(--row-hover); }
+    .multi-select-drop-item.selected { background: #eef2ff; color: var(--accent); font-weight: 600; }
+    .multi-select-drop-item .check-mark { width: 16px; text-align: center; }
+    .multi-select-placeholder { color: var(--muted); font-size: 0.82rem; padding: 4px; }
+    .redeem-preview {
+      display: inline-block;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--accent);
+      padding: 4px 12px;
+      background: #f0f0ff;
+      border-radius: 6px;
+      letter-spacing: 2px;
+    }
+    .field-hint {
+      display: block;
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
   </style>
 </head>
 <body>
@@ -1638,6 +1716,7 @@
         <li><a href="javascript:void(0)" onclick="switchTab('products')" data-tab="products"><span class="menu-icon">📦</span><span class="menu-text">产品管理</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('codes')" data-tab="codes"><span class="menu-icon">🎫</span><span class="menu-text">兑换码管理</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('records')" data-tab="records"><span class="menu-icon">📋</span><span class="menu-text">激活记录</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('direct-activate')" data-tab="direct-activate"><span class="menu-icon">⚡</span><span class="menu-text">直接生成</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('decrypt')" data-tab="decrypt"><span class="menu-icon">🔍</span><span class="menu-text">解密验证</span></a></li>
       </ul>
       <div class="sidebar-nav-label">其他栏目</div>
@@ -2119,6 +2198,65 @@
               </div>
             </div>
           </div>
+
+        <!-- Direct Activate Panel -->
+        <div id="panel-direct-activate" class="panel" style="display:none">
+          <div class="toolbar">
+            <h2>直接生成激活码</h2>
+            <span class="muted">跳过兑换码流程，直接为设备生成激活码</span>
+          </div>
+          <div class="dash-card" style="margin-bottom:16px">
+            <div class="field">
+              <label>设备ID</label>
+              <input type="text" id="daDeviceId" placeholder="输入设备ID" maxlength="30" autocomplete="off">
+              <span class="field-hint" id="daDeviceHint"></span>
+            </div>
+            <div class="field">
+              <label>产品</label>
+              <div class="multi-select-wrap" id="daProductWrap">
+                <div class="multi-select-tags" id="daProductTags"></div>
+                <div class="multi-select-drop" id="daProductDrop" style="display:none"></div>
+              </div>
+              <span class="field-hint">点击选择产品，支持多选</span>
+            </div>
+            <div class="field">
+              <label>激活月数</label>
+              <div style="display:flex;align-items:center;gap:12px">
+                <input type="number" id="daMonths" min="1" max="98" value="12" style="width:120px" autocomplete="off">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap">
+                  <input type="checkbox" id="daPermanent"> 永久有效
+                </label>
+              </div>
+              <span class="field-hint" id="daMonthsHint">1-98 月，勾选永久后自动设为 99</span>
+            </div>
+            <div class="field">
+              <label>兑换码</label>
+              <span id="daRedeemPreview" class="redeem-preview">—</span>
+              <span class="field-hint">自动生成4位混合码</span>
+            </div>
+            <div style="margin-top:16px">
+              <button class="btn btn-primary" id="daGenerateBtn" onclick="doDirectActivate()">生成激活码</button>
+              <span class="muted" style="margin-left:12px;font-size:0.8rem" id="daStatus"></span>
+            </div>
+          </div>
+          <div id="daResultArea" style="display:none">
+            <div class="toolbar">
+              <h3>生成结果</h3>
+              <div>
+                <button class="btn btn-sm" onclick="daCopyAllCodes()">复制全部激活码</button>
+                <button class="btn btn-sm" onclick="daCopyAllRedeem()">复制全部兑换码</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr><th>产品</th><th>激活码</th><th>兑换码</th><th>设备ID</th><th>月数</th><th>到期</th></tr>
+                </thead>
+                <tbody id="daResultBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
 
       </main>
     </div>
@@ -2639,6 +2777,7 @@
       codes: { title: '兑换码管理', sub: '生成、筛选与导出兑换码' },
       records: { title: '激活记录', sub: '查看设备激活历史' },
       decrypt: { title: '解密验证', sub: '离线解析激活码内容' },
+      'direct-activate': { title: '直接生成', sub: '跳过兑换码流程，直接为设备生成激活码' },
       quota: { title: '免费额度', sub: 'Neon Postgres 免费资源消耗与剩余额度估算' },
       health: { title: '服务器状态', sub: '检测 Postgres / 鉴权 / 激活链路是否正常' },
       'vercel-logs': { title: 'Vercel日志', sub: '部署事件与函数运行日志（Vercel API）' },
@@ -2687,6 +2826,7 @@
       if (tab === 'health') runHealthCheck();
       if (tab === 'vercel-logs') loadVercelLogs();
       if (tab === 'settings') initSettingsPanel();
+      if (tab === 'direct-activate') initDirectActivate();
     }
 
     function toggleSidebar() {
@@ -4405,6 +4545,238 @@
         if (cardsEl) cardsEl.innerHTML = '<div class="empty" style="grid-column:1/-1">加载失败：' + escapeHtml(e.message || '未知错误') + '。请检查 /api/admin/health?section=quota 是否部署成功，或重新登录。</div>';
         showToast('加载额度数据失败: ' + (e.message || '未知错误'), 'error');
       });
+    }
+
+    // ========== Direct Activate ==========
+    var daSelectedProducts = {};
+    var daProductsCache = [];
+    var daResults = [];
+
+    function initDirectActivate() {
+      if (!requireOnlineMode()) return;
+      daLoadProducts();
+      daUpdateRedeemPreview();
+      var deviceInput = document.getElementById('daDeviceId');
+      if (deviceInput) {
+        deviceInput.addEventListener('input', function() {
+          var hint = document.getElementById('daDeviceHint');
+          var val = deviceInput.value.trim();
+          if (val && val.length >= 4) {
+            hint.textContent = '后4位: ' + val.slice(-4);
+          } else if (val) {
+            hint.textContent = '不足4位: ' + val;
+          } else {
+            hint.textContent = '';
+          }
+        });
+      }
+      var permCheck = document.getElementById('daPermanent');
+      var monthsInput = document.getElementById('daMonths');
+      if (permCheck && monthsInput) {
+        permCheck.addEventListener('change', function() {
+          if (permCheck.checked) {
+            monthsInput.disabled = true;
+            monthsInput.value = '99';
+            document.getElementById('daMonthsHint').textContent = '永久有效';
+          } else {
+            monthsInput.disabled = false;
+            monthsInput.value = '12';
+            document.getElementById('daMonthsHint').textContent = '1-98 月，勾选永久后自动设为 99';
+          }
+        });
+      }
+      var wrap = document.getElementById('daProductWrap');
+      if (wrap) {
+        wrap.addEventListener('click', function(e) {
+          e.stopPropagation();
+          var drop = document.getElementById('daProductDrop');
+          if (drop) {
+            drop.style.display = drop.style.display === 'none' ? 'block' : 'none';
+          }
+        });
+      }
+      document.addEventListener('click', function() {
+        var drop = document.getElementById('daProductDrop');
+        if (drop) drop.style.display = 'none';
+      });
+    }
+
+    function daLoadProducts() {
+      daProductsCache = getLocalData(STORAGE_KEY_PRODUCTS) || [];
+      if (daProductsCache.length === 0 && ADMIN_MODE === 'online') {
+        fetch('/api/admin/products', { credentials: 'include' })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data.success && data.products) {
+              daProductsCache = data.products;
+              saveLocalData(STORAGE_KEY_PRODUCTS, data.products);
+              daRenderProductDropdown();
+            }
+          })
+          .catch(function() {});
+      } else {
+        daRenderProductDropdown();
+      }
+    }
+
+    function daRenderProductDropdown() {
+      var drop = document.getElementById('daProductDrop');
+      if (!drop) return;
+      var html = '';
+      if (daProductsCache.length === 0) {
+        html = '<div class="multi-select-drop-item" style="color:var(--muted)">No products, please add a product first</div>';
+      } else {
+        for (var i = 0; i < daProductsCache.length; i++) {
+          var p = daProductsCache[i];
+          var pid = p.id;
+          var selected = daSelectedProducts[pid];
+          html += '<div class="multi-select-drop-item' + (selected ? ' selected' : '') + '" onclick="event.stopPropagation(); daToggleProduct(\'' + escapeHtml(pid) + '\')">';
+          html += '<span class="check-mark">' + (selected ? '✓' : '') + '</span>';
+          html += escapeHtml(pid) + ' - ' + escapeHtml(p.name || '');
+          html += '</div>';
+        }
+      }
+      drop.innerHTML = html;
+      daRenderTags();
+    }
+
+    function daToggleProduct(pid) {
+      if (daSelectedProducts[pid]) {
+        delete daSelectedProducts[pid];
+      } else {
+        for (var i = 0; i < daProductsCache.length; i++) {
+          if (daProductsCache[i].id === pid) {
+            daSelectedProducts[pid] = daProductsCache[i].name || pid;
+            break;
+          }
+        }
+      }
+      daRenderProductDropdown();
+    }
+
+    function daRenderTags() {
+      var tags = document.getElementById('daProductTags');
+      if (!tags) return;
+      var pids = Object.keys(daSelectedProducts);
+      if (pids.length === 0) {
+        tags.innerHTML = '<span class="multi-select-placeholder">Click to select products</span>';
+        return;
+      }
+      var html = '';
+      for (var i = 0; i < pids.length; i++) {
+        var pid = pids[i];
+        html += '<span class="multi-select-tag">' + escapeHtml(pid) + ' ' + escapeHtml(daSelectedProducts[pid]) + ' <span class="tag-rm" onclick="event.stopPropagation(); daRemoveProduct(\'' + escapeHtml(pid) + '\')">×</span></span>';
+      }
+      tags.innerHTML = html;
+    }
+
+    function daRemoveProduct(pid) {
+      delete daSelectedProducts[pid];
+      daRenderProductDropdown();
+    }
+
+    function daUpdateRedeemPreview() {
+      var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      var code = '';
+      for (var i = 0; i < 4; i++) {
+        code += chars[Math.floor(Math.random() * chars.length)];
+      }
+      var el = document.getElementById('daRedeemPreview');
+      if (el) el.textContent = code;
+    }
+
+    function doDirectActivate() {
+      var deviceId = document.getElementById('daDeviceId').value.trim();
+      var pids = Object.keys(daSelectedProducts);
+      var monthsVal = parseInt(document.getElementById('daMonths').value, 10);
+      var statusEl = document.getElementById('daStatus');
+      var btn = document.getElementById('daGenerateBtn');
+
+      if (!deviceId) { showToast('Please enter device ID', 'error'); return; }
+      if (pids.length === 0) { showToast('Please select at least one product', 'error'); return; }
+      if (!Number.isFinite(monthsVal) || monthsVal < 1 || monthsVal > 99) { showToast('Months must be 1-99', 'error'); return; }
+
+      btn.disabled = true;
+      statusEl.textContent = 'Generating...';
+
+      fetch('/api/admin/direct-activate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ deviceId: deviceId, productIds: pids, months: monthsVal })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        btn.disabled = false;
+        if (!data.success) {
+          statusEl.textContent = '';
+          showToast('Generation failed: ' + (data.error || 'Unknown error'), 'error');
+          return;
+        }
+        daResults = data.results || [];
+        statusEl.textContent = 'Generated ' + daResults.length + ' code(s)';
+        daRenderResults();
+        daUpdateRedeemPreview();
+        showToast('Generated ' + daResults.length + ' activation code(s)', 'success');
+      })
+      .catch(function(e) {
+        btn.disabled = false;
+        statusEl.textContent = '';
+        showToast('Request failed: ' + (e.message || 'Network error'), 'error');
+      });
+    }
+
+    function daRenderResults() {
+      var area = document.getElementById('daResultArea');
+      var tbody = document.getElementById('daResultBody');
+      if (!area || !tbody) return;
+      area.style.display = 'block';
+      var html = '';
+      for (var i = 0; i < daResults.length; i++) {
+        var r = daResults[i];
+        var expires = r.expiresAt ? new Date(r.expiresAt).toLocaleDateString('zh-CN') : 'Permanent';
+        html += '<tr>';
+        html += '<td>' + escapeHtml(r.productName) + ' (' + escapeHtml(r.productId) + ')</td>';
+        html += '<td class="mono" style="cursor:pointer" onclick="daCopyCode(\'' + escapeHtml(r.activationCode) + '\')" title="Click to copy">' + escapeHtml(r.activationCode) + '</td>';
+        html += '<td class="mono">' + escapeHtml(r.redeemCode) + '</td>';
+        html += '<td class="mono">' + escapeHtml(r.deviceId) + '</td>';
+        html += '<td>' + r.months + '</td>';
+        html += '<td>' + expires + '</td>';
+        html += '</tr>';
+      }
+      tbody.innerHTML = html;
+    }
+
+    function daCopyCode(code) {
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(code).then(function() {
+          showToast('Copied: ' + code, 'success');
+        }).catch(function() {
+          showToast('Copy failed', 'error');
+        });
+      } else {
+        var ta = document.createElement('textarea');
+        ta.value = code;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast('Copied: ' + code, 'success');
+      }
+    }
+
+    function daCopyAllCodes() {
+      var codes = daResults.map(function(r) { return r.activationCode; }).join('\n');
+      if (!codes) { showToast('No results to copy', 'error'); return; }
+      daCopyCode(codes);
+    }
+
+    function daCopyAllRedeem() {
+      var codes = daResults.map(function(r) { return r.redeemCode; }).join('\n');
+      if (!codes) { showToast('No results to copy', 'error'); return; }
+      daCopyCode(codes);
     }
 
   </script>
