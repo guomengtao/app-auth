@@ -54,6 +54,40 @@ async function scanAllSetMembers(setKey) {
 
 async function snapshotAll() {
   try { await quota.bumpQuotaTick("/api/admin/sync"); } catch (_) {}
+
+  var result = await _buildSnapshot();
+  var retried = false;
+
+  // 🔄 一致性校验：如果 set 成员数与实际取到的值数量差距过大，说明快照撕裂，重试一次
+  var codeGap = result._codeSetSize - result.redeemCodes.length;
+  var actGap = result._activationSetSize - result.activationRecords.length;
+  var threshold = Math.max(5, Math.floor(result._codeSetSize * 0.1));
+  if (!retried && (codeGap > threshold || actGap > threshold)) {
+    console.warn("📊 snapshotAll: consistency check failed (codeGap=" + codeGap + ", actGap=" + actGap + "), retrying after 200ms delay...");
+    await new Promise(function(resolve) { setTimeout(resolve, 200); });
+    result = await _buildSnapshot();
+    retried = true;
+  }
+
+  return {
+    schema: 2,
+    generatedAt: Date.now(),
+    counters: {
+      product_counter: result.productCounter,
+    },
+    products: result.products,
+    redeemCodes: result.redeemCodes,
+    activationRecords: result.activationRecords,
+    stats: {
+      productCount: result.products.length,
+      redeemCodeCount: result.redeemCodes.length,
+      activationCount: result.activationRecords.length,
+      _retried: retried ? 1 : 0,
+    },
+  };
+}
+
+async function _buildSnapshot() {
   var pAll = await redis.hgetall("auth:products");
   var productsArray = [];
   if (pAll && typeof pAll === "object") {
@@ -127,19 +161,12 @@ async function snapshotAll() {
   });
 
   return {
-    schema: 2,
-    generatedAt: Date.now(),
-    counters: {
-      product_counter: productCounter,
-    },
+    productCounter: productCounter,
     products: productsArray,
     redeemCodes: redeemCodesArray,
     activationRecords: activationsArray,
-    stats: {
-      productCount: productsArray.length,
-      redeemCodeCount: redeemCodesArray.length,
-      activationCount: activationsArray.length,
-    },
+    _codeSetSize: codeKeys.length,
+    _activationSetSize: actKeys.length,
   };
 }
 

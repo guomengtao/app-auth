@@ -4371,6 +4371,60 @@
       Object.keys(rMap).forEach(function(k) { out.push(rMap[k]); });
       out.sort(function(a, b) { return (Number(b.generated_at) || 0) - (Number(a.generated_at) || 0); });
       saveLocalData(STORAGE_KEY_RECORDS, out);
+
+      // 5. 清理本地僵尸数据：服务器不存在的条目，本地也应删除（保守策略：仅当本地时间戳早于服务器快照时才删除）
+      if (!forceReplace && !suspiciousServer) {
+        var snapGeneratedAt = Number(snap.generatedAt) || Date.now();
+        var cleanedProducts = 0, cleanedCodes = 0;
+
+        // 清理本地多余产品（服务器没有的）
+        var serverPidSet = {};
+        sProducts.forEach(function(p) { if (p && p.id) serverPidSet[String(p.id).padStart(2, '0')] = true; });
+        var currentPLocal = getLocalProducts();
+        Object.keys(currentPLocal).forEach(function(id) {
+          if (!serverPidSet[id] && !delPidSet[id]) {
+            var lTs = Number(currentPLocal[id].updated_at || currentPLocal[id].created_at || 0);
+            if (lTs < snapGeneratedAt) {
+              delete currentPLocal[id];
+              cleanedProducts++;
+              console.log('🧹 清理本地孤立产品:', id, 'localTs:', lTs, 'snapTs:', snapGeneratedAt);
+            }
+          }
+        });
+        if (cleanedProducts > 0) {
+          saveLocalProducts(currentPLocal);
+          console.log('🧹 共清理 ' + cleanedProducts + ' 个本地孤立产品');
+        }
+
+        // 清理本地多余兑换码（服务器没有的）
+        var serverCodeSet = {};
+        sCodes.forEach(function(c) { if (c && c.code) serverCodeSet[String(c.code).toUpperCase()] = true; });
+        var currentCodes = getLocalData(STORAGE_KEY_CODES, []);
+        var cleanedCodesArr = [];
+        currentCodes.forEach(function(c) {
+          if (!c || !c.code) return;
+          var code = String(c.code).toUpperCase();
+          if (serverCodeSet[code] || delCodeSet[code]) {
+            cleanedCodesArr.push(c);
+          } else {
+            var cTs = Number(c.updated_at || c.created_at || 0);
+            if (cTs >= snapGeneratedAt) {
+              cleanedCodesArr.push(c); // 本地新创建的，保留
+            } else {
+              cleanedCodes++;
+              console.log('🧹 清理本地孤立兑换码:', code, 'localTs:', cTs, 'snapTs:', snapGeneratedAt);
+            }
+          }
+        });
+        if (cleanedCodes > 0) {
+          saveLocalData(STORAGE_KEY_CODES, cleanedCodesArr);
+          console.log('🧹 共清理 ' + cleanedCodes + ' 个本地孤立兑换码');
+        }
+
+        if (cleanedProducts > 0 || cleanedCodes > 0) {
+          showToast('🧹 自动清理 ' + cleanedProducts + ' 个孤立产品 / ' + cleanedCodes + ' 个孤立兑换码（服务器已删除）', 'info');
+        }
+      }
     }
 
     function clearLocalDeletes() {
