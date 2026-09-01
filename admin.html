@@ -1297,6 +1297,7 @@
         <li><a href="javascript:void(0)" onclick="switchTab('decrypt')" data-tab="decrypt"><span class="menu-icon">🔍</span><span class="menu-text">解密验证</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('quota')" data-tab="quota"><span class="menu-icon">🪙</span><span class="menu-text">免费额度</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('health')" data-tab="health"><span class="menu-icon">🩺</span><span class="menu-text">服务器状态</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('vercel-logs')" data-tab="vercel-logs"><span class="menu-icon">📜</span><span class="menu-text">Vercel日志</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('settings')" data-tab="settings"><span class="menu-icon">⚙️</span><span class="menu-text">设置</span></a></li>
       </ul>
       <div class="sidebar-footer">
@@ -1540,7 +1541,6 @@
               <button class="btn btn-primary" id="healthRunBtn" onclick="runHealthCheck()">开始检测</button>
               <button class="btn btn-outline" onclick="runHealthCheck()">重新检测</button>
               <button class="btn btn-outline" onclick="loadHealthLogs()">📋 服务器数据</button>
-              <button class="btn btn-outline" onclick="loadVercelLogs()">📜 Vercel日志</button>
               <span class="spacer"></span>
               <span class="health-meta" id="healthCheckedAt"></span>
             </div>
@@ -1571,14 +1571,20 @@
               </details>
             </div>
 
-            <!-- 📜 Vercel 函数日志 -->
-            <div id="vercelLogsSection" style="margin-top:20px;display:none;">
-              <h3 style="margin:0 0 12px;font-size:1rem;color:var(--ink);display:flex;align-items:center;gap:8px;">
-                <span>📜 Vercel 部署事件</span>
-                <span id="vercelLogsTime" style="font-size:0.72rem;color:#6b7280;font-weight:400;"></span>
-              </h3>
-              <div id="vercelLogsList" class="health-log-list"></div>
+          </div>
+
+          <div class="panel" id="panel-vercel-logs">
+            <div class="toolbar">
+              <button class="btn btn-primary" onclick="loadVercelLogs()">📜 拉取部署事件</button>
+              <button class="btn btn-outline" onclick="loadVercelLogs()">🔄 刷新</button>
+              <span class="spacer"></span>
+              <span class="health-meta" id="vercelLogsTime"></span>
             </div>
+            <div class="panel-desc" style="margin-bottom:16px;font-size:0.78rem;color:var(--muted);">
+              Vercel 部署事件 & 函数日志。使用 VERCEL_TOKEN + VERCEL_PROJECT_ID 从 Vercel API 拉取。
+              <a href="https://vercel.com/docs/rest-api" target="_blank" style="color:var(--accent);">文档</a>
+            </div>
+            <div id="vercelLogsList" class="health-log-list"></div>
           </div>
 
           <div class="panel" id="panel-settings">
@@ -2278,6 +2284,7 @@
       decrypt: { title: '解密验证', sub: '离线解析激活码内容' },
       quota: { title: '免费额度', sub: 'Neon Postgres 免费资源消耗与剩余额度估算' },
       health: { title: '服务器状态', sub: '检测 Postgres / 鉴权 / 激活链路是否正常' },
+      'vercel-logs': { title: 'Vercel日志', sub: '部署事件与函数运行日志（Vercel API）' },
       settings: { title: '设置', sub: '数据优先模式 · 删除保护 · 安全配置' }
     };
 
@@ -2323,6 +2330,7 @@
         }
       }
       if (tab === 'health') runHealthCheck();
+      if (tab === 'vercel-logs') loadVercelLogs();
       if (tab === 'settings') initSettingsPanel();
     }
 
@@ -4495,11 +4503,6 @@
     }
 
     async function loadVercelLogs() {
-      var sec = document.getElementById('vercelLogsSection');
-      var logsSec = document.getElementById('healthLogsSection');
-      sec.style.display = 'block';
-      logsSec.style.display = 'none';
-
       var listEl = document.getElementById('vercelLogsList');
       var timeEl = document.getElementById('vercelLogsTime');
       listEl.innerHTML = '<div class="empty">加载中...</div>';
