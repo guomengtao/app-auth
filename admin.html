@@ -3863,7 +3863,7 @@
 
       if (btn) { btn.disabled = true; btn.textContent = '发送中...'; }
       try {
-        var data = await api('/api/admin/postgres-messages', {
+        var data = await api('/api/admin/sync?resource=postgres-messages', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -3895,7 +3895,7 @@
       tableEl.innerHTML = '<div class="empty">加载中...</div>';
 
       try {
-        var data = await api('/api/admin/postgres-messages?limit=100');
+        var data = await api('/api/admin/sync?resource=postgres-messages&limit=100');
         if (!data.success) throw new Error(data.error || '加载失败');
 
         var messages = data.messages || [];
@@ -3962,7 +3962,7 @@
     async function deletePgMessage(id) {
       if (!confirm('确认删除该消息？此操作不可撤销。')) return;
       try {
-        var data = await api('/api/admin/postgres-messages?id=' + encodeURIComponent(id), {
+        var data = await api('/api/admin/sync?resource=postgres-messages&id=' + encodeURIComponent(id), {
           method: 'DELETE',
         });
         if (data.success) {
@@ -4024,7 +4024,7 @@
       var tipsEl = document.getElementById('quotaTips');
       var breakEl = document.getElementById('quotaBreakdownEl');
       var storeEl = document.getElementById('quotaStorageEl');
-      api('/api/admin/quota').then(function(d) {
+      api('/api/admin/health?section=quota').then(function(d) {
         if (!d || !d.success) throw new Error(d && d.error ? d.error : '接口返回失败');
         document.getElementById('quotaCheckedAt').textContent = '最后检测：' + new Date().toLocaleString('zh-CN');
         var s = d.summary || {};
@@ -4150,7 +4150,7 @@
         showToast('额度数据已更新', 'success');
       }).catch(function(e) {
         console.error('loadQuota failed:', e);
-        if (cardsEl) cardsEl.innerHTML = '<div class="empty" style="grid-column:1/-1">加载失败：' + escapeHtml(e.message || '未知错误') + '。请检查 /api/admin/quota 是否部署成功，或重新登录。</div>';
+        if (cardsEl) cardsEl.innerHTML = '<div class="empty" style="grid-column:1/-1">加载失败：' + escapeHtml(e.message || '未知错误') + '。请检查 /api/admin/health?section=quota 是否部署成功，或重新登录。</div>';
         showToast('加载额度数据失败: ' + (e.message || '未知错误'), 'error');
       });
     }
