@@ -1277,6 +1277,147 @@
     .sync-banner.warn { border-color: #fed7aa !important; background: #fff7ed !important; color: #9a3412 !important; }
     .sync-banner.ok { border-color: #a7f3d0 !important; background: #ecfdf5 !important; color: #065f46 !important; }
     .sync-banner.err { border-color: #fecaca !important; background: #fef2f2 !important; color: #991b1b !important; }
+
+    .diff-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .diff-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 18px;
+      transition: box-shadow 0.2s, border-color 0.2s;
+    }
+    .diff-card:hover {
+      box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    }
+    .diff-card.has-diff {
+      border-color: #f59e0b;
+      background: #fffbeb;
+    }
+    .diff-card.no-diff {
+      border-color: #10b981;
+      background: #ecfdf5;
+    }
+    .diff-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .diff-card-icon {
+      font-size: 1.5rem;
+      margin-right: 8px;
+    }
+    .diff-card-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .diff-card-status {
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+    .diff-card-status.ok {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    .diff-card-status.warn {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    .diff-card-counts {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .diff-count-item {
+      text-align: center;
+      padding: 8px 6px;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+    .diff-count-num {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .diff-count-label {
+      font-size: 0.68rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .diff-count-item.local {
+      border-left: 3px solid #3b82f6;
+    }
+    .diff-count-item.remote {
+      border-left: 3px solid #8b5cf6;
+    }
+    .diff-detail-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: var(--muted);
+      padding: 4px 0;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .diff-detail-row:last-child { border-bottom: none; }
+    .diff-detail-val { font-weight: 600; }
+    .diff-detail-val.warn { color: #d97706; }
+    .diff-detail-val.good { color: #059669; }
+    .diff-card-actions {
+      margin-top: 14px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .diff-card-actions .btn {
+      padding: 6px 14px;
+      font-size: 0.78rem;
+    }
+    .diff-detail-modal {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-top: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+      display: none;
+    }
+    .diff-detail-modal.show { display: block; }
+    .diff-detail-item {
+      font-size: 0.75rem;
+      padding: 6px 8px;
+      border-bottom: 1px solid #f1f5f9;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .diff-detail-code {
+      font-family: monospace;
+      font-weight: 600;
+      color: var(--ink);
+    }
+    .diff-detail-tag {
+      font-size: 0.65rem;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    .diff-detail-tag.local-only { background: #dbeafe; color: #1e40af; }
+    .diff-detail-tag.remote-only { background: #ede9fe; color: #6d28d9; }
+    .diff-detail-tag.changed { background: #fef3c7; color: #92400e; }
   </style>
 </head>
 <body>
@@ -1293,6 +1434,7 @@
         <li><a href="javascript:void(0)" onclick="switchTab('codes')" data-tab="codes"><span class="menu-icon">🎫</span><span class="menu-text">兑换码管理</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('records')" data-tab="records"><span class="menu-icon">📋</span><span class="menu-text">激活记录</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('sync')" data-tab="sync"><span class="menu-icon">📡</span><span class="menu-text">数据同步</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('diff')" data-tab="diff"><span class="menu-icon">📊</span><span class="menu-text">数据对比</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('pg-messages')" data-tab="pg-messages"><span class="menu-icon">🐘</span><span class="menu-text">消息中心</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('decrypt')" data-tab="decrypt"><span class="menu-icon">🔍</span><span class="menu-text">解密验证</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('quota')" data-tab="quota"><span class="menu-icon">🪙</span><span class="menu-text">免费额度</span></a></li>
@@ -1485,6 +1627,23 @@
 
             <div class="section-title" style="margin-top:22px">❓ 工作原理 / FAQ</div>
             <div id="syncFaqArea" style="margin:10px 0 30px"></div>
+          </div>
+
+          <div class="panel" id="panel-diff">
+            <div class="toolbar">
+              <div class="filter-label" style="padding:0;font-weight:700;font-size:0.88rem;color:var(--ink);">
+                📊 数据对比 · 本地 ↔ 远程
+              </div>
+              <span class="spacer"></span>
+              <button class="btn btn-primary" onclick="loadDiff()" id="diffRefreshBtn">🔍 开始对比</button>
+              <span id="diffTimestamp" style="font-size:0.72rem;color:var(--muted);margin-left:8px;"></span>
+            </div>
+            <div class="panel-desc" style="margin-bottom:16px;font-size:0.78rem;color:var(--muted);">
+              逐表对比本地浏览器存储与远程 Postgres 数据库的数据差异。点击任意卡片可查看详情，或一键修复该表。
+            </div>
+            <div class="diff-grid" id="diffGrid">
+              <div class="empty" style="grid-column:1/-1">点击「🔍 开始对比」加载本地和远程数据进行逐表对比。</div>
+            </div>
           </div>
 
           <div class="panel" id="panel-decrypt">
@@ -2281,6 +2440,7 @@
       records: { title: '激活记录', sub: '查看设备激活历史' },
       sync: { title: '数据同步', sub: '本地浏览器存储 ↔ Postgres 数据库 双向同步管理' },
       'pg-messages': { title: '消息中心', sub: '发布和管理系统消息通知' },
+      diff: { title: '数据对比', sub: '逐表对比本地浏览器存储与远程数据库差异，支持单表修复' },
       decrypt: { title: '解密验证', sub: '离线解析激活码内容' },
       quota: { title: '免费额度', sub: 'Neon Postgres 免费资源消耗与剩余额度估算' },
       health: { title: '服务器状态', sub: '检测 Postgres / 鉴权 / 激活链路是否正常' },
@@ -2332,6 +2492,7 @@
       if (tab === 'health') runHealthCheck();
       if (tab === 'vercel-logs') loadVercelLogs();
       if (tab === 'settings') initSettingsPanel();
+      if (tab === 'diff') loadDiff();
     }
 
     function toggleSidebar() {
@@ -5136,6 +5297,269 @@
         console.error('loadQuota failed:', e);
         if (cardsEl) cardsEl.innerHTML = '<div class="empty" style="grid-column:1/-1">加载失败：' + escapeHtml(e.message || '未知错误') + '。请检查 /api/admin/health?section=quota 是否部署成功，或重新登录。</div>';
         showToast('加载额度数据失败: ' + (e.message || '未知错误'), 'error');
+      });
+    }
+
+    var _diffCache = null;
+
+    function getLocalSnapshot() {
+      var products = JSON.parse(localStorage.getItem('auth_products') || '[]');
+      var redeemCodes = JSON.parse(localStorage.getItem('auth_redeem_codes') || '[]');
+      var activationRecords = JSON.parse(localStorage.getItem('auth_activation_records') || '[]');
+      var productCounter = localStorage.getItem('auth_product_counter') || '0';
+      return {
+        products: products,
+        redeemCodes: redeemCodes,
+        activationRecords: activationRecords,
+        counters: {
+          product_counter: Number(productCounter) || 0
+        }
+      };
+    }
+
+    function loadDiff() {
+      var grid = document.getElementById('diffGrid');
+      var ts = document.getElementById('diffTimestamp');
+      var btn = document.getElementById('diffRefreshBtn');
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ 加载中...'; }
+      if (ts) ts.textContent = '';
+
+      var local = getLocalSnapshot();
+
+      var body = JSON.stringify({
+        action: 'compare',
+        local: local
+      });
+
+      api('/api/admin/diff', { method: 'POST', body: body }).then(function(res) {
+        if (!res || !res.success) {
+          if (grid) grid.innerHTML = '<div class="empty" style="grid-column:1/-1">对比失败：' + escapeHtml((res && res.error) || '未知错误') + '</div>';
+          if (ts) ts.textContent = '';
+          return;
+        }
+        _diffCache = res;
+        renderDiffCards(res);
+        var now = new Date();
+        if (ts) ts.textContent = '对比时间：' + now.toLocaleTimeString();
+      }).catch(function(e) {
+        console.error('loadDiff failed:', e);
+        if (grid) grid.innerHTML = '<div class="empty" style="grid-column:1/-1">加载失败：' + escapeHtml(e.message || '网络错误') + '。请检查网络连接或重新登录。</div>';
+        showToast('数据对比加载失败: ' + (e.message || '网络错误'), 'error');
+      }).finally(function() {
+        if (btn) { btn.disabled = false; btn.textContent = '🔄 重新对比'; }
+      });
+    }
+
+    function renderDiffCards(data) {
+      var grid = document.getElementById('diffGrid');
+      if (!grid) return;
+
+      var tables = [
+        {
+          key: 'products',
+          icon: '📦',
+          title: '产品管理',
+          data: data.products,
+          idKey: 'id',
+          nameField: 'name'
+        },
+        {
+          key: 'redeemCodes',
+          icon: '🎫',
+          title: '兑换码',
+          data: data.redeemCodes,
+          idKey: 'code',
+          nameField: 'code'
+        },
+        {
+          key: 'activationRecords',
+          icon: '📋',
+          title: '激活记录',
+          data: data.activationRecords,
+          idKey: 'activation_code',
+          nameField: 'activation_code'
+        },
+        {
+          key: 'counters',
+          icon: '🔢',
+          title: '计数器',
+          data: null,
+          idKey: '',
+          nameField: ''
+        }
+      ];
+
+      var html = '';
+      tables.forEach(function(t) {
+        html += renderDiffCard(t, data);
+      });
+      grid.innerHTML = html;
+    }
+
+    function renderDiffCard(t, data) {
+      var d;
+
+      if (t.key === 'counters') {
+        var c = data.counters;
+        var hasDiff = c && c.diff;
+        var localCount = c && c.local ? c.local.product_counter : 0;
+        var remoteCount = c && c.remote ? c.remote.product_counter : 0;
+        d = {
+          localCount: localCount,
+          remoteCount: remoteCount,
+          hasDiff: hasDiff,
+          diffCount: hasDiff ? 1 : 0,
+          onlyLocalCount: 0,
+          onlyRemoteCount: 0,
+          sameCount: 0,
+          onlyLocal: [],
+          onlyRemote: [],
+          diff: []
+        };
+      } else {
+        d = t.data;
+      }
+
+      var totalDiff = (d.onlyLocalCount || d.onlyLocal.length) + (d.onlyRemoteCount || d.onlyRemote.length) + (d.diffCount || d.diff.length);
+      var hasDiff = totalDiff > 0;
+      var cardClass = hasDiff ? 'has-diff' : 'no-diff';
+      var statusClass = hasDiff ? 'warn' : 'ok';
+      var statusText = hasDiff ? '有差异' : '一致';
+
+      var cardId = 'diffCard-' + t.key;
+
+      var html = '<div class="diff-card ' + cardClass + '" id="' + cardId + '">';
+      html += '<div class="diff-card-header">';
+      html += '<div class="diff-card-title"><span class="diff-card-icon">' + t.icon + '</span>' + t.title + '</div>';
+      html += '<span class="diff-card-status ' + statusClass + '">' + statusText + '</span>';
+      html += '</div>';
+
+      html += '<div class="diff-card-counts">';
+      html += '<div class="diff-count-item local"><div class="diff-count-num">' + d.localCount + '</div><div class="diff-count-label">本地</div></div>';
+      html += '<div class="diff-count-item remote"><div class="diff-count-num">' + d.remoteCount + '</div><div class="diff-count-label">远程</div></div>';
+      html += '</div>';
+
+      html += '<div class="diff-detail-row"><span>一致</span><span class="diff-detail-val good">' + (d.sameCount || 0) + '</span></div>';
+      html += '<div class="diff-detail-row"><span>仅本地</span><span class="diff-detail-val warn">' + (d.onlyLocalCount !== undefined ? d.onlyLocalCount : d.onlyLocal.length) + '</span></div>';
+      html += '<div class="diff-detail-row"><span>仅远程</span><span class="diff-detail-val warn">' + (d.onlyRemoteCount !== undefined ? d.onlyRemoteCount : d.onlyRemote.length) + '</span></div>';
+      html += '<div class="diff-detail-row"><span>内容不同</span><span class="diff-detail-val warn">' + (d.diffCount !== undefined ? d.diffCount : d.diff.length) + '</span></div>';
+
+      if (hasDiff) {
+        html += '<div class="diff-card-actions">';
+        if (t.key !== 'counters') {
+          html += '<button class="btn btn-outline" onclick="toggleDiffDetail(\'' + t.key + '\')" style="font-size:0.75rem;">📋 查看详情</button>';
+        }
+        html += '<button class="btn btn-primary" onclick="fixTable(\'' + t.key + '\')" style="font-size:0.75rem;">🔧 修复此表</button>';
+        html += '</div>';
+
+        html += '<div class="diff-detail-modal" id="diffDetail-' + t.key + '">';
+        html += renderDiffDetail(d, t);
+        html += '</div>';
+      }
+
+      html += '</div>';
+      return html;
+    }
+
+    function renderDiffDetail(d, t) {
+      var html = '';
+      var onlyLocal = d.onlyLocal || [];
+      var onlyRemote = d.onlyRemote || [];
+      var diff = d.diff || [];
+
+      if (onlyLocal.length > 0) {
+        html += '<div style="font-weight:700;font-size:0.75rem;margin-bottom:4px;color:#1e40af;">仅本地有 (' + onlyLocal.length + ')：</div>';
+        var maxShow = Math.min(onlyLocal.length, 20);
+        for (var i = 0; i < maxShow; i++) {
+          var item = onlyLocal[i];
+          var label = t.idKey ? (item[t.idKey] || item.local[t.idKey] || '?') : '';
+          html += '<div class="diff-detail-item"><span class="diff-detail-code">' + escapeHtml(label) + '</span><span class="diff-detail-tag local-only">仅本地</span></div>';
+        }
+        if (onlyLocal.length > 20) {
+          html += '<div class="diff-detail-item" style="color:var(--muted);">... 还有 ' + (onlyLocal.length - 20) + ' 条</div>';
+        }
+      }
+
+      if (onlyRemote.length > 0) {
+        html += '<div style="font-weight:700;font-size:0.75rem;margin-bottom:4px;color:#6d28d9;">仅远程有 (' + onlyRemote.length + ')：</div>';
+        var maxShow2 = Math.min(onlyRemote.length, 20);
+        for (var j = 0; j < maxShow2; j++) {
+          var item2 = onlyRemote[j];
+          var label2 = t.idKey ? (item2[t.idKey] || item2.remote[t.idKey] || '?') : '';
+          html += '<div class="diff-detail-item"><span class="diff-detail-code">' + escapeHtml(label2) + '</span><span class="diff-detail-tag remote-only">仅远程</span></div>';
+        }
+        if (onlyRemote.length > 20) {
+          html += '<div class="diff-detail-item" style="color:var(--muted);">... 还有 ' + (onlyRemote.length - 20) + ' 条</div>';
+        }
+      }
+
+      if (diff.length > 0) {
+        html += '<div style="font-weight:700;font-size:0.75rem;margin-bottom:4px;color:#92400e;">内容不同 (' + diff.length + ')：</div>';
+        var maxShow3 = Math.min(diff.length, 20);
+        for (var k = 0; k < maxShow3; k++) {
+          var item3 = diff[k];
+          var label3 = t.idKey ? (item3[t.idKey] || '?') : '';
+          html += '<div class="diff-detail-item"><span class="diff-detail-code">' + escapeHtml(label3) + '</span><span class="diff-detail-tag changed">已变更</span></div>';
+        }
+        if (diff.length > 20) {
+          html += '<div class="diff-detail-item" style="color:var(--muted);">... 还有 ' + (diff.length - 20) + ' 条</div>';
+        }
+      }
+
+      if (html === '') {
+        html = '<div style="color:var(--muted);font-size:0.75rem;text-align:center;padding:10px;">无差异项</div>';
+      }
+
+      return html;
+    }
+
+    function toggleDiffDetail(key) {
+      var el = document.getElementById('diffDetail-' + key);
+      if (!el) return;
+      if (el.classList.contains('show')) {
+        el.classList.remove('show');
+      } else {
+        el.classList.add('show');
+      }
+    }
+
+    function fixTable(table) {
+      if (!_diffCache) {
+        showToast('请先进行数据对比', 'error');
+        return;
+      }
+
+      var local = getLocalSnapshot();
+
+      var body = {
+        action: 'fix',
+        table: table,
+        data: null
+      };
+
+      if (table === 'products') {
+        body.data = local.products;
+      } else if (table === 'redeemCodes') {
+        body.data = local.redeemCodes;
+      } else if (table === 'activationRecords') {
+        body.data = local.activationRecords;
+      } else if (table === 'counters') {
+        body.data = local.counters;
+      }
+
+      if (!confirm('确定要用本地数据修复远程 ' + table + ' 表吗？\n\n本地数据将覆盖远程对应表。')) return;
+
+      var payload = JSON.stringify(body);
+      api('/api/admin/diff', { method: 'POST', body: payload }).then(function(res) {
+        if (res && res.success) {
+          showToast('修复成功：' + table + ' 表已同步', 'success');
+          loadDiff();
+        } else {
+          showToast('修复失败：' + ((res && res.error) || '未知错误'), 'error');
+        }
+      }).catch(function(e) {
+        console.error('fixTable failed:', e);
+        showToast('修复失败：' + (e.message || '网络错误'), 'error');
       });
     }
   </script>
