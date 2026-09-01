@@ -1087,7 +1087,7 @@
         <li><a href="javascript:void(0)" onclick="switchTab('codes')" data-tab="codes"><span class="menu-icon">🎫</span><span class="menu-text">兑换码管理</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('records')" data-tab="records"><span class="menu-icon">📋</span><span class="menu-text">激活记录</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('sync')" data-tab="sync"><span class="menu-icon">📡</span><span class="menu-text">数据同步</span></a></li>
-        <li><a href="javascript:void(0)" onclick="switchTab('pg-messages')" data-tab="pg-messages"><span class="menu-icon">💬</span><span class="menu-text">消息中心 (Postgres)</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('pg-messages')" data-tab="pg-messages"><span class="menu-icon">💬</span><span class="menu-text">消息中心</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('decrypt')" data-tab="decrypt"><span class="menu-icon">🔍</span><span class="menu-text">解密验证</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('quota')" data-tab="quota"><span class="menu-icon">🪙</span><span class="menu-text">免费额度</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('health')" data-tab="health"><span class="menu-icon">🩺</span><span class="menu-text">服务器状态</span></a></li>
@@ -1321,6 +1321,11 @@
 
             <div class="section-title" style="margin-top:10px">🗄️ 数据库存储明细 (当前月)</div>
             <div id="quotaStorageEl"></div>
+
+            <div class="section-title" style="margin-top:10px">📅 每日消耗记录 (本月)</div>
+            <div id="quotaDailyEl" class="breakdown-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:18px">
+              <div class="empty" style="grid-column:1/-1">点击「刷新额度」获取每日消耗记录。</div>
+            </div>
           </div>
 
           <div class="panel" id="panel-health">
@@ -1342,7 +1347,7 @@
           <div class="panel" id="panel-pg-messages">
             <div class="toolbar">
               <div class="filter-label" style="padding:0;font-weight:700;font-size:0.88rem;color:var(--ink);display:flex;align-items:center;">
-                🐘 消息中心 · Vercel Postgres 持久化存储
+                💬 消息中心
               </div>
               <span class="spacer"></span>
               <button class="btn btn-outline" onclick="loadPgMessages()">🔄 刷新列表</button>
@@ -1902,7 +1907,7 @@
       codes: { title: '兑换码管理', sub: '生成、筛选与导出兑换码' },
       records: { title: '激活记录', sub: '查看设备激活历史' },
       sync: { title: '数据同步', sub: '本地浏览器存储 ↔ Postgres 数据库 双向同步管理' },
-      'pg-messages': { title: '消息中心 (Postgres)', sub: '使用 Vercel Postgres 发布和管理持久化消息' },
+      'pg-messages': { title: '消息中心', sub: '发布和管理系统消息通知' },
       decrypt: { title: '解密验证', sub: '离线解析激活码内容' },
       quota: { title: '免费额度', sub: 'Neon Postgres 免费资源消耗与剩余额度估算' },
       health: { title: '服务器状态', sub: '检测 Postgres / 鉴权 / 激活链路是否正常' }
@@ -4187,6 +4192,35 @@
             });
           }
           storeEl.innerHTML = head + body + '</tbody></table>';
+        }
+        // Daily consumption table
+        var dailyEl = document.getElementById('quotaDailyEl');
+        if (dailyEl) {
+          var dailyData = d.dailyConsumption || [];
+          if (dailyData.length === 0) {
+            dailyEl.innerHTML = '<div class="empty" style="grid-column:1/-1">暂无每日消耗记录。每次访问后台/API 时会自动记录消耗数据。</div>';
+          } else {
+            var dh = '<table class="storage-detail-table"><thead><tr><th>日期</th><th style="text-align:right">Ping 次数</th><th style="text-align:right">活跃秒数</th><th style="text-align:right">冷启动</th><th style="text-align:right">活跃时长</th><th style="text-align:right">访问路径数</th></tr></thead><tbody>';
+            dailyData.forEach(function(row) {
+              var day = row.day || '-';
+              var pings = Number(row.ping_count) || 0;
+              var activeSec = Number(row.total_active_seconds) || 0;
+              var coldStarts = Number(row.cold_starts) || 0;
+              var uniquePaths = Number(row.unique_paths) || 0;
+              var activeMinutes = activeSec / 60;
+              var activeHours = activeSec / 3600;
+              var timeStr = activeSec < 60 ? activeSec + 's' : (activeMinutes < 60 ? activeMinutes.toFixed(1) + 'min' : activeHours.toFixed(2) + 'h');
+              dh += '<tr><td class="mono">' + escapeHtml(day) + '</td>';
+              dh += '<td style="text-align:right">' + pings + '</td>';
+              dh += '<td style="text-align:right">' + activeSec + '</td>';
+              dh += '<td style="text-align:right">' + coldStarts + '</td>';
+              dh += '<td style="text-align:right">' + timeStr + '</td>';
+              dh += '<td style="text-align:right">' + uniquePaths + '</td>';
+              dh += '</tr>';
+            });
+            dh += '</tbody></table>';
+            dailyEl.innerHTML = dh;
+          }
         }
         showToast('额度数据已更新', 'success');
       }).catch(function(e) {

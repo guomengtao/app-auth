@@ -69,6 +69,7 @@ module.exports = async (req, res) => {
     try {
       await quota.bumpQuotaTick(req.url || "/api/admin/health");
       var summary = await quota.summarize();
+      var dailyConsumption = await quota.getDailyConsumption();
       var tips = [
         { title: "核心：把每次冷启动后的连续访问打包到 5 分钟内完成", detail: "Neon 免费版默认 5 分钟无请求进入 Scale-to-Zero（休眠）。一旦休眠，下次请求需冷启动 (~350ms)。每次进入 Active 状态就开始计入 100 小时。所以：避免零散的 ping 把冷启动打碎成一个个短段；批量做操作；开发阶段集中调试而不是断断续续打开页。", tag: "最省" },
         { title: "把 Suspend Timeout 改成 0（永远不休眠=最花钱！）千万别做", detail: "免费版默认 5 分钟自动休眠正是免费的核心。任何把 compute 保持 Always-on 的设置会迅速吃掉 100h 甚至升级收费。保持默认 5m 或更短。", tag: "避坑" },
@@ -90,6 +91,7 @@ module.exports = async (req, res) => {
         success: true,
         generatedAt: new Date().toISOString(),
         summary: summary,
+        dailyConsumption: dailyConsumption,
         howToCalculate: howToCalculate,
         tips: tips,
       });
