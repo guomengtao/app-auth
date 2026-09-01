@@ -5439,7 +5439,7 @@
       html += '<div class="diff-count-item remote"><div class="diff-count-num">' + d.remoteCount + '</div><div class="diff-count-label">远程</div></div>';
       html += '</div>';
 
-      html += '<div class="diff-detail-row"><span>一致</span><span class="diff-detail-val good">' + (d.sameCount || 0) + '</span></div>';
+      html += '<div class="diff-detail-row"><span>一致</span><span class="diff-detail-val good">' + (d.same != null ? d.same : (d.sameCount || 0)) + '</span></div>';
       html += '<div class="diff-detail-row"><span>仅本地</span><span class="diff-detail-val warn">' + (d.onlyLocalCount !== undefined ? d.onlyLocalCount : d.onlyLocal.length) + '</span></div>';
       html += '<div class="diff-detail-row"><span>仅远程</span><span class="diff-detail-val warn">' + (d.onlyRemoteCount !== undefined ? d.onlyRemoteCount : d.onlyRemote.length) + '</span></div>';
       html += '<div class="diff-detail-row"><span>内容不同</span><span class="diff-detail-val warn">' + (d.diffCount !== undefined ? d.diffCount : d.diff.length) + '</span></div>';
