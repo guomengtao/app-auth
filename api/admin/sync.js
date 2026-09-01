@@ -19,6 +19,39 @@ function parseJsonSafe(s, fallback) {
   try { return JSON.parse(s); } catch (e) { return fallback; }
 }
 
+function normalizeSscanResult(result) {
+  if (Array.isArray(result)) {
+    return {
+      cursor: String(result[0] == null ? "0" : result[0]),
+      keys: Array.isArray(result[1]) ? result[1] : [],
+    };
+  }
+  if (result && typeof result === "object") {
+    return {
+      cursor: String(result.cursor == null ? "0" : result.cursor),
+      keys: Array.isArray(result.keys) ? result.keys : [],
+    };
+  }
+  return { cursor: "0", keys: [] };
+}
+
+async function scanAllSetMembers(setKey) {
+  var allKeys = [];
+  var cursor = "0";
+  var guard = 0;
+  do {
+    var raw = await redis.sscan(setKey, cursor, { count: 200 });
+    var parsed = normalizeSscanResult(raw);
+    cursor = parsed.cursor;
+    if (parsed.keys.length) {
+      allKeys = allKeys.concat(parsed.keys);
+    }
+    guard++;
+    if (guard > 5000) break;
+  } while (cursor !== "0");
+  return allKeys;
+}
+
 async function snapshotAll() {
   try { await quota.bumpQuotaTick("/api/admin/sync"); } catch (_) {}
   var pAll = await redis.hgetall("auth:products");
@@ -33,9 +66,8 @@ async function snapshotAll() {
   }
   var productCounter = Number(await redis.get("auth:product_counter")) || 0;
 
-  var codeSet = await redis.smembers("auth:redeem_codes");
-  var codeKeys = Array.isArray(codeSet) ? codeSet : [];
-  console.log('📊 snapshotAll redeem smembers returned:', codeKeys.length, codeKeys.slice(0, 10));
+  var codeKeys = await scanAllSetMembers("auth:redeem_codes");
+  console.log('📊 snapshotAll redeem sscan returned:', codeKeys.length, codeKeys.slice(0, 10));
   var redeemCodesArray = [];
   if (codeKeys.length) {
     var chunks = [];
@@ -60,8 +92,7 @@ async function snapshotAll() {
     }
   }
 
-  var actSet = await redis.smembers("auth:activation_codes");
-  var actKeys = Array.isArray(actSet) ? actSet : [];
+  var actKeys = await scanAllSetMembers("auth:activation_codes");
   var activationsArray = [];
   if (actKeys.length) {
     var chunksA = [];
@@ -129,13 +160,25 @@ function validateLocalProduct(id, p) {
 }
 
 function validateLocalCode(obj, idx) {
-  if (!obj || typeof obj !== "object") return null;
+  if (!obj || typeof obj !== "object") {
+    console.warn("validateLocalCode: skip, not an object", { idx: idx, type: typeof obj });
+    return null;
+  }
   var c = String(obj.code || (typeof idx === "string" ? idx : "")).toUpperCase().trim();
-  if (!/^[A-Z0-9]{3,16}$/.test(c)) return null;
+  if (!/^[A-Z0-9]{3,16}$/.test(c)) {
+    console.warn("validateLocalCode: skip, invalid code format", { code: c, idx: idx });
+    return null;
+  }
   var pid = String(obj.product_id || "01").padStart(2, "0");
   var dm = Number(obj.duration_months);
-  if (!/^\d{2}$/.test(pid)) return null;
-  if (!Number.isFinite(dm) || dm < 1 || dm > 99) return null;
+  if (!/^\d{2}$/.test(pid)) {
+    console.warn("validateLocalCode: skip, invalid product_id", { code: c, product_id: obj.product_id });
+    return null;
+  }
+  if (!Number.isFinite(dm) || dm < 1 || dm > 99) {
+    console.warn("validateLocalCode: skip, invalid duration_months", { code: c, duration_months: obj.duration_months });
+    return null;
+  }
   var used = !!obj.used;
   return {
     code: c,
@@ -260,16 +303,13 @@ async function applyPatch(patch) {
     if (serverWins) { report.redeemCodes.skipped++; continue; }
     if (!existed2 || e2Ts <= nTs || (cv.used && !existed2.used)) {
       if (!existed2) report.redeemCodes.added++; else report.redeemCodes.updated++;
-      await redis.set(key, JSON.stringify(cv));
       try {
-        var sr = await redis.sadd("auth:redeem_codes", cv.code);
-        console.log('📦 applyPatch write redeem:', cv.code, 'set=OK, sadd=' + sr);
-        // 立刻验证能否读回来！
-        var verifyGet = await redis.get(key);
-        var verifySm = await redis.smembers("auth:redeem_codes");
-        console.log('📦 applyPatch verify:', cv.code, 'getBack=', verifyGet ? 'OK(' + String(verifyGet).slice(0,40) + ')' : 'NULL', 'setSizeAfter=', verifySm.length);
+        await redis.setWithSadd(key, JSON.stringify(cv), "auth:redeem_codes", cv.code);
+        console.log('📦 applyPatch write redeem:', cv.code, 'txn=OK');
       } catch (se) {
-        console.error('📦 applyPatch redeem sadd failed:', cv.code, se.message);
+        console.error('📦 applyPatch redeem setWithSadd failed:', cv.code, se.message);
+        await redis.set(key, JSON.stringify(cv));
+        try { await redis.sadd("auth:redeem_codes", cv.code); } catch (_) {}
       }
     } else {
       report.redeemCodes.skipped++;
@@ -310,8 +350,13 @@ async function applyPatch(patch) {
     // 服务器为权威：已存在记录一律不覆盖（除非服务器缺字段本地补上）
     if (!existedA) {
       report.activationRecords.added++;
-      await redis.set(aKey, JSON.stringify(av));
-      try { await redis.sadd("auth:activation_codes", av.activation_code); } catch (_) {}
+      try {
+        await redis.setWithSadd(aKey, JSON.stringify(av), "auth:activation_codes", av.activation_code);
+      } catch (se) {
+        console.error('📦 applyPatch activation setWithSadd failed:', av.activation_code, se.message);
+        await redis.set(aKey, JSON.stringify(av));
+        try { await redis.sadd("auth:activation_codes", av.activation_code); } catch (_) {}
+      }
       if (av.device_id_hash) {
         try { await redis.set("auth:device:" + av.device_id_hash, av.activation_code); } catch (_) {}
       }
@@ -491,6 +536,8 @@ module.exports = async (req, res) => {
         var patch = body.patch || body.data || {};
         var r = await applyPatch(patch);
         var summary = summarizeReport(r);
+        // Wait 800ms for Neon read-replica to catch up after writes
+        await new Promise(function(resolve) { setTimeout(resolve, 800); });
         var after = (mode === "merge" || mode === "push") ? await snapshotAll() : null;
         if (mode === "merge") {
           return res.json({
