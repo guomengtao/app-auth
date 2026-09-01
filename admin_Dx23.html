@@ -2594,13 +2594,13 @@
     async function api(path, opts) {
       var res = await fetch(path, opts);
       if (res.status === 401) {
-        window.location.href = '/login.html';
+        window.location.href = '/login_aXs12.html';
         throw new Error('Unauthorized');
       }
       if (res.status === 403) {
         var data = await res.json();
         alert(data.error || 'only guomengtao@gmail.com allowed');
-        window.location.href = '/login.html';
+        window.location.href = '/login_aXs12.html';
         throw new Error('Forbidden');
       }
       if (!res.ok) {
@@ -2701,7 +2701,7 @@
 
     function logout() {
       document.cookie = 'token=; Path=/; Max-Age=0';
-      window.location.href = '/login.html';
+      window.location.href = '/login_aXs12.html';
     }
 
     async function loadStats() {
@@ -4045,7 +4045,7 @@
     async function exportLocalData() {
       try {
         var data = {
-          exportFrom: 'admin.html',
+          exportFrom: 'admin_Dx23.html',
           exportAt: new Date().toISOString(),
           admin_mode: readAdminMode(),
           products: getLocalProducts(),
@@ -4284,13 +4284,13 @@
             '<span style="color:#9ca3af">—</span><small>无法直查</small>',
             freeEg + ' GB',
             0,
-            '请到 Neon 控制台查看',
-            '建议：Vercel 函数和 Neon 项目选同一区域（us-east-2）；跨区响应每 >1KB 都计费，可通过 Data API + 客户端缓存降低。'
+            '请到控制台查看',
+            '建议：部署在同一区域可减少跨区流量费用；跨区响应每 >1KB 都计费，可通过 Data API + 客户端缓存降低。'
           );
           // 分支 / 历史天数：虚拟卡片，显示上限
           html += _quotaCard(
             '🌳 项目分支 (Branches · 最多 10 个) + 历史窗口',
-            '— <small style="color:#9ca3af">请点右侧按钮查 Neon 控制台</small>',
+            '— <small style="color:#9ca3af">请点右侧按钮查控制台</small>',
             String(s.limits && s.limits.maxBranches ? s.limits.maxBranches : 10) + ' 分支',
             0,
             '保留历史 ' + String(s.limits && s.limits.historyDays ? s.limits.historyDays : 1) + ' 天',

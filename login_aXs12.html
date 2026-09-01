@@ -32,7 +32,7 @@
     .icon { font-size: 48px; margin-bottom: 16px; }
     h1 { font-size: 1.6rem; color: #1a1a2e; margin-bottom: 6px; }
     .subtitle { font-size: 0.85rem; color: #888; margin-bottom: 32px; }
-    .btn-vercel {
+    .btn-login {
       width: 100%;
       padding: 16px;
       background: #000;
@@ -48,10 +48,10 @@
       justify-content: center;
       gap: 10px;
     }
-    .btn-vercel:hover { opacity: 0.85; }
-    .btn-vercel:active { transform: scale(0.98); }
-    .btn-vercel:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-vercel svg { width: 20px; height: 20px; }
+    .btn-login:hover { opacity: 0.85; }
+    .btn-login:active { transform: scale(0.98); }
+    .btn-login:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-login svg { width: 20px; height: 20px; }
     .hint {
       margin-top: 24px;
       font-size: 0.75rem;
@@ -132,23 +132,22 @@
   <div class="card">
     <div class="icon">🛡️</div>
     <h1>管理员登录</h1>
-    <p class="subtitle">仅限管理员通过 Vercel 认证登录</p>
+    <p class="subtitle">仅限管理员登录</p>
 
-    <button class="btn-vercel" id="loginBtn" onclick="doVercelLogin()">
+    <button class="btn-login" id="loginBtn" onclick="doLogin()">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 19.5h20L12 2z"/></svg>
-      Vercel 认证登录
+      认证登录
     </button>
 
     <p class="hint">
-      仅允许 <strong>guomengtao@gmail.com</strong> 登录<br>
-      需在 Vercel 后台开启 <strong>Deployment Protection</strong>
+      仅允许 <strong>guomengtao@gmail.com</strong> 登录
     </p>
     <a href="/" class="back-link">← 返回首页</a>
   </div>
 
   <div class="modal-overlay" id="errorModal">
     <div class="modal">
-      <h3>⚠️ Vercel 连接错误</h3>
+      <h3>⚠️ 连接错误</h3>
       <div class="error-detail" id="errorDetail"></div>
       <button class="btn-close" onclick="closeErrorModal()">关闭</button>
     </div>
@@ -159,32 +158,32 @@
       try {
         var res = await fetch('/api/admin/stats');
         if (res.ok) {
-          window.location.href = '/admin.html';
+          window.location.href = '/admin_Dx23.html';
         }
       } catch (e) {}
     }
 
-    async function doVercelLogin() {
+    async function doLogin() {
       var btn = document.getElementById('loginBtn');
       btn.disabled = true;
       btn.textContent = '检测连接中...';
 
       try {
         var res = await fetch('/api/admin/stats');
-        window.location.href = '/admin.html';
+        window.location.href = '/admin_Dx23.html';
       } catch (e) {
         btn.disabled = false;
-        btn.textContent = 'Vercel 认证登录';
+        btn.textContent = '认证登录';
         showError(
-          '无法连接到 Vercel 服务器\n\n' +
+          '无法连接到服务器\n\n' +
           '错误类型: ' + (e.name || 'Error') + '\n' +
           '错误信息: ' + (e.message || 'Unknown network error') + '\n\n' +
           '可能原因:\n' +
-          '1. Vercel 部署已停止或未运行\n' +
+          '1. 服务部署已停止或未运行\n' +
           '2. 网络连接异常或 DNS 解析失败\n' +
-          '3. Vercel 服务暂时不可用\n\n' +
+          '3. 服务暂时不可用\n\n' +
           '请检查:\n' +
-          '- Vercel Dashboard 确认部署状态\n' +
+          '- 确认部署状态\n' +
           '- 本地网络连接是否正常\n' +
           '- 浏览器控制台 (F12) 查看详细网络错误'
         );
