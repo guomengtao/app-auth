@@ -62,6 +62,206 @@ module.exports = async (req, res) => {
     return res.status(auth.status).json({ success: false, error: auth.error });
   }
 
+  if (req.query && req.query.section === "logs") {
+    if (req.method !== "GET") {
+      return res.status(405).json({ success: false, error: "Method not allowed" });
+    }
+    try {
+      var limit = 50;
+      if (req.query.limit) {
+        var li = parseInt(req.query.limit, 10);
+        if (Number.isFinite(li) && li > 0 && li <= 200) limit = li;
+      }
+
+      var actSet = await redis.smembers("auth:activation_codes");
+      var actKeys = Array.isArray(actSet) ? actSet : [];
+      var activations = [];
+      if (actKeys.length) {
+        var chunksA = [];
+        for (var i2 = 0; i2 < actKeys.length; i2 += 200) chunksA.push(actKeys.slice(i2, i2 + 200));
+        for (var c2 = 0; c2 < chunksA.length; c2++) {
+          var batchA = chunksA[c2];
+          var keysA = batchA.map(function(x) { return "auth:activation:" + x; });
+          var valsA = await redis.mget(keysA);
+          for (var j2 = 0; j2 < batchA.length; j2++) {
+            var rawA = valsA && valsA[j2];
+            var objA = null;
+            if (typeof rawA === "string") { try { objA = JSON.parse(rawA); } catch (_) {} }
+            if (objA && typeof objA === "object") {
+              activations.push(objA);
+            }
+          }
+        }
+      }
+      activations.sort(function(a, b) { return (Number(b.generated_at) || 0) - (Number(a.generated_at) || 0); });
+      activations = activations.slice(0, limit);
+
+      var codeSet = await redis.smembers("auth:redeem_codes");
+      var codeKeys = Array.isArray(codeSet) ? codeSet : [];
+      var codes = [];
+      if (codeKeys.length) {
+        var chunksC = [];
+        for (var i3 = 0; i3 < codeKeys.length; i3 += 200) chunksC.push(codeKeys.slice(i3, i3 + 200));
+        for (var c3 = 0; c3 < chunksC.length; c3++) {
+          var batchC = chunksC[c3];
+          var keysC = batchC.map(function(x) { return "auth:redeem:" + x; });
+          var valsC = await redis.mget(keysC);
+          for (var j3 = 0; j3 < batchC.length; j3++) {
+            var rawC = valsC && valsC[j3];
+            var objC = null;
+            if (typeof rawC === "string") { try { objC = JSON.parse(rawC); } catch (_) {} }
+            if (objC && typeof objC === "object") {
+              var usedFlag = !!objC.used;
+              var usedAt = Number(objC.used_at) || 0;
+              var sortTs = usedAt || Number(objC.created_at) || 0;
+              codes.push(Object.assign({}, objC, { __sort: sortTs, __used: usedFlag }));
+            }
+          }
+        }
+      }
+      codes.sort(function(a, b) { return Number(b.__sort || 0) - Number(a.__sort || 0); });
+      codes = codes.slice(0, limit).map(function(c) {
+        var o = Object.assign({}, c);
+        delete o.__sort; delete o.__used;
+        return o;
+      });
+
+      var pgMessages = [];
+      try {
+        var postgres = require("../../lib/postgres");
+        if (postgres.isConfigured()) {
+          await postgres.ensureTables();
+          var msgResult = await postgres.query(
+            "SELECT id, uuid, title, content, message_type, priority, is_active, created_by, created_at FROM admin_messages ORDER BY priority DESC, created_at DESC LIMIT $1",
+            [limit]
+          );
+          pgMessages = (msgResult && msgResult.rows) || [];
+        }
+      } catch (msgErr) {
+        console.warn("health logs: messages fetch failed:", msgErr.message || msgErr);
+      }
+
+      var counters = {
+        product_counter: Number(await redis.get("auth:product_counter")) || 0,
+        used_redeem_codes: Number(await redis.get("auth:counter:used_redeem_codes")) || 0,
+        products_total: await redis.hlen("auth:products"),
+        redeem_codes_total: await redis.scard("auth:redeem_codes"),
+        activations_total: await redis.scard("auth:activation_codes"),
+      };
+
+      return res.json({
+        success: true,
+        generatedAt: new Date().toISOString(),
+        activations: activations,
+        redeemCodes: codes,
+        messages: pgMessages,
+        counters: counters,
+        env: {
+          node: process.version,
+          region: process.env.VERCEL_REGION || process.env.AWS_REGION || "unknown",
+          env: process.env.VERCEL_ENV || process.env.NODE_ENV || "unknown",
+          project: process.env.VERCEL_PROJECT_NAME || "",
+        },
+      });
+    } catch (e) {
+      console.error("health logs error:", e);
+      return res.status(500).json({ success: false, error: (e && e.message) || String(e) });
+    }
+  }
+
+  if (req.query && req.query.section === "vercel-logs") {
+    if (req.method !== "GET") {
+      return res.status(405).json({ success: false, error: "Method not allowed" });
+    }
+    try {
+      var vercelToken = process.env.VERCEL_TOKEN || "";
+      var vercelProjectId = process.env.VERCEL_PROJECT_ID || "";
+      var vercelTeamId = process.env.VERCEL_TEAM_ID || "";
+
+      if (!vercelToken || !vercelProjectId) {
+        return res.json({
+          success: false,
+          error: "Vercel API未配置。请在环境变量中设置 VERCEL_TOKEN 和 VERCEL_PROJECT_ID",
+          configured: {
+            hasToken: !!vercelToken,
+            hasProjectId: !!vercelProjectId,
+            hasTeamId: !!vercelTeamId,
+          },
+          hint: "VERCEL_TOKEN 在 Vercel Dashboard → Settings → Tokens 生成；VERCEL_PROJECT_ID 在项目 Settings → General 里找。Team 项目需要额外 VERCEL_TEAM_ID。",
+        });
+      }
+
+      var fetchUrl = "https://api.vercel.com/v3/projects/" + encodeURIComponent(vercelProjectId) + "/events?limit=50";
+      if (vercelTeamId) fetchUrl += "&teamId=" + encodeURIComponent(vercelTeamId);
+      var fetchOpts = {
+        method: "GET",
+        headers: {
+          "Authorization": "Bearer " + vercelToken,
+        },
+      };
+
+      var httpAdapter = null;
+      try { httpAdapter = require("https"); } catch (_) {}
+      try { httpAdapter = require("http"); } catch (_) {}
+
+      if (!httpAdapter) {
+        return res.json({ success: false, error: "Node.js http 模块不可用" });
+      }
+
+      var url = new URL(fetchUrl);
+      var options = {
+        hostname: url.hostname,
+        port: url.port || (url.protocol === "https:" ? 443 : 80),
+        path: url.pathname + url.search,
+        method: "GET",
+        headers: fetchOpts.headers,
+      };
+
+      var body = await new Promise(function(resolve, reject) {
+        var req2 = httpAdapter.request(options, function(res2) {
+          var chunks = [];
+          res2.on("data", function(c) { chunks.push(c); });
+          res2.on("end", function() {
+            var raw = Buffer.concat(chunks).toString("utf8");
+            try { resolve({ status: res2.statusCode, data: JSON.parse(raw) }); }
+            catch (_) { resolve({ status: res2.statusCode, data: raw }); }
+          });
+        });
+        req2.on("error", reject);
+        req2.setTimeout(8000, function() { req2.destroy(); reject(new Error("Request timeout")); });
+        req2.end();
+      });
+
+      var logs = [];
+      if (body && body.data && body.data.events && Array.isArray(body.data.events)) {
+        body.data.events.forEach(function(ev) {
+          var timeStr = "";
+          if (ev.createdAt) {
+            try { timeStr = new Date(ev.createdAt).toLocaleString("zh-CN"); } catch (_) { timeStr = String(ev.createdAt); }
+          }
+          logs.push({
+            time: timeStr,
+            type: ev.type || ev.name || "unknown",
+            summary: ev.payload && ev.payload.message ? ev.payload.message : (ev.text || ev.name || JSON.stringify(ev).slice(0, 200)),
+            buildId: ev.buildId || "",
+            deploymentId: ev.deploymentId || "",
+          });
+        });
+      }
+
+      return res.json({
+        success: true,
+        fetchedAt: new Date().toISOString(),
+        statusCode: body.status,
+        logs: logs,
+        rawSample: (body.data && typeof body.data === "object") ? JSON.stringify(body.data).slice(0, 500) : "",
+      });
+    } catch (e) {
+      console.error("vercel-logs error:", e);
+      return res.status(500).json({ success: false, error: (e && e.message) || String(e) });
+    }
+  }
+
   if (req.query && req.query.section === "quota") {
     if (req.method !== "GET") {
       return res.status(405).json({ success: false, error: "Method not allowed" });

@@ -45,7 +45,7 @@ function normalizeMonths(months) {
 module.exports = async (req, res) => {
   try { quota.bumpQuotaTick("/api/activate"); } catch (_) {}
   if (req.method !== "POST") {
-    return res.status(405).json({ success: false, error: "Method not allowed" });
+    return res.status(405).json({ success: false, error: "请求方式不正确" });
   }
 
   try {
@@ -69,13 +69,13 @@ module.exports = async (req, res) => {
 
     var codeData = await redis.get("auth:redeem:" + code);
     if (!codeData) {
-      return res.status(400).json({ success: false, error: "Invalid redeem code" });
+      return res.status(400).json({ success: false, error: "兑换码不存在或尚未同步到服务器，请在管理后台同步后重试" });
     }
 
     var info = parseRedisJson(codeData);
     if (!info) {
       console.error("Activate: invalid redeem payload", typeof codeData, codeData);
-      return res.status(500).json({ success: false, error: "Redeem code data corrupted, contact admin" });
+      return res.status(500).json({ success: false, error: "兑换码数据已损坏，请联系管理员" });
     }
 
     var productId = normalizeProductId(info.product_id);
@@ -84,7 +84,7 @@ module.exports = async (req, res) => {
       console.error("Activate: bad product/duration", info.product_id, info.duration_months);
       return res.status(500).json({
         success: false,
-        error: "Redeem code config invalid (bad product or duration), contact admin",
+        error: "兑换码配置异常（商品或时长无效），请联系管理员",
       });
     }
 
@@ -141,7 +141,7 @@ module.exports = async (req, res) => {
       }
       return res.status(400).json({
         success: false,
-        error: "Redeem code already used by another device",
+        error: "该兑换码已被其他设备使用过，无法重复激活",
       });
     }
 
@@ -190,15 +190,22 @@ module.exports = async (req, res) => {
       redis.set("auth:device:" + deviceHash, activationCode),
       redis.incr(USED_COUNTER_KEY).catch(function () {}),
     ]);
+    console.log("✅ Activate success:", {
+      redeemCode: code,
+      activationCode: activationCode,
+      productId: productId,
+      deviceHash: deviceHash.slice(0, 8) + "...",
+      months: months,
+    });
 
     return res.json({ success: true, activationCode: activationCode });
   } catch (error) {
     console.error("Activate error:", error && error.message ? error.message : error, error);
-    var msg = "Internal server error, please try again later";
+    var msg = "服务器内部错误，请稍后重试";
     if (error && error.code === "PG_ENV_MISSING") {
-      msg = "Server database (Postgres) not configured, contact admin";
+      msg = "服务器数据库未配置，请联系管理员（缺少 POSTGRES_URL 环境变量）";
     } else if (error && /connection|ECONNREFUSED|ENOTFOUND|Unauthorized|401|403/i.test(String(error.message || ""))) {
-      msg = "Server database connection failed, try again later or contact admin";
+      msg = "服务器数据库连接失败，请稍后重试或联系管理员";
     }
     return res.status(500).json({ success: false, error: msg });
   }

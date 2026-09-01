@@ -51,6 +51,8 @@ async function snapshotAll() {
           var o = Object.assign({}, obj, { code: String(code).toUpperCase() });
           if (o.product_id) o.product_id = String(o.product_id).padStart(2, '0');
           redeemCodesArray.push(o);
+        } else {
+          console.warn("snapshotAll: redeem set member has no kv_string data, key=", code);
         }
       }
     }
@@ -74,10 +76,22 @@ async function snapshotAll() {
           var oa = Object.assign({}, objA);
           if (!oa.activation_code) oa.activation_code = String(acode);
           activationsArray.push(oa);
+        } else {
+          console.warn("snapshotAll: activation set member has no kv_string data, key=", acode, "raw=", rawA);
         }
       }
     }
   }
+
+  // 📊 调试日志：输出每个数据集合的数量，方便排查
+  console.log("📊 snapshotAll stats:", {
+    products: productsArray.length,
+    redeemCodes: redeemCodesArray.length,
+    activationRecords: activationsArray.length,
+    codeSetSize: codeKeys.length,
+    activationSetSize: actKeys.length,
+    productCounter: productCounter,
+  });
 
   return {
     schema: 2,

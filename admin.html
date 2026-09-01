@@ -787,6 +787,212 @@
       font-size: 0.7rem;
       color: var(--muted);
     }
+    .health-log-counters {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 10px;
+    }
+    .hl-card {
+      background: var(--card-bg, #fff);
+      border: 1px solid var(--border, #e5e7eb);
+      border-radius: 8px;
+      padding: 10px 14px;
+      text-align: center;
+    }
+    .hl-num {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--ink, #111827);
+      line-height: 1.2;
+    }
+    .hl-card.hl-env .hl-num.env-num { font-size: 0.95rem; font-weight: 600; color: #6b7280; }
+    .hl-lab { font-size: 0.72rem; color: var(--muted, #6b7280); margin-top: 4px; }
+    .health-log-list {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .hl-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 10px;
+      background: #f9fafb;
+      border-radius: 5px;
+      font-size: 0.78rem;
+      font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
+    }
+    .hl-row.hl-used { background: #fef3c7; }
+    .hl-row.hl-unused { background: #ecfdf5; }
+    .hl-time { color: #6b7280; white-space: nowrap; font-size: 0.72rem; }
+    .hl-pid { background: #3b82f6; color: #fff; padding: 1px 6px; border-radius: 4px; font-size: 0.68rem; }
+    .hl-mon { color: #059669; font-weight: 600; }
+    .hl-dev { color: #8b5cf6; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .hl-code { background: #1f2937; color: #fff; padding: 1px 6px; border-radius: 4px; font-weight: 600; font-size: 0.72rem; }
+    .hl-tag { padding: 1px 8px; border-radius: 10px; font-size: 0.68rem; font-weight: 600; }
+    .hl-tag.tag-used { background: #fecaca; color: #991b1b; }
+    .hl-tag.tag-unused { background: #bbf7d0; color: #166534; }
+    .vl-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 8px 10px;
+      background: #f9fafb;
+      border-radius: 5px;
+      font-size: 0.78rem;
+      font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
+      border-left: 3px solid #9ca3af;
+    }
+    .vl-time { color: #6b7280; white-space: nowrap; font-size: 0.72rem; min-width: 140px; }
+    .vl-type { padding: 1px 8px; border-radius: 4px; font-size: 0.68rem; font-weight: 600; background: #e5e7eb; color: #374151; white-space: nowrap; }
+    .vl-summary { flex: 1; color: #1f2937; word-break: break-all; }
+    .vl-meta { font-size: 0.68rem; color: #9ca3af; white-space: nowrap; }
+
+    .setting-block {
+      background: var(--card-bg, #fff);
+      border: 1px solid var(--border, #e5e7eb);
+      border-radius: 10px;
+      padding: 18px 20px;
+      margin-bottom: 16px;
+    }
+    .setting-title {
+      margin: 0 0 6px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--ink, #111827);
+    }
+    .setting-desc {
+      margin: 0 0 14px;
+      font-size: 0.8rem;
+      color: #6b7280;
+      line-height: 1.55;
+    }
+    .mode-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .mode-card {
+      border: 2px solid var(--border, #e5e7eb);
+      border-radius: 10px;
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      position: relative;
+      text-align: left;
+      background: #fff;
+    }
+    .mode-card:hover {
+      border-color: #3b82f6;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(59,130,246,0.15);
+    }
+    .mode-card.active {
+      border-color: #10b981;
+      background: #ecfdf5;
+    }
+    .mode-icon {
+      font-size: 1.8rem;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+    .mode-name {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--ink, #111827);
+      margin-bottom: 4px;
+    }
+    .mode-desc {
+      font-size: 0.76rem;
+      color: #6b7280;
+      line-height: 1.5;
+    }
+    .mode-badge {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: #10b981;
+      color: #fff;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+      display: none;
+    }
+    .mode-card.active .mode-badge { display: block; }
+
+    .setting-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 12px 0;
+      border-bottom: 1px dashed #e5e7eb;
+    }
+    .setting-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .setting-switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .setting-switch input { opacity: 0; width: 0; height: 0; }
+    .switch-slider {
+      position: absolute;
+      cursor: pointer;
+      inset: 0;
+      background-color: #d1d5db;
+      border-radius: 24px;
+      transition: 0.18s;
+    }
+    .switch-slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: #fff;
+      border-radius: 50%;
+      transition: 0.18s;
+    }
+    .setting-switch input:checked + .switch-slider { background-color: #10b981; }
+    .setting-switch input:checked + .switch-slider:before { transform: translateX(20px); }
+
+    .setting-row-info { flex: 1; }
+    .setting-row-title { font-size: 0.86rem; font-weight: 600; color: var(--ink, #111827); margin-bottom: 2px; }
+    .setting-row-desc { font-size: 0.74rem; color: #6b7280; line-height: 1.5; }
+
+    .btn-danger {
+      background: #dc2626;
+      color: #fff;
+      border: 1px solid #dc2626;
+    }
+    .btn-danger:hover { background: #b91c1c; }
+
+    .about-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 10px;
+    }
+    .about-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .about-title { font-weight: 600; font-size: 0.82rem; color: var(--ink); margin-bottom: 4px; }
+    .about-text { font-size: 0.73rem; color: #6b7280; line-height: 1.5; }
+    .about-text code {
+      background: #e2e8f0;
+      color: #be185d;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 0.7rem;
+    }
 
     .pg-msg-form {
       background: var(--surface);
@@ -1087,10 +1293,11 @@
         <li><a href="javascript:void(0)" onclick="switchTab('codes')" data-tab="codes"><span class="menu-icon">🎫</span><span class="menu-text">兑换码管理</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('records')" data-tab="records"><span class="menu-icon">📋</span><span class="menu-text">激活记录</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('sync')" data-tab="sync"><span class="menu-icon">📡</span><span class="menu-text">数据同步</span></a></li>
-        <li><a href="javascript:void(0)" onclick="switchTab('pg-messages')" data-tab="pg-messages"><span class="menu-icon">💬</span><span class="menu-text">消息中心</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('pg-messages')" data-tab="pg-messages"><span class="menu-icon">🐘</span><span class="menu-text">消息中心</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('decrypt')" data-tab="decrypt"><span class="menu-icon">🔍</span><span class="menu-text">解密验证</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('quota')" data-tab="quota"><span class="menu-icon">🪙</span><span class="menu-text">免费额度</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('health')" data-tab="health"><span class="menu-icon">🩺</span><span class="menu-text">服务器状态</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('settings')" data-tab="settings"><span class="menu-icon">⚙️</span><span class="menu-text">设置</span></a></li>
       </ul>
       <div class="sidebar-footer">
         <button class="sidebar-toggle" onclick="toggleSidebar()" title="折叠菜单">◀</button>
@@ -1323,8 +1530,8 @@
             <div id="quotaStorageEl"></div>
 
             <div class="section-title" style="margin-top:10px">📅 每日消耗记录 (本月)</div>
-            <div id="quotaDailyEl" class="breakdown-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:18px">
-              <div class="empty" style="grid-column:1/-1">点击「刷新额度」获取每日消耗记录。</div>
+            <div id="quotaDailyEl" class="table-wrap" style="margin-bottom:18px">
+              <div class="empty">点击「刷新额度」获取每日消耗记录。</div>
             </div>
           </div>
 
@@ -1332,6 +1539,8 @@
             <div class="toolbar">
               <button class="btn btn-primary" id="healthRunBtn" onclick="runHealthCheck()">开始检测</button>
               <button class="btn btn-outline" onclick="runHealthCheck()">重新检测</button>
+              <button class="btn btn-outline" onclick="loadHealthLogs()">📋 服务器数据</button>
+              <button class="btn btn-outline" onclick="loadVercelLogs()">📜 Vercel日志</button>
               <span class="spacer"></span>
               <span class="health-meta" id="healthCheckedAt"></span>
             </div>
@@ -1342,12 +1551,144 @@
               <div class="health-summary-text" id="healthSummaryText">点击「开始检测」分析 Postgres、鉴权、编解码与激活链路，定位添加产品/激活失败原因。</div>
             </div>
             <div class="health-grid" id="healthChecks"></div>
+
+            <!-- 📋 服务器数据快照 -->
+            <div id="healthLogsSection" style="margin-top:20px;display:none;">
+              <h3 style="margin:0 0 12px;font-size:1rem;color:var(--ink);display:flex;align-items:center;gap:8px;">
+                <span>📋 服务器最新数据快照</span>
+                <span id="healthLogsTime" style="font-size:0.72rem;color:#6b7280;font-weight:400;"></span>
+              </h3>
+              <div id="healthLogsCounters" class="health-log-counters"></div>
+
+              <details style="margin-top:12px;border:1px solid var(--border);border-radius:8px;padding:8px 12px;">
+                <summary style="cursor:pointer;font-weight:600;color:var(--ink);padding:4px 0;">🔑 最近激活记录（点击展开）</summary>
+                <div id="healthLogsActivations" class="health-log-list" style="margin-top:10px;"></div>
+              </details>
+
+              <details style="margin-top:12px;border:1px solid var(--border);border-radius:8px;padding:8px 12px;">
+                <summary style="cursor:pointer;font-weight:600;color:var(--ink);padding:4px 0;">🎫 最近兑换码（点击展开）</summary>
+                <div id="healthLogsCodes" class="health-log-list" style="margin-top:10px;"></div>
+              </details>
+            </div>
+
+            <!-- 📜 Vercel 函数日志 -->
+            <div id="vercelLogsSection" style="margin-top:20px;display:none;">
+              <h3 style="margin:0 0 12px;font-size:1rem;color:var(--ink);display:flex;align-items:center;gap:8px;">
+                <span>📜 Vercel 部署事件</span>
+                <span id="vercelLogsTime" style="font-size:0.72rem;color:#6b7280;font-weight:400;"></span>
+              </h3>
+              <div id="vercelLogsList" class="health-log-list"></div>
+            </div>
+          </div>
+
+          <div class="panel" id="panel-settings">
+            <div class="toolbar">
+              <div class="filter-label" style="padding:0;font-weight:700;font-size:0.88rem;color:var(--ink);">
+                ⚙️ 设置中心
+              </div>
+              <span class="spacer"></span>
+              <span style="font-size:0.78rem;color:#6b7280;" id="settingsSavedHint"></span>
+            </div>
+
+            <!-- 模式切换 -->
+            <div class="setting-block">
+              <h3 class="setting-title">🔀 数据优先模式</h3>
+              <p class="setting-desc">选择默认从哪里读取数据。切换不影响已有数据，只是改变后续读数据的默认来源。</p>
+              <div class="mode-cards">
+                <div class="mode-card" id="modeCardLocal" onclick="switchAdminMode('local-first')">
+                  <div class="mode-icon">📴</div>
+                  <div class="mode-name">本地优先</div>
+                  <div class="mode-desc">数据先存在浏览器，手动同步才写入服务器。适合开发/离线使用。</div>
+                  <div class="mode-badge" id="modeBadgeLocal">当前</div>
+                </div>
+                <div class="mode-card" id="modeCardApi" onclick="switchAdminMode('api-always')">
+                  <div class="mode-icon">☁️</div>
+                  <div class="mode-name">API 直达</div>
+                  <div class="mode-desc">每次都从服务器实时读取。需要 Postgres 连接正常，适合生产环境。</div>
+                  <div class="mode-badge" id="modeBadgeApi">当前</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 删除保护 -->
+            <div class="setting-block">
+              <h3 class="setting-title">🛡️ 删除保护</h3>
+              <p class="setting-desc">这是最关键的安全设置 — 防止本地"删除标记"同步时误删线上数据。</p>
+              <div class="setting-row">
+                <label class="setting-switch">
+                  <input type="checkbox" id="settingDeleteProtection" onchange="saveSettings()">
+                  <span class="switch-slider"></span>
+                </label>
+                <div class="setting-row-info">
+                  <div class="setting-row-title">🟢 推送前校验删除目标是否存在于服务器</div>
+                  <div class="setting-row-desc">推送删除操作前，先去 Postgres 查询该 ID 是否真的存在。如果服务器上没有这条数据（说明之前 pull 失败或从未同步过），就拒绝删除。这能彻底避免本地孤立的删除标记被推到线上造成数据丢失。<b style="color:#dc2626;">强烈建议保持开启。</b></div>
+                </div>
+              </div>
+              <div class="setting-row">
+                <label class="setting-switch">
+                  <input type="checkbox" id="settingWarnBeforeDelete" onchange="saveSettings()">
+                  <span class="switch-slider"></span>
+                </label>
+                <div class="setting-row-info">
+                  <div class="setting-row-title">🟡 删除前二次确认弹窗</div>
+                  <div class="setting-row-desc">任何删除产品/兑换码操作都会弹出确认框，防止误点。</div>
+                </div>
+              </div>
+              <div class="setting-row">
+                <label class="setting-switch">
+                  <input type="checkbox" id="settingAutoClearDeletes" onchange="saveSettings()">
+                  <span class="switch-slider"></span>
+                </label>
+                <div class="setting-row-info">
+                  <div class="setting-row-title">🔄 成功同步后自动清理删除标记</div>
+                  <div class="setting-row-desc">每次 pull/push/merge 成功后，自动清空本地的 deletedProductIds / deletedRedeemCodes。推荐开启，避免删除标记堆积。</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 数据管理 -->
+            <div class="setting-block">
+              <h3 class="setting-title">💾 数据管理</h3>
+              <div class="setting-row">
+                <button class="btn btn-outline" onclick="exportLocalData()" title="导出浏览器里的全部本地数据为 JSON 文件">📤 导出本地数据 (JSON)</button>
+                <button class="btn btn-outline" onclick="document.getElementById('importFileInput').click()" title="从 JSON 文件导入数据到本地">📥 导入本地数据</button>
+                <input type="file" id="importFileInput" accept="application/json" style="display:none" onchange="importLocalData(event)">
+                <button class="btn btn-danger" onclick="clearAllLocalData()" title="清空浏览器里的全部本地数据（服务器不受影响）">🗑️ 清空本地数据</button>
+              </div>
+              <p class="setting-desc">导出/导入方便备份、迁移或在多台设备之间手动同步。清空本地数据只影响当前浏览器，服务器 Postgres 数据完全不受影响。</p>
+            </div>
+
+            <!-- 关于 -->
+            <div class="setting-block">
+              <h3 class="setting-title">ℹ️ 关于数据同步的安全机制</h3>
+              <div class="about-grid">
+                <div class="about-card">
+                  <div class="about-title">🔒 写入保护</div>
+                  <div class="about-text">Merge 模式下，服务端数据 <code>updated_at</code> 更新才覆盖本地，避免旧数据回刷新数据。</div>
+                </div>
+                <div class="about-card">
+                  <div class="about-title">🧯 异常检测</div>
+                  <div class="about-text">Pull 时如果发现服务器数据量比本地少 90% 以上（<code>50 → 3</code>），会自动中止 replace 保护本地。</div>
+                </div>
+                <div class="about-card">
+                  <div class="about-title">📛 删除白名单</div>
+                  <div class="about-text">删除操作只允许推送到<b>服务器上已存在</b>的目标。本地删除了一个服务器上根本没有的 ID → 拒绝。</div>
+                </div>
+                <div class="about-card">
+                  <div class="about-title">🔐 鉴权保护</div>
+                  <div class="about-text">所有 <code>/api/admin/*</code> 路由需要 JWT token，未授权返回 401。activate 不走这个通道。</div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="panel" id="panel-pg-messages">
             <div class="toolbar">
               <div class="filter-label" style="padding:0;font-weight:700;font-size:0.88rem;color:var(--ink);display:flex;align-items:center;">
-                💬 消息中心
+                <div style="display:flex;flex-direction:column;align-items:flex-start;gap:2px">
+                  🐘 消息中心
+                  <div style="font-size:0.72rem;color:#6b7280;font-weight:400">· Vercel Postgres 持久化存储</div>
+                </div>
               </div>
               <span class="spacer"></span>
               <button class="btn btn-outline" onclick="loadPgMessages()">🔄 刷新列表</button>
@@ -1378,11 +1719,11 @@
                 <div>
                   <label>消息类型</label>
                   <select id="pgMsgType">
-                    <option value="info">ℹ️ 一般信息 (info)</option>
-                    <option value="success">✅ 成功/通知 (success)</option>
-                    <option value="warning">⚠️ 警告 (warning)</option>
-                    <option value="error">❌ 错误/严重 (error)</option>
-                    <option value="announcement">📢 公告 (announcement)</option>
+                    <option value="info">ℹ️ 一般信息</option>
+                    <option value="success">✅ 成功/通知</option>
+                    <option value="warning">⚠️ 警告</option>
+                    <option value="error">❌ 错误/严重</option>
+                    <option value="announcement">📢 公告</option>
                   </select>
                 </div>
                 <div>
@@ -1661,14 +2002,40 @@
       } catch (e) {
         console.error('getLocalData error:', key, e);
       }
+      try {
+        var raw2 = sessionStorage.getItem('backup:' + key);
+        if (raw2) return JSON.parse(raw2);
+      } catch (e2) {}
       return fallback;
     }
 
+    var _storageErrorShown = {};
     function saveLocalData(key, data) {
+      var serialized;
       try {
-        localStorage.setItem(key, JSON.stringify(data));
+        serialized = JSON.stringify(data);
       } catch (e) {
-        console.error('saveLocalData error:', key, e);
+        console.error('saveLocalData: JSON serialize failed', key, e);
+        return false;
+      }
+      try {
+        localStorage.setItem(key, serialized);
+        try { sessionStorage.setItem('backup:' + key, serialized); } catch (_) {}
+        return true;
+      } catch (e) {
+        var quota = e && (e.name === 'QuotaExceededError' || e.code === 22 || String(e.message || '').toLowerCase().indexOf('quota') !== -1);
+        if (quota) {
+          if (!_storageErrorShown[key]) {
+            _storageErrorShown[key] = true;
+            console.warn('⚠️ localStorage 容量不足，尝试压缩存储:', key, serialized.length, 'bytes');
+            showToast('⚠️ 本地存储空间不足！部分数据可能丢失，请及时同步或清除旧数据', 'warn');
+          }
+        } else {
+          console.error('saveLocalData error:', key, e);
+          showToast('⚠️ 本地存储写入失败: ' + (e && e.message ? e.message : String(e)), 'warn');
+        }
+        try { sessionStorage.setItem('backup:' + key, serialized); } catch (_) {}
+        return false;
       }
     }
 
@@ -1910,7 +2277,8 @@
       'pg-messages': { title: '消息中心', sub: '发布和管理系统消息通知' },
       decrypt: { title: '解密验证', sub: '离线解析激活码内容' },
       quota: { title: '免费额度', sub: 'Neon Postgres 免费资源消耗与剩余额度估算' },
-      health: { title: '服务器状态', sub: '检测 Postgres / 鉴权 / 激活链路是否正常' }
+      health: { title: '服务器状态', sub: '检测 Postgres / 鉴权 / 激活链路是否正常' },
+      settings: { title: '设置', sub: '数据优先模式 · 删除保护 · 安全配置' }
     };
 
     function switchTab(tab) {
@@ -1955,6 +2323,7 @@
         }
       }
       if (tab === 'health') runHealthCheck();
+      if (tab === 'settings') initSettingsPanel();
     }
 
     function toggleSidebar() {
@@ -2878,8 +3247,10 @@
       var pid = String(id || '').trim();
       if (!pid) { showToast('产品 ID 缺失', 'error'); return; }
       var pname = name || ('#' + pid);
-      var ok = confirm('确认删除产品「' + pname + '」(' + pid + ')？\n\n⚠️ 删除后历史兑换码 / 激活记录会保留，但生成新兑换码时该产品将不再可选。');
-      if (!ok) return;
+      if (warnBeforeDeleteEnabled()) {
+        var ok = confirm('确认删除产品「' + pname + '」(' + pid + ')？\n\n⚠️ 删除后历史兑换码 / 激活记录会保留，但生成新兑换码时该产品将不再可选。\n\n💡 提示：可在「设置 → 删除保护」里关闭此确认。');
+        if (!ok) return;
+      }
 
       if (ADMIN_MODE === 'local-first') {
         try {
@@ -2980,9 +3351,10 @@
           }
           saveLocalData(STORAGE_KEY_CODES, codes);
           markDirty(true);
-          showToast('已本地生成 ' + generated.length + ' 个兑换码（待同步到服务器后才可用于线上激活）', 'success');
+          showToast('已生成 ' + generated.length + ' 个兑换码，正在同步到服务器...', 'success');
           closeCodeModal();
           queueRefreshPanels(true);
+          autoSyncCodes();
         } catch (e) {
           console.error('generateCodes local failed:', e);
           showToast('本地生成失败: ' + (e.message || '未知错误'), 'error');
@@ -3225,17 +3597,26 @@
         if (mode === 'pull') {
           var pull = await api('/api/admin/sync');
           if (!pull || !pull.success) throw new Error((pull && pull.error) || '拉取失败');
+          var serverStats = (pull.snapshot && pull.snapshot.stats) || {};
           mergeServerDataIntoLocal(pull, { replace: true });
           saveSyncMeta({ lastSyncAt: Date.now(), lastSyncMode: 'pull', dirty: false });
-          showSyncBanner('✅ 拉取完成 ✓ 已用服务器最新数据覆盖本地（产品/兑换码/激活记录/计数器已更新，删除的删除记录已清理）', 'ok');
-          showToast('拉取完成', 'success');
+          var statHtml = '📥 服务器返回 <b>' + (serverStats.productCount || 0) + '</b> 产品 / <b>' + (serverStats.redeemCodeCount || 0) + '</b> 兑换码 / <b>' + (serverStats.activationCount || 0) + '</b> 激活记录';
+          showSyncBanner('✅ 拉取完成 ✓ ' + statHtml + '（已与本地合并）', 'ok');
+          showToast('拉取完成 - ' + (serverStats.activationCount || 0) + ' 条激活记录', 'success');
           refreshQuotaCache();
-          queueRefreshPanels(true);
+          // 🔄 强制刷新所有面板（不管当前 tab 是什么）
+          try { if (typeof loadProducts === 'function') loadProducts(); } catch (_) {}
+          try { if (typeof loadCodes === 'function') loadCodes(); } catch (_) {}
+          try { if (typeof loadRecords === 'function') loadRecords(); } catch (_) {}
+          try { if (typeof loadStats === 'function') loadStats(); } catch (_) {}
+          fillProductFiltersFromLocal();
           return;
         }
 
         if (mode === 'push') {
           var snap = await collectLocalPushPatch();
+          var pushSanitize = await sanitizePatchDeletes(snap);
+          snap = pushSanitize.patch;
           var pushRes = await api('/api/admin/sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -3245,23 +3626,34 @@
           saveSyncMeta({ lastSyncAt: Date.now(), lastSyncMode: 'push', dirty: false });
           clearLocalDeletes();
           // 推送完成后合并服务端返回的最终 products 列表到本地（避免后端分配的不同步）
-          if (pushRes.snapshot && pushRes.snapshot.products) {
+          if (pushRes.snapshot) {
+            var pushStats = (pushRes.snapshot.stats) || {};
             mergeServerDataIntoLocal(pushRes.snapshot, { replace: false, keepLocal: true });
+          } else {
+            var pushStats = {};
           }
           var okMsg = '✅ 推送完成 ✓ 本端 ' + (pushRes.applied || {});
           if (pushRes.summary) okMsg = '✅ 推送完成 ✓ ' + String(pushRes.summary);
+          if (pushStats.activationCount != null) okMsg += ' · 服务器激活记录: ' + pushStats.activationCount;
           showSyncBanner(okMsg, 'ok');
-          showToast('推送完成', 'success');
+          showToast('推送完成 - ' + (pushStats.activationCount || 0) + ' 条激活记录在服务器', 'success');
           refreshQuotaCache();
-          queueRefreshPanels(true);
+          try { if (typeof loadProducts === 'function') loadProducts(); } catch (_) {}
+          try { if (typeof loadCodes === 'function') loadCodes(); } catch (_) {}
+          try { if (typeof loadRecords === 'function') loadRecords(); } catch (_) {}
+          try { if (typeof loadStats === 'function') loadStats(); } catch (_) {}
+          fillProductFiltersFromLocal();
           return;
         }
 
         // merge (default): fetch snapshot -> merge into local (server wins unless local is newer / deleted) -> then push local patch
         var snap2 = await api('/api/admin/sync');
         if (!snap2 || !snap2.success) throw new Error((snap2 && snap2.error) || '获取服务端快照失败');
+        var preMergeStats = (snap2.snapshot && snap2.snapshot.stats) || {};
         mergeServerDataIntoLocal(snap2, { replace: false, keepLocal: true });
         var localPatch = await collectLocalPushPatch();
+        var mergeSanitize = await sanitizePatchDeletes(localPatch);
+        localPatch = mergeSanitize.patch;
         var patchRes = await api('/api/admin/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -3270,14 +3662,19 @@
         if (!patchRes || !patchRes.success) throw new Error((patchRes && patchRes.error) || '推送本地变更失败');
         // 最终用服务器最新快照再覆盖一次以保证一致
         if (patchRes.snapshot) mergeServerDataIntoLocal(patchRes.snapshot, { replace: false, keepLocal: true });
+        var postMergeStats = (patchRes.snapshot && patchRes.snapshot.stats) || preMergeStats;
         saveSyncMeta({ lastSyncAt: Date.now(), lastSyncMode: 'merge', dirty: false });
         clearLocalDeletes();
-        var okMsg2 = '✅ 一键双向同步完成 ✓ 先拉取服务器最新 → 再推送本地新增/更新/删除（<b>服务器为数据权威</b>）。';
-        if (patchRes.summary) okMsg2 += ' 结果：' + String(patchRes.summary);
+        var okMsg2 = '✅ 一键双向同步完成 ✓ <b>' + (postMergeStats.activationCount || 0) + '</b> 激活记录 · <b>' + (postMergeStats.redeemCodeCount || 0) + '</b> 兑换码';
+        if (patchRes.summary) okMsg2 += ' · ' + String(patchRes.summary);
         showSyncBanner(okMsg2, 'ok');
-        showToast('双向同步完成', 'success');
+        showToast('双向同步完成 - ' + (postMergeStats.activationCount || 0) + ' 条激活记录', 'success');
         refreshQuotaCache();
-        queueRefreshPanels(true);
+        try { if (typeof loadProducts === 'function') loadProducts(); } catch (_) {}
+        try { if (typeof loadCodes === 'function') loadCodes(); } catch (_) {}
+        try { if (typeof loadRecords === 'function') loadRecords(); } catch (_) {}
+        try { if (typeof loadStats === 'function') loadStats(); } catch (_) {}
+        fillProductFiltersFromLocal();
       } catch (e) {
         console.error('doSync failed:', e);
         showSyncBanner('❌ 同步失败: ' + escapeHtml((e && e.message) || String(e)), 'err');
@@ -3589,90 +3986,177 @@
 
     function mergeServerDataIntoLocal(serverSnapshot, opts) {
       opts = opts || {};
-      var replace = !!opts.replace;
+      var forceReplace = !!opts.replace;
       var snap = serverSnapshot && serverSnapshot.snapshot ? serverSnapshot.snapshot : serverSnapshot;
-      var sProducts = (snap && snap.products && Array.isArray(snap.products)) ? snap.products : [];
-      var sCodes = (snap && snap.redeemCodes && Array.isArray(snap.redeemCodes)) ? snap.redeemCodes : [];
-      var sRecords = (snap && snap.activationRecords && Array.isArray(snap.activationRecords)) ? snap.activationRecords : [];
-      var sCounters = (snap && snap.counters && typeof snap.counters === 'object') ? snap.counters : {};
+      if (!snap || typeof snap !== 'object') {
+        console.warn('mergeServerDataIntoLocal: server snapshot invalid, skipping merge to protect local data');
+        return;
+      }
+      var sProducts = (snap.products && Array.isArray(snap.products)) ? snap.products : [];
+      var sCodes = (snap.redeemCodes && Array.isArray(snap.redeemCodes)) ? snap.redeemCodes : [];
+      var sRecords = (snap.activationRecords && Array.isArray(snap.activationRecords)) ? snap.activationRecords : [];
+      var sCounters = (snap.counters && typeof snap.counters === 'object') ? snap.counters : {};
+
+      // 📊 调试日志
+      var localBefore = {
+        products: Object.keys(getLocalProducts()).length,
+        codes: getLocalData(STORAGE_KEY_CODES, []).length,
+        records: getLocalData(STORAGE_KEY_RECORDS, []).length,
+      };
+      console.log('🔀 mergeServerDataIntoLocal', { forceReplace: forceReplace,
+        server: { products: sProducts.length, codes: sCodes.length, records: sRecords.length },
+        localBefore: localBefore
+      });
       var dels = getLocalDeletes();
       var delPidSet = {};
       (dels.deletedProductIds || []).forEach(function(k) { delPidSet[k] = true; });
       var delCodeSet = {};
       (dels.deletedRedeemCodes || []).forEach(function(k) { delCodeSet[k] = true; });
 
-      // 1. products
-      var pLocal = replace ? {} : getLocalProducts();
+      // 🛡️ 保护：如果服务器返回数据严重少于本地（可能 Redis 临时故障），拒绝覆盖
+      var localCodesCount = getLocalData(STORAGE_KEY_CODES, []).length;
+      var localRecordsCount = getLocalData(STORAGE_KEY_RECORDS, []).length;
+      var suspiciousServer = false;
+      if (forceReplace) {
+        if (sCodes.length < localCodesCount * 0.1 && localCodesCount > 10) {
+          console.warn('🛡️ 检测到服务器兑换码数据异常（服务器 ' + sCodes.length + ' vs 本地 ' + localCodesCount + '），拒绝 replace 保护本地数据');
+          suspiciousServer = true;
+        }
+        if (sRecords.length < localRecordsCount * 0.1 && localRecordsCount > 5) {
+          console.warn('🛡️ 检测到服务器激活记录数据异常（服务器 ' + sRecords.length + ' vs 本地 ' + localRecordsCount + '），拒绝 replace');
+          suspiciousServer = true;
+        }
+      }
+      var actuallyReplace = forceReplace && !suspiciousServer;
+      if (suspiciousServer) {
+        showToast('⚠️ 服务器数据疑似异常（条目骤减），已跳过拉取以保护本地数据。请检查 Postgres/Redis 连接', 'warn');
+      }
+
+      // 1. products — 永远 merge，不激进 replace（避免本地新增丢失）
+      var pLocal = getLocalProducts();
       sProducts.forEach(function(p) {
         if (!p || !p.id) return;
         var id = String(p.id).padStart(2, '0');
-        if (delPidSet[id] && !replace) return; // 本地已标记删除，不强制拉回（除非 pull replace）
-        if (!replace && pLocal[id]) {
+        if (delPidSet[id]) return;
+        if (!pLocal[id]) {
+          pLocal[id] = Object.assign({ id: id }, p);
+        } else {
           var lTs = Number(pLocal[id].updated_at || pLocal[id].created_at || 0);
           var sTs = Number(p.updated_at || p.created_at || 0);
-          if (sTs > lTs || !Object.prototype.hasOwnProperty.call(pLocal[id], '__dirty')) {
-            pLocal[id] = Object.assign({ id: id }, p);
-          } else {
-            // 本地更新较新，保留
+          if (sTs >= lTs) {
+            pLocal[id] = Object.assign({}, pLocal[id], p, { id: id });
           }
-        } else {
-          pLocal[id] = Object.assign({ id: id }, p);
         }
       });
+      if (actuallyReplace) {
+        var keepIds = {};
+        Object.keys(pLocal).forEach(function(id) { keepIds[id] = true; });
+        var pClean = {};
+        sProducts.forEach(function(p) {
+          if (!p || !p.id) return;
+          var id = String(p.id).padStart(2, '0');
+          pClean[id] = Object.assign({ id: id }, p);
+        });
+        pLocal = pClean;
+      }
       saveLocalProducts(pLocal);
 
-      // 2. counters
-      var cLocal = replace ? {} : getLocalCounters();
-      Object.keys(sCounters || {}).forEach(function(k) { cLocal[k] = sCounters[k]; });
+      // 2. counters — merge（服务器优先但不覆盖本地较大值，避免计数器被清零）
+      var cLocal = getLocalCounters();
+      Object.keys(sCounters || {}).forEach(function(k) {
+        var sv = Number(sCounters[k]) || 0;
+        var lv = Number(cLocal[k]) || 0;
+        if (sv >= lv) {
+          cLocal[k] = sCounters[k];
+        } else {
+          cLocal[k] = lv;
+        }
+      });
       saveLocalCounters(cLocal);
 
-      // 3. redeem codes (server always authoritative unless we explicitly push)
-      var codesLocal = replace ? [] : getLocalData(STORAGE_KEY_CODES, []);
+      // 3. redeem codes — merge 模式保留本地新增，服务器数据合并进来
+      var codesLocal = getLocalData(STORAGE_KEY_CODES, []);
       var localMap = {};
       codesLocal.forEach(function(c) { if (c && c.code) localMap[String(c.code).toUpperCase()] = c; });
       sCodes.forEach(function(sc) {
         if (!sc || !sc.code) return;
         var k = String(sc.code).toUpperCase();
-        if (delCodeSet[k] && !replace) return;
-        // server wins for used_at/used flag (they come from real activations on server)
+        if (delCodeSet[k]) return;
+        // server wins for used_at/used (真实激活标记)
         localMap[k] = Object.assign({}, localMap[k] || {}, sc, { code: k });
       });
-      // pull replace 模式：删掉不在 server snapshot 里的（server 已删）
-      if (replace) {
-        localMap = {};
+      if (actuallyReplace) {
+        // replace 模式：保留所有本地新增（有 created_at 但服务器没有的），服务器有的用服务器的
+        var newLocalMap = {};
         sCodes.forEach(function(sc) {
           if (!sc || !sc.code) return;
-          var k = String(sc.code).toUpperCase();
-          localMap[k] = Object.assign({}, sc, { code: k });
+          var k2 = String(sc.code).toUpperCase();
+          newLocalMap[k2] = Object.assign({}, localMap[k2] || {}, sc, { code: k2 });
         });
+        Object.keys(localMap).forEach(function(k3) {
+          if (!newLocalMap[k3]) {
+            newLocalMap[k3] = localMap[k3]; // 保留本地新增但服务器没有的
+          }
+        });
+        localMap = newLocalMap;
       }
       var codesOut = [];
       Object.keys(localMap).sort().forEach(function(k) { codesOut.push(localMap[k]); });
       saveLocalData(STORAGE_KEY_CODES, codesOut);
 
-      // 4. activation records: server authoritative (activations only happen via server POST /api/activate)
+      // 4. activation records — 永远 merge（激活记录服务器产生，但本地也可能有从 sync 拿到的）
       var rServer = recordsLocalNormalize(sRecords);
-      if (replace) {
-        saveLocalData(STORAGE_KEY_RECORDS, rServer);
-      } else {
-        var rLocal = recordsLocalNormalize(getLocalData(STORAGE_KEY_RECORDS, []));
-        var rMap = {};
-        rLocal.forEach(function(r) {
-          var key = (r.activation_code ? String(r.activation_code) : '') + '|' + (r.redeem_code ? String(r.redeem_code).toUpperCase() : '') + '|' + (r.device_id_hash || r.device_id || '');
+      var rLocal = recordsLocalNormalize(getLocalData(STORAGE_KEY_RECORDS, []));
+      var rMap = {};
+      rLocal.forEach(function(r) {
+        var key = (r.activation_code ? String(r.activation_code) : '') + '|' + (r.redeem_code ? String(r.redeem_code).toUpperCase() : '') + '|' + (r.device_id_hash || r.device_id || '');
+        rMap[key] = r;
+      });
+      rServer.forEach(function(r) {
+        var key = (r.activation_code ? String(r.activation_code) : '') + '|' + (r.redeem_code ? String(r.redeem_code).toUpperCase() : '') + '|' + (r.device_id_hash || r.device_id || '');
+        // 服务器时间 >= 本地时间 才覆盖
+        var lRec = rMap[key];
+        var lTs2 = lRec ? (Number(lRec.generated_at) || 0) : 0;
+        var sTs2 = Number(r.generated_at) || 0;
+        if (!lRec || sTs2 >= lTs2) {
           rMap[key] = r;
-        });
-        rServer.forEach(function(r) {
-          var key = (r.activation_code ? String(r.activation_code) : '') + '|' + (r.redeem_code ? String(r.redeem_code).toUpperCase() : '') + '|' + (r.device_id_hash || r.device_id || '');
-          rMap[key] = r; // newer server wins
-        });
-        var out = [];
-        Object.keys(rMap).forEach(function(k) { out.push(rMap[k]); });
-        out.sort(function(a, b) { return (Number(b.generated_at) || 0) - (Number(a.generated_at) || 0); });
-        saveLocalData(STORAGE_KEY_RECORDS, out);
-      }
+        }
+      });
+      var out = [];
+      Object.keys(rMap).forEach(function(k) { out.push(rMap[k]); });
+      out.sort(function(a, b) { return (Number(b.generated_at) || 0) - (Number(a.generated_at) || 0); });
+      saveLocalData(STORAGE_KEY_RECORDS, out);
     }
 
     function clearLocalDeletes() { saveLocalDeletes({ deletedProductIds: [], deletedRedeemCodes: [] }); }
+
+    var _autoSyncCodesTimer = null;
+    function autoSyncCodes() {
+      if (_autoSyncCodesTimer) clearTimeout(_autoSyncCodesTimer);
+      _autoSyncCodesTimer = setTimeout(async function() {
+        try {
+          var patch = collectLocalPushPatch();
+          var res = await api('/api/admin/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'push', patch: patch })
+          });
+          if (res && res.success) {
+            markDirty(false);
+            saveSyncMeta({ lastSyncAt: Date.now(), lastSyncMode: 'push', dirty: false });
+            if (res.summary) {
+              showToast('✅ 同步完成：' + String(res.summary), 'success');
+            } else {
+              showToast('✅ 已自动同步到服务器，兑换码立即可用', 'success');
+            }
+          }
+        } catch (_e) {
+          console.warn('autoSyncCodes failed (non-blocking):', _e.message || _e);
+          showToast('⚠️ 自动同步失败，请在有网络时手动同步（本地数据已保存不丢失）', 'info');
+        }
+        _autoSyncCodesTimer = null;
+      }, 800);
+    }
 
     function collectLocalPushPatch() {
       var products = getLocalProducts();
@@ -3691,6 +4175,78 @@
           redeemCodes: Array.isArray(dels.deletedRedeemCodes) ? dels.deletedRedeemCodes : [],
         },
       };
+    }
+
+    // 🛡️ 删除保护：推送前用服务器快照做白名单过滤
+    // 只有服务器上真实存在的目标才允许删除，孤立的本地删除标记会被丢弃
+    async function sanitizePatchDeletes(patch) {
+      if (!deleteProtectionEnabled()) {
+        console.log('🛡️ 删除保护已关闭，跳过白名单校验');
+        return { patch: patch, filtered: { productIds: [], redeemCodes: [] } };
+      }
+      if (!patch || !patch.deletes) return { patch: patch, filtered: { productIds: [], redeemCodes: [] } };
+
+      var dels = patch.deletes;
+      var pIds = Array.isArray(dels.productIds) ? dels.productIds : [];
+      var rCodes = Array.isArray(dels.redeemCodes) ? dels.redeemCodes : [];
+      if (!pIds.length && !rCodes.length) {
+        return { patch: patch, filtered: { productIds: [], redeemCodes: [] } };
+      }
+
+      var filteredOutPids = [];
+      var filteredOutCodes = [];
+
+      try {
+        console.log('🛡️ 删除保护：拉取服务器快照做白名单校验', { products: pIds, codes: rCodes });
+        var snap = await api('/api/admin/sync');
+        var s = snap && snap.snapshot ? snap.snapshot : snap;
+        var sPidSet = {};
+        var sCodeSet = {};
+        if (s && Array.isArray(s.products)) s.products.forEach(function(p) { if (p && p.id) sPidSet[String(p.id).padStart(2, '0')] = true; });
+        if (s && Array.isArray(s.redeemCodes)) s.redeemCodes.forEach(function(c) { if (c && c.code) sCodeSet[String(c.code).toUpperCase()] = true; });
+
+        var safePids = [];
+        pIds.forEach(function(pid) {
+          var key = String(pid).padStart(2, '0');
+          if (sPidSet[key]) {
+            safePids.push(pid);
+          } else {
+            filteredOutPids.push(pid);
+          }
+        });
+
+        var safeCodes = [];
+        rCodes.forEach(function(code) {
+          var key = String(code).toUpperCase();
+          if (sCodeSet[key]) {
+            safeCodes.push(code);
+          } else {
+            filteredOutCodes.push(code);
+          }
+        });
+
+        if (filteredOutPids.length || filteredOutCodes.length) {
+          console.warn('🛡️ 删除保护生效！已过滤 ' + filteredOutPids.length + ' 个产品ID + ' + filteredOutCodes.length + ' 个兑换码，这些目标在服务器上不存在，拒绝删除。', {
+            filteredProducts: filteredOutPids,
+            filteredCodes: filteredOutCodes,
+            safeProducts: safePids,
+            safeCodes: safeCodes,
+          });
+          showToast('🛡️ 删除保护生效：过滤 ' + filteredOutPids.length + ' 个产品 / ' + filteredOutCodes.length + ' 个兑换码（服务器不存在）', 'warn');
+        } else {
+          console.log('🛡️ 删除保护：所有删除目标均在服务器上存在，允许推送', { products: safePids, codes: safeCodes });
+        }
+
+        var safePatch = Object.assign({}, patch, {
+          deletes: { productIds: safePids, redeemCodes: safeCodes }
+        });
+        return { patch: safePatch, filtered: { productIds: filteredOutPids, redeemCodes: filteredOutCodes } };
+      } catch (e) {
+        console.error('🛡️ 删除保护校验失败，保守策略：拒绝所有删除操作以保护线上数据！', e);
+        showToast('🛡️ 服务器快照获取失败，保守策略：本次不推送任何删除操作，请稍后重试', 'error');
+        var safePatch2 = Object.assign({}, patch, { deletes: { productIds: [], redeemCodes: [] } });
+        return { patch: safePatch2, filtered: { productIds: pIds, redeemCodes: rCodes } };
+      }
     }
 
     function escapeHtml(str) {
@@ -3784,6 +4340,260 @@
       }
     }
 
+    async function loadHealthLogs() {
+      var sec = document.getElementById('healthLogsSection');
+      var vercelSec = document.getElementById('vercelLogsSection');
+      sec.style.display = 'block';
+      vercelSec.style.display = 'none';
+
+      var counterEl = document.getElementById('healthLogsCounters');
+      var actEl = document.getElementById('healthLogsActivations');
+      var codeEl = document.getElementById('healthLogsCodes');
+      var timeEl = document.getElementById('healthLogsTime');
+
+      counterEl.innerHTML = '<div class="empty">加载中...</div>';
+      actEl.innerHTML = '<div class="empty">加载中...</div>';
+      codeEl.innerHTML = '<div class="empty">加载中...</div>';
+
+      try {
+        var data = await api('/api/admin/health?section=logs');
+        if (!data.success) throw new Error(data.error || '加载失败');
+
+        if (timeEl && data.generatedAt) timeEl.textContent = '· ' + new Date(data.generatedAt).toLocaleString('zh-CN');
+
+        var counters = data.counters || {};
+        var env = data.env || {};
+        counterEl.innerHTML = '' +
+          '<div class="hl-card" title="所有产品数量"><div class="hl-num">' + (counters.products_total || 0) + '</div><div class="hl-lab">📦 产品总数</div></div>' +
+          '<div class="hl-card" title="所有兑换码数量"><div class="hl-num">' + (counters.redeem_codes_total || 0) + '</div><div class="hl-lab">🎫 兑换码</div></div>' +
+          '<div class="hl-card" title="已使用的兑换码数量"><div class="hl-num">' + (counters.used_redeem_codes || 0) + '</div><div class="hl-lab">✅ 已使用</div></div>' +
+          '<div class="hl-card" title="所有激活记录数量"><div class="hl-num">' + (counters.activations_total || 0) + '</div><div class="hl-lab">🔑 激活记录</div></div>' +
+          '<div class="hl-card hl-env"><div class="hl-num env-num">' + escapeHtml(env.region || '-') + '</div><div class="hl-lab">🌍 Region</div></div>' +
+          '<div class="hl-card hl-env"><div class="hl-num env-num">' + escapeHtml(env.env || '-') + '</div><div class="hl-lab">⚙️ Env</div></div>';
+
+        var acts = data.activations || [];
+        if (!acts.length) {
+          actEl.innerHTML = '<div class="empty">暂无激活记录</div>';
+        } else {
+          actEl.innerHTML = acts.map(function(a) {
+            var t = a.generated_at ? new Date(Number(a.generated_at)).toLocaleString('zh-CN') : '-';
+            var dev = a.device_id || a.deviceId || '?';
+            if (dev && dev.length > 12) dev = dev.slice(0, 12) + '...';
+            var pid = a.product_id || a.productId || '?';
+            var months = a.months || a.duration_months || '?';
+            var code = a.redeem_code || a.redeemCode || '-';
+            return '<div class="hl-row">' +
+              '<span class="hl-time">' + t + '</span>' +
+              '<span class="hl-pid">P' + escapeHtml(String(pid).padStart(2, '0')) + '</span>' +
+              '<span class="hl-mon">' + escapeHtml(String(months)) + '月</span>' +
+              '<span class="hl-dev" title="' + escapeHtml(dev) + '">' + escapeHtml(dev) + '</span>' +
+              (code && code !== '-' ? '<span class="hl-code">' + escapeHtml(String(code).toUpperCase()) + '</span>' : '') +
+              '</div>';
+          }).join('');
+        }
+
+        var codes = data.redeemCodes || [];
+        if (!codes.length) {
+          codeEl.innerHTML = '<div class="empty">暂无兑换码数据</div>';
+        } else {
+          codeEl.innerHTML = codes.map(function(c) {
+            var t = c.created_at ? new Date(Number(c.created_at)).toLocaleString('zh-CN') : '-';
+            var used = !!c.used;
+            var pid = c.product_id || '?';
+            var months = c.duration_months || '?';
+            var code = (c.code || '').toUpperCase();
+            return '<div class="hl-row hl-' + (used ? 'used' : 'unused') + '">' +
+              '<span class="hl-time">' + t + '</span>' +
+              '<span class="hl-code">' + escapeHtml(code) + '</span>' +
+              '<span class="hl-pid">P' + escapeHtml(String(pid).padStart(2, '0')) + '</span>' +
+              '<span class="hl-mon">' + escapeHtml(String(months)) + '月</span>' +
+              '<span class="hl-tag ' + (used ? 'tag-used' : 'tag-unused') + '">' + (used ? '已使用' : '未使用') + '</span>' +
+              '</div>';
+          }).join('');
+        }
+
+        showToast('服务器数据加载成功', 'success');
+      } catch (e) {
+        console.error('loadHealthLogs failed:', e);
+        counterEl.innerHTML = '<div class="empty" style="color:#ef4444;">加载失败: ' + escapeHtml(e.message || '') + '</div>';
+      }
+    }
+
+    async function loadVercelLogs() {
+      var sec = document.getElementById('vercelLogsSection');
+      var logsSec = document.getElementById('healthLogsSection');
+      sec.style.display = 'block';
+      logsSec.style.display = 'none';
+
+      var listEl = document.getElementById('vercelLogsList');
+      var timeEl = document.getElementById('vercelLogsTime');
+      listEl.innerHTML = '<div class="empty">加载中...</div>';
+
+      try {
+        var data = await api('/api/admin/health?section=vercel-logs');
+        if (!data.success) {
+          var hint = '';
+          if (data.hint) hint = '<div style="margin-top:8px;color:#6b7280;font-size:0.8rem;">' + escapeHtml(data.hint) + '</div>';
+          listEl.innerHTML = '<div class="empty" style="text-align:left;color:#f59e0b;">⚠️ ' + escapeHtml(data.error || 'Vercel 日志不可用') + hint + '</div>';
+          showToast('Vercel API 未配置', 'error');
+          return;
+        }
+
+        if (timeEl && data.fetchedAt) timeEl.textContent = '· ' + new Date(data.fetchedAt).toLocaleString('zh-CN');
+
+        var logs = data.logs || [];
+        if (!logs.length) {
+          listEl.innerHTML = '<div class="empty">暂无 Vercel 部署事件（或 API 未返回事件）</div>';
+          showToast('Vercel 暂无事件', 'success');
+          return;
+        }
+
+        listEl.innerHTML = logs.map(function(l) {
+          var typeLabel = escapeHtml(l.type || 'event');
+          var typeClass = 'vl-type-' + String(typeLabel).toLowerCase().replace(/[^a-z]/g, '');
+          return '<div class="vl-row">' +
+            '<span class="vl-time">' + escapeHtml(l.time || '') + '</span>' +
+            '<span class="vl-type ' + typeClass + '">' + typeLabel + '</span>' +
+            '<span class="vl-summary">' + escapeHtml(l.summary || '') + '</span>' +
+            (l.buildId ? '<span class="vl-meta">build:' + escapeHtml(String(l.buildId).slice(0, 8)) + '</span>' : '') +
+            (l.deploymentId ? '<span class="vl-meta">deploy:' + escapeHtml(String(l.deploymentId).slice(0, 8)) + '</span>' : '') +
+            '</div>';
+        }).join('');
+
+        showToast('Vercel 日志加载成功 - ' + logs.length + ' 条事件', 'success');
+      } catch (e) {
+        console.error('loadVercelLogs failed:', e);
+        listEl.innerHTML = '<div class="empty" style="color:#ef4444;">加载失败: ' + escapeHtml(e.message || '') + '</div>';
+      }
+    }
+
+    // ==================== Settings ====================
+    var SETTINGS_KEY = 'admin_settings_v1';
+    var DEFAULT_SETTINGS = {
+      deleteProtection: true,
+      warnBeforeDelete: true,
+      autoClearDeletes: true,
+    };
+    function readSettings() {
+      try {
+        var raw = localStorage.getItem(SETTINGS_KEY);
+        if (raw) {
+          var p = JSON.parse(raw);
+          return Object.assign({}, DEFAULT_SETTINGS, p || {});
+        }
+      } catch (_) {}
+      return Object.assign({}, DEFAULT_SETTINGS);
+    }
+    function saveSettings() {
+      var s = {
+        deleteProtection: !!document.getElementById('settingDeleteProtection').checked,
+        warnBeforeDelete: !!document.getElementById('settingWarnBeforeDelete').checked,
+        autoClearDeletes: !!document.getElementById('settingAutoClearDeletes').checked,
+      };
+      try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch (_) {}
+      var hint = document.getElementById('settingsSavedHint');
+      if (hint) {
+        hint.textContent = '✓ 已保存 · ' + new Date().toLocaleTimeString();
+        setTimeout(function() { if (hint) hint.textContent = ''; }, 2500);
+      }
+    }
+
+    function switchAdminMode(mode) {
+      setAdminMode(mode);
+      initSettingsPanel();
+      showToast('已切换到 ' + (mode === 'api-always' ? '☁️ API 直达模式' : '📴 本地优先模式'), 'success');
+    }
+
+    function initSettingsPanel() {
+      // 模式卡片
+      var m = readAdminMode();
+      var lCard = document.getElementById('modeCardLocal');
+      var aCard = document.getElementById('modeCardApi');
+      if (lCard) lCard.classList.toggle('active', m === 'local-first');
+      if (aCard) aCard.classList.toggle('active', m === 'api-always');
+
+      // 设置开关
+      var s = readSettings();
+      function setCheck(id, v) {
+        var el = document.getElementById(id);
+        if (el) el.checked = !!v;
+      }
+      setCheck('settingDeleteProtection', s.deleteProtection);
+      setCheck('settingWarnBeforeDelete', s.warnBeforeDelete);
+      setCheck('settingAutoClearDeletes', s.autoClearDeletes);
+    }
+
+    function deleteProtectionEnabled() { return !!readSettings().deleteProtection; }
+    function warnBeforeDeleteEnabled() { return !!readSettings().warnBeforeDelete; }
+
+    async function exportLocalData() {
+      try {
+        var data = {
+          exportFrom: 'admin.html',
+          exportAt: new Date().toISOString(),
+          admin_mode: readAdminMode(),
+          products: getLocalProducts(),
+          codes: getLocalData(STORAGE_KEY_CODES, []),
+          records: getLocalData(STORAGE_KEY_RECORDS, []),
+          counters: getLocalCounters(),
+          deletes: getLocalDeletes(),
+          meta: syncMeta(),
+          settings: readSettings(),
+        };
+        var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        var ts = new Date().toISOString().replace(/[:.]/g, '-');
+        a.href = url;
+        a.download = 'admin-backup-' + ts + '.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('导出成功 ✅ 已下载 JSON 文件', 'success');
+      } catch (e) {
+        showToast('导出失败: ' + (e.message || ''), 'error');
+      }
+    }
+
+    function importLocalData(event) {
+      var file = event.target.files && event.target.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          var obj = JSON.parse(String(e.target.result || ''));
+          if (!obj || typeof obj !== 'object') throw new Error('文件格式错误');
+          if (obj.products && typeof obj.products === 'object') saveLocalProducts(obj.products);
+          if (Array.isArray(obj.codes)) saveLocalData(STORAGE_KEY_CODES, obj.codes);
+          if (Array.isArray(obj.records)) saveLocalData(STORAGE_KEY_RECORDS, obj.records);
+          if (obj.counters && typeof obj.counters === 'object') saveLocalCounters(obj.counters);
+          if (obj.deletes && typeof obj.deletes === 'object') saveLocalDeletes(obj.deletes);
+          if (obj.settings && typeof obj.settings === 'object') {
+            try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(obj.settings)); } catch (_) {}
+          }
+          if (obj.admin_mode) {
+            setAdminMode(obj.admin_mode);
+          }
+          showToast('导入成功 ✅ 已合并到本地', 'success');
+          queueRefreshPanels(true);
+          initSettingsPanel();
+        } catch (err) {
+          showToast('导入失败: ' + (err.message || '文件解析错误'), 'error');
+        } finally {
+          event.target.value = '';
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function clearAllLocalData() {
+      if (!confirm('⚠️ 确认清空本地数据？\n\n浏览器里所有产品/兑换码/激活记录/设置都会被清除。\n服务器 Postgres 数据完全不受影响。\n\n此操作不可撤销！')) return;
+      try { localStorage.clear(); } catch (_) {}
+      try { sessionStorage.clear(); } catch (_) {}
+      location.reload();
+    }
+
     function doDecrypt() {
       var input = document.getElementById('decryptInput').value.trim();
       var resultEl = document.getElementById('decryptResult');
@@ -3837,11 +4647,11 @@
 
     function pgMsgTypeLabel(t) {
       switch (t) {
-        case 'success': return 'Success';
-        case 'warning': return 'Warning';
-        case 'error': return 'Error';
-        case 'announcement': return 'Announcement';
-        default: return 'Info';
+        case 'success': return '成功';
+        case 'warning': return '警告';
+        case 'error': return '严重';
+        case 'announcement': return '公告';
+        default: return '信息';
       }
     }
 
@@ -4021,6 +4831,27 @@
     });
     setInterval(loadStats, 30000);
 
+    // 🛡️ 多标签页保护：其他标签页改了 localStorage，自动刷新当前页数据
+    window.addEventListener('storage', function(e) {
+      if (!e.key) return;
+      var tracked = [
+        STORAGE_KEY_PRODUCTS, STORAGE_KEY_CODES, STORAGE_KEY_RECORDS,
+        STORAGE_KEY_COUNTERS, STORAGE_KEY_DELETES, STORAGE_KEY_META, 'admin_mode'
+      ];
+      if (tracked.indexOf(e.key) !== -1) {
+        console.info('🛡️ 检测到其他标签页更新了 ' + e.key + '，刷新本页数据');
+        showToast('🔄 检测到其他标签页数据变更，正在刷新...', 'info');
+        setTimeout(function() {
+          loadStats();
+          loadProducts();
+          loadCodes();
+          loadRecords();
+          refreshQuotaCache();
+          fillProductFiltersFromLocal();
+        }, 300);
+      }
+    });
+
     function _qLvl(pct) {
       var n = Number(pct) || 0;
       if (n >= 90) return 'danger';
@@ -4198,7 +5029,7 @@
         if (dailyEl) {
           var dailyData = d.dailyConsumption || [];
           if (dailyData.length === 0) {
-            dailyEl.innerHTML = '<div class="empty" style="grid-column:1/-1">暂无每日消耗记录。每次访问后台/API 时会自动记录消耗数据。</div>';
+            dailyEl.innerHTML = '<div class="empty">暂无每日消耗记录。每次访问后台/API 时会自动记录消耗数据。</div>';
           } else {
             var dh = '<table class="storage-detail-table"><thead><tr><th>日期</th><th style="text-align:right">Ping 次数</th><th style="text-align:right">活跃秒数</th><th style="text-align:right">冷启动</th><th style="text-align:right">活跃时长</th><th style="text-align:right">访问路径数</th></tr></thead><tbody>';
             dailyData.forEach(function(row) {
