@@ -5329,14 +5329,49 @@
       };
     }
 
-    function loadDiff() {
+    async function loadDiff() {
       var grid = document.getElementById('diffGrid');
       var ts = document.getElementById('diffTimestamp');
       var btn = document.getElementById('diffRefreshBtn');
       if (btn) { btn.disabled = true; btn.textContent = '⏳ 加载中...'; }
       if (ts) ts.textContent = '';
 
-      var local = getLocalSnapshot();
+      var local;
+
+      if (ADMIN_MODE === 'api-always') {
+        try {
+          var [prodRes, codeRes, recRes] = await Promise.all([
+            api('/api/admin/products'),
+            api('/api/admin/redeem-codes?limit=500'),
+            api('/api/admin/records?count=500')
+          ]);
+          var products = [];
+          if (prodRes && prodRes.success && Array.isArray(prodRes.products)) {
+            products = prodRes.products.map(function(p) {
+              return Object.assign({}, p, { id: String(p.id).padStart(2, '0') });
+            });
+          }
+          var redeemCodes = [];
+          if (codeRes && codeRes.success && Array.isArray(codeRes.codes)) {
+            redeemCodes = codeRes.codes;
+          }
+          var activationRecords = [];
+          if (recRes && recRes.success && Array.isArray(recRes.records)) {
+            activationRecords = recRes.records;
+          }
+          local = {
+            products: products,
+            redeemCodes: redeemCodes,
+            activationRecords: activationRecords,
+            counters: { product_counter: products.length }
+          };
+        } catch (e) {
+          console.error('loadDiff: API fetch failed, falling back to localStorage', e);
+          local = getLocalSnapshot();
+        }
+      } else {
+        local = getLocalSnapshot();
+      }
 
       var body = JSON.stringify({
         mode: 'diff-compare',
