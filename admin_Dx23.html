@@ -586,6 +586,7 @@
       color: var(--muted);
       flex-shrink: 0;
       padding: 0;
+      transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.25s ease;
     }
     .sidebar-toggle-btn svg {
       width: 15px;
@@ -2268,7 +2269,7 @@
       <header class="topbar">
         <div class="topbar-left">
           <button class="menu-btn" onclick="openMobileSidebar()" aria-label="打开菜单">☰</button>
-          <button class="sidebar-toggle-btn" onclick="toggleSidebar()" title="隐藏/显示侧边栏" id="sidebarToggleBtn"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2.5" width="4" height="11" rx="0.5"/><line x1="8" y1="3" x2="8" y2="13"/><polyline points="11,6 8,8 11,10"/></svg></button>
+          <button class="sidebar-toggle-btn" onclick="toggleSidebar()" title="隐藏/显示侧边栏" id="sidebarToggleBtn"><svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg"><path d="M341.333333 213.333333H128v597.333334h213.333333V213.333333z m85.333334 0v597.333334h469.333333V213.333333H426.666667zM120.234667 128h783.530666C946.602667 128 981.333333 166.186667 981.333333 213.333333v597.333334c0 47.146667-34.730667 85.333333-77.568 85.333333H120.234667C77.397333 896 42.666667 857.813333 42.666667 810.666667V213.333333c0-47.146667 34.730667-85.333333 77.568-85.333333z"/></svg></button>
           <div>
             <div class="page-title" id="pageTitle">产品管理</div>
             <div class="page-sub" id="pageSub">管理可授权的产品列表</div>
@@ -3426,9 +3427,7 @@
       var toggleBtn = document.getElementById('sidebarToggleBtn');
       var collapsed = sidebar.classList.toggle('collapsed');
       if (toggleBtn) {
-        toggleBtn.innerHTML = collapsed
-          ? '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2.5" width="4" height="11" rx="0.5"/><line x1="8" y1="3" x2="8" y2="13"/><polyline points="11,10 14,8 11,6"/></svg>'
-          : '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2.5" width="4" height="11" rx="0.5"/><line x1="8" y1="3" x2="8" y2="13"/><polyline points="11,6 8,8 11,10"/></svg>';
+        toggleBtn.style.transform = collapsed ? 'rotate(180deg)' : 'rotate(0deg)';
       }
     }
 
