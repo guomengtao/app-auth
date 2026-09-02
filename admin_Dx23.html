@@ -577,8 +577,8 @@
     .sidebar-toggle-btn {
       width: 32px;
       height: 32px;
-      border: 1px solid var(--line);
-      background: var(--surface);
+      border: none;
+      background: transparent;
       border-radius: 8px;
       cursor: pointer;
       display: flex;
@@ -587,7 +587,7 @@
       color: var(--muted);
       flex-shrink: 0;
       padding: 0;
-      transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.25s ease;
+      transition: background 0.15s, color 0.15s;
     }
     .sidebar-toggle-btn svg {
       width: 15px;
@@ -3425,11 +3425,7 @@
 
     function toggleSidebar() {
       var sidebar = document.getElementById('sidebar');
-      var toggleBtn = document.getElementById('sidebarToggleBtn');
-      var collapsed = sidebar.classList.toggle('collapsed');
-      if (toggleBtn) {
-        toggleBtn.style.transform = collapsed ? 'rotate(180deg)' : 'rotate(0deg)';
-      }
+      sidebar.classList.toggle('collapsed');
     }
 
     function toggleUserMenu() {
