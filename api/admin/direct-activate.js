@@ -81,15 +81,15 @@ module.exports = async (req, res) => {
       if (!pid) {
         return res.status(400).json({ success: false, error: "Invalid product ID: " + productIds[i] });
       }
-      productKeys.push("auth:product:" + pid);
+      productKeys.push(pid);
     }
 
-    var existingProducts = await redis.mget(productKeys);
+    var allRaw = await redis.hgetall("auth:products");
     var productNames = {};
     var productLookup = {};
     for (var j = 0; j < productIds.length; j++) {
       var pid = normalizeProductId(productIds[j]);
-      var raw = existingProducts[j];
+      var raw = allRaw && allRaw[pid] ? allRaw[pid] : null;
       var data = parseRedisValue(raw);
       if (!data) {
         return res.status(400).json({ success: false, error: "Product not found: " + productIds[j] });
