@@ -145,7 +145,11 @@
 
     var errorCode = getParam('error');
     if (errorCode) {
+      var detail = getParam('detail');
+      var desc = getParam('desc');
       var msg = errorMessages[errorCode] || ('认证错误: ' + errorCode);
+      if (detail) msg += ' (' + detail + ')';
+      if (desc) msg += ' - ' + decodeURIComponent(desc);
       document.getElementById('authStatus').textContent = msg;
       document.getElementById('authStatus').style.color = '#e53e3e';
       document.getElementById('authStatus').style.background = '#fff0f0';

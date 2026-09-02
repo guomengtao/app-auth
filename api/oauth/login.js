@@ -8,8 +8,7 @@ module.exports = async function (req, res) {
     return res.end();
   }
 
-  var host = req.headers.host || "app-auth.gudq.com";
-  var redirectUri = "https://" + host + "/api/oauth/callback";
+  var redirectUri = "https://app-auth.gudq.com/api/oauth/callback";
   var state = crypto.randomBytes(16).toString("hex");
 
   var params = new URLSearchParams({

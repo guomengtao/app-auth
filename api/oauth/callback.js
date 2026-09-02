@@ -65,6 +65,8 @@ function getJson(url, token) {
   });
 }
 
+var REDIRECT_URI = "https://app-auth.gudq.com/api/oauth/callback";
+
 module.exports = async function (req, res) {
   var code = req.query && req.query.code;
   var error = req.query && req.query.error;
@@ -90,11 +92,14 @@ module.exports = async function (req, res) {
       client_secret: VERCEL_OAUTH_CLIENT_SECRET,
       grant_type: "authorization_code",
       code: code,
-      redirect_uri: "https://" + (req.headers.host || "app-auth.gudq.com") + "/api/oauth/callback"
+      redirect_uri: REDIRECT_URI
     });
 
     if (!tokenRes || !tokenRes.access_token) {
-      res.writeHead(302, { Location: "/login_aXs12.html?error=token_exchange_failed" });
+      var errMsg = (tokenRes && tokenRes.error) ? tokenRes.error : "unknown";
+      var errDesc = (tokenRes && tokenRes.error_description) ? encodeURIComponent(tokenRes.error_description) : "";
+      console.error("Token exchange failed:", JSON.stringify(tokenRes));
+      res.writeHead(302, { Location: "/login_aXs12.html?error=token_exchange_failed&detail=" + errMsg + (errDesc ? "&desc=" + errDesc : "") });
       return res.end();
     }
 
