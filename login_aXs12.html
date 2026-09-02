@@ -32,6 +32,14 @@
     .icon { font-size: 48px; margin-bottom: 16px; }
     h1 { font-size: 1.6rem; color: #1a1a2e; margin-bottom: 6px; }
     .subtitle { font-size: 0.85rem; color: #888; margin-bottom: 32px; }
+    .status-text {
+      font-size: 0.85rem;
+      color: #6c63ff;
+      margin-bottom: 16px;
+      padding: 10px;
+      background: #f0eeff;
+      border-radius: 8px;
+    }
     .btn-login {
       width: 100%;
       padding: 16px;
@@ -52,19 +60,6 @@
     .btn-login:active { transform: scale(0.98); }
     .btn-login:disabled { opacity: 0.5; cursor: not-allowed; }
     .btn-login svg { width: 20px; height: 20px; }
-    .input-password {
-      width: 100%;
-      padding: 14px 16px;
-      border: 2px solid #e0e0e0;
-      border-radius: 12px;
-      font-size: 1rem;
-      text-align: center;
-      margin-bottom: 16px;
-      outline: none;
-      transition: border-color 0.2s;
-      box-sizing: border-box;
-    }
-    .input-password:focus { border-color: #6c63ff; }
     .hint {
       margin-top: 24px;
       font-size: 0.75rem;
@@ -80,65 +75,6 @@
       text-decoration: none;
     }
     .back-link:hover { text-decoration: underline; }
-
-    .modal-overlay {
-      display: none;
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.6);
-      z-index: 100;
-      align-items: center;
-      justify-content: center;
-    }
-    .modal-overlay.show { display: flex; }
-    .modal {
-      background: #fff;
-      border-radius: 20px;
-      padding: 32px;
-      max-width: 440px;
-      width: 90%;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-      animation: fadeIn 0.3s ease;
-    }
-    @keyframes fadeIn {
-      from { opacity: 0; transform: scale(0.95); }
-      to { opacity: 1; transform: scale(1); }
-    }
-    .modal h3 {
-      font-size: 1.1rem;
-      color: #c62828;
-      margin-bottom: 16px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .modal .error-detail {
-      background: #fafafa;
-      border: 1px solid #e0e0e0;
-      border-radius: 10px;
-      padding: 14px;
-      font-size: 0.82rem;
-      color: #555;
-      line-height: 1.7;
-      white-space: pre-wrap;
-      font-family: 'SF Mono', 'Fira Code', 'Menlo', monospace;
-      margin-bottom: 20px;
-      max-height: 200px;
-      overflow-y: auto;
-    }
-    .modal .btn-close {
-      width: 100%;
-      padding: 12px;
-      background: #6c63ff;
-      color: #fff;
-      border: none;
-      border-radius: 10px;
-      font-size: 0.9rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: opacity 0.2s;
-    }
-    .modal .btn-close:hover { opacity: 0.88; }
   </style>
 </head>
 <body>
@@ -146,26 +82,15 @@
     <div class="icon">🛡️</div>
     <h1>管理员登录</h1>
     <p class="subtitle" id="subtitle">仅限管理员登录</p>
-    <p class="hint" id="authStatus" style="display:none;color:#6c63ff;margin-bottom:16px;"></p>
+    <div class="status-text" id="authStatus">正在验证身份...</div>
 
-    <div id="passwordSection">
-      <input type="password" id="passwordInput" class="input-password" placeholder="请输入管理员密码" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
-      <button class="btn-login" id="loginBtn" onclick="doLogin()">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 19.5h20L12 2z"/></svg>
-        认证登录
-      </button>
-    </div>
+    <button class="btn-login" id="loginBtn" onclick="doLogin()">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 19.5h20L12 2z"/></svg>
+      认证登录
+    </button>
     <p class="hint" id="loginError" style="display:none;color:#e53e3e;"></p>
 
     <a href="/" class="back-link">← 返回首页</a>
-  </div>
-
-  <div class="modal-overlay" id="errorModal">
-    <div class="modal">
-      <h3>⚠️ 连接错误</h3>
-      <div class="error-detail" id="errorDetail"></div>
-      <button class="btn-close" onclick="closeErrorModal()">关闭</button>
-    </div>
   </div>
 
   <script>
@@ -178,11 +103,11 @@
     async function checkAuth() {
       if (isLogout()) {
         document.getElementById('subtitle').textContent = '已退出登录';
+        document.getElementById('authStatus').textContent = '已退出登录，请重新认证';
         return;
       }
 
       document.getElementById('authStatus').textContent = '正在验证身份...';
-      document.getElementById('authStatus').style.display = 'block';
 
       try {
         var res = await fetch('/api/admin/me');
@@ -190,7 +115,7 @@
           var data = await res.json();
           if (data.success) {
             document.getElementById('authStatus').textContent = '已通过 Vercel 认证 (' + (data.email || '') + ')，自动跳转中...';
-            document.getElementById('passwordSection').style.display = 'none';
+            document.getElementById('loginBtn').disabled = true;
             setTimeout(function() {
               window.location.href = '/admin_Dx23.html';
             }, 500);
@@ -199,60 +124,16 @@
         }
       } catch (e) {}
 
-      document.getElementById('authStatus').style.display = 'none';
-      document.getElementById('passwordSection').style.display = 'block';
+      document.getElementById('authStatus').textContent = '请通过 Vercel 认证登录';
+      document.getElementById('loginBtn').disabled = false;
     }
 
-    async function doLogin() {
-      var password = document.getElementById('passwordInput').value.trim();
-      var errorEl = document.getElementById('loginError');
-      errorEl.style.display = 'none';
-
-      if (!password) {
-        errorEl.textContent = '请输入密码';
-        errorEl.style.display = 'block';
-        return;
-      }
-
+    function doLogin() {
       var btn = document.getElementById('loginBtn');
       btn.disabled = true;
       btn.textContent = '验证中...';
-
-      try {
-        var res = await fetch('/api/admin/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: password })
-        });
-        var data = await res.json();
-        if (data.success) {
-          window.location.href = '/admin_Dx23.html';
-          return;
-        }
-        btn.disabled = false;
-        btn.textContent = '认证登录';
-        errorEl.textContent = data.error || '密码错误';
-        errorEl.style.display = 'block';
-      } catch (e) {
-        btn.disabled = false;
-        btn.textContent = '认证登录';
-        errorEl.textContent = '无法连接到服务器，请检查网络';
-        errorEl.style.display = 'block';
-      }
+      checkAuth();
     }
-
-    function showError(detail) {
-      document.getElementById('errorDetail').textContent = detail;
-      document.getElementById('errorModal').classList.add('show');
-    }
-
-    function closeErrorModal() {
-      document.getElementById('errorModal').classList.remove('show');
-    }
-
-    document.getElementById('errorModal').addEventListener('click', function(e) {
-      if (e.target === this) closeErrorModal();
-    });
 
     checkAuth();
   </script>
