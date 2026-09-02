@@ -4010,7 +4010,7 @@
           tableHtml += '<tr class="' + hl.trim() + '">';
           var ac = r.activation_code || '';
           if (ac) {
-            tableHtml += '<td class="mono" style="font-size:0.78rem;letter-spacing:0.5px"><a href="javascript:void(0)" class="redeem-link" onclick="openDecryptForActivationCode(\'' + escapeJs(ac) + '\')" title="点击跳转到解密验证">' + escapeHtml(ac) + ' →</a></td>';
+            tableHtml += '<td class="mono" style="font-size:0.78rem;letter-spacing:0.5px"><a href="javascript:void(0)" class="redeem-link" onclick="openDecryptForActivationCode(\'' + escapeJs(ac) + '\')" title="点击跳转到解密验证">' + formatActivationCode(ac) + ' →</a></td>';
           } else {
             tableHtml += '<td style="color:#aaa">-</td>';
           }
@@ -4385,6 +4385,14 @@
       var div = document.createElement('div');
       div.textContent = str;
       return div.innerHTML;
+    }
+
+    function formatActivationCode(code) {
+      var s = String(code || '');
+      if (s.length === 18) {
+        return s.slice(0, 6) + ' ' + s.slice(6, 12) + ' ' + s.slice(12, 18);
+      }
+      return s;
     }
 
     function escapeJs(str) {
@@ -5097,7 +5105,7 @@
 
         html += '<div class="da-result-row">';
         html += '<span class="da-result-label">Activation Code</span>';
-        html += '<span class="da-result-value code">' + escapeHtml(r.activationCode) + '</span>';
+        html += '<span class="da-result-value code">' + formatActivationCode(r.activationCode) + '</span>';
         html += '<button class="da-result-copy" onclick="daCopySingle(\'' + escapeHtml(r.activationCode) + '\', this)">Copy</button>';
         html += '</div>';
 
@@ -5248,7 +5256,7 @@
             '<td>' + escapeHtml(String(o.plan_id || '').slice(0, 12)) + '...</td>' +
             '<td>' + escapeHtml(o.total_amount || '-') + '</td>' +
             '<td>' + escapeHtml(String(o.months || '-')) + '</td>' +
-            '<td style="font-family:monospace;font-size:0.78rem">' + escapeHtml(o.activation_code || '-') + '</td>' +
+            '<td style="font-family:monospace;font-size:0.78rem">' + formatActivationCode(o.activation_code || '-') + '</td>' +
             '<td style="font-family:monospace;font-size:0.78rem">' + escapeHtml(o.redeem_code || '-') + '</td>' +
             '<td>' + statusHtml + '</td>' +
             '<td style="font-size:0.75rem">' + escapeHtml(timeStr) + '</td>' +
