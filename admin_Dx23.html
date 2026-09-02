@@ -4324,7 +4324,8 @@
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (data && data.success) {
-            var label = data.provider === 'vercel' ? 'Vercel' : '';
+            var isVercel = data.provider === 'vercel' || data.provider === 'vercel_oauth';
+            var label = isVercel ? 'Vercel' : '';
             el.textContent = (label ? label + ' ' : '') + (data.email || 'admin');
           } else {
             el.textContent = 'admin';

@@ -84,21 +84,37 @@
     <p class="subtitle" id="subtitle">仅限管理员登录</p>
     <div class="status-text" id="authStatus">正在验证身份...</div>
 
-    <button class="btn-login" id="loginBtn" onclick="doLogin()">
+    <a href="/api/oauth/login" class="btn-login" id="loginBtn" style="text-decoration:none;">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 19.5h20L12 2z"/></svg>
-      认证登录
-    </button>
+      Sign in with Vercel
+    </a>
     <p class="hint" id="loginError" style="display:none;color:#e53e3e;"></p>
 
     <a href="/" class="back-link">← 返回首页</a>
   </div>
 
   <script>
-    function isLogout() {
+    function getParam(name) {
       try {
-        return window.location.search.indexOf('logout') !== -1;
-      } catch (e) { return false; }
+        var search = window.location.search;
+        var params = new URLSearchParams(search);
+        return params.get(name);
+      } catch (e) { return null; }
     }
+
+    function isLogout() {
+      return getParam('logout') !== null;
+    }
+
+    var errorMessages = {
+      'access_denied': 'Vercel 授权被拒绝',
+      'no_code': '缺少授权码',
+      'oauth_not_configured': 'OAuth 未配置，请联系管理员',
+      'token_exchange_failed': 'Token 交换失败',
+      'user_fetch_failed': '获取用户信息失败',
+      'not_admin': '非管理员账户，无权限访问',
+      'oauth_error': 'OAuth 认证过程出错'
+    };
 
     async function checkAuth() {
       document.getElementById('authStatus').textContent = '正在验证身份...';
@@ -109,7 +125,8 @@
           var data = await res.json();
           if (data.success) {
             document.getElementById('authStatus').textContent = '已通过 Vercel 认证 (' + (data.email || '') + ')，自动跳转中...';
-            document.getElementById('loginBtn').disabled = true;
+            document.getElementById('loginBtn').style.pointerEvents = 'none';
+            document.getElementById('loginBtn').style.opacity = '0.5';
             setTimeout(function() {
               window.location.href = '/admin_Dx23.html';
             }, 500);
@@ -118,21 +135,22 @@
         }
       } catch (e) {}
 
-      document.getElementById('authStatus').textContent = '请通过 Vercel 认证登录';
-      document.getElementById('loginBtn').disabled = false;
-      document.getElementById('loginBtn').textContent = '认证登录';
-    }
-
-    function doLogin() {
-      var btn = document.getElementById('loginBtn');
-      btn.disabled = true;
-      btn.textContent = '验证中...';
-      checkAuth();
+      document.getElementById('authStatus').textContent = '请通过 Vercel 账户认证登录';
     }
 
     if (isLogout()) {
       document.getElementById('subtitle').textContent = '已退出登录';
       document.getElementById('authStatus').textContent = '已退出登录，请重新认证';
+    }
+
+    var errorCode = getParam('error');
+    if (errorCode) {
+      var msg = errorMessages[errorCode] || ('认证错误: ' + errorCode);
+      document.getElementById('authStatus').textContent = msg;
+      document.getElementById('authStatus').style.color = '#e53e3e';
+      document.getElementById('authStatus').style.background = '#fff0f0';
+      document.getElementById('loginError').textContent = msg;
+      document.getElementById('loginError').style.display = 'block';
     }
 
     checkAuth();
