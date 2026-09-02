@@ -87,12 +87,16 @@ module.exports = async function (req, res) {
   }
 
   try {
+    var cookies = parseCookies(req.headers.cookie || "");
+    var codeVerifier = cookies["oauth_code_verifier"] || "";
+
     var tokenRes = await postForm("https://api.vercel.com/login/oauth/token", {
       client_id: VERCEL_OAUTH_CLIENT_ID,
       client_secret: VERCEL_OAUTH_CLIENT_SECRET,
       grant_type: "authorization_code",
       code: code,
-      redirect_uri: REDIRECT_URI
+      redirect_uri: REDIRECT_URI,
+      code_verifier: codeVerifier
     });
 
     if (!tokenRes || !tokenRes.access_token) {
