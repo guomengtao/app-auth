@@ -414,40 +414,122 @@
       background: rgba(108, 99, 255, 0.35);
     }
 
-    .sidebar-footer {
-      padding: 12px 14px;
+    .sidebar-user {
+      padding: 10px 12px;
       border-top: 1px solid rgba(255,255,255,0.06);
+      flex-shrink: 0;
+      position: relative;
+    }
+    .sidebar-user-btn {
       display: flex;
       align-items: center;
       gap: 8px;
-      flex-shrink: 0;
-    }
-    .sidebar-toggle {
-      width: 32px;
-      height: 32px;
+      width: 100%;
+      padding: 8px 10px;
       border: none;
-      background: rgba(255,255,255,0.06);
-      border-radius: 6px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 8px;
       cursor: pointer;
       color: rgba(255,255,255,0.55);
-      font-size: 0.85rem;
+      font-size: 0.78rem;
+      transition: background 0.15s, color 0.15s;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+    .sidebar-user-btn:hover {
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+    }
+    .sidebar-user-avatar {
+      width: 28px;
+      height: 28px;
+      min-width: 28px;
+      border-radius: 6px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: background 0.15s, color 0.15s;
+      color: #fff;
+      font-size: 0.7rem;
+      font-weight: 700;
       flex-shrink: 0;
     }
-    .sidebar-toggle:hover {
-      background: var(--accent);
+    .sidebar-user-email {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 0.75rem;
+      text-align: left;
+    }
+    .sidebar-user-arrow {
+      font-size: 0.55rem;
+      flex-shrink: 0;
+      transition: transform 0.2s;
+    }
+    .sidebar-user-btn.open .sidebar-user-arrow {
+      transform: rotate(180deg);
+    }
+    .sidebar-user-dropdown {
+      display: none;
+      position: absolute;
+      bottom: 100%;
+      left: 8px;
+      right: 8px;
+      background: #1e293b;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      margin-bottom: 6px;
+      padding: 4px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      z-index: 50;
+    }
+    .sidebar-user-dropdown.show {
+      display: block;
+    }
+    .sidebar-user-dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 12px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.7);
+      cursor: pointer;
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
+      transition: background 0.15s, color 0.15s;
+    }
+    .sidebar-user-dropdown-item:hover {
+      background: rgba(255,255,255,0.08);
       color: #fff;
     }
-    .sidebar-ver {
-      font-size: 0.68rem;
-      color: rgba(255,255,255,0.25);
-      white-space: nowrap;
+    .sidebar-user-dropdown-item.danger {
+      color: rgba(239, 68, 68, 0.7);
     }
-    .sidebar.collapsed .sidebar-footer { justify-content: center; }
-    .sidebar.collapsed .sidebar-ver { display: none; }
+    .sidebar-user-dropdown-item.danger:hover {
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+    }
+    .sidebar-user-dropdown-divider {
+      height: 1px;
+      background: rgba(255,255,255,0.08);
+      margin: 4px 8px;
+    }
+    .sidebar.collapsed .sidebar-user { padding: 8px; }
+    .sidebar.collapsed .sidebar-user-btn {
+      justify-content: center;
+      padding: 8px;
+    }
+    .sidebar.collapsed .sidebar-user-email,
+    .sidebar.collapsed .sidebar-user-arrow { display: none; }
+    .sidebar.collapsed .sidebar-user-dropdown {
+      left: 4px;
+      right: auto;
+      width: 180px;
+    }
 
     /* —— Workspace —— */
     .workspace {
@@ -561,6 +643,15 @@
     .logout-link:hover {
       color: #ef4444;
       background: rgba(239, 68, 68, 0.08);
+    }
+    .topbar-version {
+      font-size: 0.7rem;
+      color: var(--muted);
+      padding: 4px 10px;
+      background: var(--bg);
+      border-radius: 6px;
+      font-family: 'SF Mono', 'Menlo', 'Monaco', 'Consolas', monospace;
+      white-space: nowrap;
     }
     .logout {
       padding: 7px 14px;
@@ -1391,7 +1482,8 @@
       }
       .sidebar.collapsed .brand-text,
       .sidebar.collapsed .menu-text,
-      .sidebar.collapsed .sidebar-ver { display: initial; }
+      .sidebar.collapsed .sidebar-user-email,
+      .sidebar.collapsed .sidebar-user-arrow { display: initial; }
       .sidebar.collapsed .sidebar-brand { justify-content: flex-start; padding: 0 16px; }
       .sidebar.collapsed .sidebar-menu li a {
         justify-content: flex-start;
@@ -1401,10 +1493,8 @@
         box-shadow: inset 3px 0 0 var(--accent);
         background: rgba(108, 99, 255, 0.22);
       }
-      .sidebar.collapsed .sidebar-footer { justify-content: flex-start; }
       .sidebar.collapsed .sidebar-nav-label { visibility: visible; height: auto; padding: 18px 18px 8px; }
       .menu-btn { display: flex; }
-      .sidebar-toggle { display: none; }
       .topbar { padding: 8px 14px; gap: 6px; }
       .stats-bar { grid-template-columns: repeat(2, 1fr); gap: 8px; }
       .decrypt-input-row { flex-direction: column; }
@@ -2160,6 +2250,18 @@
         <li class="menu-separator"><hr></li>
         <li><a href="javascript:void(0)" onclick="switchTab('settings')" data-tab="settings"><span class="menu-icon">⚙️</span><span class="menu-text">设置</span></a></li>
       </ul>
+      <div class="sidebar-user" id="sidebarUser">
+        <div class="sidebar-user-dropdown" id="sidebarUserDropdown">
+          <div class="sidebar-user-dropdown-item" onclick="switchTab('settings')"><span class="menu-icon">⚙️</span> 设置</div>
+          <div class="sidebar-user-dropdown-divider"></div>
+          <div class="sidebar-user-dropdown-item danger" onclick="logout()">🚪 退出登录</div>
+        </div>
+        <button class="sidebar-user-btn" id="sidebarUserBtn" onclick="toggleUserMenu()">
+          <div class="sidebar-user-avatar">A</div>
+          <span class="sidebar-user-email" id="sidebarUserEmail">admin</span>
+          <span class="sidebar-user-arrow">▼</span>
+        </button>
+      </div>
     </aside>
 
     <div class="workspace">
@@ -2173,9 +2275,7 @@
           </div>
         </div>
         <div class="topbar-right">
-          <span class="user-chip" id="usernameDisplay"></span>
-          <a href="/" class="topbar-link">首页</a>
-          <a href="javascript:void(0)" onclick="logout()" class="topbar-link logout-link">退出</a>
+          <span class="topbar-version" id="topbarVersion">v1.1.2</span>
         </div>
       </header>
 
@@ -3035,7 +3135,7 @@
       fetch('/version.json')
         .then(function(r) { return r.json(); })
         .then(function(data) {
-          var el = document.getElementById('sidebarVersion');
+          var el = document.getElementById('topbarVersion');
           if (el && data.version) el.textContent = 'v' + data.version;
         })
         .catch(function() {});
@@ -3331,6 +3431,25 @@
           : '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2.5" width="4" height="11" rx="0.5"/><line x1="8" y1="3" x2="8" y2="13"/><polyline points="11,6 8,8 11,10"/></svg>';
       }
     }
+
+    function toggleUserMenu() {
+      var dropdown = document.getElementById('sidebarUserDropdown');
+      var btn = document.getElementById('sidebarUserBtn');
+      if (!dropdown || !btn) return;
+      var isOpen = dropdown.classList.toggle('show');
+      btn.classList.toggle('open', isOpen);
+    }
+
+    document.addEventListener('click', function(e) {
+      var dropdown = document.getElementById('sidebarUserDropdown');
+      var btn = document.getElementById('sidebarUserBtn');
+      if (!dropdown || !btn) return;
+      if (!dropdown.classList.contains('show')) return;
+      if (!dropdown.contains(e.target) && !btn.contains(e.target)) {
+        dropdown.classList.remove('show');
+        btn.classList.remove('open');
+      }
+    });
 
     function openMobileSidebar() {
       document.getElementById('sidebar').classList.add('mobile-open');
@@ -4663,23 +4782,23 @@
     setInterval(loadStats, 30000);
 
     function displayUserInfo() {
-      var el = document.getElementById('usernameDisplay');
+      var el = document.getElementById('sidebarUserEmail');
       if (!el) return;
       fetch('/api/admin/me')
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (data && data.success) {
             var isVercel = data.provider === 'vercel' || data.provider === 'vercel_oauth';
-            var label = isVercel ? 'Vercel' : '';
-            el.textContent = (label ? label + ' ' : '') + (data.email || 'admin');
+            var label = isVercel ? 'Vercel ' : '';
+            var email = data.email || 'admin';
+            el.textContent = label + email;
+            el.title = label + email;
           } else {
             el.textContent = 'admin';
           }
-          el.style.display = 'inline-flex';
         })
         .catch(function() {
           el.textContent = 'admin';
-          el.style.display = 'inline-flex';
         });
     }
     displayUserInfo();
