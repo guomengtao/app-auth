@@ -1,8 +1,5 @@
 {
   "rewrites": [
     { "source": "/", "destination": "/index.html" }
-  ],
-  "authentication": {
-    "loginExpiresIn": "24h"
-  }
+  ]
 }
