@@ -9,15 +9,15 @@
    后台专用配色体系（保留品牌色，背景/卡片全浅色化）
    ============================================================ */
 
-    /* ----- 方案1：深空蓝（科技深邃） ----- */
+    /* ----- 方案1：深空蓝（科技深邃）—— 耐看加强版 ----- */
     [data-theme="deep-blue"] {
-      --bg: #f1f4f9;
+      --bg: #e4e8ef;
       --surface: #ffffff;
       --card-bg: #ffffff;
-      --ink: #111827;
-      --muted: #6b7280;
-      --line: #e5e7eb;
-      --border: #e5e7eb;
+      --ink: #0b1120;
+      --muted: #4b5563;
+      --line: #d1d9e6;
+      --border: #d1d9e6;
       --accent: #4F46E5;
       --accent-2: #4338CA;
       --sidebar: #0f172a;
@@ -25,14 +25,14 @@
       --sidebar-w-collapsed: 64px;
       --topbar-h: 56px;
       --radius: 10px;
-      --th-bg: #f8f9fa;
-      --row-hover: #fafbfc;
-      --about-bg: #f8f9fa;
-      --about-border: #e5e7eb;
+      --th-bg: #f1f4f9;
+      --row-hover: #f8fafc;
+      --about-bg: #f1f4f9;
+      --about-border: #d1d9e6;
       --dash-bg: #ffffff;
-      --dash-border: #e5e7eb;
+      --dash-border: #d1d9e6;
       --status-bar-bg: #ffffff;
-      --status-bar-border: #e5e7eb;
+      --status-bar-border: #d1d9e6;
     }
 
     /* ----- 方案2：翡翠绿（自然清新） ----- */
@@ -268,6 +268,20 @@
       --status-bar-bg: #ffffff;
       --status-bar-border: #e5ddd5;
     }
+    /* ---- 耐看增强补丁 ---- */
+    .card, .stat-card, .dash-card, .table-wrap, .setting-block, .help-banner, .filter-panel, .decrypt-box, .health-summary, .health-card, .da-card, .quota-card, .info-card, .breakdown-card, .mode-card {
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .sidebar-menu li a { color: rgba(255,255,255,0.78); }
+    .sidebar-menu li a:hover { color: #ffffff; }
+    .sidebar-menu li a.active { color: #ffffff; }
+    table tbody tr:nth-child(even) td { background-color: #fafbfc; }
+    table tbody tr:hover td { background-color: #f1f4f9; }
+    table td { border-bottom: 1px solid #e2e8f0; }
+    .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: 0 1px 3px rgba(79,70,229,0.25); }
+    .btn-primary:hover { box-shadow: 0 2px 6px rgba(79,70,229,0.35); }
+    input, select, .decrypt-input, .da-input-lg { border-color: #cbd5e1; }
+    input:focus, select:focus, .decrypt-input:focus, .da-input-lg:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { height: 100%; }
     body {
