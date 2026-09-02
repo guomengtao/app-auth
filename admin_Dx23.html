@@ -2634,15 +2634,12 @@
                 <button class="da-month-btn" onclick="daSetMonth(3)">3 个月</button>
                 <button class="da-month-btn" onclick="daSetMonth(6)">6 个月</button>
                 <button class="da-month-btn active" onclick="daSetMonth(12)">12 个月</button>
+                <button class="da-month-btn" onclick="daSetMonth(99)">♾️ 永久有效</button>
               </div>
               <div class="da-month-custom">
                 <input type="number" id="daMonths" min="1" max="98" value="12" autocomplete="off">
-                <label class="da-permanent-toggle" id="daPermanentLabel" onclick="daTogglePermanent()">
-                  <input type="checkbox" id="daPermanent">
-                  <span>♾️ 永久有效</span>
-                </label>
+                <span class="field-hint" id="daMonthsHint">1-98 月，点击永久有效自动设为 99</span>
               </div>
-              <span class="field-hint" id="daMonthsHint">1-98 月，勾选永久后自动设为 99</span>
             </div>
 
             <div class="da-card">
@@ -5008,24 +5005,6 @@
         });
       }
 
-      var permCheck = document.getElementById('daPermanent');
-      var monthsInput = document.getElementById('daMonths');
-      if (permCheck && monthsInput) {
-        permCheck.addEventListener('change', function() {
-          if (permCheck.checked) {
-            monthsInput.disabled = true;
-            monthsInput.value = '99';
-            document.getElementById('daMonthsHint').textContent = '永久有效';
-            document.querySelectorAll('.da-month-btn').forEach(function(b) { b.classList.remove('active'); });
-          } else {
-            monthsInput.disabled = false;
-            monthsInput.value = String(daCurrentMonth);
-            document.getElementById('daMonthsHint').textContent = '1-98 月，勾选永久后自动设为 99';
-            daHighlightMonthBtn(daCurrentMonth);
-          }
-        });
-      }
-
       var wrap = document.getElementById('daProductWrap');
       if (wrap) {
         wrap.addEventListener('click', function(e) {
@@ -5040,8 +5019,6 @@
         var drop = document.getElementById('daProductDrop');
         if (drop) drop.style.display = 'none';
       });
-
-      daHighlightMonthBtn(12);
     }
 
     function daUpdateDeviceFeedback() {
@@ -5063,39 +5040,34 @@
     }
 
     function daSetMonth(m) {
-      if (document.getElementById('daPermanent').checked) return;
       daCurrentMonth = m;
-      document.getElementById('daMonths').value = String(m);
+      var monthsInput = document.getElementById('daMonths');
+      var hint = document.getElementById('daMonthsHint');
+      monthsInput.value = String(m);
+      if (m >= 99) {
+        monthsInput.disabled = true;
+        hint.textContent = '永久有效';
+      } else {
+        monthsInput.disabled = false;
+        hint.textContent = '1-98 月，点击永久有效自动设为 99';
+      }
       daHighlightMonthBtn(m);
     }
 
     function daHighlightMonthBtn(m) {
       document.querySelectorAll('.da-month-btn').forEach(function(b) {
-        b.classList.toggle('active', parseInt(b.textContent) === m);
+        var text = b.textContent.trim();
+        if (m >= 99) {
+          b.classList.toggle('active', text.includes('永久'));
+        } else {
+          b.classList.toggle('active', parseInt(text) === m);
+        }
       });
-    }
-
-    function daTogglePermanent() {
-      var checkbox = document.getElementById('daPermanent');
-      var label = document.getElementById('daPermanentLabel');
-      checkbox.checked = !checkbox.checked;
-      label.classList.toggle('on', checkbox.checked);
-      if (checkbox.checked) {
-        document.getElementById('daMonths').disabled = true;
-        document.getElementById('daMonths').value = '99';
-        document.getElementById('daMonthsHint').textContent = '永久有效';
-        document.querySelectorAll('.da-month-btn').forEach(function(b) { b.classList.remove('active'); });
-      } else {
-        document.getElementById('daMonths').disabled = false;
-        document.getElementById('daMonths').value = String(daCurrentMonth);
-        document.getElementById('daMonthsHint').textContent = '1-98 月，勾选永久后自动设为 99';
-        daHighlightMonthBtn(daCurrentMonth);
-      }
     }
 
     function daLoadProducts() {
       daProductsCache = getLocalData(STORAGE_KEY_PRODUCTS) || [];
-      if (daProductsCache.length === 0 && ADMIN_MODE === 'online') {
+      if (daProductsCache.length === 0 && ADMIN_MODE === 'api-always') {
         fetch('/api/admin/products', { credentials: 'include' })
           .then(function(r) { return r.json(); })
           .then(function(data) {
