@@ -4317,6 +4317,27 @@
     });
     setInterval(loadStats, 30000);
 
+    function displayUserInfo() {
+      var el = document.getElementById('usernameDisplay');
+      if (!el) return;
+      fetch('/api/admin/me')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data && data.success) {
+            var label = data.provider === 'vercel' ? 'Vercel' : '';
+            el.textContent = (label ? label + ' ' : '') + (data.email || 'admin');
+          } else {
+            el.textContent = 'admin';
+          }
+          el.style.display = 'inline-flex';
+        })
+        .catch(function() {
+          el.textContent = 'admin';
+          el.style.display = 'inline-flex';
+        });
+    }
+    displayUserInfo();
+
     // 🛡️ 多标签页保护：其他标签页改了 localStorage，自动刷新当前页数据
     window.addEventListener('storage', function(e) {
       if (!e.key) return;

@@ -145,13 +145,16 @@
   <div class="card">
     <div class="icon">🛡️</div>
     <h1>管理员登录</h1>
-    <p class="subtitle">仅限管理员登录</p>
+    <p class="subtitle" id="subtitle">仅限管理员登录</p>
+    <p class="hint" id="authStatus" style="display:none;color:#6c63ff;margin-bottom:16px;"></p>
 
-    <input type="password" id="passwordInput" class="input-password" placeholder="请输入管理员密码" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
-    <button class="btn-login" id="loginBtn" onclick="doLogin()">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 19.5h20L12 2z"/></svg>
-      认证登录
-    </button>
+    <div id="passwordSection">
+      <input type="password" id="passwordInput" class="input-password" placeholder="请输入管理员密码" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+      <button class="btn-login" id="loginBtn" onclick="doLogin()">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 19.5h20L12 2z"/></svg>
+        认证登录
+      </button>
+    </div>
     <p class="hint" id="loginError" style="display:none;color:#e53e3e;"></p>
 
     <a href="/" class="back-link">← 返回首页</a>
@@ -173,13 +176,31 @@
     }
 
     async function checkAuth() {
-      if (isLogout()) return;
+      if (isLogout()) {
+        document.getElementById('subtitle').textContent = '已退出登录';
+        return;
+      }
+
+      document.getElementById('authStatus').textContent = '正在验证身份...';
+      document.getElementById('authStatus').style.display = 'block';
+
       try {
-        var res = await fetch('/api/admin/stats');
+        var res = await fetch('/api/admin/me');
         if (res.ok) {
-          window.location.href = '/admin_Dx23.html';
+          var data = await res.json();
+          if (data.success) {
+            document.getElementById('authStatus').textContent = '已通过 Vercel 认证 (' + (data.email || '') + ')，自动跳转中...';
+            document.getElementById('passwordSection').style.display = 'none';
+            setTimeout(function() {
+              window.location.href = '/admin_Dx23.html';
+            }, 500);
+            return;
+          }
         }
       } catch (e) {}
+
+      document.getElementById('authStatus').style.display = 'none';
+      document.getElementById('passwordSection').style.display = 'block';
     }
 
     async function doLogin() {
