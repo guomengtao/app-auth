@@ -16,7 +16,7 @@ module.exports = async function (req, res) {
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: "code",
-    scope: "user:read",
+    scope: "openid email profile",
     state: state
   });
 

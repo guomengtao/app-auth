@@ -85,9 +85,10 @@ module.exports = async function (req, res) {
   }
 
   try {
-    var tokenRes = await postForm("https://api.vercel.com/v2/oauth/access_token", {
+    var tokenRes = await postForm("https://vercel.com/oauth/token", {
       client_id: VERCEL_OAUTH_CLIENT_ID,
       client_secret: VERCEL_OAUTH_CLIENT_SECRET,
+      grant_type: "authorization_code",
       code: code,
       redirect_uri: "https://" + (req.headers.host || "app-auth.gudq.com") + "/api/oauth/callback"
     });
@@ -99,15 +100,14 @@ module.exports = async function (req, res) {
 
     var accessToken = tokenRes.access_token;
 
-    var userRes = await getJson("https://api.vercel.com/v2/user", accessToken);
+    var userRes = await getJson("https://vercel.com/oauth/userinfo", accessToken);
 
-    if (!userRes || !userRes.user) {
+    if (!userRes || !userRes.email) {
       res.writeHead(302, { Location: "/login_aXs12.html?error=user_fetch_failed" });
       return res.end();
     }
 
-    var user = userRes.user;
-    var email = user.email || "";
+    var email = userRes.email || "";
 
     if (email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
       res.writeHead(302, { Location: "/login_aXs12.html?error=not_admin" });
@@ -116,8 +116,8 @@ module.exports = async function (req, res) {
 
     var jwt = sign({
       email: email,
-      name: user.name || "",
-      username: user.username || "",
+      name: userRes.name || "",
+      username: userRes.preferred_username || userRes.nickname || "",
       provider: "vercel_oauth",
       iat: Date.now(),
       exp: Date.now() + 24 * 60 * 60 * 1000
