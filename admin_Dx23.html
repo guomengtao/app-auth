@@ -2852,8 +2852,7 @@
     }
 
     function logout() {
-      document.cookie = 'token=; Path=/; Max-Age=0';
-      window.location.href = '/login_aXs12.html';
+      window.location.href = '/api/admin/logout?redirect=' + encodeURIComponent('/login_aXs12.html?logout=1');
     }
 
     async function loadStats() {

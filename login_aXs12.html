@@ -166,7 +166,14 @@
   </div>
 
   <script>
+    function isLogout() {
+      try {
+        return window.location.search.indexOf('logout') !== -1;
+      } catch (e) { return false; }
+    }
+
     async function checkAuth() {
+      if (isLogout()) return;
       try {
         var res = await fetch('/api/admin/stats');
         if (res.ok) {
