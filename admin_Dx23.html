@@ -5066,14 +5066,23 @@
     }
 
     function daLoadProducts() {
-      daProductsCache = getLocalData(STORAGE_KEY_PRODUCTS) || [];
+      var raw = getLocalData(STORAGE_KEY_PRODUCTS);
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        daProductsCache = Object.keys(raw).map(function(id) {
+          return Object.assign({ id: id }, raw[id] || {});
+        });
+      } else if (Array.isArray(raw)) {
+        daProductsCache = raw;
+      } else {
+        daProductsCache = [];
+      }
+
       if (daProductsCache.length === 0 && ADMIN_MODE === 'api-always') {
         fetch('/api/admin/products', { credentials: 'include' })
           .then(function(r) { return r.json(); })
           .then(function(data) {
             if (data.success && data.products) {
               daProductsCache = data.products;
-              saveLocalData(STORAGE_KEY_PRODUCTS, data.products);
               daRenderProductDropdown();
             }
           })
