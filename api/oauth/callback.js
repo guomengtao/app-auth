@@ -85,7 +85,7 @@ module.exports = async function (req, res) {
   }
 
   try {
-    var tokenRes = await postForm("https://vercel.com/oauth/token", {
+    var tokenRes = await postForm("https://api.vercel.com/login/oauth/token", {
       client_id: VERCEL_OAUTH_CLIENT_ID,
       client_secret: VERCEL_OAUTH_CLIENT_SECRET,
       grant_type: "authorization_code",
@@ -100,7 +100,7 @@ module.exports = async function (req, res) {
 
     var accessToken = tokenRes.access_token;
 
-    var userRes = await getJson("https://vercel.com/oauth/userinfo", accessToken);
+    var userRes = await getJson("https://api.vercel.com/login/oauth/userinfo", accessToken);
 
     if (!userRes || !userRes.email) {
       res.writeHead(302, { Location: "/login_aXs12.html?error=user_fetch_failed" });
