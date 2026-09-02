@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>管理后台 - 激活码系统</title>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
   <style>
     /* ============================================================
    后台专用配色体系（保留品牌色，背景/卡片全浅色化）
@@ -397,12 +398,17 @@
       box-shadow: inset 3px 0 0 var(--accent);
     }
     .menu-icon {
-      width: 22px;
-      min-width: 22px;
-      text-align: center;
-      font-size: 0.95rem;
+      width: 20px;
+      height: 20px;
+      min-width: 20px;
       flex-shrink: 0;
-      opacity: 0.9;
+      opacity: 0.85;
+      stroke-width: 1.8;
+    }
+    .menu-icon svg {
+      width: 20px;
+      height: 20px;
+      display: block;
     }
     .sidebar.collapsed .menu-text { display: none; }
     .sidebar.collapsed .sidebar-menu li a {
@@ -589,7 +595,8 @@
       padding: 0;
       transition: background 0.15s, color 0.15s;
     }
-    .sidebar-toggle-btn svg {
+    .sidebar-toggle-btn svg,
+    .sidebar-toggle-btn i {
       width: 15px;
       height: 15px;
       display: block;
@@ -2239,24 +2246,24 @@
         <div class="brand-text">激活码系统<small>管理后台</small></div>
       </div>
       <ul class="sidebar-menu">
-        <li><a href="javascript:void(0)" onclick="switchTab('dashboard')" class="active" data-tab="dashboard"><span class="menu-icon">🏠</span><span class="menu-text">后台首页</span></a></li>
-        <li><a href="javascript:void(0)" onclick="switchTab('products')" data-tab="products"><span class="menu-icon">📦</span><span class="menu-text">产品管理</span></a></li>
-        <li><a href="javascript:void(0)" onclick="switchTab('codes')" data-tab="codes"><span class="menu-icon">🎫</span><span class="menu-text">兑换码管理</span></a></li>
-        <li><a href="javascript:void(0)" onclick="switchTab('records')" data-tab="records"><span class="menu-icon">📋</span><span class="menu-text">激活记录</span></a></li>
-        <li><a href="javascript:void(0)" onclick="switchTab('direct-activate')" data-tab="direct-activate"><span class="menu-icon">⚡</span><span class="menu-text">快捷激活</span></a></li>
-        <li><a href="javascript:void(0)" onclick="switchTab('decrypt')" data-tab="decrypt"><span class="menu-icon">🔍</span><span class="menu-text">解密验证</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('dashboard')" class="active" data-tab="dashboard"><i data-lucide="layout-dashboard" class="menu-icon"></i><span class="menu-text">后台首页</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('products')" data-tab="products"><i data-lucide="package" class="menu-icon"></i><span class="menu-text">产品管理</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('codes')" data-tab="codes"><i data-lucide="ticket" class="menu-icon"></i><span class="menu-text">兑换码管理</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('records')" data-tab="records"><i data-lucide="clipboard-list" class="menu-icon"></i><span class="menu-text">激活记录</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('direct-activate')" data-tab="direct-activate"><i data-lucide="zap" class="menu-icon"></i><span class="menu-text">快捷激活</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('decrypt')" data-tab="decrypt"><i data-lucide="search" class="menu-icon"></i><span class="menu-text">解密验证</span></a></li>
         <li class="menu-separator"><hr></li>
-        <li><a href="javascript:void(0)" onclick="switchTab('afdian-orders')" data-tab="afdian-orders"><span class="menu-icon">💖</span><span class="menu-text">爱发电订单</span></a></li>
-        <li><a href="javascript:void(0)" onclick="switchTab('quota')" data-tab="quota"><span class="menu-icon">🪙</span><span class="menu-text">免费额度</span></a></li>
-        <li><a href="javascript:void(0)" onclick="switchTab('vercel-logs')" data-tab="vercel-logs"><span class="menu-icon">📜</span><span class="menu-text">Vercel日志</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('afdian-orders')" data-tab="afdian-orders"><i data-lucide="heart" class="menu-icon"></i><span class="menu-text">爱发电订单</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('quota')" data-tab="quota"><i data-lucide="coins" class="menu-icon"></i><span class="menu-text">免费额度</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('vercel-logs')" data-tab="vercel-logs"><i data-lucide="scroll-text" class="menu-icon"></i><span class="menu-text">Vercel日志</span></a></li>
         <li class="menu-separator"><hr></li>
-        <li><a href="javascript:void(0)" onclick="switchTab('settings')" data-tab="settings"><span class="menu-icon">⚙️</span><span class="menu-text">设置</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('settings')" data-tab="settings"><i data-lucide="settings" class="menu-icon"></i><span class="menu-text">设置</span></a></li>
       </ul>
       <div class="sidebar-user" id="sidebarUser">
         <div class="sidebar-user-dropdown" id="sidebarUserDropdown">
-          <div class="sidebar-user-dropdown-item" onclick="switchTab('settings')"><span class="menu-icon">⚙️</span> 设置</div>
+          <div class="sidebar-user-dropdown-item" onclick="switchTab('settings')"><i data-lucide="settings" class="menu-icon"></i> 设置</div>
           <div class="sidebar-user-dropdown-divider"></div>
-          <div class="sidebar-user-dropdown-item danger" onclick="logout()">🚪 退出登录</div>
+          <div class="sidebar-user-dropdown-item danger" onclick="logout()"><i data-lucide="log-out" class="menu-icon"></i> 退出登录</div>
         </div>
         <button class="sidebar-user-btn" id="sidebarUserBtn" onclick="toggleUserMenu()">
           <div class="sidebar-user-avatar">A</div>
@@ -2270,7 +2277,7 @@
       <header class="topbar">
         <div class="topbar-left">
           <button class="menu-btn" onclick="openMobileSidebar()" aria-label="打开菜单">☰</button>
-          <button class="sidebar-toggle-btn" onclick="toggleSidebar()" title="隐藏/显示侧边栏" id="sidebarToggleBtn"><svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg"><path d="M341.333333 213.333333H128v597.333334h213.333333V213.333333z m85.333334 0v597.333334h469.333333V213.333333H426.666667zM120.234667 128h783.530666C946.602667 128 981.333333 166.186667 981.333333 213.333333v597.333334c0 47.146667-34.730667 85.333333-77.568 85.333333H120.234667C77.397333 896 42.666667 857.813333 42.666667 810.666667V213.333333c0-47.146667 34.730667-85.333333 77.568-85.333333z"/></svg></button>
+          <button class="sidebar-toggle-btn" onclick="toggleSidebar()" title="隐藏/显示侧边栏" id="sidebarToggleBtn"><i data-lucide="panel-left" style="width:15px;height:15px;display:block"></i></button>
           <div>
             <div class="page-title" id="pageTitle">产品管理</div>
             <div class="page-sub" id="pageSub">管理可授权的产品列表</div>
@@ -2326,27 +2333,27 @@
 
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-top:16px">
               <div class="dash-card" onclick="switchTab('products')" style="cursor:pointer">
-                <div style="font-size:1.8rem;margin-bottom:6px">📦</div>
+                <i data-lucide="package" style="width:28px;height:28px;color:var(--accent);margin-bottom:6px;display:block"></i>
                 <div style="font-weight:700;font-size:0.95rem;color:#1e293b">产品管理</div>
                 <div style="font-size:0.75rem;color:#64748b;margin-top:4px">管理可授权的产品列表</div>
               </div>
               <div class="dash-card" onclick="switchTab('codes')" style="cursor:pointer">
-                <div style="font-size:1.8rem;margin-bottom:6px">🎫</div>
+                <i data-lucide="ticket" style="width:28px;height:28px;color:var(--accent);margin-bottom:6px;display:block"></i>
                 <div style="font-weight:700;font-size:0.95rem;color:#1e293b">兑换码管理</div>
                 <div style="font-size:0.75rem;color:#64748b;margin-top:4px">生成、筛选与导出兑换码</div>
               </div>
               <div class="dash-card" onclick="switchTab('records')" style="cursor:pointer">
-                <div style="font-size:1.8rem;margin-bottom:6px">📋</div>
+                <i data-lucide="clipboard-list" style="width:28px;height:28px;color:var(--accent);margin-bottom:6px;display:block"></i>
                 <div style="font-weight:700;font-size:0.95rem;color:#1e293b">激活记录</div>
                 <div style="font-size:0.75rem;color:#64748b;margin-top:4px">查看设备激活历史</div>
               </div>
               <div class="dash-card" onclick="switchTab('decrypt')" style="cursor:pointer">
-                <div style="font-size:1.8rem;margin-bottom:6px">🔍</div>
+                <i data-lucide="search" style="width:28px;height:28px;color:var(--accent);margin-bottom:6px;display:block"></i>
                 <div style="font-weight:700;font-size:0.95rem;color:#1e293b">解密验证</div>
                 <div style="font-size:0.75rem;color:#64748b;margin-top:4px">离线解析激活码内容</div>
               </div>
               <div class="dash-card" onclick="switchTab('settings')" style="cursor:pointer">
-                <div style="font-size:1.8rem;margin-bottom:6px">⚙️</div>
+                <i data-lucide="settings" style="width:28px;height:28px;color:var(--accent);margin-bottom:6px;display:block"></i>
                 <div style="font-weight:700;font-size:0.95rem;color:#1e293b">设置</div>
                 <div style="font-size:0.75rem;color:#64748b;margin-top:4px">数据模式 · 安全配置</div>
               </div>
@@ -3421,6 +3428,8 @@
       if (tab === 'settings') initSettingsPanel();
       if (tab === 'direct-activate') initDirectActivate();
       if (tab === 'afdian-orders') loadAfdianOrders();
+      
+      lucide.createIcons();
     }
 
     function toggleSidebar() {
@@ -4774,6 +4783,7 @@
 
     initLocalData().then(function() {
       loadStats();
+      lucide.createIcons();
     });
     setInterval(loadStats, 30000);
 
