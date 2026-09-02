@@ -4846,27 +4846,6 @@
     }
     displayUserInfo();
 
-    // 🛡️ 多标签页保护：其他标签页改了 localStorage，自动刷新当前页数据
-    window.addEventListener('storage', function(e) {
-      if (!e.key) return;
-      var tracked = [
-        STORAGE_KEY_PRODUCTS, STORAGE_KEY_CODES, STORAGE_KEY_RECORDS,
-        STORAGE_KEY_COUNTERS, STORAGE_KEY_DELETES, 'admin_mode'
-      ];
-      if (tracked.indexOf(e.key) !== -1) {
-        console.info('🛡️ 检测到其他标签页更新了 ' + e.key + '，刷新本页数据');
-        showToast('🔄 检测到其他标签页数据变更，正在刷新...', 'info');
-        setTimeout(function() {
-          loadStats();
-          loadProducts();
-          loadCodes();
-          loadRecords();
-          refreshQuotaCache();
-          fillProductFiltersFromLocal();
-        }, 300);
-      }
-    });
-
     function _qLvl(pct) {
       var n = Number(pct) || 0;
       if (n >= 90) return 'danger';
