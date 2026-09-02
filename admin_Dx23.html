@@ -1700,6 +1700,392 @@
       color: var(--muted);
       margin-top: 4px;
     }
+
+    /* Direct Activate */
+    .da-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 768px) {
+      .da-grid { grid-template-columns: 1fr; }
+    }
+    .da-card {
+      background: var(--card-bg, #fff);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .da-card:hover {
+      border-color: var(--accent);
+      box-shadow: 0 2px 12px rgba(108,99,255,0.08);
+    }
+    .da-card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .da-card-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+    .da-card-icon.i-device { background: #eef2ff; }
+    .da-card-icon.i-product { background: #fef3c7; }
+    .da-card-icon.i-duration { background: #dcfce7; }
+    .da-card-icon.i-redeem { background: #fce7f3; }
+    .da-card-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--ink);
+    }
+    .da-card-sub {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .da-input-lg {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      font-size: 1rem;
+      outline: none;
+      background: var(--surface);
+      color: var(--ink);
+      transition: border-color 0.2s, box-shadow 0.2s;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      letter-spacing: 0.5px;
+    }
+    .da-input-lg:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(108,99,255,0.1);
+    }
+    .da-input-lg::placeholder { color: #c4c4cd; letter-spacing: 0; font-family: inherit; }
+    .da-device-feedback {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+      font-size: 0.78rem;
+      font-weight: 500;
+      min-height: 20px;
+    }
+    .da-device-feedback.valid { color: #10b981; }
+    .da-device-feedback.invalid { color: #ef4444; }
+    .da-device-feedback.info { color: var(--muted); }
+
+    .da-month-presets {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .da-month-btn {
+      padding: 8px 16px;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface);
+      color: var(--ink);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .da-month-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: #f5f3ff;
+    }
+    .da-month-btn.active {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
+    }
+    .da-month-custom {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .da-month-custom input[type="number"] {
+      width: 80px;
+      padding: 8px 12px;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      font-size: 0.95rem;
+      text-align: center;
+      outline: none;
+      font-weight: 600;
+      color: var(--ink);
+      background: var(--surface);
+    }
+    .da-month-custom input[type="number"]:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(108,99,255,0.1);
+    }
+    .da-month-custom input[type="number"]:disabled {
+      opacity: 0.45;
+      background: #f3f4f6;
+    }
+    .da-permanent-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      padding: 8px 14px;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface);
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--muted);
+      transition: all 0.2s;
+      user-select: none;
+    }
+    .da-permanent-toggle:hover { border-color: var(--accent); }
+    .da-permanent-toggle.on {
+      border-color: #f59e0b;
+      background: #fffbeb;
+      color: #d97706;
+    }
+    .da-permanent-toggle input[type="checkbox"] { display: none; }
+
+    .da-redeem-box {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+      background: #f0f0ff;
+      border-radius: 12px;
+      border: 2px dashed #c7c3ff;
+    }
+    .da-redeem-code {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: var(--accent);
+      letter-spacing: 4px;
+      flex: 1;
+      text-align: center;
+    }
+    .da-redeem-refresh {
+      width: 36px;
+      height: 36px;
+      border: none;
+      border-radius: 8px;
+      background: #e0defa;
+      cursor: pointer;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+    .da-redeem-refresh:hover { background: var(--accent); color: #fff; }
+
+    .da-action-bar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+    .da-btn-generate {
+      padding: 14px 32px;
+      background: linear-gradient(135deg, #6c63ff, #4834d4);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 16px rgba(108,99,255,0.3);
+    }
+    .da-btn-generate:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 24px rgba(108,99,255,0.4);
+    }
+    .da-btn-generate:active { transform: translateY(0); }
+    .da-btn-generate:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .da-btn-generate .spinner {
+      display: none;
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+    .da-btn-generate.loading .spinner { display: block; }
+    .da-btn-generate.loading .btn-text { display: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .da-status {
+      font-size: 0.82rem;
+      font-weight: 500;
+      min-height: 20px;
+    }
+    .da-status.success { color: #10b981; }
+    .da-status.error { color: #ef4444; }
+
+    .da-result-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 16px;
+      margin-top: 24px;
+    }
+    .da-result-card {
+      background: var(--card-bg, #fff);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      animation: fadeInUp 0.35s ease-out;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .da-result-card:hover {
+      border-color: var(--accent);
+      box-shadow: 0 4px 16px rgba(108,99,255,0.1);
+    }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .da-result-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .da-result-product {
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .da-result-badge {
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 0.68rem;
+      font-weight: 700;
+    }
+    .da-result-badge.months { background: #dcfce7; color: #16a34a; }
+    .da-result-badge.permanent { background: #fef3c7; color: #d97706; }
+    .da-result-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    .da-result-row:last-child { border-bottom: none; }
+    .da-result-label {
+      font-size: 0.74rem;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .da-result-value {
+      font-size: 0.8rem;
+      color: var(--ink);
+      font-weight: 600;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      max-width: 200px;
+      text-align: right;
+      word-break: break-all;
+    }
+    .da-result-value.code {
+      font-size: 0.72rem;
+      letter-spacing: 0.3px;
+    }
+    .da-result-copy {
+      padding: 4px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--accent);
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .da-result-copy:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .da-result-copy.copied { background: #10b981; color: #fff; border-color: #10b981; }
+    .da-result-footer {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid #f3f4f6;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .da-result-expires { font-weight: 500; }
+    .da-result-expires.expired { color: #ef4444; }
+
+    .da-bulk-actions {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .da-bulk-btn {
+      padding: 8px 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--ink);
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .da-bulk-btn:hover { border-color: var(--accent); color: var(--accent); background: #f5f3ff; }
+    .da-bulk-btn.copied { background: #10b981; color: #fff; border-color: #10b981; }
+
+    .da-empty-state {
+      text-align: center;
+      padding: 48px 20px;
+      color: var(--muted);
+    }
+    .da-empty-icon {
+      font-size: 3rem;
+      margin-bottom: 12px;
+      opacity: 0.5;
+    }
+    .da-empty-text {
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+    .da-empty-sub {
+      font-size: 0.78rem;
+      margin-top: 6px;
+    }
   </style>
 </head>
 <body>
@@ -2206,56 +2592,91 @@
             <h2>快捷激活</h2>
             <span class="muted">跳过兑换码流程，直接为设备生成激活码</span>
           </div>
-          <div class="dash-card" style="margin-bottom:16px">
-            <div class="field">
-              <label>设备ID</label>
-              <input type="text" id="daDeviceId" placeholder="输入设备ID" maxlength="30" autocomplete="off">
-              <span class="field-hint" id="daDeviceHint"></span>
+
+          <div class="da-grid">
+            <div class="da-card">
+              <div class="da-card-header">
+                <div class="da-card-icon i-device">📱</div>
+                <div>
+                  <div class="da-card-title">设备信息</div>
+                  <div class="da-card-sub">输入目标设备的唯一标识</div>
+                </div>
+              </div>
+              <input type="text" id="daDeviceId" class="da-input-lg" placeholder="输入设备ID，如 Aa09" maxlength="30" autocomplete="off">
+              <div class="da-device-feedback info" id="daDeviceFeedback">输入设备ID后自动识别</div>
             </div>
-            <div class="field">
-              <label>产品</label>
+
+            <div class="da-card">
+              <div class="da-card-header">
+                <div class="da-card-icon i-product">📦</div>
+                <div>
+                  <div class="da-card-title">选择产品</div>
+                  <div class="da-card-sub">支持多选，一次激活多个产品</div>
+                </div>
+              </div>
               <div class="multi-select-wrap" id="daProductWrap">
                 <div class="multi-select-tags" id="daProductTags"></div>
                 <div class="multi-select-drop" id="daProductDrop" style="display:none"></div>
               </div>
-              <span class="field-hint">点击选择产品，支持多选</span>
+              <span class="field-hint">点击上方区域选择产品</span>
             </div>
-            <div class="field">
-              <label>激活月数</label>
-              <div style="display:flex;align-items:center;gap:12px">
-                <input type="number" id="daMonths" min="1" max="98" value="12" style="width:120px" autocomplete="off">
-                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap">
-                  <input type="checkbox" id="daPermanent"> 永久有效
+
+            <div class="da-card">
+              <div class="da-card-header">
+                <div class="da-card-icon i-duration">⏱️</div>
+                <div>
+                  <div class="da-card-title">激活时长</div>
+                  <div class="da-card-sub">设置激活有效期</div>
+                </div>
+              </div>
+              <div class="da-month-presets">
+                <button class="da-month-btn" onclick="daSetMonth(1)">1 个月</button>
+                <button class="da-month-btn" onclick="daSetMonth(3)">3 个月</button>
+                <button class="da-month-btn" onclick="daSetMonth(6)">6 个月</button>
+                <button class="da-month-btn active" onclick="daSetMonth(12)">12 个月</button>
+              </div>
+              <div class="da-month-custom">
+                <input type="number" id="daMonths" min="1" max="98" value="12" autocomplete="off">
+                <label class="da-permanent-toggle" id="daPermanentLabel" onclick="daTogglePermanent()">
+                  <input type="checkbox" id="daPermanent">
+                  <span>♾️ 永久有效</span>
                 </label>
               </div>
               <span class="field-hint" id="daMonthsHint">1-98 月，勾选永久后自动设为 99</span>
             </div>
-            <div class="field">
-              <label>兑换码</label>
-              <span id="daRedeemPreview" class="redeem-preview">—</span>
-              <span class="field-hint">自动生成4位混合码</span>
-            </div>
-            <div style="margin-top:16px">
-              <button class="btn btn-primary" id="daGenerateBtn" onclick="doDirectActivate()">生成激活码</button>
-              <span class="muted" style="margin-left:12px;font-size:0.8rem" id="daStatus"></span>
-            </div>
-          </div>
-          <div id="daResultArea" style="display:none">
-            <div class="toolbar">
-              <h3>生成结果</h3>
-              <div>
-                <button class="btn btn-sm" onclick="daCopyAllCodes()">复制全部激活码</button>
-                <button class="btn btn-sm" onclick="daCopyAllRedeem()">复制全部兑换码</button>
+
+            <div class="da-card">
+              <div class="da-card-header">
+                <div class="da-card-icon i-redeem">🎫</div>
+                <div>
+                  <div class="da-card-title">兑换码预览</div>
+                  <div class="da-card-sub">自动生成的4位兑换码</div>
+                </div>
+              </div>
+              <div class="da-redeem-box">
+                <div class="da-redeem-code" id="daRedeemPreview">—</div>
+                <button class="da-redeem-refresh" onclick="daUpdateRedeemPreview()" title="换一个">🔄</button>
               </div>
             </div>
-            <div class="table-wrap">
-              <table class="data-table">
-                <thead>
-                  <tr><th>产品</th><th>激活码</th><th>兑换码</th><th>设备ID</th><th>月数</th><th>到期</th></tr>
-                </thead>
-                <tbody id="daResultBody"></tbody>
-              </table>
+          </div>
+
+          <div class="da-action-bar">
+            <button class="da-btn-generate" id="daGenerateBtn" onclick="doDirectActivate()">
+              <span class="spinner"></span>
+              <span class="btn-text">⚡ 生成激活码</span>
+            </button>
+            <span class="da-status" id="daStatus"></span>
+          </div>
+
+          <div id="daResultArea" style="display:none">
+            <div class="toolbar" style="margin-top:24px">
+              <h3>生成结果 <span style="font-weight:400;color:var(--muted);font-size:0.82rem" id="daResultCount"></span></h3>
+              <div class="da-bulk-actions">
+                <button class="da-bulk-btn" onclick="daCopyAllCodes()" id="daCopyAllBtn">📋 复制全部激活码</button>
+                <button class="da-bulk-btn" onclick="daCopyAllRedeem()" id="daCopyAllRedeemBtn">🎫 复制全部兑换码</button>
+              </div>
             </div>
+            <div class="da-result-grid" id="daResultGrid"></div>
           </div>
         </div>
 
@@ -4573,25 +4994,20 @@
     var daSelectedProducts = {};
     var daProductsCache = [];
     var daResults = [];
+    var daCurrentMonth = 12;
 
     function initDirectActivate() {
       if (!requireOnlineMode()) return;
       daLoadProducts();
       daUpdateRedeemPreview();
+
       var deviceInput = document.getElementById('daDeviceId');
       if (deviceInput) {
         deviceInput.addEventListener('input', function() {
-          var hint = document.getElementById('daDeviceHint');
-          var val = deviceInput.value.trim();
-          if (val && val.length >= 4) {
-            hint.textContent = '后4位: ' + val.slice(-4);
-          } else if (val) {
-            hint.textContent = '不足4位: ' + val;
-          } else {
-            hint.textContent = '';
-          }
+          daUpdateDeviceFeedback();
         });
       }
+
       var permCheck = document.getElementById('daPermanent');
       var monthsInput = document.getElementById('daMonths');
       if (permCheck && monthsInput) {
@@ -4600,13 +5016,16 @@
             monthsInput.disabled = true;
             monthsInput.value = '99';
             document.getElementById('daMonthsHint').textContent = '永久有效';
+            document.querySelectorAll('.da-month-btn').forEach(function(b) { b.classList.remove('active'); });
           } else {
             monthsInput.disabled = false;
-            monthsInput.value = '12';
+            monthsInput.value = String(daCurrentMonth);
             document.getElementById('daMonthsHint').textContent = '1-98 月，勾选永久后自动设为 99';
+            daHighlightMonthBtn(daCurrentMonth);
           }
         });
       }
+
       var wrap = document.getElementById('daProductWrap');
       if (wrap) {
         wrap.addEventListener('click', function(e) {
@@ -4621,6 +5040,57 @@
         var drop = document.getElementById('daProductDrop');
         if (drop) drop.style.display = 'none';
       });
+
+      daHighlightMonthBtn(12);
+    }
+
+    function daUpdateDeviceFeedback() {
+      var el = document.getElementById('daDeviceFeedback');
+      var val = (document.getElementById('daDeviceId').value || '').trim();
+      if (!val) {
+        el.textContent = '输入设备ID后自动识别';
+        el.className = 'da-device-feedback info';
+      } else if (val.length < 2) {
+        el.textContent = '设备ID至少需要2个字符';
+        el.className = 'da-device-feedback invalid';
+      } else if (val.length > 30) {
+        el.textContent = '设备ID不能超过30个字符';
+        el.className = 'da-device-feedback invalid';
+      } else {
+        el.textContent = '✓ 设备ID有效 (' + val.length + ' 字符)';
+        el.className = 'da-device-feedback valid';
+      }
+    }
+
+    function daSetMonth(m) {
+      if (document.getElementById('daPermanent').checked) return;
+      daCurrentMonth = m;
+      document.getElementById('daMonths').value = String(m);
+      daHighlightMonthBtn(m);
+    }
+
+    function daHighlightMonthBtn(m) {
+      document.querySelectorAll('.da-month-btn').forEach(function(b) {
+        b.classList.toggle('active', parseInt(b.textContent) === m);
+      });
+    }
+
+    function daTogglePermanent() {
+      var checkbox = document.getElementById('daPermanent');
+      var label = document.getElementById('daPermanentLabel');
+      checkbox.checked = !checkbox.checked;
+      label.classList.toggle('on', checkbox.checked);
+      if (checkbox.checked) {
+        document.getElementById('daMonths').disabled = true;
+        document.getElementById('daMonths').value = '99';
+        document.getElementById('daMonthsHint').textContent = '永久有效';
+        document.querySelectorAll('.da-month-btn').forEach(function(b) { b.classList.remove('active'); });
+      } else {
+        document.getElementById('daMonths').disabled = false;
+        document.getElementById('daMonths').value = String(daCurrentMonth);
+        document.getElementById('daMonthsHint').textContent = '1-98 月，勾选永久后自动设为 99';
+        daHighlightMonthBtn(daCurrentMonth);
+      }
     }
 
     function daLoadProducts() {
@@ -4715,11 +5185,14 @@
       var btn = document.getElementById('daGenerateBtn');
 
       if (!deviceId) { showToast('Please enter device ID', 'error'); return; }
+      if (deviceId.length < 2) { showToast('Device ID must be at least 2 characters', 'error'); return; }
       if (pids.length === 0) { showToast('Please select at least one product', 'error'); return; }
       if (!Number.isFinite(monthsVal) || monthsVal < 1 || monthsVal > 99) { showToast('Months must be 1-99', 'error'); return; }
 
       btn.disabled = true;
+      btn.classList.add('loading');
       statusEl.textContent = 'Generating...';
+      statusEl.className = 'da-status';
 
       fetch('/api/admin/direct-activate', {
         method: 'POST',
@@ -4730,75 +5203,154 @@
       .then(function(r) { return r.json(); })
       .then(function(data) {
         btn.disabled = false;
+        btn.classList.remove('loading');
         if (!data.success) {
-          statusEl.textContent = '';
+          statusEl.textContent = 'Error: ' + (data.error || 'Unknown error');
+          statusEl.className = 'da-status error';
           showToast('Generation failed: ' + (data.error || 'Unknown error'), 'error');
           return;
         }
         daResults = data.results || [];
-        statusEl.textContent = 'Generated ' + daResults.length + ' code(s)';
+        statusEl.textContent = 'Successfully generated ' + daResults.length + ' code(s)';
+        statusEl.className = 'da-status success';
         daRenderResults();
         daUpdateRedeemPreview();
         showToast('Generated ' + daResults.length + ' activation code(s)', 'success');
       })
       .catch(function(e) {
         btn.disabled = false;
-        statusEl.textContent = '';
+        btn.classList.remove('loading');
+        statusEl.textContent = 'Request failed: ' + (e.message || 'Network error');
+        statusEl.className = 'da-status error';
         showToast('Request failed: ' + (e.message || 'Network error'), 'error');
       });
     }
 
     function daRenderResults() {
       var area = document.getElementById('daResultArea');
-      var tbody = document.getElementById('daResultBody');
-      if (!area || !tbody) return;
+      var grid = document.getElementById('daResultGrid');
+      var countEl = document.getElementById('daResultCount');
+      if (!area || !grid) return;
       area.style.display = 'block';
+      if (countEl) countEl.textContent = '(' + daResults.length + ' items)';
+
       var html = '';
       for (var i = 0; i < daResults.length; i++) {
         var r = daResults[i];
         var expires = r.expiresAt ? new Date(r.expiresAt).toLocaleDateString('zh-CN') : 'Permanent';
-        html += '<tr>';
-        html += '<td>' + escapeHtml(r.productName) + ' (' + escapeHtml(r.productId) + ')</td>';
-        html += '<td class="mono" style="cursor:pointer" onclick="daCopyCode(\'' + escapeHtml(r.activationCode) + '\')" title="Click to copy">' + escapeHtml(r.activationCode) + '</td>';
-        html += '<td class="mono">' + escapeHtml(r.redeemCode) + '</td>';
-        html += '<td class="mono">' + escapeHtml(r.deviceId) + '</td>';
-        html += '<td>' + r.months + '</td>';
-        html += '<td>' + expires + '</td>';
-        html += '</tr>';
+        var isPermanent = r.months >= 99;
+        var badgeClass = isPermanent ? 'permanent' : 'months';
+        var badgeText = isPermanent ? 'Permanent' : r.months + ' month(s)';
+
+        html += '<div class="da-result-card" style="animation-delay:' + (i * 0.05) + 's">';
+        html += '<div class="da-result-header">';
+        html += '<div class="da-result-product">📦 ' + escapeHtml(r.productName || r.productId) + '</div>';
+        html += '<span class="da-result-badge ' + badgeClass + '">' + badgeText + '</span>';
+        html += '</div>';
+
+        html += '<div class="da-result-row">';
+        html += '<span class="da-result-label">Activation Code</span>';
+        html += '<span class="da-result-value code">' + escapeHtml(r.activationCode) + '</span>';
+        html += '<button class="da-result-copy" onclick="daCopySingle(\'' + escapeHtml(r.activationCode) + '\', this)">Copy</button>';
+        html += '</div>';
+
+        html += '<div class="da-result-row">';
+        html += '<span class="da-result-label">Redeem Code</span>';
+        html += '<span class="da-result-value">' + escapeHtml(r.redeemCode) + '</span>';
+        html += '<button class="da-result-copy" onclick="daCopySingle(\'' + escapeHtml(r.redeemCode) + '\', this)">Copy</button>';
+        html += '</div>';
+
+        html += '<div class="da-result-row">';
+        html += '<span class="da-result-label">Device ID</span>';
+        html += '<span class="da-result-value">' + escapeHtml(r.deviceId) + '</span>';
+        html += '</div>';
+
+        html += '<div class="da-result-footer">';
+        html += '<span>Expires</span>';
+        html += '<span class="da-result-expires">' + expires + '</span>';
+        html += '</div>';
+
+        html += '</div>';
       }
-      tbody.innerHTML = html;
+      grid.innerHTML = html;
+
+      area.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
-    function daCopyCode(code) {
+    function daCopySingle(text, btnEl) {
       if (navigator.clipboard) {
-        navigator.clipboard.writeText(code).then(function() {
-          showToast('Copied: ' + code, 'success');
+        navigator.clipboard.writeText(text).then(function() {
+          var origText = btnEl.textContent;
+          btnEl.textContent = 'Copied!';
+          btnEl.classList.add('copied');
+          setTimeout(function() {
+            btnEl.textContent = origText;
+            btnEl.classList.remove('copied');
+          }, 1500);
         }).catch(function() {
           showToast('Copy failed', 'error');
         });
       } else {
-        var ta = document.createElement('textarea');
-        ta.value = code;
-        ta.style.position = 'fixed';
-        ta.style.left = '-9999px';
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-        showToast('Copied: ' + code, 'success');
+        daFallbackCopy(text);
+        var origText = btnEl.textContent;
+        btnEl.textContent = 'Copied!';
+        btnEl.classList.add('copied');
+        setTimeout(function() {
+          btnEl.textContent = origText;
+          btnEl.classList.remove('copied');
+        }, 1500);
       }
     }
 
     function daCopyAllCodes() {
       var codes = daResults.map(function(r) { return r.activationCode; }).join('\n');
       if (!codes) { showToast('No results to copy', 'error'); return; }
-      daCopyCode(codes);
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(codes).then(function() {
+          var btn = document.getElementById('daCopyAllBtn');
+          btn.textContent = 'Copied!';
+          btn.classList.add('copied');
+          setTimeout(function() {
+            btn.textContent = 'Copy All Activation Codes';
+            btn.classList.remove('copied');
+          }, 1500);
+          showToast('Copied ' + daResults.length + ' activation code(s)', 'success');
+        }).catch(function() { showToast('Copy failed', 'error'); });
+      } else {
+        daFallbackCopy(codes);
+        showToast('Copied ' + daResults.length + ' activation code(s)', 'success');
+      }
     }
 
     function daCopyAllRedeem() {
       var codes = daResults.map(function(r) { return r.redeemCode; }).join('\n');
       if (!codes) { showToast('No results to copy', 'error'); return; }
-      daCopyCode(codes);
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(codes).then(function() {
+          var btn = document.getElementById('daCopyAllRedeemBtn');
+          btn.textContent = 'Copied!';
+          btn.classList.add('copied');
+          setTimeout(function() {
+            btn.textContent = 'Copy All Redeem Codes';
+            btn.classList.remove('copied');
+          }, 1500);
+          showToast('Copied ' + daResults.length + ' redeem code(s)', 'success');
+        }).catch(function() { showToast('Copy failed', 'error'); });
+      } else {
+        daFallbackCopy(codes);
+        showToast('Copied ' + daResults.length + ' redeem code(s)', 'success');
+      }
+    }
+
+    function daFallbackCopy(text) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
     }
 
   </script>
