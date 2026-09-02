@@ -3359,7 +3359,7 @@
     }
 
     function logout() {
-      window.location.href = '/api/admin/logout?redirect=' + encodeURIComponent('/login_aXs12.html?logout=1');
+      window.location.href = '/api/admin/me?action=logout&redirect=' + encodeURIComponent('/login_aXs12.html?logout=1');
     }
 
     async function loadStats() {
@@ -5429,7 +5429,7 @@
       tableBody.innerHTML = '<tr><td colspan="9" class="empty">Loading...</td></tr>';
 
       try {
-        var data = await api('/api/afdian/orders');
+        var data = await api('/api/afdian/query-orders?action=list');
         if (!data.success) {
           tableBody.innerHTML = '<tr><td colspan="9" class="empty" style="color:#ef4444;">Load failed: ' + escapeHtml(data.error || 'Unknown error') + '</td></tr>';
           return;
