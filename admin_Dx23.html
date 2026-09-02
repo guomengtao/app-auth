@@ -1,268 +1,268 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="aurora">
+<html lang="zh-CN" data-theme="deep-blue">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>管理后台 - 激活码系统</title>
   <style>
-    /* ===== 方案1: 燕麦奶昔（温暖极简） ===== */
-    [data-theme="oat-milk"] {
-      --bg: #F7F4F0;
-      --surface: #FFFFFF;
-      --card-bg: #FFFFFF;
-      --ink: #2C2A28;
-      --muted: #7A7570;
-      --line: #E6E1DB;
-      --border: #E6E1DB;
-      --accent: #D48C6B;
-      --accent-2: #B8724F;
-      --sidebar: #3D3430;
+    /* ===== 方案1: 深空蓝（科技深邃） ===== */
+    [data-theme="deep-blue"] {
+      --bg: #1a1a2e;
+      --surface: #16213e;
+      --card-bg: #16213e;
+      --ink: #ffffff;
+      --muted: #888899;
+      --line: #2a2a5a;
+      --border: #0f3460;
+      --accent: #7ec8e3;
+      --accent-2: #5ca8c8;
+      --sidebar: #0f0f20;
       --sidebar-w: 220px;
       --sidebar-w-collapsed: 64px;
       --topbar-h: 56px;
       --radius: 10px;
-      --th-bg: #F5F0EA;
-      --row-hover: #F9F6F3;
-      --about-bg: #F5F0EA;
-      --about-border: #E6E1DB;
-      --dash-bg: #FFFFFF;
-      --dash-border: #E6E1DB;
-      --status-bar-bg: linear-gradient(135deg, #F7F0E8 0%, #FCF8F4 100%);
-      --status-bar-border: #E6D5C5;
+      --th-bg: #1f1f3a;
+      --row-hover: #1f1f3a;
+      --about-bg: #0f3460;
+      --about-border: #2a2a5a;
+      --dash-bg: #16213e;
+      --dash-border: #0f3460;
+      --status-bar-bg: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      --status-bar-border: #0f3460;
     }
 
-    /* ===== 方案2: 极光靛蓝（未来科技）默认 ===== */
-    [data-theme="aurora"] {
-      --bg: #F4F6FA;
-      --surface: #FFFFFF;
-      --card-bg: #FFFFFF;
-      --ink: #111827;
-      --muted: #6B7280;
-      --line: #E2E8F0;
-      --border: #E2E8F0;
-      --accent: #4F46E5;
-      --accent-2: #7C3AED;
-      --sidebar: #1E1B4B;
+    /* ===== 方案2: 翡翠绿（自然清新） ===== */
+    [data-theme="jade-green"] {
+      --bg: #1a2e1a;
+      --surface: #1a3a1a;
+      --card-bg: #1a3a1a;
+      --ink: #ffffff;
+      --muted: #889988;
+      --line: #2a4a2a;
+      --border: #0f4a20;
+      --accent: #7ec8a0;
+      --accent-2: #5ca878;
+      --sidebar: #0f1e0f;
       --sidebar-w: 220px;
       --sidebar-w-collapsed: 64px;
       --topbar-h: 56px;
       --radius: 10px;
-      --th-bg: #F0F2F8;
-      --row-hover: #F8F9FC;
-      --about-bg: #F0F2F8;
-      --about-border: #E2E8F0;
-      --dash-bg: #FFFFFF;
-      --dash-border: #E2E8F0;
-      --status-bar-bg: linear-gradient(135deg, #F5F3FF 0%, #ECFEFF 100%);
-      --status-bar-border: #C7D2FE;
+      --th-bg: #1f3a1f;
+      --row-hover: #1f3a1f;
+      --about-bg: #0f4a20;
+      --about-border: #2a4a2a;
+      --dash-bg: #1a3a1a;
+      --dash-border: #0f4a20;
+      --status-bar-bg: linear-gradient(135deg, #1a2e1a 0%, #1a3a1a 100%);
+      --status-bar-border: #0f4a20;
     }
 
-    /* ===== 方案3: 鼠尾草森林（原生护眼） ===== */
-    [data-theme="sage"] {
-      --bg: #F2F5F0;
-      --surface: #FFFFFF;
-      --card-bg: #FFFFFF;
-      --ink: #1E2920;
-      --muted: #5A6B5A;
-      --line: #DDE5D8;
-      --border: #DDE5D8;
-      --accent: #4A7C59;
-      --accent-2: #2F6B43;
-      --sidebar: #1A2E1E;
+    /* ===== 方案3: 珊瑚红（热情温暖） ===== */
+    [data-theme="coral-red"] {
+      --bg: #2e1a1a;
+      --surface: #3a1a1a;
+      --card-bg: #3a1a1a;
+      --ink: #ffffff;
+      --muted: #998888;
+      --line: #5a2a2a;
+      --border: #4a2020;
+      --accent: #e37e7e;
+      --accent-2: #c85a5a;
+      --sidebar: #1e0f0f;
       --sidebar-w: 220px;
       --sidebar-w-collapsed: 64px;
       --topbar-h: 56px;
       --radius: 10px;
-      --th-bg: #EDF3EB;
-      --row-hover: #F6F9F5;
-      --about-bg: #EDF3EB;
-      --about-border: #DDE5D8;
-      --dash-bg: #FFFFFF;
-      --dash-border: #DDE5D8;
-      --status-bar-bg: linear-gradient(135deg, #E8F5E8 0%, #F2F8F0 100%);
-      --status-bar-border: #C5DDC5;
+      --th-bg: #3a2020;
+      --row-hover: #3a2020;
+      --about-bg: #4a2020;
+      --about-border: #5a2a2a;
+      --dash-bg: #3a1a1a;
+      --dash-border: #4a2020;
+      --status-bar-bg: linear-gradient(135deg, #2e1a1a 0%, #3a1a1a 100%);
+      --status-bar-border: #4a2020;
     }
 
-    /* ===== 方案4: 深空暗夜（硬核沉浸） ===== */
-    [data-theme="deep-space"] {
-      --bg: #0A0A0A;
-      --surface: #171717;
-      --card-bg: #171717;
-      --ink: #FFFFFF;
-      --muted: #A3A6AB;
-      --line: #2A2A2A;
-      --border: #2A2A2A;
-      --accent: #3B82F6;
-      --accent-2: #22D3EE;
+    /* ===== 方案4: 暗夜黑（极致暗黑） ===== */
+    [data-theme="night-black"] {
+      --bg: #000000;
+      --surface: #0a0a0a;
+      --card-bg: #0a0a0a;
+      --ink: #cccccc;
+      --muted: #666666;
+      --line: #222222;
+      --border: #1a1a1a;
+      --accent: #666666;
+      --accent-2: #444444;
       --sidebar: #000000;
       --sidebar-w: 220px;
       --sidebar-w-collapsed: 64px;
       --topbar-h: 56px;
       --radius: 10px;
-      --th-bg: #141414;
-      --row-hover: #1A1A1A;
-      --about-bg: #141414;
-      --about-border: #2A2A2A;
-      --dash-bg: #171717;
-      --dash-border: #2A2A2A;
-      --status-bar-bg: linear-gradient(135deg, #0A0A10 0%, #0A1015 100%);
-      --status-bar-border: #1E3A5F;
+      --th-bg: #0f0f0f;
+      --row-hover: #0f0f0f;
+      --about-bg: #111111;
+      --about-border: #222222;
+      --dash-bg: #0a0a0a;
+      --dash-border: #1a1a1a;
+      --status-bar-bg: linear-gradient(135deg, #000000 0%, #0a0a0a 100%);
+      --status-bar-border: #1a1a1a;
     }
 
-    /* ===== 方案5: 琥珀活力（创意刺激） ===== */
-    [data-theme="amber"] {
-      --bg: #FCF9F5;
-      --surface: #FFFFFF;
-      --card-bg: #FFFFFF;
-      --ink: #2D231A;
-      --muted: #8C7D6D;
-      --line: #F0E7D8;
-      --border: #F0E7D8;
-      --accent: #EA8C3E;
-      --accent-2: #D97706;
-      --sidebar: #3D2E1A;
+    /* ===== 方案5: 深空灰（沉稳中性） ===== */
+    [data-theme="space-gray"] {
+      --bg: #1a1a1a;
+      --surface: #242424;
+      --card-bg: #242424;
+      --ink: #e0e0e0;
+      --muted: #888899;
+      --line: #333333;
+      --border: #2a2a2a;
+      --accent: #888899;
+      --accent-2: #666677;
+      --sidebar: #0f0f0f;
       --sidebar-w: 220px;
       --sidebar-w-collapsed: 64px;
       --topbar-h: 56px;
       --radius: 10px;
-      --th-bg: #F9F3E8;
-      --row-hover: #FCF8F2;
-      --about-bg: #F9F3E8;
-      --about-border: #F0E7D8;
-      --dash-bg: #FFFFFF;
-      --dash-border: #F0E7D8;
-      --status-bar-bg: linear-gradient(135deg, #FEF5E8 0%, #FCF9F5 100%);
-      --status-bar-border: #F0D8B0;
+      --th-bg: #202020;
+      --row-hover: #202020;
+      --about-bg: #1a1a1a;
+      --about-border: #333333;
+      --dash-bg: #242424;
+      --dash-border: #2a2a2a;
+      --status-bar-bg: linear-gradient(135deg, #1a1a1a 0%, #242424 100%);
+      --status-bar-border: #2a2a2a;
     }
 
-    /* ===== 方案6: 石板专业（经典企业） ===== */
-    [data-theme="slate"] {
-      --bg: #F1F4F8;
-      --surface: #FFFFFF;
-      --card-bg: #FFFFFF;
-      --ink: #0B0C10;
-      --muted: #5B6677;
-      --line: #E0E6ED;
-      --border: #E0E6ED;
-      --accent: #1E3A5F;
-      --accent-2: #0F2B44;
-      --sidebar: #0B1A2E;
-      --sidebar-w: 220px;
-      --sidebar-w-collapsed: 64px;
-      --topbar-h: 56px;
-      --radius: 8px;
-      --th-bg: #EDF0F5;
-      --row-hover: #F5F7FA;
-      --about-bg: #EDF0F5;
-      --about-border: #E0E6ED;
-      --dash-bg: #FFFFFF;
-      --dash-border: #E0E6ED;
-      --status-bar-bg: linear-gradient(135deg, #EDF2F7 0%, #F1F4F8 100%);
-      --status-bar-border: #C5D0DE;
-    }
-
-    /* ===== 方案7: 黑檀紫（奢华时尚） ===== */
-    [data-theme="ebony"] {
-      --bg: #F6F4F8;
-      --surface: #FFFFFF;
-      --card-bg: #FFFFFF;
-      --ink: #1E1A24;
-      --muted: #7A7182;
-      --line: #E8E2ED;
-      --border: #E8E2ED;
-      --accent: #7C3AED;
-      --accent-2: #A855F7;
-      --sidebar: #1A1528;
+    /* ===== 方案6: 暗紫魅影（神秘优雅） ===== */
+    [data-theme="phantom-purple"] {
+      --bg: #1a0a2e;
+      --surface: #2a1a3a;
+      --card-bg: #2a1a3a;
+      --ink: #e0d0e8;
+      --muted: #9988aa;
+      --line: #4a2a5a;
+      --border: #3a204a;
+      --accent: #b07ec8;
+      --accent-2: #9058a8;
+      --sidebar: #0f0520;
       --sidebar-w: 220px;
       --sidebar-w-collapsed: 64px;
       --topbar-h: 56px;
       --radius: 10px;
-      --th-bg: #F2EFF6;
-      --row-hover: #F8F6FA;
-      --about-bg: #F2EFF6;
-      --about-border: #E8E2ED;
-      --dash-bg: #FFFFFF;
-      --dash-border: #E8E2ED;
-      --status-bar-bg: linear-gradient(135deg, #F0EBF8 0%, #F8F6FA 100%);
-      --status-bar-border: #D5CCE5;
+      --th-bg: #2a1a3a;
+      --row-hover: #2a1a3a;
+      --about-bg: #3a204a;
+      --about-border: #4a2a5a;
+      --dash-bg: #2a1a3a;
+      --dash-border: #3a204a;
+      --status-bar-bg: linear-gradient(135deg, #1a0a2e 0%, #2a1a3a 100%);
+      --status-bar-border: #3a204a;
     }
 
-    /* ===== 方案8: 薄雾玫瑰（柔和亲和） ===== */
-    [data-theme="mist-rose"] {
-      --bg: #FDF6F6;
-      --surface: #FFFFFF;
-      --card-bg: #FFFFFF;
-      --ink: #2D2222;
-      --muted: #8C7A7A;
-      --line: #F0E2E2;
-      --border: #F0E2E2;
-      --accent: #E17A7A;
-      --accent-2: #D45C5C;
-      --sidebar: #3D2020;
+    /* ===== 方案7: 晨光白（明亮清爽） ===== */
+    [data-theme="dawn-white"] {
+      --bg: #f0f0f0;
+      --surface: #ffffff;
+      --card-bg: #ffffff;
+      --ink: #222222;
+      --muted: #888888;
+      --line: #e0e0e0;
+      --border: #d0d0d0;
+      --accent: #4a90d9;
+      --accent-2: #3070b8;
+      --sidebar: #222222;
       --sidebar-w: 220px;
       --sidebar-w-collapsed: 64px;
       --topbar-h: 56px;
       --radius: 10px;
-      --th-bg: #FBF0F0;
-      --row-hover: #FEF8F8;
-      --about-bg: #FBF0F0;
-      --about-border: #F0E2E2;
-      --dash-bg: #FFFFFF;
-      --dash-border: #F0E2E2;
-      --status-bar-bg: linear-gradient(135deg, #FEE8E8 0%, #FDF6F6 100%);
-      --status-bar-border: #F0C8C8;
+      --th-bg: #f5f5f5;
+      --row-hover: #f8f8f8;
+      --about-bg: #e8e8e8;
+      --about-border: #d0d0d0;
+      --dash-bg: #ffffff;
+      --dash-border: #d0d0d0;
+      --status-bar-bg: linear-gradient(135deg, #f0f0f0 0%, #f8f8f8 100%);
+      --status-bar-border: #d0d0d0;
     }
 
-    /* ===== 方案9: 冰川极地（冷冽清晰） ===== */
-    [data-theme="glacier"] {
-      --bg: #F0F3F7;
-      --surface: #FFFFFF;
-      --card-bg: #FFFFFF;
-      --ink: #0D1117;
-      --muted: #57606A;
-      --line: #D0D7DE;
-      --border: #D0D7DE;
-      --accent: #1F6FEB;
-      --accent-2: #0F4A9E;
-      --sidebar: #0D1B3E;
+    /* ===== 方案8: 暖阳米（温暖舒适） ===== */
+    [data-theme="warm-beige"] {
+      --bg: #f5f0e8;
+      --surface: #ffffff;
+      --card-bg: #ffffff;
+      --ink: #332211;
+      --muted: #887766;
+      --line: #e8e0d4;
+      --border: #e0d8cc;
+      --accent: #c4a882;
+      --accent-2: #a08860;
+      --sidebar: #3a2a1a;
       --sidebar-w: 220px;
       --sidebar-w-collapsed: 64px;
       --topbar-h: 56px;
       --radius: 10px;
-      --th-bg: #EAF0F6;
-      --row-hover: #F5F8FB;
-      --about-bg: #EAF0F6;
-      --about-border: #D0D7DE;
-      --dash-bg: #FFFFFF;
-      --dash-border: #D0D7DE;
-      --status-bar-bg: linear-gradient(135deg, #E0ECF8 0%, #F0F3F7 100%);
-      --status-bar-border: #B8CCE8;
+      --th-bg: #f8f4ec;
+      --row-hover: #faf6f0;
+      --about-bg: #f0ece4;
+      --about-border: #e0d8cc;
+      --dash-bg: #ffffff;
+      --dash-border: #e0d8cc;
+      --status-bar-bg: linear-gradient(135deg, #f5f0e8 0%, #faf6f0 100%);
+      --status-bar-border: #e0d8cc;
     }
 
-    /* ===== 方案10: 香槟金（轻奢行政） ===== */
-    [data-theme="champagne"] {
-      --bg: #FCF9F2;
-      --surface: #FFFFFF;
-      --card-bg: #FFFFFF;
-      --ink: #26221C;
-      --muted: #8C856E;
-      --line: #EBE3D0;
-      --border: #EBE3D0;
-      --accent: #C99C4E;
-      --accent-2: #B28234;
-      --sidebar: #2E2418;
+    /* ===== 方案9: 墨绿护眼（柔和护眼） ===== */
+    [data-theme="forest-green"] {
+      --bg: #1a2a1a;
+      --surface: #0a1a0a;
+      --card-bg: #0a1a0a;
+      --ink: #c0d0c0;
+      --muted: #7a8a7a;
+      --line: #1a3a1a;
+      --border: #0a2a0a;
+      --accent: #6a9a6a;
+      --accent-2: #4a7a4a;
+      --sidebar: #0a0f0a;
       --sidebar-w: 220px;
       --sidebar-w-collapsed: 64px;
       --topbar-h: 56px;
       --radius: 10px;
-      --th-bg: #F8F3E8;
-      --row-hover: #FDFAF5;
-      --about-bg: #F8F3E8;
-      --about-border: #EBE3D0;
-      --dash-bg: #FFFFFF;
-      --dash-border: #EBE3D0;
-      --status-bar-bg: linear-gradient(135deg, #F8EED8 0%, #FCF9F2 100%);
-      --status-bar-border: #E0D0A8;
+      --th-bg: #0f1f0f;
+      --row-hover: #0f1f0f;
+      --about-bg: #0a2a0a;
+      --about-border: #1a3a1a;
+      --dash-bg: #0a1a0a;
+      --dash-border: #0a2a0a;
+      --status-bar-bg: linear-gradient(135deg, #1a2a1a 0%, #0a1a0a 100%);
+      --status-bar-border: #0a2a0a;
+    }
+
+    /* ===== 方案10: 琥珀金（奢华温暖） ===== */
+    [data-theme="amber-gold"] {
+      --bg: #2a1a0a;
+      --surface: #3a2a1a;
+      --card-bg: #3a2a1a;
+      --ink: #f0e0c0;
+      --muted: #a09070;
+      --line: #5a4a3a;
+      --border: #4a3a2a;
+      --accent: #d4a060;
+      --accent-2: #b08040;
+      --sidebar: #1a0f05;
+      --sidebar-w: 220px;
+      --sidebar-w-collapsed: 64px;
+      --topbar-h: 56px;
+      --radius: 10px;
+      --th-bg: #3a2a20;
+      --row-hover: #3a2a20;
+      --about-bg: #4a3a2a;
+      --about-border: #5a4a3a;
+      --dash-bg: #3a2a1a;
+      --dash-border: #4a3a2a;
+      --status-bar-bg: linear-gradient(135deg, #2a1a0a 0%, #3a2a1a 100%);
+      --status-bar-border: #4a3a2a;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { height: 100%; }
@@ -2381,115 +2381,115 @@
               <h3 class="setting-title">🎨 主题配色</h3>
               <p class="setting-desc">选择适合你的界面配色方案，包括护眼模式、黑夜模式等多种风格。</p>
               <div class="theme-grid" id="themeGrid">
-                <div class="theme-card" data-theme="oat-milk" onclick="setTheme('oat-milk')">
-                  <div class="theme-preview" style="background:#F7F4F0;border:1px solid #E6E1DB">
-                    <div class="theme-preview-sidebar" style="background:#3D3430"></div>
+                <div class="theme-card" data-theme="deep-blue" onclick="setTheme('deep-blue')">
+                  <div class="theme-preview" style="background:#1a1a2e;border:1px solid #0f3460">
+                    <div class="theme-preview-sidebar" style="background:#0f0f20"></div>
                     <div class="theme-preview-body">
-                      <div class="theme-preview-bar" style="background:#D48C6B"></div>
-                      <div class="theme-preview-line" style="background:#E6E1DB"></div>
-                      <div class="theme-preview-line" style="background:#E6E1DB"></div>
+                      <div class="theme-preview-bar" style="background:#7ec8e3"></div>
+                      <div class="theme-preview-line" style="background:#0f3460"></div>
+                      <div class="theme-preview-line" style="background:#0f3460"></div>
                     </div>
                   </div>
-                  <div class="theme-name">🥛 燕麦奶昔</div>
+                  <div class="theme-name">🔵 深空蓝</div>
                 </div>
-                <div class="theme-card" data-theme="aurora" onclick="setTheme('aurora')">
-                  <div class="theme-preview" style="background:#F4F6FA;border:1px solid #E2E8F0">
-                    <div class="theme-preview-sidebar" style="background:#1E1B4B"></div>
+                <div class="theme-card" data-theme="jade-green" onclick="setTheme('jade-green')">
+                  <div class="theme-preview" style="background:#1a2e1a;border:1px solid #0f4a20">
+                    <div class="theme-preview-sidebar" style="background:#0f1e0f"></div>
                     <div class="theme-preview-body">
-                      <div class="theme-preview-bar" style="background:#4F46E5"></div>
-                      <div class="theme-preview-line" style="background:#E2E8F0"></div>
-                      <div class="theme-preview-line" style="background:#E2E8F0"></div>
+                      <div class="theme-preview-bar" style="background:#7ec8a0"></div>
+                      <div class="theme-preview-line" style="background:#0f4a20"></div>
+                      <div class="theme-preview-line" style="background:#0f4a20"></div>
                     </div>
                   </div>
-                  <div class="theme-name">✨ 极光靛蓝</div>
+                  <div class="theme-name">🟢 翡翠绿</div>
                 </div>
-                <div class="theme-card" data-theme="sage" onclick="setTheme('sage')">
-                  <div class="theme-preview" style="background:#F2F5F0;border:1px solid #DDE5D8">
-                    <div class="theme-preview-sidebar" style="background:#1A2E1E"></div>
+                <div class="theme-card" data-theme="coral-red" onclick="setTheme('coral-red')">
+                  <div class="theme-preview" style="background:#2e1a1a;border:1px solid #4a2020">
+                    <div class="theme-preview-sidebar" style="background:#1e0f0f"></div>
                     <div class="theme-preview-body">
-                      <div class="theme-preview-bar" style="background:#4A7C59"></div>
-                      <div class="theme-preview-line" style="background:#DDE5D8"></div>
-                      <div class="theme-preview-line" style="background:#DDE5D8"></div>
+                      <div class="theme-preview-bar" style="background:#e37e7e"></div>
+                      <div class="theme-preview-line" style="background:#4a2020"></div>
+                      <div class="theme-preview-line" style="background:#4a2020"></div>
                     </div>
                   </div>
-                  <div class="theme-name">🌿 鼠尾草森林</div>
+                  <div class="theme-name">🔴 珊瑚红</div>
                 </div>
-                <div class="theme-card" data-theme="deep-space" onclick="setTheme('deep-space')">
-                  <div class="theme-preview" style="background:#0A0A0A;border:1px solid #2A2A2A">
+                <div class="theme-card" data-theme="night-black" onclick="setTheme('night-black')">
+                  <div class="theme-preview" style="background:#000000;border:1px solid #1a1a1a">
                     <div class="theme-preview-sidebar" style="background:#000000"></div>
                     <div class="theme-preview-body">
-                      <div class="theme-preview-bar" style="background:#3B82F6"></div>
-                      <div class="theme-preview-line" style="background:#2A2A2A"></div>
-                      <div class="theme-preview-line" style="background:#2A2A2A"></div>
+                      <div class="theme-preview-bar" style="background:#666666"></div>
+                      <div class="theme-preview-line" style="background:#1a1a1a"></div>
+                      <div class="theme-preview-line" style="background:#1a1a1a"></div>
                     </div>
                   </div>
-                  <div class="theme-name">🌌 深空暗夜</div>
+                  <div class="theme-name">⚫ 暗夜黑</div>
                 </div>
-                <div class="theme-card" data-theme="amber" onclick="setTheme('amber')">
-                  <div class="theme-preview" style="background:#FCF9F5;border:1px solid #F0E7D8">
-                    <div class="theme-preview-sidebar" style="background:#3D2E1A"></div>
+                <div class="theme-card" data-theme="space-gray" onclick="setTheme('space-gray')">
+                  <div class="theme-preview" style="background:#1a1a1a;border:1px solid #2a2a2a">
+                    <div class="theme-preview-sidebar" style="background:#0f0f0f"></div>
                     <div class="theme-preview-body">
-                      <div class="theme-preview-bar" style="background:#EA8C3E"></div>
-                      <div class="theme-preview-line" style="background:#F0E7D8"></div>
-                      <div class="theme-preview-line" style="background:#F0E7D8"></div>
+                      <div class="theme-preview-bar" style="background:#888899"></div>
+                      <div class="theme-preview-line" style="background:#2a2a2a"></div>
+                      <div class="theme-preview-line" style="background:#2a2a2a"></div>
                     </div>
                   </div>
-                  <div class="theme-name">🔥 琥珀活力</div>
+                  <div class="theme-name">⬛ 深空灰</div>
                 </div>
-                <div class="theme-card" data-theme="slate" onclick="setTheme('slate')">
-                  <div class="theme-preview" style="background:#F1F4F8;border:1px solid #E0E6ED">
-                    <div class="theme-preview-sidebar" style="background:#0B1A2E"></div>
+                <div class="theme-card" data-theme="phantom-purple" onclick="setTheme('phantom-purple')">
+                  <div class="theme-preview" style="background:#1a0a2e;border:1px solid #3a204a">
+                    <div class="theme-preview-sidebar" style="background:#0f0520"></div>
                     <div class="theme-preview-body">
-                      <div class="theme-preview-bar" style="background:#1E3A5F"></div>
-                      <div class="theme-preview-line" style="background:#E0E6ED"></div>
-                      <div class="theme-preview-line" style="background:#E0E6ED"></div>
+                      <div class="theme-preview-bar" style="background:#b07ec8"></div>
+                      <div class="theme-preview-line" style="background:#3a204a"></div>
+                      <div class="theme-preview-line" style="background:#3a204a"></div>
                     </div>
                   </div>
-                  <div class="theme-name">💼 石板专业</div>
+                  <div class="theme-name">🟣 暗紫魅影</div>
                 </div>
-                <div class="theme-card" data-theme="ebony" onclick="setTheme('ebony')">
-                  <div class="theme-preview" style="background:#F6F4F8;border:1px solid #E8E2ED">
-                    <div class="theme-preview-sidebar" style="background:#1A1528"></div>
+                <div class="theme-card" data-theme="dawn-white" onclick="setTheme('dawn-white')">
+                  <div class="theme-preview" style="background:#f0f0f0;border:1px solid #d0d0d0">
+                    <div class="theme-preview-sidebar" style="background:#222222"></div>
                     <div class="theme-preview-body">
-                      <div class="theme-preview-bar" style="background:#7C3AED"></div>
-                      <div class="theme-preview-line" style="background:#E8E2ED"></div>
-                      <div class="theme-preview-line" style="background:#E8E2ED"></div>
+                      <div class="theme-preview-bar" style="background:#4a90d9"></div>
+                      <div class="theme-preview-line" style="background:#d0d0d0"></div>
+                      <div class="theme-preview-line" style="background:#d0d0d0"></div>
                     </div>
                   </div>
-                  <div class="theme-name">💜 黑檀紫</div>
+                  <div class="theme-name">⬜ 晨光白</div>
                 </div>
-                <div class="theme-card" data-theme="mist-rose" onclick="setTheme('mist-rose')">
-                  <div class="theme-preview" style="background:#FDF6F6;border:1px solid #F0E2E2">
-                    <div class="theme-preview-sidebar" style="background:#3D2020"></div>
+                <div class="theme-card" data-theme="warm-beige" onclick="setTheme('warm-beige')">
+                  <div class="theme-preview" style="background:#f5f0e8;border:1px solid #e0d8cc">
+                    <div class="theme-preview-sidebar" style="background:#3a2a1a"></div>
                     <div class="theme-preview-body">
-                      <div class="theme-preview-bar" style="background:#E17A7A"></div>
-                      <div class="theme-preview-line" style="background:#F0E2E2"></div>
-                      <div class="theme-preview-line" style="background:#F0E2E2"></div>
+                      <div class="theme-preview-bar" style="background:#c4a882"></div>
+                      <div class="theme-preview-line" style="background:#e0d8cc"></div>
+                      <div class="theme-preview-line" style="background:#e0d8cc"></div>
                     </div>
                   </div>
-                  <div class="theme-name">🌸 薄雾玫瑰</div>
+                  <div class="theme-name">🟡 暖阳米</div>
                 </div>
-                <div class="theme-card" data-theme="glacier" onclick="setTheme('glacier')">
-                  <div class="theme-preview" style="background:#F0F3F7;border:1px solid #D0D7DE">
-                    <div class="theme-preview-sidebar" style="background:#0D1B3E"></div>
+                <div class="theme-card" data-theme="forest-green" onclick="setTheme('forest-green')">
+                  <div class="theme-preview" style="background:#1a2a1a;border:1px solid #0a2a0a">
+                    <div class="theme-preview-sidebar" style="background:#0a0f0a"></div>
                     <div class="theme-preview-body">
-                      <div class="theme-preview-bar" style="background:#1F6FEB"></div>
-                      <div class="theme-preview-line" style="background:#D0D7DE"></div>
-                      <div class="theme-preview-line" style="background:#D0D7DE"></div>
+                      <div class="theme-preview-bar" style="background:#6a9a6a"></div>
+                      <div class="theme-preview-line" style="background:#0a2a0a"></div>
+                      <div class="theme-preview-line" style="background:#0a2a0a"></div>
                     </div>
                   </div>
-                  <div class="theme-name">🧊 冰川极地</div>
+                  <div class="theme-name">🌲 墨绿护眼</div>
                 </div>
-                <div class="theme-card" data-theme="champagne" onclick="setTheme('champagne')">
-                  <div class="theme-preview" style="background:#FCF9F2;border:1px solid #EBE3D0">
-                    <div class="theme-preview-sidebar" style="background:#2E2418"></div>
+                <div class="theme-card" data-theme="amber-gold" onclick="setTheme('amber-gold')">
+                  <div class="theme-preview" style="background:#2a1a0a;border:1px solid #4a3a2a">
+                    <div class="theme-preview-sidebar" style="background:#1a0f05"></div>
                     <div class="theme-preview-body">
-                      <div class="theme-preview-bar" style="background:#C99C4E"></div>
-                      <div class="theme-preview-line" style="background:#EBE3D0"></div>
-                      <div class="theme-preview-line" style="background:#EBE3D0"></div>
+                      <div class="theme-preview-bar" style="background:#d4a060"></div>
+                      <div class="theme-preview-line" style="background:#4a3a2a"></div>
+                      <div class="theme-preview-line" style="background:#4a3a2a"></div>
                     </div>
                   </div>
-                  <div class="theme-name">🥂 香槟金</div>
+                  <div class="theme-name">🟠 琥珀金</div>
                 </div>
               </div>
             </div>
@@ -2955,7 +2955,7 @@
     }
 
     function loadTheme() {
-      var saved = localStorage.getItem('admin-theme') || 'aurora';
+      var saved = localStorage.getItem('admin-theme') || 'deep-blue';
       setTheme(saved);
     }
 
