@@ -501,10 +501,14 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 0.75rem;
-      color: var(--ink);
+      color: var(--muted);
       flex-shrink: 0;
-      transition: transform 0.2s;
+      padding: 0;
+    }
+    .sidebar-toggle-btn svg {
+      width: 15px;
+      height: 15px;
+      display: block;
     }
     .sidebar-toggle-btn:hover {
       background: var(--accent);
@@ -551,6 +555,13 @@
       border-radius: 8px;
     }
     .topbar-link:hover { background: var(--bg); color: var(--ink); }
+    .logout-link {
+      color: rgba(239, 68, 68, 0.7);
+    }
+    .logout-link:hover {
+      color: #ef4444;
+      background: rgba(239, 68, 68, 0.08);
+    }
     .logout {
       padding: 7px 14px;
       background: var(--ink);
@@ -2155,7 +2166,7 @@
       <header class="topbar">
         <div class="topbar-left">
           <button class="menu-btn" onclick="openMobileSidebar()" aria-label="打开菜单">☰</button>
-          <button class="sidebar-toggle-btn" onclick="toggleSidebar()" title="隐藏/显示侧边栏" id="sidebarToggleBtn">◀</button>
+          <button class="sidebar-toggle-btn" onclick="toggleSidebar()" title="隐藏/显示侧边栏" id="sidebarToggleBtn"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2.5" width="4" height="11" rx="0.5"/><line x1="8" y1="3" x2="8" y2="13"/><polyline points="11,6 8,8 11,10"/></svg></button>
           <div>
             <div class="page-title" id="pageTitle">产品管理</div>
             <div class="page-sub" id="pageSub">管理可授权的产品列表</div>
@@ -2164,6 +2175,7 @@
         <div class="topbar-right">
           <span class="user-chip" id="usernameDisplay"></span>
           <a href="/" class="topbar-link">首页</a>
+          <a href="javascript:void(0)" onclick="logout()" class="topbar-link logout-link">退出</a>
         </div>
       </header>
 
@@ -3303,7 +3315,6 @@
           }, 50);
         }
       }
-      if (tab === 'health') runHealthCheck();
       if (tab === 'vercel-logs') loadVercelLogs();
       if (tab === 'settings') initSettingsPanel();
       if (tab === 'direct-activate') initDirectActivate();
@@ -3313,9 +3324,11 @@
     function toggleSidebar() {
       var sidebar = document.getElementById('sidebar');
       var toggleBtn = document.getElementById('sidebarToggleBtn');
-      sidebar.classList.toggle('collapsed');
+      var collapsed = sidebar.classList.toggle('collapsed');
       if (toggleBtn) {
-        toggleBtn.innerHTML = sidebar.classList.contains('collapsed') ? '▶' : '◀';
+        toggleBtn.innerHTML = collapsed
+          ? '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2.5" width="4" height="11" rx="0.5"/><line x1="8" y1="3" x2="8" y2="13"/><polyline points="11,10 14,8 11,6"/></svg>'
+          : '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="2.5" width="4" height="11" rx="0.5"/><line x1="8" y1="3" x2="8" y2="13"/><polyline points="11,6 8,8 11,10"/></svg>';
       }
     }
 
