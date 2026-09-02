@@ -1,5 +1,11 @@
 {
   "rewrites": [
     { "source": "/", "destination": "/index.html" }
+  ],
+  "crons": [
+    {
+      "path": "/api/afdian/query-orders",
+      "schedule": "*/5 * * * *"
+    }
   ]
 }
