@@ -2123,6 +2123,10 @@
         <li><a href="javascript:void(0)" onclick="switchTab('direct-activate')" data-tab="direct-activate"><span class="menu-icon">⚡</span><span class="menu-text">快捷激活</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('decrypt')" data-tab="decrypt"><span class="menu-icon">🔍</span><span class="menu-text">解密验证</span></a></li>
       </ul>
+      <div class="sidebar-nav-label">爱发电对接</div>
+      <ul class="sidebar-menu">
+        <li><a href="javascript:void(0)" onclick="switchTab('afdian-orders')" data-tab="afdian-orders"><span class="menu-icon">💖</span><span class="menu-text">爱发电订单</span></a></li>
+      </ul>
       <div class="sidebar-nav-label">其他栏目</div>
       <ul class="sidebar-menu">
         <li><a href="javascript:void(0)" onclick="switchTab('quota')" data-tab="quota"><span class="menu-icon">🪙</span><span class="menu-text">免费额度</span></a></li>
@@ -2692,6 +2696,74 @@
           </div>
         </div>
 
+        <!-- Afdian Orders Panel -->
+        <div class="panel" id="panel-afdian-orders">
+          <div class="toolbar">
+            <div>
+              <h2 style="margin:0;display:flex;align-items:center;gap:8px">💖 爱发电订单</h2>
+              <span class="muted" style="font-size:0.8rem">管理爱发电赞助订单，手动同步并查看激活码生成记录</span>
+            </div>
+            <span class="spacer"></span>
+            <button class="btn btn-primary" onclick="syncAfdianOrders()" id="afdianSyncBtn">
+              <span class="spinner" style="display:none"></span>
+              <span class="btn-text">🔄 手动同步订单</span>
+            </button>
+            <button class="btn btn-outline" onclick="loadAfdianOrders()">🔄 刷新列表</button>
+          </div>
+
+          <div id="afdianSyncStatus" style="margin-bottom:12px;padding:10px 14px;border-radius:8px;font-size:0.82rem;display:none"></div>
+
+          <div class="stats-bar" style="margin-bottom:16px">
+            <div class="stat-card">
+              <div class="number" id="afdianStatTotal">-</div>
+              <div class="label">订单总数</div>
+            </div>
+            <div class="stat-card">
+              <div class="number" id="afdianStatProcessed">-</div>
+              <div class="label">已处理</div>
+            </div>
+            <div class="stat-card">
+              <div class="number" id="afdianStatLastSync">-</div>
+              <div class="label">上次同步</div>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>订单号</th>
+                  <th>用户ID</th>
+                  <th>方案ID</th>
+                  <th>金额</th>
+                  <th>月数</th>
+                  <th>激活码</th>
+                  <th>兑换码</th>
+                  <th>状态</th>
+                  <th>时间</th>
+                </tr>
+              </thead>
+              <tbody id="afdianOrdersTable">
+                <tr><td colspan="9" class="empty">加载中...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <details class="help-banner" style="margin-top:24px">
+            <summary>环境变量配置说明</summary>
+            <div class="help-body">
+              <p>在 Vercel 项目设置中配置以下环境变量：</p>
+              <table style="margin-top:8px">
+                <tr><th style="width:180px">变量名</th><th>说明</th><th>示例</th></tr>
+                <tr><td><code>AFDIAN_USER_ID</code></td><td>爱发电开发者 user_id</td><td><code>1cd05722a1af11f1939c5254001e7c00</code></td></tr>
+                <tr><td><code>AFDIAN_TOKEN</code></td><td>爱发电 API Token</td><td><code>（从爱发电开发者后台获取）</code></td></tr>
+                <tr><td><code>AFDIAN_PLAN_MAP</code></td><td>方案→产品映射 JSON</td><td><code>{"plan_id_xxx":"product-id-1","plan_id_yyy":"product-id-2"}</code></td></tr>
+              </table>
+              <p style="margin-top:8px;color:var(--muted)">Cron 定时任务：每天凌晨 3:00 (UTC) 自动同步一次。也可点击上方按钮手动同步。</p>
+            </div>
+          </details>
+        </div>
+
       </main>
     </div>
   </div>
@@ -3212,6 +3284,7 @@
       records: { title: '激活记录', sub: '查看设备激活历史' },
       decrypt: { title: '解密验证', sub: '离线解析激活码内容' },
       'direct-activate': { title: '快捷激活', sub: '跳过兑换码流程，直接为设备生成激活码' },
+      'afdian-orders': { title: '爱发电订单', sub: '管理爱发电赞助订单，手动同步并查看激活码' },
       quota: { title: '免费额度', sub: 'Neon Postgres 免费资源消耗与剩余额度估算' },
       health: { title: '服务器状态', sub: '检测 Postgres / 鉴权 / 激活链路是否正常' },
       'vercel-logs': { title: 'Vercel日志', sub: '部署事件与函数运行日志（Vercel API）' },
@@ -3261,6 +3334,7 @@
       if (tab === 'vercel-logs') loadVercelLogs();
       if (tab === 'settings') initSettingsPanel();
       if (tab === 'direct-activate') initDirectActivate();
+      if (tab === 'afdian-orders') loadAfdianOrders();
     }
 
     function toggleSidebar() {
@@ -5347,6 +5421,118 @@
       ta.select();
       document.execCommand('copy');
       document.body.removeChild(ta);
+    }
+
+    // ==================== Afdian Orders ====================
+    async function loadAfdianOrders() {
+      var tableBody = document.getElementById('afdianOrdersTable');
+      tableBody.innerHTML = '<tr><td colspan="9" class="empty">Loading...</td></tr>';
+
+      try {
+        var data = await api('/api/afdian/orders');
+        if (!data.success) {
+          tableBody.innerHTML = '<tr><td colspan="9" class="empty" style="color:#ef4444;">Load failed: ' + escapeHtml(data.error || 'Unknown error') + '</td></tr>';
+          return;
+        }
+
+        var orders = data.orders || [];
+        document.getElementById('afdianStatTotal').textContent = orders.length;
+        document.getElementById('afdianStatProcessed').textContent = orders.filter(function(o) { return o.processed; }).length;
+
+        if (data.last_sync) {
+          document.getElementById('afdianStatLastSync').textContent = new Date(data.last_sync).toLocaleString('zh-CN');
+        } else {
+          document.getElementById('afdianStatLastSync').textContent = 'N/A';
+        }
+
+        if (orders.length === 0) {
+          tableBody.innerHTML = '<tr><td colspan="9" class="empty">No orders yet. Click "Sync Orders" to fetch from Afdian.</td></tr>';
+          return;
+        }
+
+        tableBody.innerHTML = orders.map(function(o) {
+          var statusHtml = '';
+          if (o.processed) {
+            statusHtml = '<span class="badge" style="background:#065f46;color:#fff">Processed</span>';
+          } else if (o.reason === 'no_product_mapping') {
+            statusHtml = '<span class="badge" style="background:#d97706;color:#fff">No Mapping</span>';
+          } else if (o.reason === 'status_not_completed') {
+            statusHtml = '<span class="badge" style="background:#6b7280;color:#fff">Pending</span>';
+          } else {
+            statusHtml = '<span class="badge" style="background:#dc2626;color:#fff">' + escapeHtml(o.reason || 'Unknown') + '</span>';
+          }
+
+          var timeStr = o.created_at ? new Date(o.created_at).toLocaleString('zh-CN') : '-';
+          var outTradeNoShort = String(o.out_trade_no || '').slice(-12);
+
+          return '<tr>' +
+            '<td title="' + escapeHtml(o.out_trade_no || '') + '">' + escapeHtml(outTradeNoShort) + '</td>' +
+            '<td>' + escapeHtml(String(o.user_id || '').slice(0, 12)) + '...</td>' +
+            '<td>' + escapeHtml(String(o.plan_id || '').slice(0, 12)) + '...</td>' +
+            '<td>' + escapeHtml(o.total_amount || '-') + '</td>' +
+            '<td>' + escapeHtml(String(o.months || '-')) + '</td>' +
+            '<td style="font-family:monospace;font-size:0.78rem">' + escapeHtml(o.activation_code || '-') + '</td>' +
+            '<td style="font-family:monospace;font-size:0.78rem">' + escapeHtml(o.redeem_code || '-') + '</td>' +
+            '<td>' + statusHtml + '</td>' +
+            '<td style="font-size:0.75rem">' + escapeHtml(timeStr) + '</td>' +
+            '</tr>';
+        }).join('');
+
+        showToast('Loaded ' + orders.length + ' orders', 'success');
+      } catch (e) {
+        console.error('loadAfdianOrders failed:', e);
+        tableBody.innerHTML = '<tr><td colspan="9" class="empty" style="color:#ef4444;">Load failed: ' + escapeHtml(e.message || '') + '</td></tr>';
+      }
+    }
+
+    async function syncAfdianOrders() {
+      var btn = document.getElementById('afdianSyncBtn');
+      var spinner = btn.querySelector('.spinner');
+      var btnText = btn.querySelector('.btn-text');
+      var statusEl = document.getElementById('afdianSyncStatus');
+
+      btn.disabled = true;
+      spinner.style.display = 'inline-block';
+      btnText.textContent = 'Syncing...';
+      statusEl.style.display = 'none';
+
+      try {
+        var data = await api('/api/afdian/query-orders');
+        if (data.success) {
+          var msg = 'Sync complete: ' + (data.new_orders || 0) + ' new orders, ' +
+            (data.processed || 0) + ' processed, ' +
+            (data.skipped || 0) + ' skipped';
+          if (data.errors > 0) {
+            msg += ', ' + data.errors + ' errors';
+          }
+          statusEl.style.display = 'block';
+          statusEl.style.background = '#ecfdf5';
+          statusEl.style.color = '#065f46';
+          statusEl.style.border = '1px solid #a7f3d0';
+          statusEl.textContent = '✅ ' + msg;
+          showToast(msg, 'success');
+          loadAfdianOrders();
+        } else {
+          statusEl.style.display = 'block';
+          statusEl.style.background = '#fef2f2';
+          statusEl.style.color = '#991b1b';
+          statusEl.style.border = '1px solid #fecaca';
+          statusEl.textContent = '⚠️ ' + (data.message || 'Sync returned no data');
+          showToast(data.message || 'Sync failed', 'error');
+        }
+      } catch (e) {
+        console.error('syncAfdianOrders failed:', e);
+        statusEl.style.display = 'block';
+        statusEl.style.background = '#fef2f2';
+        statusEl.style.color = '#991b1b';
+        statusEl.style.border = '1px solid #fecaca';
+        statusEl.textContent = '❌ Sync failed: ' + escapeHtml(e.message || '');
+        showToast('Sync failed: ' + (e.message || ''), 'error');
+      } finally {
+        btn.disabled = false;
+        spinner.style.display = 'none';
+        btnText.textContent = '🔄 手动同步订单';
+      }
     }
 
   </script>

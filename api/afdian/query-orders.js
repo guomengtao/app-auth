@@ -1,48 +1,38 @@
 var redis = require("../../lib/redis");
 var afdianApi = require("../../lib/afdian-api");
+var afdianProcessor = require("../../lib/afdian-processor");
 
 async function processBatchOrders(orders) {
   var newOrders = 0;
+  var processedCount = 0;
+  var skippedCount = 0;
+  var errorCount = 0;
+
   for (var i = 0; i < orders.length; i++) {
     var order = orders[i];
     var outTradeNo = order.out_trade_no;
     if (!outTradeNo) continue;
 
-    var existing = await redis.get("afdian:order:" + outTradeNo);
-    if (existing) continue;
-
-    if (order.status !== 2) {
-      await redis.set("afdian:order:" + outTradeNo, JSON.stringify({
-        out_trade_no: outTradeNo,
-        status: order.status,
-        processed: false,
-        reason: "status_not_completed",
-        created_at: Date.now(),
-        source: "api_poll",
-      }));
-      newOrders++;
-      continue;
+    var existingRaw = await redis.get("afdian:order:" + outTradeNo);
+    if (existingRaw) {
+      var existing = afdianProcessor.parseRedisValue(existingRaw);
+      if (existing && existing.processed) {
+        continue;
+      }
     }
 
-    var orderRecord = {
-      out_trade_no: outTradeNo,
-      user_id: order.user_id || "",
-      plan_id: order.plan_id || "",
-      product_type: order.product_type || 0,
-      month: order.month || 1,
-      total_amount: order.total_amount || "0.00",
-      status: order.status,
-      processed: false,
-      reason: "pending_webhook_retry",
-      created_at: Date.now(),
-      source: "api_poll",
-      raw_order: order,
-    };
-
-    await redis.set("afdian:order:" + outTradeNo, JSON.stringify(orderRecord));
+    var result = await afdianProcessor.processOrder(order);
+    if (result.success && !result.already_processed && !result.skipped) {
+      processedCount++;
+    } else if (result.skipped) {
+      skippedCount++;
+    } else if (!result.success) {
+      errorCount++;
+    }
     newOrders++;
   }
-  return newOrders;
+
+  return { newOrders: newOrders, processed: processedCount, skipped: skippedCount, errors: errorCount };
 }
 
 module.exports = async (req, res) => {
@@ -53,6 +43,9 @@ module.exports = async (req, res) => {
   try {
     var page = 1;
     var totalNew = 0;
+    var totalProcessed = 0;
+    var totalSkipped = 0;
+    var totalErrors = 0;
     var maxPages = 3;
 
     while (page <= maxPages) {
@@ -67,8 +60,11 @@ module.exports = async (req, res) => {
         break;
       }
 
-      var newCount = await processBatchOrders(data.list);
-      totalNew += newCount;
+      var batchResult = await processBatchOrders(data.list);
+      totalNew += batchResult.newOrders;
+      totalProcessed += batchResult.processed;
+      totalSkipped += batchResult.skipped;
+      totalErrors += batchResult.errors;
 
       if (data.list.length < 50) {
         break;
@@ -81,6 +77,9 @@ module.exports = async (req, res) => {
     return res.status(200).json({
       success: true,
       new_orders: totalNew,
+      processed: totalProcessed,
+      skipped: totalSkipped,
+      errors: totalErrors,
       synced_at: Date.now(),
     });
   } catch (e) {

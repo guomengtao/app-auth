@@ -5,7 +5,7 @@
   "crons": [
     {
       "path": "/api/afdian/query-orders",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 3 * * *"
     }
   ]
 }
