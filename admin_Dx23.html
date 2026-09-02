@@ -364,12 +364,13 @@
 
     .sidebar-menu {
       list-style: none;
-      padding: 0 10px 16px;
+      padding: 8px 10px;
       margin: 0;
-      flex: 1 1 auto;
-      overflow-y: auto;
-      min-height: 0;
-      -webkit-overflow-scrolling: touch;
+    }
+    .menu-separator hr {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      margin: 8px 4px;
     }
     .sidebar-menu li a {
       display: flex;
@@ -2114,7 +2115,6 @@
         <div class="brand-icon">A</div>
         <div class="brand-text">激活码系统<small>管理后台</small></div>
       </div>
-      <div class="sidebar-nav-label">业务菜单</div>
       <ul class="sidebar-menu">
         <li><a href="javascript:void(0)" onclick="switchTab('dashboard')" class="active" data-tab="dashboard"><span class="menu-icon">🏠</span><span class="menu-text">后台首页</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('products')" data-tab="products"><span class="menu-icon">📦</span><span class="menu-text">产品管理</span></a></li>
@@ -2122,23 +2122,13 @@
         <li><a href="javascript:void(0)" onclick="switchTab('records')" data-tab="records"><span class="menu-icon">📋</span><span class="menu-text">激活记录</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('direct-activate')" data-tab="direct-activate"><span class="menu-icon">⚡</span><span class="menu-text">快捷激活</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('decrypt')" data-tab="decrypt"><span class="menu-icon">🔍</span><span class="menu-text">解密验证</span></a></li>
-      </ul>
-      <div class="sidebar-nav-label">爱发电对接</div>
-      <ul class="sidebar-menu">
+        <li class="menu-separator"><hr></li>
         <li><a href="javascript:void(0)" onclick="switchTab('afdian-orders')" data-tab="afdian-orders"><span class="menu-icon">💖</span><span class="menu-text">爱发电订单</span></a></li>
-      </ul>
-      <div class="sidebar-nav-label">其他栏目</div>
-      <ul class="sidebar-menu">
         <li><a href="javascript:void(0)" onclick="switchTab('quota')" data-tab="quota"><span class="menu-icon">🪙</span><span class="menu-text">免费额度</span></a></li>
-        <li><a href="javascript:void(0)" onclick="switchTab('health')" data-tab="health"><span class="menu-icon">🩺</span><span class="menu-text">服务器状态</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('vercel-logs')" data-tab="vercel-logs"><span class="menu-icon">📜</span><span class="menu-text">Vercel日志</span></a></li>
+        <li class="menu-separator"><hr></li>
         <li><a href="javascript:void(0)" onclick="switchTab('settings')" data-tab="settings"><span class="menu-icon">⚙️</span><span class="menu-text">设置</span></a></li>
-        <li><a href="javascript:void(0)" onclick="logout()" style="color:rgba(255,150,150,0.65)"><span class="menu-icon">🚪</span><span class="menu-text">退出登录</span></a></li>
       </ul>
-      <div class="sidebar-footer">
-        <button class="sidebar-toggle" onclick="toggleSidebar()" title="折叠菜单">◀</button>
-        <span class="sidebar-ver" id="sidebarVersion">v1.1.2</span>
-      </div>
     </aside>
 
     <div class="workspace">
@@ -2153,7 +2143,6 @@
         <div class="topbar-right">
           <span class="user-chip" id="usernameDisplay"></span>
           <a href="/" class="topbar-link">首页</a>
-          <button class="logout" onclick="logout()">退出</button>
         </div>
       </header>
 
@@ -2336,43 +2325,6 @@
             <div id="quotaDailyEl" class="table-wrap" style="margin-bottom:18px">
               <div class="empty">点击「刷新额度」获取每日消耗记录。</div>
             </div>
-          </div>
-
-          <div class="panel" id="panel-health">
-            <div class="toolbar">
-              <button class="btn btn-primary" id="healthRunBtn" onclick="runHealthCheck()">开始检测</button>
-              <button class="btn btn-outline" onclick="runHealthCheck()">重新检测</button>
-              <button class="btn btn-outline" onclick="loadHealthLogs()">📋 服务器数据</button>
-              <span class="spacer"></span>
-              <span class="health-meta" id="healthCheckedAt"></span>
-            </div>
-            <div class="health-summary" id="healthSummary">
-              <div class="health-overall">
-                <div class="health-badge"><span class="health-dot"></span><span id="healthOverallText">尚未检测</span></div>
-              </div>
-              <div class="health-summary-text" id="healthSummaryText">点击「开始检测」分析 Postgres、鉴权、编解码与激活链路，定位添加产品/激活失败原因。</div>
-            </div>
-            <div class="health-grid" id="healthChecks"></div>
-
-            <!-- 📋 服务器数据快照 -->
-            <div id="healthLogsSection" style="margin-top:20px;display:none;">
-              <h3 style="margin:0 0 12px;font-size:1rem;color:var(--ink);display:flex;align-items:center;gap:8px;">
-                <span>📋 服务器最新数据快照</span>
-                <span id="healthLogsTime" style="font-size:0.72rem;color:#6b7280;font-weight:400;"></span>
-              </h3>
-              <div id="healthLogsCounters" class="health-log-counters"></div>
-
-              <details style="margin-top:12px;border:1px solid var(--border);border-radius:8px;padding:8px 12px;">
-                <summary style="cursor:pointer;font-weight:600;color:var(--ink);padding:4px 0;">🔑 最近激活记录（点击展开）</summary>
-                <div id="healthLogsActivations" class="health-log-list" style="margin-top:10px;"></div>
-              </details>
-
-              <details style="margin-top:12px;border:1px solid var(--border);border-radius:8px;padding:8px 12px;">
-                <summary style="cursor:pointer;font-weight:600;color:var(--ink);padding:4px 0;">🎫 最近兑换码（点击展开）</summary>
-                <div id="healthLogsCodes" class="health-log-list" style="margin-top:10px;"></div>
-              </details>
-            </div>
-
           </div>
 
           <div class="panel" id="panel-vercel-logs">
@@ -4443,160 +4395,6 @@
         .replace(/\n/g, '\\n')
         .replace(/\r/g, '\\r')
         .replace(/\t/g, '\\t');
-    }
-
-    function healthStatusLabel(status) {
-      if (status === 'pass') return '正常';
-      if (status === 'warn') return '告警';
-      if (status === 'fail') return '故障';
-      return status || '-';
-    }
-
-    function healthOverallLabel(overall) {
-      if (overall === 'ok') return '服务正常';
-      if (overall === 'degraded') return '部分异常';
-      if (overall === 'down') return '服务故障';
-      return '未知';
-    }
-
-    async function runHealthCheck() {
-      var btn = document.getElementById('healthRunBtn');
-      var summaryEl = document.getElementById('healthSummary');
-      var checksEl = document.getElementById('healthChecks');
-      if (btn) {
-        btn.disabled = true;
-        btn.textContent = '检测中...';
-      }
-      document.getElementById('healthOverallText').textContent = '检测中...';
-      document.getElementById('healthSummaryText').textContent = '正在检查环境变量、Postgres、产品/兑换码数据、编解码与激活链路...';
-      checksEl.innerHTML = '<div class="empty">检测进行中，请稍候...</div>';
-
-      try {
-        var data = await api('/api/admin/health');
-        if (!data.success) throw new Error(data.error || '健康检查失败');
-
-        summaryEl.className = 'health-summary ' + (data.overall || '');
-        document.getElementById('healthOverallText').textContent = healthOverallLabel(data.overall);
-        document.getElementById('healthSummaryText').textContent = data.summary || '';
-        var meta = [];
-        if (data.checkedAt) meta.push('检测时间 ' + new Date(data.checkedAt).toLocaleString('zh-CN'));
-        if (data.runtime) {
-          if (data.runtime.region) meta.push('区域 ' + data.runtime.region);
-          if (data.runtime.node) meta.push('Node ' + data.runtime.node);
-          if (data.runtime.env) meta.push('环境 ' + data.runtime.env);
-        }
-        meta.push('失败 ' + (data.failCount || 0) + ' / 告警 ' + (data.warnCount || 0));
-        document.getElementById('healthCheckedAt').textContent = meta.join(' · ');
-
-        var html = '';
-        (data.checks || []).forEach(function(c) {
-          html += '<div class="health-card">';
-          html += '<div class="health-card-head">';
-          html += '<div class="health-card-title">' + escapeHtml(c.name || c.id) + '</div>';
-          html += '<span class="health-status ' + escapeHtml(c.status || '') + '">' + healthStatusLabel(c.status) + '</span>';
-          html += '</div>';
-          html += '<div class="health-detail">' + escapeHtml(c.detail || '') + '</div>';
-          if (c.hint) html += '<div class="health-hint">' + escapeHtml(c.hint) + '</div>';
-          html += '<div class="health-latency">耗时 ' + (c.latencyMs == null ? '-' : c.latencyMs + ' ms') + '</div>';
-          html += '</div>';
-        });
-        checksEl.innerHTML = html || '<div class="empty">无检查项</div>';
-
-        if (data.overall === 'ok') showToast('服务器状态正常', 'success');
-        else if (data.overall === 'degraded') showToast('检测到告警，请查看详情', 'error');
-        else showToast('检测到故障，请查看详情', 'error');
-      } catch (e) {
-        console.error('runHealthCheck failed:', e);
-        summaryEl.className = 'health-summary down';
-        document.getElementById('healthOverallText').textContent = '检测失败';
-        document.getElementById('healthSummaryText').textContent = '无法完成健康检查: ' + (e.message || '未知错误') + '。这通常意味着后台鉴权失败，或 API 路由不可用。';
-        checksEl.innerHTML = '<div class="empty">检测请求失败</div>';
-        showToast('服务器状态检测失败: ' + (e.message || '未知错误'), 'error');
-      }
-
-      if (btn) {
-        btn.disabled = false;
-        btn.textContent = '开始检测';
-      }
-    }
-
-    async function loadHealthLogs() {
-      var sec = document.getElementById('healthLogsSection');
-      var vercelSec = document.getElementById('vercelLogsSection');
-      sec.style.display = 'block';
-      vercelSec.style.display = 'none';
-
-      var counterEl = document.getElementById('healthLogsCounters');
-      var actEl = document.getElementById('healthLogsActivations');
-      var codeEl = document.getElementById('healthLogsCodes');
-      var timeEl = document.getElementById('healthLogsTime');
-
-      counterEl.innerHTML = '<div class="empty">加载中...</div>';
-      actEl.innerHTML = '<div class="empty">加载中...</div>';
-      codeEl.innerHTML = '<div class="empty">加载中...</div>';
-
-      try {
-        var data = await api('/api/admin/health?section=logs');
-        if (!data.success) throw new Error(data.error || '加载失败');
-
-        if (timeEl && data.generatedAt) timeEl.textContent = '· ' + new Date(data.generatedAt).toLocaleString('zh-CN');
-
-        var counters = data.counters || {};
-        var env = data.env || {};
-        counterEl.innerHTML = '' +
-          '<div class="hl-card" title="所有产品数量"><div class="hl-num">' + (counters.products_total || 0) + '</div><div class="hl-lab">📦 产品总数</div></div>' +
-          '<div class="hl-card" title="所有兑换码数量"><div class="hl-num">' + (counters.redeem_codes_total || 0) + '</div><div class="hl-lab">🎫 兑换码</div></div>' +
-          '<div class="hl-card" title="已使用的兑换码数量"><div class="hl-num">' + (counters.used_redeem_codes || 0) + '</div><div class="hl-lab">✅ 已使用</div></div>' +
-          '<div class="hl-card" title="所有激活记录数量"><div class="hl-num">' + (counters.activations_total || 0) + '</div><div class="hl-lab">🔑 激活记录</div></div>' +
-          '<div class="hl-card hl-env"><div class="hl-num env-num">' + escapeHtml(env.region || '-') + '</div><div class="hl-lab">🌍 Region</div></div>' +
-          '<div class="hl-card hl-env"><div class="hl-num env-num">' + escapeHtml(env.env || '-') + '</div><div class="hl-lab">⚙️ Env</div></div>';
-
-        var acts = data.activations || [];
-        if (!acts.length) {
-          actEl.innerHTML = '<div class="empty">暂无激活记录</div>';
-        } else {
-          actEl.innerHTML = acts.map(function(a) {
-            var t = a.generated_at ? new Date(Number(a.generated_at)).toLocaleString('zh-CN') : '-';
-            var dev = a.device_id || a.deviceId || '?';
-            if (dev && dev.length > 12) dev = dev.slice(0, 12) + '...';
-            var pid = a.product_id || a.productId || '?';
-            var months = a.months || a.duration_months || '?';
-            var code = a.redeem_code || a.redeemCode || '-';
-            return '<div class="hl-row">' +
-              '<span class="hl-time">' + t + '</span>' +
-              '<span class="hl-pid">P' + escapeHtml(String(pid).padStart(2, '0')) + '</span>' +
-              '<span class="hl-mon">' + escapeHtml(String(months)) + '月</span>' +
-              '<span class="hl-dev" title="' + escapeHtml(dev) + '">' + escapeHtml(dev) + '</span>' +
-              (code && code !== '-' ? '<span class="hl-code">' + escapeHtml(String(code).toUpperCase()) + '</span>' : '') +
-              '</div>';
-          }).join('');
-        }
-
-        var codes = data.redeemCodes || [];
-        if (!codes.length) {
-          codeEl.innerHTML = '<div class="empty">暂无兑换码数据</div>';
-        } else {
-          codeEl.innerHTML = codes.map(function(c) {
-            var t = c.created_at ? new Date(Number(c.created_at)).toLocaleString('zh-CN') : '-';
-            var used = !!c.used;
-            var pid = c.product_id || '?';
-            var months = c.duration_months || '?';
-            var code = (c.code || '').toUpperCase();
-            return '<div class="hl-row hl-' + (used ? 'used' : 'unused') + '">' +
-              '<span class="hl-time">' + t + '</span>' +
-              '<span class="hl-code">' + escapeHtml(code) + '</span>' +
-              '<span class="hl-pid">P' + escapeHtml(String(pid).padStart(2, '0')) + '</span>' +
-              '<span class="hl-mon">' + escapeHtml(String(months)) + '月</span>' +
-              '<span class="hl-tag ' + (used ? 'tag-used' : 'tag-unused') + '">' + (used ? '已使用' : '未使用') + '</span>' +
-              '</div>';
-          }).join('');
-        }
-
-        showToast('服务器数据加载成功', 'success');
-      } catch (e) {
-        console.error('loadHealthLogs failed:', e);
-        counterEl.innerHTML = '<div class="empty" style="color:#ef4444;">加载失败: ' + escapeHtml(e.message || '') + '</div>';
-      }
     }
 
     async function loadVercelLogs() {
