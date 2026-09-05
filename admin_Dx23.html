@@ -1595,6 +1595,126 @@
       border: 1px solid #bfdbfe;
     }
 
+    .email-config-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .email-config-item {
+      background: var(--card-bg, #fff);
+      border: 2px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 200px;
+      position: relative;
+    }
+    .email-config-item:hover {
+      border-color: #6366f1;
+      box-shadow: 0 2px 8px rgba(99,102,241,.12);
+    }
+    .email-config-item.active {
+      border-color: #6366f1;
+      background: #eef2ff;
+      box-shadow: 0 2px 8px rgba(99,102,241,.15);
+    }
+    .email-config-name {
+      font-weight: 700;
+      font-size: 0.82rem;
+      color: var(--ink, #111827);
+      white-space: nowrap;
+    }
+    .email-config-info {
+      font-size: 0.7rem;
+      color: #6b7280;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .email-config-delete {
+      background: none;
+      border: none;
+      color: #ef4444;
+      cursor: pointer;
+      font-size: 0.85rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      opacity: 0.5;
+      transition: opacity 0.15s;
+    }
+    .email-config-item:hover .email-config-delete {
+      opacity: 1;
+    }
+    .email-config-empty {
+      font-size: 0.75rem;
+      color: #9ca3af;
+      padding: 8px 0;
+      font-style: italic;
+    }
+
+    .test-email-detail {
+      margin-top: 10px;
+      padding: 0;
+      font-size: 0.75rem;
+      color: #475569;
+      width: 100%;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .test-email-detail-section {
+      margin-bottom: 10px;
+      padding: 10px 12px;
+      background: var(--card-bg, #f8fafc);
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      line-height: 1.6;
+    }
+    .test-email-detail-section strong {
+      color: var(--ink, #111827);
+    }
+    .test-email-steps-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 6px;
+      font-size: 0.7rem;
+    }
+    .test-email-steps-table th {
+      background: #f1f5f9;
+      padding: 6px 8px;
+      text-align: left;
+      font-weight: 600;
+      color: #475569;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .test-email-steps-table td {
+      padding: 5px 8px;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: top;
+      font-family: monospace;
+      font-size: 0.68rem;
+      word-break: break-all;
+    }
+    .test-email-steps-table .step-ok td:first-child {
+      color: #059669;
+    }
+    .test-email-steps-table .step-fail td:first-child {
+      color: #ef4444;
+    }
+    .step-cmd {
+      color: #6366f1;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .step-resp {
+      color: #475569;
+    }
+
     .about-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -2901,6 +3021,15 @@
               </div>
               <div class="setting-row" style="flex-direction:column;align-items:stretch;">
                 <div class="setting-row-title" style="margin-bottom:8px;">⚙️ SMTP 服务器配置</div>
+                <div class="setting-input-row" style="margin-bottom:8px;">
+                  <span class="setting-input-label">预设配置</span>
+                  <select id="settingEmailPreset" class="setting-input" style="max-width:200px" onchange="applyEmailPreset()">
+                    <option value="">-- 自定义 --</option>
+                    <option value="qq">QQ邮箱</option>
+                    <option value="163">163邮箱</option>
+                    <option value="gmail">Gmail</option>
+                  </select>
+                </div>
                 <div class="setting-input-row">
                   <span class="setting-input-label">服务器</span>
                   <input type="text" id="settingSmtpHost" class="setting-input" placeholder="smtp.qq.com" onchange="saveSettings()">
@@ -2917,12 +3046,21 @@
                   </span>
                 </div>
               </div>
+
+              <!-- 已保存的邮件配置 -->
+              <div class="setting-row" style="flex-direction:column;align-items:stretch;">
+                <div class="setting-row-title" style="margin-bottom:4px;">📋 已保存的邮件配置（点击可切换）</div>
+                <div class="email-config-list" id="emailConfigList"></div>
+              </div>
+
               <div class="setting-row" style="border-bottom:none;flex-direction:column;align-items:flex-start;">
-                <div style="display:flex;gap:8px;align-items:center;">
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
                   <button class="btn btn-primary" onclick="sendTestEmail()" id="testEmailBtn">📨 发送测试邮件</button>
                   <button class="btn btn-outline" onclick="saveEmailSettings()">💾 保存设置</button>
+                  <button class="btn btn-outline" onclick="saveCurrentAsEmailConfig()">➕ 保存为新配置</button>
                 </div>
                 <div class="setting-test-result" id="testEmailResult"></div>
+                <div class="test-email-detail" id="testEmailDetail"></div>
               </div>
             </div>
 
@@ -5031,6 +5169,7 @@
       notifyEnabled: true,
       notifyTo: 'guomengtao@gmail.com',
       notifyFromName: 'app-auth',
+      emailPreset: '',
       smtpHost: 'smtp.qq.com',
       smtpPort: 465,
       smtpUser: 'rinuo@qq.com',
@@ -5054,6 +5193,7 @@
         notifyEnabled: !!document.getElementById('settingNotifyEnabled').checked,
         notifyTo: document.getElementById('settingNotifyTo').value.trim(),
         notifyFromName: document.getElementById('settingNotifyFromName').value.trim(),
+        emailPreset: document.getElementById('settingEmailPreset').value,
         smtpHost: document.getElementById('settingSmtpHost').value.trim(),
         smtpPort: parseInt(document.getElementById('settingSmtpPort').value, 10) || 465,
         smtpUser: document.getElementById('settingSmtpUser').value.trim(),
@@ -5095,13 +5235,117 @@
       setCheck('settingNotifyEnabled', s.notifyEnabled);
       setInput('settingNotifyTo', s.notifyTo);
       setInput('settingNotifyFromName', s.notifyFromName);
+      setInput('settingEmailPreset', s.emailPreset);
       setInput('settingSmtpHost', s.smtpHost);
       setInput('settingSmtpPort', s.smtpPort);
       setInput('settingSmtpUser', s.smtpUser);
       setInput('settingSmtpPass', s.smtpPass);
+      renderEmailConfigList();
     }
 
     function warnBeforeDeleteEnabled() { return !!readSettings().warnBeforeDelete; }
+
+    var EMAIL_PRESETS = {
+      'qq': { host: 'smtp.qq.com', port: 465, user: 'rinuo@qq.com' },
+      '163': { host: 'smtp.163.com', port: 465, user: '' },
+      'gmail': { host: 'smtp.gmail.com', port: 465, user: '' },
+    };
+
+    var EMAIL_CONFIGS_KEY = 'admin_email_configs_v1';
+
+    function loadEmailConfigs() {
+      try {
+        var raw = localStorage.getItem(EMAIL_CONFIGS_KEY);
+        return raw ? JSON.parse(raw) : {};
+      } catch (_) { return {}; }
+    }
+
+    function saveEmailConfigs(configs) {
+      try { localStorage.setItem(EMAIL_CONFIGS_KEY, JSON.stringify(configs)); } catch (_) {}
+    }
+
+    function saveCurrentAsEmailConfig() {
+      var name = prompt('请输入此配置的名称（如：QQ邮箱、公司邮箱）：');
+      if (!name || !name.trim()) return;
+      name = name.trim();
+      var configs = loadEmailConfigs();
+      var cfg = {
+        notifyTo: document.getElementById('settingNotifyTo').value.trim(),
+        notifyFromName: document.getElementById('settingNotifyFromName').value.trim(),
+        smtpHost: document.getElementById('settingSmtpHost').value.trim(),
+        smtpPort: parseInt(document.getElementById('settingSmtpPort').value, 10) || 465,
+        smtpUser: document.getElementById('settingSmtpUser').value.trim(),
+        smtpPass: document.getElementById('settingSmtpPass').value.trim(),
+        savedAt: new Date().toISOString(),
+      };
+      configs[name] = cfg;
+      saveEmailConfigs(configs);
+      renderEmailConfigList();
+      showToast('已保存邮件配置：' + name, 'success');
+    }
+
+    function applyEmailConfig(name) {
+      var configs = loadEmailConfigs();
+      var cfg = configs[name];
+      if (!cfg) return;
+      document.getElementById('settingNotifyTo').value = cfg.notifyTo || '';
+      document.getElementById('settingNotifyFromName').value = cfg.notifyFromName || '';
+      document.getElementById('settingSmtpHost').value = cfg.smtpHost || '';
+      document.getElementById('settingSmtpPort').value = cfg.smtpPort || 465;
+      document.getElementById('settingSmtpUser').value = cfg.smtpUser || '';
+      document.getElementById('settingSmtpPass').value = cfg.smtpPass || '';
+      document.getElementById('settingEmailPreset').value = '';
+      saveSettings();
+      renderEmailConfigList();
+      showToast('已应用邮件配置：' + name, 'success');
+    }
+
+    function deleteEmailConfig(name) {
+      if (!confirm('确定删除邮件配置 "' + name + '" 吗？')) return;
+      var configs = loadEmailConfigs();
+      delete configs[name];
+      saveEmailConfigs(configs);
+      renderEmailConfigList();
+      showToast('已删除邮件配置：' + name, 'success');
+    }
+
+    function renderEmailConfigList() {
+      var listEl = document.getElementById('emailConfigList');
+      if (!listEl) return;
+      var configs = loadEmailConfigs();
+      var names = Object.keys(configs);
+      if (names.length === 0) {
+        listEl.innerHTML = '<div class="email-config-empty">暂无已保存的邮件配置，填写SMTP信息后点击"➕ 保存为新配置"</div>';
+        return;
+      }
+
+      var currentHost = (document.getElementById('settingSmtpHost').value || '').trim();
+      var currentUser = (document.getElementById('settingSmtpUser').value || '').trim();
+      var currentTo = (document.getElementById('settingNotifyTo').value || '').trim();
+
+      listEl.innerHTML = names.map(function(name) {
+        var cfg = configs[name];
+        var isActive = cfg.smtpHost === currentHost && cfg.smtpUser === currentUser && cfg.notifyTo === currentTo;
+        var info = (cfg.smtpHost || '') + ' · ' + (cfg.smtpUser || '') + ' → ' + (cfg.notifyTo || '');
+        return '<div class="email-config-item' + (isActive ? ' active' : '') + '" onclick="applyEmailConfig(\'' + escapeHtml(name) + '\')" title="点击应用此配置">' +
+          '<div class="email-config-name">' + (isActive ? '✅ ' : '📧 ') + escapeHtml(name) + '</div>' +
+          '<div class="email-config-info">' + escapeHtml(info) + '</div>' +
+          '<button class="email-config-delete" onclick="event.stopPropagation();deleteEmailConfig(\'' + escapeHtml(name) + '\')" title="删除此配置">✕</button>' +
+          '</div>';
+      }).join('');
+    }
+
+    function applyEmailPreset() {
+      var preset = document.getElementById('settingEmailPreset').value;
+      if (!preset) return;
+      var cfg = EMAIL_PRESETS[preset];
+      if (!cfg) return;
+      if (cfg.host) document.getElementById('settingSmtpHost').value = cfg.host;
+      if (cfg.port) document.getElementById('settingSmtpPort').value = cfg.port;
+      if (cfg.user !== undefined) document.getElementById('settingSmtpUser').value = cfg.user || '';
+      saveSettings();
+      showToast('已应用 ' + (document.getElementById('settingEmailPreset').selectedOptions[0].textContent) + ' 预设', 'success');
+    }
 
     function toggleSmtpPassVisibility() {
       var el = document.getElementById('settingSmtpPass');
@@ -5119,6 +5363,7 @@
     async function sendTestEmail() {
       var btn = document.getElementById('testEmailBtn');
       var resultEl = document.getElementById('testEmailResult');
+      var detailEl = document.getElementById('testEmailDetail');
       if (!btn || !resultEl) return;
 
       var notifyTo = (document.getElementById('settingNotifyTo').value || '').trim();
@@ -5131,27 +5376,32 @@
       if (!notifyTo) {
         resultEl.className = 'setting-test-result error';
         resultEl.textContent = '❌ 请先填写接收通知邮箱';
+        if (detailEl) detailEl.innerHTML = '';
         return;
       }
       if (!smtpHost) {
         resultEl.className = 'setting-test-result error';
         resultEl.textContent = '❌ 请先填写SMTP服务器地址';
+        if (detailEl) detailEl.innerHTML = '';
         return;
       }
       if (!smtpUser) {
         resultEl.className = 'setting-test-result error';
         resultEl.textContent = '❌ 请先填写SMTP用户名';
+        if (detailEl) detailEl.innerHTML = '';
         return;
       }
       if (!smtpPass) {
         resultEl.className = 'setting-test-result error';
         resultEl.textContent = '❌ 请先填写SMTP授权码';
+        if (detailEl) detailEl.innerHTML = '';
         return;
       }
 
       btn.disabled = true;
       resultEl.className = 'setting-test-result loading';
       resultEl.textContent = '⏳ 正在发送测试邮件...';
+      if (detailEl) detailEl.innerHTML = '';
 
       try {
         var resp = await fetch('/api/admin/me?action=test-email', {
@@ -5168,6 +5418,7 @@
           }),
         });
         var data = await resp.json();
+
         if (data.success) {
           resultEl.className = 'setting-test-result success';
           resultEl.textContent = '✅ 测试邮件发送成功！请检查收件箱 ' + notifyTo;
@@ -5175,9 +5426,46 @@
           resultEl.className = 'setting-test-result error';
           resultEl.textContent = '❌ 发送失败: ' + (data.error || 'Unknown error');
         }
+
+        var detailHtml = '';
+
+        if (data.elapsedMs != null) {
+          detailHtml += '<div class="test-email-detail-section"><strong>⏱ 耗时：</strong>' + data.elapsedMs + 'ms</div>';
+        }
+
+        if (data.error && !data.success) {
+          detailHtml += '<div class="test-email-detail-section"><strong>❌ 错误详情：</strong>' + escapeHtml(data.error) + '</div>';
+        }
+
+        if (data.config) {
+          detailHtml += '<div class="test-email-detail-section"><strong>📋 配置信息：</strong>' +
+            '<br>服务器：' + escapeHtml(data.config.host) + ':' + data.config.port +
+            '<br>发件人：' + escapeHtml(data.config.user) +
+            '<br>收件人：' + escapeHtml(data.config.to) +
+            (data.config.fromName ? '<br>发件名称：' + escapeHtml(data.config.fromName) : '') +
+            (data.config.time ? '<br>发送时间：' + escapeHtml(data.config.time) : '') +
+            '</div>';
+        }
+
+        if (data.steps && data.steps.length > 0) {
+          detailHtml += '<div class="test-email-detail-section"><strong>📡 SMTP 交互详情：</strong>' +
+            '<table class="test-email-steps-table"><thead><tr><th>步骤</th><th>命令</th><th>服务器响应</th></tr></thead><tbody>';
+          data.steps.forEach(function(step, i) {
+            var respDisplay = step.response.length > 200 ? step.response.substring(0, 200) + '...' : step.response;
+            detailHtml += '<tr class="' + (step.ok ? 'step-ok' : 'step-fail') + '">' +
+              '<td>' + (i + 1) + '</td>' +
+              '<td class="step-cmd">' + escapeHtml(step.command) + '</td>' +
+              '<td class="step-resp">' + escapeHtml(respDisplay) + '</td>' +
+              '</tr>';
+          });
+          detailHtml += '</tbody></table></div>';
+        }
+
+        if (detailEl) detailEl.innerHTML = detailHtml;
       } catch (e) {
         resultEl.className = 'setting-test-result error';
         resultEl.textContent = '❌ 网络错误: ' + (e.message || '请求失败');
+        if (detailEl) detailEl.innerHTML = '<div class="test-email-detail-section"><strong>❌ 异常详情：</strong>' + escapeHtml(e.message || '未知错误') + '</div>';
       } finally {
         btn.disabled = false;
       }

@@ -38,8 +38,12 @@ module.exports = async (req, res) => {
     var body = parseBody(req);
     var smtpSettings = body.action === "test-email" ? body : {};
     try {
-      await notify.sendTestEmail(smtpSettings);
-      return res.json({ success: true, message: "Test email sent successfully" });
+      var result = await notify.sendTestEmail(smtpSettings);
+      if (result.success) {
+        return res.json(result);
+      } else {
+        return res.status(500).json(result);
+      }
     } catch (e) {
       return res.status(500).json({ success: false, error: e.message || "Failed to send test email" });
     }
