@@ -233,17 +233,17 @@ module.exports = async (req, res) => {
       var resp = await afdianApi.sendMessage(recipientUserId, content);
       if (resp && resp.ec === 200) {
         console.log("[afdian:sync] send-dm: success, ec=200");
-        afdianProcessor.logDmSend("manual", recipientUserId, userName, content, true, null, resp.em || "ok");
+        await afdianProcessor.logDmSend("manual", recipientUserId, userName, content, true, null, resp.em || "ok");
         return res.status(200).json({ success: true, message: "DM sent successfully", response: resp.em || "ok" });
       } else {
         var err = "API returned ec=" + (resp && resp.ec) + " em=" + (resp && resp.em);
         console.log("[afdian:sync] send-dm: " + err);
-        afdianProcessor.logDmSend("manual", recipientUserId, userName, content, false, err, null);
+        await afdianProcessor.logDmSend("manual", recipientUserId, userName, content, false, err, null);
         return res.status(500).json({ success: false, error: err });
       }
     } catch (e) {
       console.error("[afdian:sync] send-dm EXCEPTION:", e.message, e.stack);
-      afdianProcessor.logDmSend("manual", recipientUserId, userName, content, false, e.message, null);
+      await afdianProcessor.logDmSend("manual", recipientUserId, userName, content, false, e.message, null);
       return res.status(500).json({ success: false, error: (e && e.message) || "Unknown error" });
     }
   }

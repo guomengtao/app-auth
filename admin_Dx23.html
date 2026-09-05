@@ -3358,8 +3358,8 @@
         <input type="text" id="dmModalUserId" class="input-mono" readonly style="background:#f5f6fa">
       </div>
       <div class="field">
-        <label>用户昵称</label>
-        <input type="text" id="dmModalUserName" class="input-mono" readonly style="background:#f5f6fa">
+        <label>用户昵称（可选）</label>
+        <input type="text" id="dmModalUserName" class="input-mono" style="background:#fff" placeholder="手动输入用户昵称，用于日志记录">
       </div>
       <div class="field">
         <label>话术内容</label>
@@ -6543,7 +6543,7 @@
 
     function openDmModal(userId, userName) {
       document.getElementById('dmModalUserId').value = userId || '';
-      document.getElementById('dmModalUserName').value = userName || '';
+      document.getElementById('dmModalUserName').value = (userName && userName !== userId) ? userName : '';
       document.getElementById('dmModalContent').value = '🎉 Thank you for supporting Ev课程表 Premium!\n\nYour redeem code: ';
       document.getElementById('dmModalStatus').textContent = '';
       document.getElementById('dmModal').classList.add('show');
