@@ -3245,6 +3245,27 @@
               <p style="margin-top:8px;color:var(--muted)">Cron 定时任务：每天凌晨 3:00 (UTC) 自动同步一次。也可点击上方按钮手动同步。</p>
             </div>
           </details>
+
+          <div class="setting-block" style="margin-top:24px">
+            <h3 class="setting-title">📨 手动发送私信</h3>
+            <p class="setting-desc">向指定用户发送爱发电私信，默认话术为兑换码通知模板。</p>
+            <div class="setting-row" style="flex-direction:column;align-items:stretch;">
+              <div class="setting-input-row" style="margin-bottom:8px;">
+                <span class="setting-input-label">用户ID</span>
+                <input type="text" id="afdianDmUserId" class="setting-input" placeholder="爱发电用户 user_id" style="flex:1">
+              </div>
+              <div class="setting-input-row" style="margin-bottom:8px;">
+                <span class="setting-input-label">话术</span>
+                <textarea id="afdianDmContent" class="setting-input" style="flex:1;min-height:80px;resize:vertical;font-family:inherit;font-size:0.82rem" placeholder="输入私信内容...">🎉 感谢您赞助 Ev课程表 永久高级版！
+
+您的兑换码：</textarea>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <button class="btn btn-primary" onclick="sendAfdianDm()" id="afdianDmBtn">📨 发到爱发电私信</button>
+                <span id="afdianDmStatus" style="font-size:0.8rem;color:var(--muted)"></span>
+              </div>
+            </div>
+          </div>
         </div>
 
       </main>
@@ -6401,6 +6422,52 @@
       } catch (e) {
         console.error('editAfdianRedeem failed:', e);
         showToast('Update failed: ' + (e.message || ''), 'error');
+      }
+    }
+
+    async function sendAfdianDm() {
+      var userId = document.getElementById('afdianDmUserId').value.trim();
+      var content = document.getElementById('afdianDmContent').value.trim();
+      var btn = document.getElementById('afdianDmBtn');
+      var statusEl = document.getElementById('afdianDmStatus');
+
+      if (!userId) {
+        showToast('Please enter user ID', 'error');
+        return;
+      }
+      if (!content) {
+        showToast('Please enter DM content', 'error');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+      statusEl.textContent = '';
+
+      try {
+        var data = await api('/api/afdian/query-orders?action=send-dm', {
+          method: 'POST',
+          body: JSON.stringify({ user_id: userId, content: content }),
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (data.success) {
+          statusEl.textContent = 'Sent successfully!';
+          statusEl.style.color = '#065f46';
+          showToast('DM sent successfully', 'success');
+        } else {
+          statusEl.textContent = 'Failed: ' + (data.error || 'Unknown error');
+          statusEl.style.color = '#dc2626';
+          showToast(data.error || 'Send failed', 'error');
+        }
+      } catch (e) {
+        console.error('sendAfdianDm failed:', e);
+        statusEl.textContent = 'Failed: ' + (e.message || '');
+        statusEl.style.color = '#dc2626';
+        showToast('Send failed: ' + (e.message || ''), 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '📨 发到爱发电私信';
       }
     }
   </script>

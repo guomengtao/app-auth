@@ -206,6 +206,43 @@ module.exports = async (req, res) => {
     }
   }
 
+  if (action === "send-dm") {
+    var auth = requireAuth(req);
+    if (!auth.authorized) {
+      return res.status(auth.status).json({ success: false, error: auth.error });
+    }
+
+    var recipientUserId = (req.body && req.body.user_id) || "";
+    var content = (req.body && req.body.content) || "";
+
+    if (!recipientUserId) {
+      return res.status(400).json({ success: false, error: "Missing user_id" });
+    }
+    if (!content) {
+      return res.status(400).json({ success: false, error: "Missing content" });
+    }
+
+    if (!afdianApi.isConfigured()) {
+      return res.status(400).json({ success: false, error: "Afdian API not configured" });
+    }
+
+    console.log("[afdian:sync] send-dm: sending to user_id=" + recipientUserId + " content_len=" + content.length);
+
+    try {
+      var resp = await afdianApi.sendMessage(recipientUserId, content);
+      if (resp && resp.ec === 200) {
+        console.log("[afdian:sync] send-dm: success, ec=200");
+        return res.status(200).json({ success: true, message: "DM sent successfully", response: resp.em || "ok" });
+      } else {
+        console.log("[afdian:sync] send-dm: API returned ec=" + (resp && resp.ec) + " em=" + (resp && resp.em));
+        return res.status(500).json({ success: false, error: "API returned ec=" + (resp && resp.ec) + " em=" + (resp && resp.em) });
+      }
+    } catch (e) {
+      console.error("[afdian:sync] send-dm EXCEPTION:", e.message, e.stack);
+      return res.status(500).json({ success: false, error: (e && e.message) || "Unknown error" });
+    }
+  }
+
   console.log("[afdian:sync] sync mode: checking if Afdian API is configured...");
   if (!afdianApi.isConfigured()) {
     console.log("[afdian:sync] sync mode: Afdian API NOT configured (AFDIAN_USER_ID or AFDIAN_TOKEN missing)");
