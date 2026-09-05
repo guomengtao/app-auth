@@ -5370,15 +5370,19 @@
     async function loadAfdianOrders() {
       var tableBody = document.getElementById('afdianOrdersTable');
       tableBody.innerHTML = '<tr><td colspan="9" class="empty">Loading...</td></tr>';
+      console.log('[afdian:ui] loadAfdianOrders: fetching list...');
 
       try {
         var data = await api('/api/afdian/query-orders?action=list');
+        console.log('[afdian:ui] loadAfdianOrders response:', data);
         if (!data.success) {
+          console.error('[afdian:ui] loadAfdianOrders failed:', data.error);
           tableBody.innerHTML = '<tr><td colspan="9" class="empty" style="color:#ef4444;">Load failed: ' + escapeHtml(data.error || 'Unknown error') + '</td></tr>';
           return;
         }
 
         var orders = data.orders || [];
+        console.log('[afdian:ui] loadAfdianOrders: ' + orders.length + ' orders, last_sync=' + (data.last_sync ? new Date(data.last_sync).toISOString() : 'N/A') + ' plan_map_keys=' + Object.keys(data.plan_map || {}).join(','));
         document.getElementById('afdianStatTotal').textContent = orders.length;
         document.getElementById('afdianStatProcessed').textContent = orders.filter(function(o) { return o.processed; }).length;
 
@@ -5421,9 +5425,10 @@
             '</tr>';
         }).join('');
 
+        console.log('[afdian:ui] loadAfdianOrders: rendered ' + orders.length + ' orders');
         showToast('Loaded ' + orders.length + ' orders', 'success');
       } catch (e) {
-        console.error('loadAfdianOrders failed:', e);
+        console.error('[afdian:ui] loadAfdianOrders EXCEPTION:', e.message, e.stack);
         tableBody.innerHTML = '<tr><td colspan="9" class="empty" style="color:#ef4444;">Load failed: ' + escapeHtml(e.message || '') + '</td></tr>';
       }
     }
@@ -5434,6 +5439,7 @@
       var btnText = btn.querySelector('.btn-text');
       var statusEl = document.getElementById('afdianSyncStatus');
 
+      console.log('[afdian:ui] syncAfdianOrders: starting sync...');
       btn.disabled = true;
       spinner.style.display = 'inline-block';
       btnText.textContent = 'Syncing...';
@@ -5441,6 +5447,7 @@
 
       try {
         var data = await api('/api/afdian/query-orders');
+        console.log('[afdian:ui] syncAfdianOrders response:', data);
         if (data.success) {
           var msg = 'Sync complete: ' + (data.new_orders || 0) + ' new orders, ' +
             (data.processed || 0) + ' processed, ' +
@@ -5448,6 +5455,7 @@
           if (data.errors > 0) {
             msg += ', ' + data.errors + ' errors';
           }
+          console.log('[afdian:ui] syncAfdianOrders SUCCESS: ' + msg);
           statusEl.style.display = 'block';
           statusEl.style.background = '#ecfdf5';
           statusEl.style.color = '#065f46';
@@ -5456,6 +5464,7 @@
           showToast(msg, 'success');
           loadAfdianOrders();
         } else {
+          console.warn('[afdian:ui] syncAfdianOrders returned success=false:', data.message || data.error);
           statusEl.style.display = 'block';
           statusEl.style.background = '#fef2f2';
           statusEl.style.color = '#991b1b';
@@ -5464,7 +5473,7 @@
           showToast(data.message || 'Sync failed', 'error');
         }
       } catch (e) {
-        console.error('syncAfdianOrders failed:', e);
+        console.error('[afdian:ui] syncAfdianOrders EXCEPTION:', e.message, e.stack);
         statusEl.style.display = 'block';
         statusEl.style.background = '#fef2f2';
         statusEl.style.color = '#991b1b';
@@ -5475,6 +5484,7 @@
         btn.disabled = false;
         spinner.style.display = 'none';
         btnText.textContent = '🔄 手动同步订单';
+        console.log('[afdian:ui] syncAfdianOrders: button restored');
       }
     }
 
