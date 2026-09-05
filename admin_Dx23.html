@@ -2772,6 +2772,7 @@
             <div class="logs-tabs" style="display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid var(--line,#e5e7eb);">
               <button class="logs-tab active" onclick="switchLogsTab('system')" id="logsTabSystem" style="padding:8px 20px;border:none;background:none;font-size:0.84rem;font-weight:600;color:var(--accent);cursor:pointer;border-bottom:2px solid var(--accent);margin-bottom:-2px;transition:all 0.15s;">🚀 系统日志</button>
               <button class="logs-tab" onclick="switchLogsTab('email')" id="logsTabEmail" style="padding:8px 20px;border:none;background:none;font-size:0.84rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">📧 邮件日志</button>
+              <button class="logs-tab" onclick="switchLogsTab('afdian-dm')" id="logsTabAfdianDm" style="padding:8px 20px;border:none;background:none;font-size:0.84rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">💬 爱发电私信日志</button>
             </div>
 
             <div id="logsSectionSystem">
@@ -2795,6 +2796,18 @@
                   <button class="btn btn-outline" onclick="loadEmailLogs()" style="margin-left:6px">🔄 刷新</button>
                 </div>
                 <div id="emailLogsList" class="health-log-list"></div>
+              </div>
+            </div>
+
+            <div id="logsSectionAfdianDm" style="display:none;">
+              <div class="setting-block">
+                <h3 class="setting-title">💬 爱发电私信发送日志</h3>
+                <p class="setting-desc">记录每次爱发电私信发送的详细结果，区分系统自动发送和手动发送。</p>
+                <div style="margin-bottom:10px">
+                  <button class="btn btn-primary" onclick="loadAfdianDmLogs()">📨 拉取私信日志</button>
+                  <button class="btn btn-outline" onclick="loadAfdianDmLogs()" style="margin-left:6px">🔄 刷新</button>
+                </div>
+                <div id="afdianDmLogsList" class="health-log-list"></div>
               </div>
             </div>
           </div>
@@ -2975,6 +2988,18 @@
                 <div class="setting-row-info">
                   <div class="setting-row-title">🔄 成功同步后自动清理删除标记</div>
                   <div class="setting-row-desc">每次 pull/push 成功后，自动清空本地的 deletedProductIds / deletedRedeemCodes。推荐开启，避免删除标记堆积。</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="setting-block">
+              <h3 class="setting-title">📋 列表显示条数</h3>
+              <p class="setting-desc">控制所有列表页面默认显示的数据条数（兑换码、激活记录、订单等）。</p>
+              <div class="setting-row">
+                <input type="number" id="settingPageSize" min="5" max="100" value="10" onchange="saveSettings()" style="width:80px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:0.9rem;text-align:center">
+                <div class="setting-row-info">
+                  <div class="setting-row-title">每页显示条数</div>
+                  <div class="setting-row-desc">默认 10 条，范围 5-100。超过显示条数会自动分页。</div>
                 </div>
               </div>
             </div>
@@ -3245,27 +3270,6 @@
               <p style="margin-top:8px;color:var(--muted)">Cron 定时任务：每天凌晨 3:00 (UTC) 自动同步一次。也可点击上方按钮手动同步。</p>
             </div>
           </details>
-
-          <div class="setting-block" style="margin-top:24px">
-            <h3 class="setting-title">📨 手动发送私信</h3>
-            <p class="setting-desc">向指定用户发送爱发电私信，默认话术为兑换码通知模板。</p>
-            <div class="setting-row" style="flex-direction:column;align-items:stretch;">
-              <div class="setting-input-row" style="margin-bottom:8px;">
-                <span class="setting-input-label">用户ID</span>
-                <input type="text" id="afdianDmUserId" class="setting-input" placeholder="爱发电用户 user_id" style="flex:1">
-              </div>
-              <div class="setting-input-row" style="margin-bottom:8px;">
-                <span class="setting-input-label">话术</span>
-                <textarea id="afdianDmContent" class="setting-input" style="flex:1;min-height:80px;resize:vertical;font-family:inherit;font-size:0.82rem" placeholder="输入私信内容...">🎉 感谢您赞助 Ev课程表 永久高级版！
-
-您的兑换码：</textarea>
-              </div>
-              <div style="display:flex;gap:8px;align-items:center;">
-                <button class="btn btn-primary" onclick="sendAfdianDm()" id="afdianDmBtn">📨 发到爱发电私信</button>
-                <span id="afdianDmStatus" style="font-size:0.8rem;color:var(--muted)"></span>
-              </div>
-            </div>
-          </div>
         </div>
 
       </main>
@@ -3343,6 +3347,29 @@
         <button class="btn btn-outline" onclick="closeExportModal()">取消</button>
         <button class="btn btn-primary" onclick="confirmExportCsv()">确认导出</button>
       </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="dmModal">
+    <div class="modal">
+      <h3>📨 发送爱发电私信</h3>
+      <div class="field">
+        <label>用户ID</label>
+        <input type="text" id="dmModalUserId" class="input-mono" readonly style="background:#f5f6fa">
+      </div>
+      <div class="field">
+        <label>用户昵称</label>
+        <input type="text" id="dmModalUserName" class="input-mono" readonly style="background:#f5f6fa">
+      </div>
+      <div class="field">
+        <label>话术内容</label>
+        <textarea id="dmModalContent" style="width:100%;min-height:100px;resize:vertical;font-family:inherit;font-size:0.85rem;padding:8px;border:1px solid var(--line);border-radius:6px" placeholder="输入私信内容..."></textarea>
+      </div>
+      <div class="actions">
+        <button class="btn btn-outline" onclick="closeDmModal()">取消</button>
+        <button class="btn btn-primary" onclick="sendDmFromModal()" id="dmModalBtn">📨 发送</button>
+      </div>
+      <div id="dmModalStatus" style="margin-top:8px;font-size:0.82rem;text-align:center"></div>
     </div>
   </div>
 
@@ -3792,7 +3819,7 @@
       quota: { title: '免费额度', sub: 'Neon Postgres 免费资源消耗与剩余额度估算' },
       health: { title: '服务器状态', sub: '检测 Postgres / 鉴权 / 激活链路是否正常' },
       'vercel-logs': { title: 'Vercel日志', sub: '部署事件与函数运行日志（Vercel API）' },
-      'logs': { title: '系统日志', sub: 'Vercel部署事件 · 邮件发送记录' },
+      'logs': { title: '系统日志', sub: 'Vercel部署事件 · 邮件发送记录 · 爱发电私信日志' },
       settings: { title: '设置', sub: '数据优先模式 · 删除保护 · 安全配置' }
     };
 
@@ -5166,6 +5193,76 @@
       }
     }
 
+    async function loadAfdianDmLogs() {
+      var listEl = document.getElementById('afdianDmLogsList');
+      var timeEl = document.getElementById('logsTimeHint');
+      if (!listEl) return;
+      listEl.innerHTML = '<div class="empty">Loading...</div>';
+
+      try {
+        var data = await api('/api/admin/health?section=afdian-dm-logs');
+        if (!data.success) {
+          listEl.innerHTML = '<div class="empty" style="text-align:left;color:#f59e0b;">⚠️ ' + escapeHtml(data.error || 'DM logs unavailable') + '</div>';
+          showToast('DM logs load failed', 'error');
+          return;
+        }
+
+        if (timeEl && data.fetchedAt) timeEl.textContent = '🕐 ' + new Date(data.fetchedAt).toLocaleString('zh-CN');
+
+        var logs = data.logs || [];
+        if (!logs.length) {
+          listEl.innerHTML = '<div class="empty">No DM send records yet</div>';
+          return;
+        }
+
+        var sourceMap = {
+          'system': { label: '🤖 System', cls: 'el-type-activation' },
+          'manual': { label: '👤 Manual', cls: 'el-type-test' },
+        };
+
+        var html = '';
+        for (var i = 0; i < logs.length; i++) {
+          var l = logs[i];
+          var src = sourceMap[l.source] || { label: l.source, cls: '' };
+          var timeStr = '';
+          if (l.time) {
+            try { timeStr = new Date(l.time).toLocaleString('zh-CN'); } catch (_) { timeStr = l.time; }
+          }
+          var successIcon = l.success ? '✅' : '❌';
+          var detailId = 'dmDetail' + i;
+
+          html += '<div class="el-row" onclick="toggleElDetail(\'' + detailId + '\', this)" style="cursor:pointer;user-select:none;">' +
+            '<span class="el-expand">▶</span>' +
+            '<span class="el-time">' + escapeHtml(timeStr) + '</span>' +
+            '<span class="el-type ' + src.cls + '">' + src.label + '</span>' +
+            '<span>' + successIcon + '</span>' +
+            '<span class="el-to">→ ' + escapeHtml((l.user_name || l.user_id || '')) + '</span>' +
+            '<span class="el-subject">' + escapeHtml((l.content || '').substring(0, 50).replace(/\n/g, ' ')) + '</span>' +
+            '</div>';
+
+          html += '<div class="el-detail" id="' + detailId + '" style="display:none;">';
+          html += '<div class="el-detail-row"><span class="el-detail-key">User ID</span><span class="el-detail-val">' + escapeHtml(l.user_id || '') + '</span></div>';
+          html += '<div class="el-detail-row"><span class="el-detail-key">User Name</span><span class="el-detail-val">' + escapeHtml(l.user_name || '') + '</span></div>';
+          html += '<div class="el-detail-row"><span class="el-detail-key">Source</span><span class="el-detail-val">' + src.label + '</span></div>';
+          html += '<div class="el-detail-row"><span class="el-detail-key">Status</span><span class="el-detail-val">' + (l.success ? '✅ Success' : '❌ Failed') + '</span></div>';
+          if (l.error) {
+            html += '<div class="el-detail-row"><span class="el-detail-key">Error</span><span class="el-detail-val" style="color:#ef4444;">' + escapeHtml(l.error) + '</span></div>';
+          }
+          if (l.response) {
+            html += '<div class="el-detail-row"><span class="el-detail-key">API Response</span><span class="el-detail-val">' + escapeHtml(l.response) + '</span></div>';
+          }
+          html += '<div class="el-detail-divider">Message Content</div>';
+          html += '<div class="el-detail-row"><span class="el-detail-val" style="white-space:pre-wrap;font-family:inherit">' + escapeHtml(l.content || '') + '</span></div>';
+          html += '</div>';
+        }
+        listEl.innerHTML = html;
+        showToast('DM logs loaded - ' + logs.length + ' records', 'success');
+      } catch (e) {
+        console.error('loadAfdianDmLogs failed:', e);
+        listEl.innerHTML = '<div class="empty" style="color:#ef4444;">Load failed: ' + escapeHtml(e.message || '') + '</div>';
+      }
+    }
+
     function toggleElDetail(id, rowEl) {
       var detail = document.getElementById(id);
       if (!detail) return;
@@ -5187,6 +5284,7 @@
       deleteProtection: true,
       warnBeforeDelete: true,
       autoClearDeletes: true,
+      pageSize: 10,
       notifyEnabled: true,
       notifyTo: 'guomengtao@gmail.com',
       notifyFromName: 'app-auth',
@@ -5207,10 +5305,17 @@
       return Object.assign({}, DEFAULT_SETTINGS);
     }
     function saveSettings() {
+      var pageSizeEl = document.getElementById('settingPageSize');
+      var pageSize = pageSizeEl ? parseInt(pageSizeEl.value, 10) || 10 : 10;
+      if (pageSize < 5) pageSize = 5;
+      if (pageSize > 100) pageSize = 100;
+      if (pageSizeEl) pageSizeEl.value = pageSize;
+
       var s = {
         deleteProtection: !!document.getElementById('settingDeleteProtection').checked,
         warnBeforeDelete: !!document.getElementById('settingWarnBeforeDelete').checked,
         autoClearDeletes: !!document.getElementById('settingAutoClearDeletes').checked,
+        pageSize: pageSize,
         notifyEnabled: !!document.getElementById('settingNotifyEnabled').checked,
         notifyTo: document.getElementById('settingNotifyTo').value.trim(),
         notifyFromName: document.getElementById('settingNotifyFromName').value.trim(),
@@ -5253,6 +5358,7 @@
       setCheck('settingDeleteProtection', s.deleteProtection);
       setCheck('settingWarnBeforeDelete', s.warnBeforeDelete);
       setCheck('settingAutoClearDeletes', s.autoClearDeletes);
+      setInput('settingPageSize', s.pageSize || 10);
       setCheck('settingNotifyEnabled', s.notifyEnabled);
       setInput('settingNotifyTo', s.notifyTo);
       setInput('settingNotifyFromName', s.notifyFromName);
@@ -5505,21 +5611,28 @@
     function switchLogsTab(tab) {
       var systemSection = document.getElementById('logsSectionSystem');
       var emailSection = document.getElementById('logsSectionEmail');
+      var dmSection = document.getElementById('logsSectionAfdianDm');
       var systemTab = document.getElementById('logsTabSystem');
       var emailTab = document.getElementById('logsTabEmail');
+      var dmTab = document.getElementById('logsTabAfdianDm');
+
+      var tabs = [systemTab, emailTab, dmTab];
+      var sections = [systemSection, emailSection, dmSection];
+      tabs.forEach(function(t) { if (t) { t.style.color = 'var(--muted)'; t.style.borderBottomColor = 'transparent'; t.classList.remove('active'); } });
+      sections.forEach(function(s) { if (s) s.style.display = 'none'; });
 
       if (tab === 'system') {
         if (systemSection) systemSection.style.display = '';
-        if (emailSection) emailSection.style.display = 'none';
         if (systemTab) { systemTab.style.color = 'var(--accent)'; systemTab.style.borderBottomColor = 'var(--accent)'; systemTab.classList.add('active'); }
-        if (emailTab) { emailTab.style.color = 'var(--muted)'; emailTab.style.borderBottomColor = 'transparent'; emailTab.classList.remove('active'); }
         loadVercelLogs();
-      } else {
-        if (systemSection) systemSection.style.display = 'none';
+      } else if (tab === 'email') {
         if (emailSection) emailSection.style.display = '';
-        if (systemTab) { systemTab.style.color = 'var(--muted)'; systemTab.style.borderBottomColor = 'transparent'; systemTab.classList.remove('active'); }
         if (emailTab) { emailTab.style.color = 'var(--accent)'; emailTab.style.borderBottomColor = 'var(--accent)'; emailTab.classList.add('active'); }
         loadEmailLogs();
+      } else if (tab === 'afdian-dm') {
+        if (dmSection) dmSection.style.display = '';
+        if (dmTab) { dmTab.style.color = 'var(--accent)'; dmTab.style.borderBottomColor = 'var(--accent)'; dmTab.classList.add('active'); }
+        loadAfdianDmLogs();
       }
     }
 
@@ -6274,6 +6387,7 @@
           var outTradeNoFull = escapeHtml(o.out_trade_no || '');
 
           var userName = o.user_name || o.user_id || '-';
+          var userId = o.user_id || '';
           var planTitle = (o.plan_title || '') + (o.product_id ? ' (' + escapeHtml(o.product_id) + ')' : '');
           var redeemCode = o.redeem_code || '';
           var activationCode = o.activation_code || '';
@@ -6286,7 +6400,9 @@
 
           return '<tr id="' + rowId + '">' +
             '<td class="mono" style="cursor:pointer;color:var(--accent)" onclick="toggleAfdianExpand(\'' + expandId + '\')" title="Click to view raw API response">' + escapeHtml(outTradeNoShort) + '</td>' +
-            '<td title="' + escapeHtml(o.user_id || '') + '">' + escapeHtml(userName) + '</td>' +
+            '<td title="' + escapeHtml(userId) + '">' + escapeHtml(userName) +
+              ' <button class="btn btn-outline" style="padding:1px 6px;font-size:0.7rem;border-radius:4px" onclick="openDmModal(\'' + escapeJs(userId) + '\',\'' + escapeJs(userName) + '\')" title="Send DM">📨</button>' +
+            '</td>' +
             '<td>' + (planTitle || '-') + '</td>' +
             '<td>' + escapeHtml(o.total_amount || '-') + '</td>' +
             '<td>' + escapeHtml(String(o.months || '-')) + '</td>' +
@@ -6425,14 +6541,27 @@
       }
     }
 
-    async function sendAfdianDm() {
-      var userId = document.getElementById('afdianDmUserId').value.trim();
-      var content = document.getElementById('afdianDmContent').value.trim();
-      var btn = document.getElementById('afdianDmBtn');
-      var statusEl = document.getElementById('afdianDmStatus');
+    function openDmModal(userId, userName) {
+      document.getElementById('dmModalUserId').value = userId || '';
+      document.getElementById('dmModalUserName').value = userName || '';
+      document.getElementById('dmModalContent').value = '🎉 Thank you for supporting Ev课程表 Premium!\n\nYour redeem code: ';
+      document.getElementById('dmModalStatus').textContent = '';
+      document.getElementById('dmModal').classList.add('show');
+    }
+
+    function closeDmModal() {
+      document.getElementById('dmModal').classList.remove('show');
+    }
+
+    async function sendDmFromModal() {
+      var userId = document.getElementById('dmModalUserId').value.trim();
+      var userName = document.getElementById('dmModalUserName').value.trim();
+      var content = document.getElementById('dmModalContent').value.trim();
+      var btn = document.getElementById('dmModalBtn');
+      var statusEl = document.getElementById('dmModalStatus');
 
       if (!userId) {
-        showToast('Please enter user ID', 'error');
+        showToast('Missing user ID', 'error');
         return;
       }
       if (!content) {
@@ -6447,7 +6576,7 @@
       try {
         var data = await api('/api/afdian/query-orders?action=send-dm', {
           method: 'POST',
-          body: JSON.stringify({ user_id: userId, content: content }),
+          body: JSON.stringify({ user_id: userId, user_name: userName, content: content }),
           headers: { 'Content-Type': 'application/json' }
         });
 
@@ -6455,19 +6584,20 @@
           statusEl.textContent = 'Sent successfully!';
           statusEl.style.color = '#065f46';
           showToast('DM sent successfully', 'success');
+          setTimeout(closeDmModal, 1500);
         } else {
           statusEl.textContent = 'Failed: ' + (data.error || 'Unknown error');
           statusEl.style.color = '#dc2626';
           showToast(data.error || 'Send failed', 'error');
         }
       } catch (e) {
-        console.error('sendAfdianDm failed:', e);
+        console.error('sendDmFromModal failed:', e);
         statusEl.textContent = 'Failed: ' + (e.message || '');
         statusEl.style.color = '#dc2626';
         showToast('Send failed: ' + (e.message || ''), 'error');
       } finally {
         btn.disabled = false;
-        btn.textContent = '📨 发到爱发电私信';
+        btn.textContent = '📨 Send';
       }
     }
   </script>

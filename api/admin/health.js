@@ -301,6 +301,37 @@ module.exports = async (req, res) => {
     }
   }
 
+  if (req.query && req.query.section === "afdian-dm-logs") {
+    if (req.method !== "GET") {
+      return res.status(405).json({ success: false, error: "Method not allowed" });
+    }
+    try {
+      var redis = require("../../lib/redis");
+      var limit = 50;
+      if (req.query.limit) {
+        var li = parseInt(req.query.limit, 10);
+        if (Number.isFinite(li) && li > 0 && li <= 200) limit = li;
+      }
+      var rawLogs = await redis.lrange("afdian:dm_logs", 0, limit - 1);
+      var dmLogs = [];
+      for (var i = 0; i < rawLogs.length; i++) {
+        try {
+          var entry = JSON.parse(rawLogs[i]);
+          dmLogs.push(entry);
+        } catch (_) {}
+      }
+      return res.json({
+        success: true,
+        fetchedAt: new Date().toISOString(),
+        total: dmLogs.length,
+        logs: dmLogs,
+      });
+    } catch (e) {
+      console.error("afdian-dm-logs error:", e);
+      return res.status(500).json({ success: false, error: (e && e.message) || String(e) });
+    }
+  }
+
   if (req.query && req.query.section === "quota") {
     if (req.method !== "GET") {
       return res.status(405).json({ success: false, error: "Method not allowed" });
