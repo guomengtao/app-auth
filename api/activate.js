@@ -53,6 +53,7 @@ module.exports = async (req, res) => {
   var body = parseBody(req);
   var rawDeviceId = body.deviceId;
   var rawRedeemCode = body.redeemCode;
+  var visitorInfo = notify.collectRequestInfo(req);
 
   var ipCheck = await rateLimit.checkIpRateLimit(req);
   if (ipCheck.blocked) {
@@ -65,7 +66,7 @@ module.exports = async (req, res) => {
       source: "user",
     }).catch(function () {});
     res.setHeader("Retry-After", Math.ceil(ipCheck.retryAfterMs / 1000));
-    return res.status(429).json({ success: false, error: ipCheck.reason });
+    return res.status(429).json({ success: false, error: ipCheck.reason, debug: { visitor: visitorInfo, notification: "failure", reason: ipCheck.reason } });
   }
 
   try {
@@ -82,7 +83,7 @@ module.exports = async (req, res) => {
         months: "",
         source: "user",
       }).catch(function () {});
-      return res.status(400).json({ success: false, error: deviceCheck.error });
+      return res.status(400).json({ success: false, error: deviceCheck.error, debug: { visitor: visitorInfo, notification: "failure", reason: deviceCheck.error } });
     }
 
     var codeCheck = validateRedeemCode(redeemCode);
@@ -95,7 +96,7 @@ module.exports = async (req, res) => {
         months: "",
         source: "user",
       }).catch(function () {});
-      return res.status(400).json({ success: false, error: codeCheck.error });
+      return res.status(400).json({ success: false, error: codeCheck.error, debug: { visitor: visitorInfo, notification: "failure", reason: codeCheck.error } });
     }
 
     var code = codeCheck.value;
@@ -112,7 +113,7 @@ module.exports = async (req, res) => {
         source: "user",
       }).catch(function () {});
       res.setHeader("Retry-After", Math.ceil(deviceCheck2.retryAfterMs / 1000));
-      return res.status(429).json({ success: false, error: deviceCheck2.reason });
+      return res.status(429).json({ success: false, error: deviceCheck2.reason, debug: { visitor: visitorInfo, notification: "failure", reason: deviceCheck2.reason } });
     }
 
     var deviceHash = crypto.sha256(device);
@@ -127,7 +128,7 @@ module.exports = async (req, res) => {
         months: "",
         source: "user",
       }).catch(function () {});
-      return res.status(400).json({ success: false, error: "兑换码不存在或尚未同步到服务器，请在管理后台同步后重试" });
+      return res.status(400).json({ success: false, error: "兑换码不存在或尚未同步到服务器，请在管理后台同步后重试", debug: { visitor: visitorInfo, notification: "failure", reason: "兑换码不存在" } });
     }
 
     var info = parseRedisJson(codeData);
@@ -141,7 +142,7 @@ module.exports = async (req, res) => {
         source: "user",
       }).catch(function () {});
       console.error("Activate: invalid redeem payload", typeof codeData, codeData);
-      return res.status(500).json({ success: false, error: "兑换码数据已损坏，请联系管理员" });
+      return res.status(500).json({ success: false, error: "兑换码数据已损坏，请联系管理员", debug: { visitor: visitorInfo, notification: "failure", reason: "兑换码数据已损坏" } });
     }
 
     var productId = normalizeProductId(info.product_id);
@@ -159,6 +160,7 @@ module.exports = async (req, res) => {
       return res.status(500).json({
         success: false,
         error: "兑换码配置异常（商品或时长无效），请联系管理员",
+        debug: { visitor: visitorInfo, notification: "failure", reason: "兑换码配置异常" },
       });
     }
 
@@ -223,7 +225,7 @@ module.exports = async (req, res) => {
           console.error("[activate] Notification failed:", e.message);
         });
 
-        return res.json({ success: true, activationCode: activationCodeReuse });
+        return res.json({ success: true, activationCode: activationCodeReuse, debug: { visitor: visitorInfo, notification: "success", productId: productId, months: months } });
       }
       notify.sendActivationFailure(req, {
         reason: "该兑换码已被其他设备使用过，无法重复激活",
@@ -236,6 +238,7 @@ module.exports = async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "该兑换码已被其他设备使用过，无法重复激活",
+        debug: { visitor: visitorInfo, notification: "failure", reason: "该兑换码已被其他设备使用过" },
       });
     }
 
@@ -303,7 +306,7 @@ module.exports = async (req, res) => {
       console.error("[activate] Notification failed:", e.message);
     });
 
-    return res.json({ success: true, activationCode: activationCode });
+    return res.json({ success: true, activationCode: activationCode, debug: { visitor: visitorInfo, notification: "success", productId: productId, months: months } });
   } catch (error) {
     console.error("Activate error:", error && error.message ? error.message : error, error);
     var msg = "服务器内部错误，请稍后重试";
@@ -320,6 +323,6 @@ module.exports = async (req, res) => {
       months: "",
       source: "user",
     }).catch(function () {});
-    return res.status(500).json({ success: false, error: msg });
+    return res.status(500).json({ success: false, error: msg, debug: { visitor: visitorInfo, notification: "failure", reason: msg } });
   }
 };

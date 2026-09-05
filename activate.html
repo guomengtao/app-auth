@@ -279,6 +279,35 @@
         });
         var data = await res.json();
 
+        console.group('📧 激活请求详情');
+        console.log('HTTP Status:', res.status);
+        console.log('Device ID:', deviceId);
+        console.log('Redeem Code:', code);
+        console.log('Response:', data);
+
+        if (data.debug) {
+          console.log('---');
+          console.log('📬 邮件通知:', data.debug.notification === 'success' ? '✅ 已发送激活成功通知' : '❌ 已发送激活失败通知');
+          console.log('📋 原因:', data.debug.reason || 'N/A');
+          if (data.debug.productId) console.log('📦 产品:', data.debug.productId);
+          if (data.debug.months) console.log('📅 时长:', data.debug.months + '个月');
+
+          if (data.debug.visitor) {
+            console.log('---');
+            console.log('👤 访客信息 (已包含在邮件中):');
+            console.log('  🌐 IP:', data.debug.visitor.ip || 'N/A');
+            console.log('  💻 OS:', data.debug.visitor.os || 'N/A');
+            console.log('  🌍 Browser:', data.debug.visitor.browser || 'N/A');
+            console.log('  📱 Device:', data.debug.visitor.device || 'N/A');
+            console.log('  🔗 Referer:', data.debug.visitor.referer || 'N/A');
+            console.log('  🏠 Origin:', data.debug.visitor.origin || 'N/A');
+            console.log('  🌐 Host:', data.debug.visitor.host || 'N/A');
+            console.log('  🗣 Language:', data.debug.visitor.language || 'N/A');
+            if (data.debug.visitor.userAgent) console.log('  🔍 UA:', data.debug.visitor.userAgent);
+          }
+        }
+        console.groupEnd();
+
         if (data.success) {
           showResult('success', '请将激活码输入到手环应用中', data.activationCode);
           codeInput.value = '';
@@ -286,6 +315,7 @@
           showResult('error', data.error || '激活失败，请重试');
         }
       } catch (e) {
+        console.error('❌ 网络错误:', e.message);
         showResult('error', '网络错误，请检查网络后重试');
       }
 
