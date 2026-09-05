@@ -5449,6 +5449,16 @@
         var data = await api('/api/afdian/query-orders');
         console.log('[afdian:ui] syncAfdianOrders response:', data);
         if (data.success) {
+          if (data.message) {
+            console.warn('[afdian:ui] syncAfdianOrders warning:', data.message);
+            statusEl.style.display = 'block';
+            statusEl.style.background = '#fffbeb';
+            statusEl.style.color = '#92400e';
+            statusEl.style.border = '1px solid #fcd34d';
+            statusEl.textContent = '⚠️ ' + data.message;
+            showToast(data.message, 'error');
+            return;
+          }
           var msg = 'Sync complete: ' + (data.new_orders || 0) + ' new orders, ' +
             (data.processed || 0) + ' processed, ' +
             (data.skipped || 0) + ' skipped';
