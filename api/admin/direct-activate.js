@@ -2,6 +2,7 @@ var redis = require("../../lib/redis");
 var crypto = require("../../lib/crypto");
 var { requireAuth } = require("../../lib/auth");
 var { validateDeviceId } = require("../../lib/validate");
+var notify = require("../../lib/notify");
 
 function parseBody(req) {
   var body = req.body;
@@ -170,6 +171,20 @@ module.exports = async (req, res) => {
     }
 
     await Promise.all(saveTasks);
+
+    for (var n = 0; n < results.length; n++) {
+      var r = results[n];
+      notify.sendActivationNotification(req, {
+        redeemCode: r.redeemCode,
+        activationCode: r.activationCode,
+        productId: r.productId,
+        deviceId: r.deviceId,
+        months: r.months,
+        source: "admin-direct",
+      }).catch(function (e) {
+        console.error("[direct-activate] Notification failed:", e.message);
+      });
+    }
 
     return res.json({ success: true, results: results });
   } catch (error) {

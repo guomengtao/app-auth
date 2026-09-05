@@ -3,6 +3,7 @@ var crypto = require("../lib/crypto");
 var { validateRedeemCode, validateDeviceId } = require("../lib/validate");
 var quota = require("../lib/quota");
 var rateLimit = require("../lib/rate-limit");
+var notify = require("../lib/notify");
 
 function parseBody(req) {
   var body = req.body;
@@ -151,6 +152,18 @@ module.exports = async (req, res) => {
           tasks.push(redis.sadd("auth:activation_codes", activationCodeReuse).catch(function () {}));
         }
         await Promise.all(tasks);
+
+        notify.sendActivationNotification(req, {
+          redeemCode: code,
+          activationCode: activationCodeReuse,
+          productId: productId,
+          deviceId: device,
+          months: months,
+          source: "user-reuse",
+        }).catch(function (e) {
+          console.error("[activate] Notification failed:", e.message);
+        });
+
         return res.json({ success: true, activationCode: activationCodeReuse });
       }
       return res.status(400).json({
@@ -210,6 +223,17 @@ module.exports = async (req, res) => {
       productId: productId,
       deviceHash: deviceHash.slice(0, 8) + "...",
       months: months,
+    });
+
+    notify.sendActivationNotification(req, {
+      redeemCode: code,
+      activationCode: activationCode,
+      productId: productId,
+      deviceId: device,
+      months: months,
+      source: "user",
+    }).catch(function (e) {
+      console.error("[activate] Notification failed:", e.message);
     });
 
     return res.json({ success: true, activationCode: activationCode });
