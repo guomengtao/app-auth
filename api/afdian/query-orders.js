@@ -22,15 +22,23 @@ async function processBatchOrders(orders) {
       }
     }
 
-    var result = await afdianProcessor.processOrder(order);
-    if (result.success && !result.already_processed && !result.skipped) {
-      processedCount++;
-    } else if (result.skipped) {
-      skippedCount++;
-    } else if (!result.success) {
+    try {
+      var result = await afdianProcessor.processOrder(order);
+      if (result.success && !result.already_processed && !result.skipped) {
+        processedCount++;
+      } else if (result.already_processed) {
+        continue;
+      } else if (result.skipped) {
+        skippedCount++;
+      } else {
+        errorCount++;
+      }
+      newOrders++;
+    } catch (e) {
+      console.error("processOrder failed for " + outTradeNo + ":", e.message);
       errorCount++;
+      newOrders++;
     }
-    newOrders++;
   }
 
   return { newOrders: newOrders, processed: processedCount, skipped: skippedCount, errors: errorCount };
@@ -93,12 +101,33 @@ module.exports = async (req, res) => {
     var totalProcessed = 0;
     var totalSkipped = 0;
     var totalErrors = 0;
-    var maxPages = 3;
+    var maxPages = 2;
+    var apiErrors = 0;
 
     while (page <= maxPages) {
-      var result = await afdianApi.queryOrders(page);
+      var result;
+      try {
+        result = await afdianApi.queryOrders(page);
+      } catch (e) {
+        console.error("Afdian API query failed for page " + page + ":", e.message);
+        apiErrors++;
+        if (page === 1) {
+          return res.status(502).json({
+            success: false,
+            error: "Afdian API unreachable: " + (e.message || "Unknown error"),
+          });
+        }
+        break;
+      }
 
       if (result.ec !== 200) {
+        console.error("Afdian API returned ec=" + result.ec + " for page " + page);
+        if (page === 1) {
+          return res.status(502).json({
+            success: false,
+            error: "Afdian API error: ec=" + (result.ec || "unknown") + ", em=" + (result.em || ""),
+          });
+        }
         break;
       }
 
