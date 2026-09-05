@@ -2580,24 +2580,33 @@
               <span style="font-size:0.78rem;color:#6b7280;" id="logsTimeHint"></span>
             </div>
 
-            <div class="setting-block">
-              <h3 class="setting-title">🚀 Vercel 部署日志</h3>
-              <p class="setting-desc">Vercel 部署事件 & 函数日志。使用 VERCEL_TOKEN + VERCEL_PROJECT_ID 从 Vercel API 拉取。</p>
-              <div style="margin-bottom:10px">
-                <button class="btn btn-primary" onclick="loadVercelLogs()">📜 拉取部署事件</button>
-                <button class="btn btn-outline" onclick="loadVercelLogs()" style="margin-left:6px">🔄 刷新</button>
-              </div>
-              <div id="vercelLogsList" class="health-log-list"></div>
+            <div class="logs-tabs" style="display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid var(--line,#e5e7eb);">
+              <button class="logs-tab active" onclick="switchLogsTab('system')" id="logsTabSystem" style="padding:8px 20px;border:none;background:none;font-size:0.84rem;font-weight:600;color:var(--accent);cursor:pointer;border-bottom:2px solid var(--accent);margin-bottom:-2px;transition:all 0.15s;">🚀 系统日志</button>
+              <button class="logs-tab" onclick="switchLogsTab('email')" id="logsTabEmail" style="padding:8px 20px;border:none;background:none;font-size:0.84rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">📧 邮件日志</button>
             </div>
 
-            <div class="setting-block">
-              <h3 class="setting-title">📧 邮件发送日志</h3>
-              <p class="setting-desc">记录每次邮件发送的结果，包括激活通知和测试邮件。</p>
-              <div style="margin-bottom:10px">
-                <button class="btn btn-primary" onclick="loadEmailLogs()">📨 拉取邮件日志</button>
-                <button class="btn btn-outline" onclick="loadEmailLogs()" style="margin-left:6px">🔄 刷新</button>
+            <div id="logsSectionSystem">
+              <div class="setting-block">
+                <h3 class="setting-title">🚀 Vercel 部署日志</h3>
+                <p class="setting-desc">Vercel 部署事件 & 函数日志。使用 VERCEL_TOKEN + VERCEL_PROJECT_ID 从 Vercel API 拉取。</p>
+                <div style="margin-bottom:10px">
+                  <button class="btn btn-primary" onclick="loadVercelLogs()">📜 拉取部署事件</button>
+                  <button class="btn btn-outline" onclick="loadVercelLogs()" style="margin-left:6px">🔄 刷新</button>
+                </div>
+                <div id="vercelLogsList" class="health-log-list"></div>
               </div>
-              <div id="emailLogsList" class="health-log-list"></div>
+            </div>
+
+            <div id="logsSectionEmail" style="display:none;">
+              <div class="setting-block">
+                <h3 class="setting-title">📧 邮件发送日志</h3>
+                <p class="setting-desc">记录每次邮件发送的结果，包括激活通知和测试邮件。</p>
+                <div style="margin-bottom:10px">
+                  <button class="btn btn-primary" onclick="loadEmailLogs()">📨 拉取邮件日志</button>
+                  <button class="btn btn-outline" onclick="loadEmailLogs()" style="margin-left:6px">🔄 刷新</button>
+                </div>
+                <div id="emailLogsList" class="health-log-list"></div>
+              </div>
             </div>
           </div>
 
@@ -2837,7 +2846,10 @@
                 </div>
               </div>
               <div class="setting-row" style="border-bottom:none;flex-direction:column;align-items:flex-start;">
-                <button class="btn btn-primary" onclick="sendTestEmail()" id="testEmailBtn">📨 发送测试邮件</button>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <button class="btn btn-primary" onclick="sendTestEmail()" id="testEmailBtn">📨 发送测试邮件</button>
+                  <button class="btn btn-outline" onclick="saveEmailSettings()">💾 保存设置</button>
+                </div>
                 <div class="setting-test-result" id="testEmailResult"></div>
               </div>
             </div>
@@ -3593,7 +3605,7 @@
         }
       }
       if (tab === 'vercel-logs') loadVercelLogs();
-      if (tab === 'logs') { loadVercelLogs(); loadEmailLogs(); }
+      if (tab === 'logs') { switchLogsTab('system'); }
       if (tab === 'settings') initSettingsPanel();
       if (tab === 'direct-activate') initDirectActivate();
       if (tab === 'afdian-orders') loadAfdianOrders();
@@ -4982,13 +4994,19 @@
       var resultEl = document.getElementById('testEmailResult');
       if (!btn || !resultEl) return;
 
-      var s = readSettings();
-      if (!s.notifyTo) {
+      var notifyTo = (document.getElementById('settingNotifyTo').value || '').trim();
+      var notifyFromName = (document.getElementById('settingNotifyFromName').value || '').trim();
+      var smtpHost = (document.getElementById('settingSmtpHost').value || '').trim();
+      var smtpPort = parseInt(document.getElementById('settingSmtpPort').value, 10) || 465;
+      var smtpUser = (document.getElementById('settingSmtpUser').value || '').trim();
+      var smtpPass = document.getElementById('settingSmtpPass').value;
+
+      if (!notifyTo) {
         resultEl.className = 'setting-test-result error';
         resultEl.textContent = '❌ 请先填写接收通知邮箱';
         return;
       }
-      if (!s.smtpHost || !s.smtpUser || !s.smtpPass) {
+      if (!smtpHost || !smtpUser || !smtpPass) {
         resultEl.className = 'setting-test-result error';
         resultEl.textContent = '❌ 请先填写完整的SMTP配置（服务器、用户名、授权码）';
         return;
@@ -5004,18 +5022,18 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             action: 'test-email',
-            notifyTo: s.notifyTo,
-            notifyFromName: s.notifyFromName || 'app-auth',
-            smtpHost: s.smtpHost,
-            smtpPort: s.smtpPort || 465,
-            smtpUser: s.smtpUser,
-            smtpPass: s.smtpPass,
+            notifyTo: notifyTo,
+            notifyFromName: notifyFromName || 'app-auth',
+            smtpHost: smtpHost,
+            smtpPort: smtpPort,
+            smtpUser: smtpUser,
+            smtpPass: smtpPass,
           }),
         });
         var data = await resp.json();
         if (data.success) {
           resultEl.className = 'setting-test-result success';
-          resultEl.textContent = '✅ 测试邮件发送成功！请检查收件箱 ' + s.notifyTo;
+          resultEl.textContent = '✅ 测试邮件发送成功！请检查收件箱 ' + notifyTo;
         } else {
           resultEl.className = 'setting-test-result error';
           resultEl.textContent = '❌ 发送失败: ' + (data.error || 'Unknown error');
@@ -5025,6 +5043,37 @@
         resultEl.textContent = '❌ 网络错误: ' + (e.message || '请求失败');
       } finally {
         btn.disabled = false;
+      }
+    }
+
+    function saveEmailSettings() {
+      saveSettings();
+      var hint = document.getElementById('settingsSavedHint');
+      if (hint) {
+        hint.textContent = '✓ 邮件设置已保存 · ' + new Date().toLocaleTimeString();
+        setTimeout(function() { if (hint) hint.textContent = ''; }, 2500);
+      }
+      showToast('💾 邮件通知设置已保存', 'success');
+    }
+
+    function switchLogsTab(tab) {
+      var systemSection = document.getElementById('logsSectionSystem');
+      var emailSection = document.getElementById('logsSectionEmail');
+      var systemTab = document.getElementById('logsTabSystem');
+      var emailTab = document.getElementById('logsTabEmail');
+
+      if (tab === 'system') {
+        if (systemSection) systemSection.style.display = '';
+        if (emailSection) emailSection.style.display = 'none';
+        if (systemTab) { systemTab.style.color = 'var(--accent)'; systemTab.style.borderBottomColor = 'var(--accent)'; systemTab.classList.add('active'); }
+        if (emailTab) { emailTab.style.color = 'var(--muted)'; emailTab.style.borderBottomColor = 'transparent'; emailTab.classList.remove('active'); }
+        loadVercelLogs();
+      } else {
+        if (systemSection) systemSection.style.display = 'none';
+        if (emailSection) emailSection.style.display = '';
+        if (systemTab) { systemTab.style.color = 'var(--muted)'; systemTab.style.borderBottomColor = 'transparent'; systemTab.classList.remove('active'); }
+        if (emailTab) { emailTab.style.color = 'var(--accent)'; emailTab.style.borderBottomColor = 'var(--accent)'; emailTab.classList.add('active'); }
+        loadEmailLogs();
       }
     }
 
