@@ -1541,6 +1541,34 @@
       min-width: 80px;
       white-space: nowrap;
     }
+    .smtp-pass-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      flex: 1;
+    }
+    .smtp-pass-wrap .setting-input {
+      width: 100%;
+    }
+    .smtp-pass-toggle {
+      position: absolute;
+      right: 4px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 4px 6px;
+      line-height: 1;
+      border-radius: 4px;
+      opacity: 0.6;
+      transition: opacity 0.15s;
+    }
+    .smtp-pass-toggle:hover {
+      opacity: 1;
+      background: #f3f4f6;
+    }
     .setting-test-result {
       font-size: 0.78rem;
       margin-top: 8px;
@@ -2883,7 +2911,10 @@
                   <span class="setting-input-label">用户名</span>
                   <input type="text" id="settingSmtpUser" class="setting-input" placeholder="user@qq.com" onchange="saveSettings()">
                   <span class="setting-input-label">授权码</span>
-                  <input type="password" id="settingSmtpPass" class="setting-input" placeholder="SMTP授权码" onchange="saveSettings()">
+                  <span class="smtp-pass-wrap">
+                    <input type="text" id="settingSmtpPass" class="setting-input" placeholder="SMTP授权码" onchange="saveSettings()" style="padding-right:32px">
+                    <button type="button" class="smtp-pass-toggle" onclick="toggleSmtpPassVisibility()" title="显示/隐藏授权码" tabindex="-1">👁️</button>
+                  </span>
                 </div>
               </div>
               <div class="setting-row" style="border-bottom:none;flex-direction:column;align-items:flex-start;">
@@ -4998,7 +5029,7 @@
       warnBeforeDelete: true,
       autoClearDeletes: true,
       notifyEnabled: true,
-      notifyTo: 'rinuo@qq.com',
+      notifyTo: 'guomengtao@gmail.com',
       notifyFromName: 'app-auth',
       smtpHost: 'smtp.qq.com',
       smtpPort: 465,
@@ -5026,7 +5057,7 @@
         smtpHost: document.getElementById('settingSmtpHost').value.trim(),
         smtpPort: parseInt(document.getElementById('settingSmtpPort').value, 10) || 465,
         smtpUser: document.getElementById('settingSmtpUser').value.trim(),
-        smtpPass: document.getElementById('settingSmtpPass').value,
+        smtpPass: document.getElementById('settingSmtpPass').value.trim(),
       };
       try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch (_) {}
       var hint = document.getElementById('settingsSavedHint');
@@ -5072,6 +5103,19 @@
 
     function warnBeforeDeleteEnabled() { return !!readSettings().warnBeforeDelete; }
 
+    function toggleSmtpPassVisibility() {
+      var el = document.getElementById('settingSmtpPass');
+      var btn = document.querySelector('.smtp-pass-toggle');
+      if (!el) return;
+      if (el.type === 'password') {
+        el.type = 'text';
+        if (btn) btn.textContent = '🙈';
+      } else {
+        el.type = 'password';
+        if (btn) btn.textContent = '👁️';
+      }
+    }
+
     async function sendTestEmail() {
       var btn = document.getElementById('testEmailBtn');
       var resultEl = document.getElementById('testEmailResult');
@@ -5082,16 +5126,26 @@
       var smtpHost = (document.getElementById('settingSmtpHost').value || '').trim();
       var smtpPort = parseInt(document.getElementById('settingSmtpPort').value, 10) || 465;
       var smtpUser = (document.getElementById('settingSmtpUser').value || '').trim();
-      var smtpPass = document.getElementById('settingSmtpPass').value;
+      var smtpPass = (document.getElementById('settingSmtpPass').value || '').trim();
 
       if (!notifyTo) {
         resultEl.className = 'setting-test-result error';
         resultEl.textContent = '❌ 请先填写接收通知邮箱';
         return;
       }
-      if (!smtpHost || !smtpUser || !smtpPass) {
+      if (!smtpHost) {
         resultEl.className = 'setting-test-result error';
-        resultEl.textContent = '❌ 请先填写完整的SMTP配置（服务器、用户名、授权码）';
+        resultEl.textContent = '❌ 请先填写SMTP服务器地址';
+        return;
+      }
+      if (!smtpUser) {
+        resultEl.className = 'setting-test-result error';
+        resultEl.textContent = '❌ 请先填写SMTP用户名';
+        return;
+      }
+      if (!smtpPass) {
+        resultEl.className = 'setting-test-result error';
+        resultEl.textContent = '❌ 请先填写SMTP授权码';
         return;
       }
 
