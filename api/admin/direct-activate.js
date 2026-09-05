@@ -60,19 +60,51 @@ module.exports = async (req, res) => {
 
     var deviceCheck = validateDeviceId(deviceId);
     if (!deviceCheck.valid) {
+      notify.sendActivationFailure(req, {
+        reason: deviceCheck.error,
+        redeemCode: "",
+        deviceId: deviceId || "",
+        productId: "",
+        months: months || "",
+        source: "admin-direct",
+      }).catch(function () {});
       return res.status(400).json({ success: false, error: deviceCheck.error });
     }
     var device = deviceCheck.value;
 
     if (!Array.isArray(productIds) || productIds.length === 0) {
+      notify.sendActivationFailure(req, {
+        reason: "Please select at least one product",
+        redeemCode: "",
+        deviceId: device,
+        productId: "",
+        months: months || "",
+        source: "admin-direct",
+      }).catch(function () {});
       return res.status(400).json({ success: false, error: "Please select at least one product" });
     }
     if (productIds.length > 20) {
+      notify.sendActivationFailure(req, {
+        reason: "Too many products selected (max 20)",
+        redeemCode: "",
+        deviceId: device,
+        productId: "",
+        months: months || "",
+        source: "admin-direct",
+      }).catch(function () {});
       return res.status(400).json({ success: false, error: "Too many products selected (max 20)" });
     }
 
     var m = normalizeMonths(months);
     if (!m) {
+      notify.sendActivationFailure(req, {
+        reason: "Months must be 1-99",
+        redeemCode: "",
+        deviceId: device,
+        productId: "",
+        months: months || "",
+        source: "admin-direct",
+      }).catch(function () {});
       return res.status(400).json({ success: false, error: "Months must be 1-99" });
     }
 
@@ -80,6 +112,14 @@ module.exports = async (req, res) => {
     for (var i = 0; i < productIds.length; i++) {
       var pid = normalizeProductId(productIds[i]);
       if (!pid) {
+        notify.sendActivationFailure(req, {
+          reason: "Invalid product ID: " + productIds[i],
+          redeemCode: "",
+          deviceId: device,
+          productId: productIds[i] || "",
+          months: m,
+          source: "admin-direct",
+        }).catch(function () {});
         return res.status(400).json({ success: false, error: "Invalid product ID: " + productIds[i] });
       }
       productKeys.push(pid);
@@ -93,6 +133,14 @@ module.exports = async (req, res) => {
       var raw = allRaw && allRaw[pid] ? allRaw[pid] : null;
       var data = parseRedisValue(raw);
       if (!data) {
+        notify.sendActivationFailure(req, {
+          reason: "Product not found: " + productIds[j],
+          redeemCode: "",
+          deviceId: device,
+          productId: productIds[j] || "",
+          months: m,
+          source: "admin-direct",
+        }).catch(function () {});
         return res.status(400).json({ success: false, error: "Product not found: " + productIds[j] });
       }
       productNames[pid] = data.name || pid;
@@ -117,6 +165,14 @@ module.exports = async (req, res) => {
         }
       }
       if (!redeemCode) {
+        notify.sendActivationFailure(req, {
+          reason: "Unable to generate unique redeem code, please retry",
+          redeemCode: "",
+          deviceId: device,
+          productId: productId,
+          months: m,
+          source: "admin-direct",
+        }).catch(function () {});
         return res.status(500).json({ success: false, error: "Unable to generate unique redeem code, please retry" });
       }
 
@@ -189,6 +245,14 @@ module.exports = async (req, res) => {
     return res.json({ success: true, results: results });
   } catch (error) {
     console.error("Direct-activate error:", error);
+    notify.sendActivationFailure(req, {
+      reason: error && error.message ? error.message : "Internal server error",
+      redeemCode: "",
+      deviceId: "",
+      productId: "",
+      months: "",
+      source: "admin-direct",
+    }).catch(function () {});
     return res.status(500).json({ success: false, error: "Internal server error" });
   }
 };
