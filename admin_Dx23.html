@@ -2828,7 +2828,7 @@
                 <tr>
                   <th>订单号</th>
                   <th>用户ID</th>
-                  <th>方案ID</th>
+                  <th>产品</th>
                   <th>金额</th>
                   <th>月数</th>
                   <th>激活码</th>
@@ -5412,10 +5412,17 @@
           var timeStr = o.created_at ? new Date(o.created_at).toLocaleString('zh-CN') : '-';
           var outTradeNoShort = String(o.out_trade_no || '').slice(-12);
 
+          var productName = '-';
+          if (o.product_id) {
+            var products = getLocalProducts();
+            var prod = products[String(o.product_id).padStart(2, '0')];
+            productName = prod && prod.name ? prod.name : ('Product ' + o.product_id);
+          }
+
           return '<tr>' +
             '<td title="' + escapeHtml(o.out_trade_no || '') + '">' + escapeHtml(outTradeNoShort) + '</td>' +
-            '<td>' + escapeHtml(String(o.user_id || '').slice(0, 12)) + '...</td>' +
-            '<td>' + escapeHtml(String(o.plan_id || '').slice(0, 12)) + '...</td>' +
+            '<td title="' + escapeHtml(o.user_id || '') + '">' + escapeHtml(String(o.user_id || '')) + '</td>' +
+            '<td>' + escapeHtml(productName) + '</td>' +
             '<td>' + escapeHtml(o.total_amount || '-') + '</td>' +
             '<td>' + escapeHtml(String(o.months || '-')) + '</td>' +
             '<td style="font-family:monospace;font-size:0.78rem">' + formatActivationCode(o.activation_code || '-') + '</td>' +
