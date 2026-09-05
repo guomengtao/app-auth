@@ -119,6 +119,93 @@ module.exports = async (req, res) => {
     }
   }
 
+  if (action === "update-redeem") {
+    console.log("[afdian:sync] update-redeem mode: checking auth...");
+    var auth = requireAuth(req);
+    if (!auth.authorized) {
+      console.log("[afdian:sync] update-redeem mode: auth failed");
+      return res.status(auth.status).json({ success: false, error: auth.error });
+    }
+    console.log("[afdian:sync] update-redeem mode: auth OK");
+
+    var outTradeNo = (req.body && req.body.out_trade_no) || (req.query && req.query.out_trade_no);
+    var redeemCode = (req.body && req.body.redeem_code) || (req.query && req.query.redeem_code);
+
+    if (!outTradeNo || !redeemCode) {
+      return res.status(400).json({ success: false, error: "Missing out_trade_no or redeem_code" });
+    }
+
+    redeemCode = String(redeemCode).toUpperCase().trim();
+
+    try {
+      var orderRaw = await redis.get("afdian:order:" + outTradeNo);
+      if (!orderRaw) {
+        return res.status(404).json({ success: false, error: "Order not found" });
+      }
+
+      var order = afdianProcessor.parseRedisValue(orderRaw);
+      if (!order) {
+        return res.status(404).json({ success: false, error: "Order not found" });
+      }
+
+      order.redeem_code = redeemCode;
+      order.updated_at = Date.now();
+
+      var activationCode = null;
+      var redeemRaw = await redis.get("auth:redeem:" + redeemCode);
+      if (redeemRaw) {
+        var redeemData = afdianProcessor.parseRedisValue(redeemRaw);
+        if (redeemData && redeemData.generated_activation_code) {
+          activationCode = redeemData.generated_activation_code;
+          order.activation_code = activationCode;
+        }
+      }
+
+      await redis.set("afdian:order:" + outTradeNo, JSON.stringify(order));
+
+      console.log("[afdian:sync] update-redeem: out_trade_no=" + outTradeNo + " redeem_code=" + redeemCode + " activation_code=" + (activationCode || "null"));
+      return res.status(200).json({
+        success: true,
+        out_trade_no: outTradeNo,
+        redeem_code: redeemCode,
+        activation_code: activationCode,
+      });
+    } catch (e) {
+      console.error("[afdian:sync] update-redeem EXCEPTION:", e.message, e.stack);
+      return res.status(500).json({ success: false, error: (e && e.message) || "Unknown error" });
+    }
+  }
+
+  if (action === "lookup-activation") {
+    var redeemCode = (req.query && req.query.redeem_code) || "";
+
+    if (!redeemCode) {
+      return res.status(400).json({ success: false, error: "Missing redeem_code" });
+    }
+
+    redeemCode = String(redeemCode).toUpperCase().trim();
+
+    try {
+      var redeemRaw = await redis.get("auth:redeem:" + redeemCode);
+      if (!redeemRaw) {
+        return res.status(404).json({ success: false, error: "Redeem code not found: " + redeemCode });
+      }
+
+      var redeemData = afdianProcessor.parseRedisValue(redeemRaw);
+      var activationCode = redeemData && redeemData.generated_activation_code || null;
+
+      console.log("[afdian:sync] lookup-activation: redeem_code=" + redeemCode + " activation_code=" + (activationCode || "null"));
+      return res.status(200).json({
+        success: true,
+        redeem_code: redeemCode,
+        activation_code: activationCode,
+      });
+    } catch (e) {
+      console.error("[afdian:sync] lookup-activation EXCEPTION:", e.message, e.stack);
+      return res.status(500).json({ success: false, error: (e && e.message) || "Unknown error" });
+    }
+  }
+
   console.log("[afdian:sync] sync mode: checking if Afdian API is configured...");
   if (!afdianApi.isConfigured()) {
     console.log("[afdian:sync] sync mode: Afdian API NOT configured (AFDIAN_USER_ID or AFDIAN_TOKEN missing)");

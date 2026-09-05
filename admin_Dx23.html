@@ -2405,6 +2405,26 @@
               </div>
             </div>
             <div class="table-wrap" id="codesTable"></div>
+            <div id="codesPagination" style="display:none;align-items:center;justify-content:space-between;padding:10px 0;font-size:0.82rem;color:#64748b">
+              <div>
+                <span id="codesCount">0</span> codes
+                <span id="codesFilteredCount" style="display:none"></span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span>Per page:</span>
+                <select id="codesPerPage" onchange="onCodesPerPageChange()" style="padding:4px 8px;border-radius:6px;border:1px solid #d1d5db;font-size:0.8rem">
+                  <option value="20">20</option>
+                  <option value="50" selected>50</option>
+                  <option value="100">100</option>
+                  <option value="200">200</option>
+                </select>
+                <button class="btn btn-outline" style="padding:4px 10px;font-size:0.78rem" onclick="goCodesPage(0)" id="codesFirstBtn">«</button>
+                <button class="btn btn-outline" style="padding:4px 10px;font-size:0.78rem" onclick="goCodesPage(-1)" id="codesPrevBtn">‹</button>
+                <span id="codesPageInfo" style="min-width:60px;text-align:center">1/1</span>
+                <button class="btn btn-outline" style="padding:4px 10px;font-size:0.78rem" onclick="goCodesPage(1)" id="codesNextBtn">›</button>
+                <button class="btn btn-outline" style="padding:4px 10px;font-size:0.78rem" onclick="goCodesPage(-2)" id="codesLastBtn">»</button>
+              </div>
+            </div>
           </div>
 
           <div class="panel" id="panel-records">
@@ -2826,13 +2846,13 @@
             <table>
               <thead>
                 <tr>
-                  <th>订单号</th>
+                  <th style="cursor:pointer">订单号</th>
                   <th>用户</th>
                   <th>方案</th>
                   <th>金额</th>
                   <th>月数</th>
-                  <th>激活码</th>
                   <th>兑换码</th>
+                  <th>激活码</th>
                   <th>状态</th>
                   <th>时间</th>
                 </tr>
@@ -3661,10 +3681,12 @@
       var chips = document.getElementById(chipsId);
       chips.querySelectorAll('.filter-chip').forEach(function(el) { el.classList.remove('active'); });
       if (btn) btn.classList.add('active');
+      codesPage = 1;
       loadCodes();
     }
 
     function renderCodesFromLocal() {
+      codesPage = 1;
       try {
         var pid0 = document.getElementById('filterProduct').value;
         var used0 = document.getElementById('filterUsed').value;
@@ -3683,11 +3705,21 @@
     }
 
     function renderCodesTable(codes, emptyMsg) {
+      var totalCount = codes.length;
+      var perPage = parseInt(document.getElementById('codesPerPage').value) || 50;
+      var totalPages = Math.max(1, Math.ceil(totalCount / perPage));
+
+      if (codesPage > totalPages) codesPage = totalPages;
+      if (codesPage < 1) codesPage = 1;
+
+      var start = (codesPage - 1) * perPage;
+      var pageCodes = codes.slice(start, start + perPage);
+
       var html = '<table><thead><tr><th>兑换码</th><th>产品</th><th>时长</th><th>状态</th><th>创建时间</th><th>使用时间</th><th style="width:120px">操作</th></tr></thead><tbody>';
-      if (!codes || codes.length === 0) {
+      if (!pageCodes || pageCodes.length === 0) {
         html += '<tr><td colspan="7" class="empty">' + (emptyMsg || '暂无兑换码') + '</td></tr>';
       } else {
-        codes.forEach(function(c) {
+        pageCodes.forEach(function(c) {
           var durationText = Number(c.duration_months) === 99 ? '永久' : Number(c.duration_months) + ' 个月';
           var statusText = c.used ? '已使用' : '未使用';
           var statusClass = c.used ? 'badge-success' : 'badge-warning';
@@ -3708,6 +3740,58 @@
       }
       html += '</tbody></table>';
       document.getElementById('codesTable').innerHTML = html;
+      updateCodesPagination(totalCount, totalPages);
+    }
+
+    var codesPage = 1;
+
+    function updateCodesPagination(totalCount, totalPages) {
+      var pagEl = document.getElementById('codesPagination');
+      pagEl.style.display = totalCount > 0 ? 'flex' : 'none';
+
+      document.getElementById('codesCount').textContent = totalCount;
+
+      var pid = document.getElementById('filterProduct').value;
+      var used = document.getElementById('filterUsed').value;
+      var dur = document.getElementById('filterDuration').value;
+      var hasFilter = pid || used || dur;
+      var filteredEl = document.getElementById('codesFilteredCount');
+      if (hasFilter) {
+        filteredEl.style.display = 'inline';
+        filteredEl.textContent = ' (filtered)';
+      } else {
+        filteredEl.style.display = 'none';
+      }
+
+      document.getElementById('codesPageInfo').textContent = codesPage + '/' + totalPages;
+      document.getElementById('codesFirstBtn').disabled = codesPage <= 1;
+      document.getElementById('codesPrevBtn').disabled = codesPage <= 1;
+      document.getElementById('codesNextBtn').disabled = codesPage >= totalPages;
+      document.getElementById('codesLastBtn').disabled = codesPage >= totalPages;
+    }
+
+    function goCodesPage(dir) {
+      var saved = getLocalData(STORAGE_KEY_CODES, []);
+      var pid = document.getElementById('filterProduct').value;
+      var used = document.getElementById('filterUsed').value;
+      var dur = document.getElementById('filterDuration').value;
+      var filtered = saved.filter(function(c) { return matchCodeLocal(c, pid, used, dur); });
+      filtered.sort(function(a, b) { return (Number(b.created_at) || 0) - (Number(a.created_at) || 0); });
+
+      var perPage = parseInt(document.getElementById('codesPerPage').value) || 50;
+      var totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
+
+      if (dir === 0) codesPage = 1;
+      else if (dir === -1) codesPage = Math.max(1, codesPage - 1);
+      else if (dir === 1) codesPage = Math.min(totalPages, codesPage + 1);
+      else if (dir === -2) codesPage = totalPages;
+
+      renderCodesTable(filtered, '暂无兑换码');
+    }
+
+    function onCodesPerPageChange() {
+      codesPage = 1;
+      goCodesPage(0);
     }
 
     async function fetchAndCacheCodes() {
@@ -3736,6 +3820,7 @@
     }
 
     async function loadCodes() {
+      codesPage = 1;
       if (ADMIN_MODE === 'local-first') {
         renderCodesFromLocal();
         fetchAndCacheCodes();
@@ -5411,21 +5496,41 @@
 
           var timeStr = o.created_at ? new Date(o.created_at).toLocaleString('zh-CN') : '-';
           var outTradeNoShort = String(o.out_trade_no || '').slice(-12);
+          var outTradeNoFull = escapeHtml(o.out_trade_no || '');
 
           var userName = o.user_name || o.user_id || '-';
-          var planTitle = o.plan_title || (o.product_id ? 'Product ' + o.product_id : '-');
+          var planTitle = (o.plan_title || '') + (o.product_id ? ' (' + escapeHtml(o.product_id) + ')' : '');
+          var redeemCode = o.redeem_code || '';
+          var activationCode = o.activation_code || '';
 
-          return '<tr>' +
-            '<td title="' + escapeHtml(o.out_trade_no || '') + '">' + escapeHtml(outTradeNoShort) + '</td>' +
+          var rawJson = '';
+          try { rawJson = JSON.stringify(o.raw_order || o, null, 2); } catch (_) { rawJson = '{}'; }
+
+          var rowId = 'afdian-row-' + (o.out_trade_no || '');
+          var expandId = 'afdian-expand-' + (o.out_trade_no || '');
+
+          return '<tr id="' + rowId + '">' +
+            '<td class="mono" style="cursor:pointer;color:var(--accent)" onclick="toggleAfdianExpand(\'' + expandId + '\')" title="Click to view raw API response">' + escapeHtml(outTradeNoShort) + '</td>' +
             '<td title="' + escapeHtml(o.user_id || '') + '">' + escapeHtml(userName) + '</td>' +
-            '<td>' + escapeHtml(planTitle) + '</td>' +
+            '<td>' + (planTitle || '-') + '</td>' +
             '<td>' + escapeHtml(o.total_amount || '-') + '</td>' +
             '<td>' + escapeHtml(String(o.months || '-')) + '</td>' +
-            '<td style="font-family:monospace;font-size:0.78rem">' + formatActivationCode(o.activation_code || '-') + '</td>' +
-            '<td style="font-family:monospace;font-size:0.78rem">' + escapeHtml(o.redeem_code || '-') + '</td>' +
+            '<td style="font-family:monospace;font-size:0.78rem">' +
+              '<span id="afdian-code-' + escapeHtml(o.out_trade_no) + '">' + (redeemCode ? escapeHtml(redeemCode) : '<i style="color:#94a3b8">-</i>') + '</span>' +
+              ' <button class="btn btn-outline" style="padding:1px 6px;font-size:0.7rem;border-radius:4px" onclick="editAfdianRedeem(\'' + escapeJs(o.out_trade_no) + '\')" title="Edit redeem code">✎</button>' +
+            '</td>' +
+            '<td style="font-family:monospace;font-size:0.7rem">' +
+              '<span id="afdian-act-' + escapeHtml(o.out_trade_no) + '">' + (activationCode ? formatActivationCode(activationCode) : '<i style="color:#94a3b8">-</i>') + '</span>' +
+            '</td>' +
             '<td>' + statusHtml + '</td>' +
             '<td style="font-size:0.75rem">' + escapeHtml(timeStr) + '</td>' +
-            '</tr>';
+            '</tr>' +
+            '<tr id="' + expandId + '" style="display:none"><td colspan="9" style="padding:0;background:#f8fafc;border-bottom:2px solid #e2e8f0">' +
+              '<div style="padding:12px 16px;max-height:360px;overflow:auto">' +
+                '<div style="font-weight:600;font-size:0.78rem;color:#475569;margin-bottom:5px">Raw API Response</div>' +
+                '<pre style="font-size:0.7rem;color:#334155;white-space:pre;margin:0">' + escapeHtml(rawJson) + '</pre>' +
+              '</div>' +
+            '</td></tr>';
         }).join('');
 
         console.log('[afdian:ui] loadAfdianOrders: rendered ' + orders.length + ' orders');
@@ -5501,6 +5606,49 @@
       }
     }
 
+    function toggleAfdianExpand(expandId) {
+      var el = document.getElementById(expandId);
+      if (el) {
+        el.style.display = el.style.display === 'none' ? '' : 'none';
+      }
+    }
+
+    async function editAfdianRedeem(outTradeNo) {
+      var currentCode = document.getElementById('afdian-code-' + outTradeNo);
+      var currentText = currentCode ? (currentCode.textContent || '').replace(/[^A-Za-z0-9]/g, '').trim() : '';
+
+      var newCode = prompt('Enter redeem code for order ' + (outTradeNo || '').slice(-12) + ':', currentText);
+      if (newCode === null) return;
+      newCode = newCode.toUpperCase().trim();
+      if (!newCode || newCode.length > 4 || !/^[A-Z0-9]{1,4}$/.test(newCode)) {
+        showToast('Invalid redeem code (1-4 chars A-Z,0-9)', 'error');
+        return;
+      }
+
+      try {
+        var data = await api('/api/afdian/query-orders?action=update-redeem', {
+          method: 'POST',
+          body: JSON.stringify({ out_trade_no: outTradeNo, redeem_code: newCode }),
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (data.success) {
+          if (currentCode) currentCode.textContent = newCode;
+          var actEl = document.getElementById('afdian-act-' + outTradeNo);
+          if (actEl && data.activation_code) {
+            actEl.textContent = formatActivationCode(data.activation_code);
+          } else if (actEl) {
+            actEl.innerHTML = '<i style="color:#94a3b8">not found</i>';
+          }
+          showToast('Redeem code updated', 'success');
+        } else {
+          showToast(data.error || 'Update failed', 'error');
+        }
+      } catch (e) {
+        console.error('editAfdianRedeem failed:', e);
+        showToast('Update failed: ' + (e.message || ''), 'error');
+      }
+    }
   </script>
 
 </body>
