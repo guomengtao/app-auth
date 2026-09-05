@@ -277,6 +277,30 @@ module.exports = async (req, res) => {
     }
   }
 
+  if (req.query && req.query.section === "email-logs") {
+    if (req.method !== "GET") {
+      return res.status(405).json({ success: false, error: "Method not allowed" });
+    }
+    try {
+      var notify = require("../../lib/notify");
+      var limit = 50;
+      if (req.query.limit) {
+        var li = parseInt(req.query.limit, 10);
+        if (Number.isFinite(li) && li > 0 && li <= 200) limit = li;
+      }
+      var emailLogs = await notify.getEmailLogs(limit);
+      return res.json({
+        success: true,
+        fetchedAt: new Date().toISOString(),
+        total: emailLogs.length,
+        logs: emailLogs,
+      });
+    } catch (e) {
+      console.error("email-logs error:", e);
+      return res.status(500).json({ success: false, error: (e && e.message) || String(e) });
+    }
+  }
+
   if (req.query && req.query.section === "quota") {
     if (req.method !== "GET") {
       return res.status(405).json({ success: false, error: "Method not allowed" });

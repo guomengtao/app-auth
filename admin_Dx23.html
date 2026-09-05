@@ -1259,6 +1259,32 @@
     .vl-summary { flex: 1; color: #1f2937; word-break: break-all; }
     .vl-meta { font-size: 0.68rem; color: #9ca3af; white-space: nowrap; }
 
+    .el-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      background: #f9fafb;
+      border-radius: 5px;
+      font-size: 0.76rem;
+      font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
+      border-left: 3px solid #9ca3af;
+      flex-wrap: wrap;
+    }
+    .el-row .el-status-success { border-left-color: #10b981; }
+    .el-row:has(.el-status-failed) { border-left-color: #ef4444; }
+    .el-time { color: #6b7280; white-space: nowrap; font-size: 0.7rem; min-width: 130px; }
+    .el-type { padding: 1px 6px; border-radius: 4px; font-size: 0.66rem; font-weight: 600; white-space: nowrap; }
+    .el-type-activation { background: #dbeafe; color: #1e40af; }
+    .el-type-test { background: #fef3c7; color: #92400e; }
+    .el-status { padding: 1px 6px; border-radius: 4px; font-size: 0.66rem; font-weight: 600; white-space: nowrap; }
+    .el-status-success { background: #d1fae5; color: #065f46; }
+    .el-status-failed { background: #fee2e2; color: #991b1b; }
+    .el-status-skipped { background: #f3f4f6; color: #6b7280; }
+    .el-to { color: #6366f1; font-size: 0.7rem; white-space: nowrap; }
+    .el-subject { flex: 1; color: #374151; font-size: 0.7rem; word-break: break-all; min-width: 120px; }
+    .el-error { color: #ef4444; font-size: 0.66rem; width: 100%; padding-left: 138px; }
+
     .setting-block {
       background: var(--card-bg, #fff);
       border: 1px solid var(--border, #e5e7eb);
@@ -2313,7 +2339,7 @@
         <li class="menu-separator"><hr></li>
         <li><a href="javascript:void(0)" onclick="switchTab('afdian-orders')" data-tab="afdian-orders"><i data-lucide="heart" class="menu-icon"></i><span class="menu-text">爱发电订单</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('quota')" data-tab="quota"><i data-lucide="coins" class="menu-icon"></i><span class="menu-text">免费额度</span></a></li>
-        <li><a href="javascript:void(0)" onclick="switchTab('vercel-logs')" data-tab="vercel-logs"><i data-lucide="scroll-text" class="menu-icon"></i><span class="menu-text">Vercel日志</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('logs')" data-tab="logs"><i data-lucide="scroll-text" class="menu-icon"></i><span class="menu-text">日志</span></a></li>
         <li class="menu-separator"><hr></li>
         <li><a href="javascript:void(0)" onclick="switchTab('settings')" data-tab="settings"><i data-lucide="settings" class="menu-icon"></i><span class="menu-text">设置</span></a></li>
       </ul>
@@ -2547,18 +2573,32 @@
             </div>
           </div>
 
-          <div class="panel" id="panel-vercel-logs">
+          <div class="panel" id="panel-logs">
             <div class="toolbar">
-              <button class="btn btn-primary" onclick="loadVercelLogs()">📜 拉取部署事件</button>
-              <button class="btn btn-outline" onclick="loadVercelLogs()">🔄 刷新</button>
+              <span class="filter-label" style="padding:0;font-weight:700;font-size:0.88rem;color:var(--ink);">📜 系统日志</span>
               <span class="spacer"></span>
-              <span class="health-meta" id="vercelLogsTime"></span>
+              <span style="font-size:0.78rem;color:#6b7280;" id="logsTimeHint"></span>
             </div>
-            <div class="panel-desc" style="margin-bottom:16px;font-size:0.78rem;color:var(--muted);">
-              Vercel 部署事件 & 函数日志。使用 VERCEL_TOKEN + VERCEL_PROJECT_ID 从 Vercel API 拉取。
-              <a href="https://vercel.com/docs/rest-api" target="_blank" style="color:var(--accent);">文档</a>
+
+            <div class="setting-block">
+              <h3 class="setting-title">🚀 Vercel 部署日志</h3>
+              <p class="setting-desc">Vercel 部署事件 & 函数日志。使用 VERCEL_TOKEN + VERCEL_PROJECT_ID 从 Vercel API 拉取。</p>
+              <div style="margin-bottom:10px">
+                <button class="btn btn-primary" onclick="loadVercelLogs()">📜 拉取部署事件</button>
+                <button class="btn btn-outline" onclick="loadVercelLogs()" style="margin-left:6px">🔄 刷新</button>
+              </div>
+              <div id="vercelLogsList" class="health-log-list"></div>
             </div>
-            <div id="vercelLogsList" class="health-log-list"></div>
+
+            <div class="setting-block">
+              <h3 class="setting-title">📧 邮件发送日志</h3>
+              <p class="setting-desc">记录每次邮件发送的结果，包括激活通知和测试邮件。</p>
+              <div style="margin-bottom:10px">
+                <button class="btn btn-primary" onclick="loadEmailLogs()">📨 拉取邮件日志</button>
+                <button class="btn btn-outline" onclick="loadEmailLogs()" style="margin-left:6px">🔄 刷新</button>
+              </div>
+              <div id="emailLogsList" class="health-log-list"></div>
+            </div>
           </div>
 
           <div class="panel" id="panel-settings">
@@ -3509,6 +3549,7 @@
       quota: { title: '免费额度', sub: 'Neon Postgres 免费资源消耗与剩余额度估算' },
       health: { title: '服务器状态', sub: '检测 Postgres / 鉴权 / 激活链路是否正常' },
       'vercel-logs': { title: 'Vercel日志', sub: '部署事件与函数运行日志（Vercel API）' },
+      'logs': { title: '系统日志', sub: 'Vercel部署事件 · 邮件发送记录' },
       settings: { title: '设置', sub: '数据优先模式 · 删除保护 · 安全配置' }
     };
 
@@ -3552,6 +3593,7 @@
         }
       }
       if (tab === 'vercel-logs') loadVercelLogs();
+      if (tab === 'logs') { loadVercelLogs(); loadEmailLogs(); }
       if (tab === 'settings') initSettingsPanel();
       if (tab === 'direct-activate') initDirectActivate();
       if (tab === 'afdian-orders') loadAfdianOrders();
@@ -4756,7 +4798,8 @@
 
     async function loadVercelLogs() {
       var listEl = document.getElementById('vercelLogsList');
-      var timeEl = document.getElementById('vercelLogsTime');
+      var timeEl = document.getElementById('logsTimeHint');
+      if (!listEl) return;
       listEl.innerHTML = '<div class="empty">加载中...</div>';
 
       try {
@@ -4769,7 +4812,7 @@
           return;
         }
 
-        if (timeEl && data.fetchedAt) timeEl.textContent = '· ' + new Date(data.fetchedAt).toLocaleString('zh-CN');
+        if (timeEl && data.fetchedAt) timeEl.textContent = '🕐 ' + new Date(data.fetchedAt).toLocaleString('zh-CN');
 
         var logs = data.logs || [];
         if (!logs.length) {
@@ -4793,6 +4836,62 @@
         showToast('Vercel 日志加载成功 - ' + logs.length + ' 条事件', 'success');
       } catch (e) {
         console.error('loadVercelLogs failed:', e);
+        listEl.innerHTML = '<div class="empty" style="color:#ef4444;">加载失败: ' + escapeHtml(e.message || '') + '</div>';
+      }
+    }
+
+    async function loadEmailLogs() {
+      var listEl = document.getElementById('emailLogsList');
+      var timeEl = document.getElementById('logsTimeHint');
+      if (!listEl) return;
+      listEl.innerHTML = '<div class="empty">加载中...</div>';
+
+      try {
+        var data = await api('/api/admin/health?section=email-logs');
+        if (!data.success) {
+          listEl.innerHTML = '<div class="empty" style="text-align:left;color:#f59e0b;">⚠️ ' + escapeHtml(data.error || '邮件日志不可用') + '</div>';
+          showToast('邮件日志加载失败', 'error');
+          return;
+        }
+
+        if (timeEl && data.fetchedAt) timeEl.textContent = '🕐 ' + new Date(data.fetchedAt).toLocaleString('zh-CN');
+
+        var logs = data.logs || [];
+        if (!logs.length) {
+          listEl.innerHTML = '<div class="empty">暂无邮件发送记录</div>';
+          return;
+        }
+
+        var statusMap = {
+          'success': { label: '✅ 成功', cls: 'el-status-success' },
+          'failed': { label: '❌ 失败', cls: 'el-status-failed' },
+          'skipped': { label: '⏭️ 跳过', cls: 'el-status-skipped' },
+        };
+        var typeMap = {
+          'activation': { label: '🔔 激活通知', cls: 'el-type-activation' },
+          'test': { label: '🧪 测试邮件', cls: 'el-type-test' },
+        };
+
+        listEl.innerHTML = logs.map(function(l) {
+          var st = statusMap[l.status] || { label: l.status, cls: '' };
+          var tp = typeMap[l.type] || { label: l.type, cls: '' };
+          var timeStr = '';
+          if (l.time) {
+            try { timeStr = new Date(l.time).toLocaleString('zh-CN'); } catch (_) { timeStr = l.time; }
+          }
+          return '<div class="el-row">' +
+            '<span class="el-time">' + escapeHtml(timeStr) + '</span>' +
+            '<span class="el-type ' + tp.cls + '">' + tp.label + '</span>' +
+            '<span class="el-status ' + st.cls + '">' + st.label + '</span>' +
+            '<span class="el-to">→ ' + escapeHtml(l.to || '') + '</span>' +
+            '<span class="el-subject">' + escapeHtml((l.subject || '').substring(0, 60)) + '</span>' +
+            (l.error ? '<span class="el-error">' + escapeHtml(l.error) + '</span>' : '') +
+            '</div>';
+        }).join('');
+
+        showToast('邮件日志加载成功 - ' + logs.length + ' 条记录', 'success');
+      } catch (e) {
+        console.error('loadEmailLogs failed:', e);
         listEl.innerHTML = '<div class="empty" style="color:#ef4444;">加载失败: ' + escapeHtml(e.message || '') + '</div>';
       }
     }
