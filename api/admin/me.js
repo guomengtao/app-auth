@@ -1,4 +1,18 @@
 var { parseCookies, verify } = require("../../lib/auth");
+var notify = require("../../lib/notify");
+
+function parseBody(req) {
+  var body = req.body;
+  if (body == null || body === "") return {};
+  if (typeof body === "string") {
+    try {
+      return JSON.parse(body);
+    } catch (e) {
+      return {};
+    }
+  }
+  return body;
+}
 
 module.exports = async (req, res) => {
   var action = req.query && req.query.action;
@@ -18,6 +32,17 @@ module.exports = async (req, res) => {
     }
 
     return res.json({ success: true });
+  }
+
+  if (req.method === "POST" && (action === "test-email" || (req.body && typeof req.body === "object" && req.body.action === "test-email"))) {
+    var body = parseBody(req);
+    var smtpSettings = body.action === "test-email" ? body : {};
+    try {
+      await notify.sendTestEmail(smtpSettings);
+      return res.json({ success: true, message: "Test email sent successfully" });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message || "Failed to send test email" });
+    }
   }
 
   var cookies = parseCookies(req.headers.cookie || "");

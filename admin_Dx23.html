@@ -1442,6 +1442,64 @@
     }
     .btn-danger:hover { background: #b91c1c; }
 
+    .setting-input {
+      width: 260px;
+      padding: 8px 12px;
+      border: 1px solid var(--border, #e5e7eb);
+      border-radius: 8px;
+      font-size: 0.82rem;
+      color: var(--ink, #111827);
+      background: var(--surface, #fff);
+      transition: border-color 0.15s;
+      flex-shrink: 0;
+    }
+    .setting-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    }
+    .setting-input-sm {
+      width: 120px;
+    }
+    .setting-input-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    .setting-input-label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--ink, #111827);
+      min-width: 80px;
+      white-space: nowrap;
+    }
+    .setting-test-result {
+      font-size: 0.78rem;
+      margin-top: 8px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      display: none;
+    }
+    .setting-test-result.success {
+      display: block;
+      background: #ecfdf5;
+      color: #065f46;
+      border: 1px solid #a7f3d0;
+    }
+    .setting-test-result.error {
+      display: block;
+      background: #fef2f2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+    }
+    .setting-test-result.loading {
+      display: block;
+      background: #eff6ff;
+      color: #1e40af;
+      border: 1px solid #bfdbfe;
+    }
+
     .about-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -2693,6 +2751,55 @@
                 <button class="btn btn-danger" onclick="clearAllLocalData()" title="清空浏览器里的全部本地数据（服务器不受影响）">🗑️ 清空本地数据</button>
               </div>
               <p class="setting-desc">导出/导入方便备份、迁移或在多台设备之间手动同步。清空本地数据只影响当前浏览器，服务器 Postgres 数据完全不受影响。</p>
+            </div>
+
+            <!-- 邮件通知 -->
+            <div class="setting-block">
+              <h3 class="setting-title">📧 邮件通知设置</h3>
+              <p class="setting-desc">配置SMTP邮件服务器，开启后在激活产品时自动发送邮件通知。</p>
+              <div class="setting-row">
+                <label class="setting-switch">
+                  <input type="checkbox" id="settingNotifyEnabled" onchange="saveSettings()">
+                  <span class="switch-slider"></span>
+                </label>
+                <div class="setting-row-info">
+                  <div class="setting-row-title">📬 开启邮件通知</div>
+                  <div class="setting-row-desc">开启后，每次用户激活产品时都会发送邮件通知到指定邮箱。</div>
+                </div>
+              </div>
+              <div class="setting-row">
+                <div class="setting-row-info">
+                  <div class="setting-row-title">📥 接收通知邮箱</div>
+                  <div class="setting-row-desc">接收激活通知的邮箱地址。</div>
+                </div>
+                <input type="email" id="settingNotifyTo" class="setting-input" placeholder="admin@example.com" onchange="saveSettings()">
+              </div>
+              <div class="setting-row">
+                <div class="setting-row-info">
+                  <div class="setting-row-title">📨 发件人名称</div>
+                  <div class="setting-row-desc">邮件中显示的发件人名称。</div>
+                </div>
+                <input type="text" id="settingNotifyFromName" class="setting-input setting-input-sm" placeholder="app-auth" onchange="saveSettings()">
+              </div>
+              <div class="setting-row" style="flex-direction:column;align-items:stretch;">
+                <div class="setting-row-title" style="margin-bottom:8px;">⚙️ SMTP 服务器配置</div>
+                <div class="setting-input-row">
+                  <span class="setting-input-label">服务器</span>
+                  <input type="text" id="settingSmtpHost" class="setting-input" placeholder="smtp.qq.com" onchange="saveSettings()">
+                  <span class="setting-input-label">端口</span>
+                  <input type="number" id="settingSmtpPort" class="setting-input setting-input-sm" placeholder="465" onchange="saveSettings()">
+                </div>
+                <div class="setting-input-row" style="margin-top:8px;">
+                  <span class="setting-input-label">用户名</span>
+                  <input type="text" id="settingSmtpUser" class="setting-input" placeholder="user@qq.com" onchange="saveSettings()">
+                  <span class="setting-input-label">授权码</span>
+                  <input type="password" id="settingSmtpPass" class="setting-input" placeholder="SMTP授权码" onchange="saveSettings()">
+                </div>
+              </div>
+              <div class="setting-row" style="border-bottom:none;flex-direction:column;align-items:flex-start;">
+                <button class="btn btn-primary" onclick="sendTestEmail()" id="testEmailBtn">📨 发送测试邮件</button>
+                <div class="setting-test-result" id="testEmailResult"></div>
+              </div>
             </div>
 
             <!-- 关于 -->
@@ -4696,6 +4803,13 @@
       deleteProtection: true,
       warnBeforeDelete: true,
       autoClearDeletes: true,
+      notifyEnabled: true,
+      notifyTo: 'rinuo@qq.com',
+      notifyFromName: 'app-auth',
+      smtpHost: 'smtp.qq.com',
+      smtpPort: 465,
+      smtpUser: 'rinuo@qq.com',
+      smtpPass: '',
     };
     function readSettings() {
       try {
@@ -4712,6 +4826,13 @@
         deleteProtection: !!document.getElementById('settingDeleteProtection').checked,
         warnBeforeDelete: !!document.getElementById('settingWarnBeforeDelete').checked,
         autoClearDeletes: !!document.getElementById('settingAutoClearDeletes').checked,
+        notifyEnabled: !!document.getElementById('settingNotifyEnabled').checked,
+        notifyTo: document.getElementById('settingNotifyTo').value.trim(),
+        notifyFromName: document.getElementById('settingNotifyFromName').value.trim(),
+        smtpHost: document.getElementById('settingSmtpHost').value.trim(),
+        smtpPort: parseInt(document.getElementById('settingSmtpPort').value, 10) || 465,
+        smtpUser: document.getElementById('settingSmtpUser').value.trim(),
+        smtpPass: document.getElementById('settingSmtpPass').value,
       };
       try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch (_) {}
       var hint = document.getElementById('settingsSavedHint');
@@ -4728,25 +4849,85 @@
     }
 
     function initSettingsPanel() {
-      // 模式卡片
       var m = readAdminMode();
       var lCard = document.getElementById('modeCardLocal');
       var aCard = document.getElementById('modeCardApi');
       if (lCard) lCard.classList.toggle('active', m === 'local-first');
       if (aCard) aCard.classList.toggle('active', m === 'api-always');
 
-      // 设置开关
       var s = readSettings();
       function setCheck(id, v) {
         var el = document.getElementById(id);
         if (el) el.checked = !!v;
       }
+      function setInput(id, v) {
+        var el = document.getElementById(id);
+        if (el) el.value = v != null ? String(v) : '';
+      }
       setCheck('settingDeleteProtection', s.deleteProtection);
       setCheck('settingWarnBeforeDelete', s.warnBeforeDelete);
       setCheck('settingAutoClearDeletes', s.autoClearDeletes);
+      setCheck('settingNotifyEnabled', s.notifyEnabled);
+      setInput('settingNotifyTo', s.notifyTo);
+      setInput('settingNotifyFromName', s.notifyFromName);
+      setInput('settingSmtpHost', s.smtpHost);
+      setInput('settingSmtpPort', s.smtpPort);
+      setInput('settingSmtpUser', s.smtpUser);
+      setInput('settingSmtpPass', s.smtpPass);
     }
 
     function warnBeforeDeleteEnabled() { return !!readSettings().warnBeforeDelete; }
+
+    async function sendTestEmail() {
+      var btn = document.getElementById('testEmailBtn');
+      var resultEl = document.getElementById('testEmailResult');
+      if (!btn || !resultEl) return;
+
+      var s = readSettings();
+      if (!s.notifyTo) {
+        resultEl.className = 'setting-test-result error';
+        resultEl.textContent = '❌ 请先填写接收通知邮箱';
+        return;
+      }
+      if (!s.smtpHost || !s.smtpUser || !s.smtpPass) {
+        resultEl.className = 'setting-test-result error';
+        resultEl.textContent = '❌ 请先填写完整的SMTP配置（服务器、用户名、授权码）';
+        return;
+      }
+
+      btn.disabled = true;
+      resultEl.className = 'setting-test-result loading';
+      resultEl.textContent = '⏳ 正在发送测试邮件...';
+
+      try {
+        var resp = await fetch('/api/admin/me?action=test-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'test-email',
+            notifyTo: s.notifyTo,
+            notifyFromName: s.notifyFromName || 'app-auth',
+            smtpHost: s.smtpHost,
+            smtpPort: s.smtpPort || 465,
+            smtpUser: s.smtpUser,
+            smtpPass: s.smtpPass,
+          }),
+        });
+        var data = await resp.json();
+        if (data.success) {
+          resultEl.className = 'setting-test-result success';
+          resultEl.textContent = '✅ 测试邮件发送成功！请检查收件箱 ' + s.notifyTo;
+        } else {
+          resultEl.className = 'setting-test-result error';
+          resultEl.textContent = '❌ 发送失败: ' + (data.error || 'Unknown error');
+        }
+      } catch (e) {
+        resultEl.className = 'setting-test-result error';
+        resultEl.textContent = '❌ 网络错误: ' + (e.message || '请求失败');
+      } finally {
+        btn.disabled = false;
+      }
+    }
 
     async function exportLocalData() {
       try {
