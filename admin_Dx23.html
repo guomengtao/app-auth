@@ -1284,6 +1284,47 @@
     .el-to { color: #6366f1; font-size: 0.7rem; white-space: nowrap; }
     .el-subject { flex: 1; color: #374151; font-size: 0.7rem; word-break: break-all; min-width: 120px; }
     .el-error { color: #ef4444; font-size: 0.66rem; width: 100%; padding-left: 138px; }
+    .el-expand { font-size: 0.6rem; color: #9ca3af; min-width: 14px; text-align: center; transition: transform 0.15s; }
+    .el-row:hover { background: #f3f4f6; }
+    .el-row-expanded { background: #eef2ff; border-left-color: var(--accent, #4F46E5) !important; }
+    .el-detail {
+      padding: 10px 14px 10px 30px;
+      background: #fafbfc;
+      border: 1px solid #e5e7eb;
+      border-top: none;
+      border-radius: 0 0 5px 5px;
+      margin-top: -3px;
+      margin-bottom: 6px;
+      font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
+      font-size: 0.7rem;
+    }
+    .el-detail-row {
+      display: flex;
+      gap: 12px;
+      padding: 3px 0;
+      align-items: baseline;
+    }
+    .el-detail-key {
+      color: #9ca3af;
+      white-space: nowrap;
+      min-width: 90px;
+      font-size: 0.66rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .el-detail-val {
+      color: #374151;
+      word-break: break-all;
+      font-size: 0.68rem;
+    }
+    .el-detail-divider {
+      color: #6366f1;
+      font-size: 0.66rem;
+      font-weight: 700;
+      padding: 6px 0 2px 0;
+      margin-top: 4px;
+      border-top: 1px dashed #e5e7eb;
+    }
 
     .setting-block {
       background: var(--card-bg, #fff);
@@ -4884,27 +4925,69 @@
           'test': { label: '🧪 测试邮件', cls: 'el-type-test' },
         };
 
-        listEl.innerHTML = logs.map(function(l) {
+        var html = '';
+        for (var i = 0; i < logs.length; i++) {
+          var l = logs[i];
           var st = statusMap[l.status] || { label: l.status, cls: '' };
           var tp = typeMap[l.type] || { label: l.type, cls: '' };
           var timeStr = '';
           if (l.time) {
             try { timeStr = new Date(l.time).toLocaleString('zh-CN'); } catch (_) { timeStr = l.time; }
           }
-          return '<div class="el-row">' +
+          var detailId = 'elDetail' + i;
+          var visitor = l.visitor || null;
+
+          html += '<div class="el-row" onclick="toggleElDetail(\'' + detailId + '\', this)" style="cursor:pointer;user-select:none;">' +
+            '<span class="el-expand">▶</span>' +
             '<span class="el-time">' + escapeHtml(timeStr) + '</span>' +
             '<span class="el-type ' + tp.cls + '">' + tp.label + '</span>' +
             '<span class="el-status ' + st.cls + '">' + st.label + '</span>' +
             '<span class="el-to">→ ' + escapeHtml(l.to || '') + '</span>' +
             '<span class="el-subject">' + escapeHtml((l.subject || '').substring(0, 60)) + '</span>' +
-            (l.error ? '<span class="el-error">' + escapeHtml(l.error) + '</span>' : '') +
             '</div>';
-        }).join('');
+
+          html += '<div class="el-detail" id="' + detailId + '" style="display:none;">';
+          if (l.error) {
+            html += '<div class="el-detail-row"><span class="el-detail-key">Error</span><span class="el-detail-val" style="color:#ef4444;">' + escapeHtml(l.error) + '</span></div>';
+          }
+          html += '<div class="el-detail-row"><span class="el-detail-key">Subject</span><span class="el-detail-val">' + escapeHtml(l.subject || '') + '</span></div>';
+          html += '<div class="el-detail-row"><span class="el-detail-key">Source</span><span class="el-detail-val">' + escapeHtml(l.source || '') + '</span></div>';
+
+          if (visitor) {
+            html += '<div class="el-detail-divider">👤 Visitor Info</div>';
+            if (visitor.ip) html += '<div class="el-detail-row"><span class="el-detail-key">IP Address</span><span class="el-detail-val">' + escapeHtml(visitor.ip) + '</span></div>';
+            if (visitor.os) html += '<div class="el-detail-row"><span class="el-detail-key">OS</span><span class="el-detail-val">' + escapeHtml(visitor.os) + '</span></div>';
+            if (visitor.browser) html += '<div class="el-detail-row"><span class="el-detail-key">Browser</span><span class="el-detail-val">' + escapeHtml(visitor.browser) + '</span></div>';
+            if (visitor.device) html += '<div class="el-detail-row"><span class="el-detail-key">Device</span><span class="el-detail-val">' + escapeHtml(visitor.device) + '</span></div>';
+            if (visitor.userAgent) html += '<div class="el-detail-row"><span class="el-detail-key">User-Agent</span><span class="el-detail-val">' + escapeHtml(visitor.userAgent) + '</span></div>';
+            if (visitor.referer) html += '<div class="el-detail-row"><span class="el-detail-key">Referer</span><span class="el-detail-val">' + escapeHtml(visitor.referer) + '</span></div>';
+            if (visitor.origin) html += '<div class="el-detail-row"><span class="el-detail-key">Origin</span><span class="el-detail-val">' + escapeHtml(visitor.origin) + '</span></div>';
+            if (visitor.host) html += '<div class="el-detail-row"><span class="el-detail-key">Host</span><span class="el-detail-val">' + escapeHtml(visitor.host) + '</span></div>';
+            if (visitor.language) html += '<div class="el-detail-row"><span class="el-detail-key">Language</span><span class="el-detail-val">' + escapeHtml(visitor.language) + '</span></div>';
+          }
+          html += '</div>';
+        }
+        listEl.innerHTML = html;
 
         showToast('邮件日志加载成功 - ' + logs.length + ' 条记录', 'success');
       } catch (e) {
         console.error('loadEmailLogs failed:', e);
         listEl.innerHTML = '<div class="empty" style="color:#ef4444;">加载失败: ' + escapeHtml(e.message || '') + '</div>';
+      }
+    }
+
+    function toggleElDetail(id, rowEl) {
+      var detail = document.getElementById(id);
+      if (!detail) return;
+      var expand = rowEl.querySelector('.el-expand');
+      if (detail.style.display === 'none') {
+        detail.style.display = '';
+        if (expand) expand.textContent = '▼';
+        rowEl.classList.add('el-row-expanded');
+      } else {
+        detail.style.display = 'none';
+        if (expand) expand.textContent = '▶';
+        rowEl.classList.remove('el-row-expanded');
       }
     }
 
