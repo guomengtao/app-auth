@@ -3019,7 +3019,7 @@
             <!-- 邮件通知 -->
             <div class="setting-block">
               <h3 class="setting-title">📧 邮件通知设置</h3>
-              <p class="setting-desc">配置SMTP邮件服务器，开启后在激活产品时自动发送邮件通知。</p>
+              <p class="setting-desc">默认使用 Resend API 发送邮件（域名 ev.mail.gudq.com 已验证），也可切换为 SMTP。</p>
               <div class="setting-row">
                 <label class="setting-switch">
                   <input type="checkbox" id="settingNotifyEnabled" onchange="saveSettings()">
@@ -3044,45 +3044,82 @@
                 </div>
                 <input type="text" id="settingNotifyFromName" class="setting-input setting-input-sm" placeholder="app-auth" onchange="saveSettings()">
               </div>
+
+              <!-- 邮件发送方式选择 -->
               <div class="setting-row" style="flex-direction:column;align-items:stretch;">
-                <div class="setting-row-title" style="margin-bottom:8px;">⚙️ SMTP 服务器配置</div>
-                <div class="setting-input-row" style="margin-bottom:8px;">
-                  <span class="setting-input-label">预设配置</span>
-                  <select id="settingEmailPreset" class="setting-input" style="max-width:200px" onchange="applyEmailPreset()">
-                    <option value="">-- 自定义 --</option>
-                    <option value="qq">QQ邮箱</option>
-                    <option value="163">163邮箱</option>
-                    <option value="gmail">Gmail</option>
-                  </select>
-                </div>
-                <div class="setting-input-row">
-                  <span class="setting-input-label">服务器</span>
-                  <input type="text" id="settingSmtpHost" class="setting-input" placeholder="smtp.qq.com" onchange="saveSettings()">
-                  <span class="setting-input-label">端口</span>
-                  <input type="number" id="settingSmtpPort" class="setting-input setting-input-sm" placeholder="465" onchange="saveSettings()">
-                </div>
-                <div class="setting-input-row" style="margin-top:8px;">
-                  <span class="setting-input-label">用户名</span>
-                  <input type="text" id="settingSmtpUser" class="setting-input" placeholder="user@qq.com" onchange="saveSettings()">
-                  <span class="setting-input-label">授权码</span>
-                  <span class="smtp-pass-wrap">
-                    <input type="text" id="settingSmtpPass" class="setting-input" placeholder="SMTP授权码" onchange="saveSettings()" style="padding-right:32px">
-                    <button type="button" class="smtp-pass-toggle" onclick="toggleSmtpPassVisibility()" title="显示/隐藏授权码" tabindex="-1">👁️</button>
-                  </span>
+                <div class="setting-row-title" style="margin-bottom:8px;">📮 邮件发送方式</div>
+                <div class="setting-input-row" style="margin-bottom:12px;">
+                  <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 16px;border:1px solid var(--line);border-radius:8px;margin-right:12px" id="providerResendLabel">
+                    <input type="radio" name="emailProvider" value="resend" onchange="switchEmailProvider('resend')" checked>
+                    <span>🔵 Resend API（默认）</span>
+                  </label>
+                  <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 16px;border:1px solid var(--line);border-radius:8px" id="providerSmtpLabel">
+                    <input type="radio" name="emailProvider" value="smtp" onchange="switchEmailProvider('smtp')">
+                    <span>🟠 SMTP</span>
+                  </label>
                 </div>
               </div>
 
-              <!-- 已保存的邮件配置 -->
-              <div class="setting-row" style="flex-direction:column;align-items:stretch;">
-                <div class="setting-row-title" style="margin-bottom:4px;">📋 已保存的邮件配置（点击可切换）</div>
-                <div class="email-config-list" id="emailConfigList"></div>
+              <!-- Resend 配置 -->
+              <div id="emailResendSection">
+                <div class="setting-row" style="flex-direction:column;align-items:stretch;">
+                  <div class="setting-row-title" style="margin-bottom:8px;">🔵 Resend API 配置</div>
+                  <div class="setting-input-row">
+                    <span class="setting-input-label">发件地址</span>
+                    <input type="text" id="settingResendFrom" class="setting-input" placeholder="系统告警 <notify@ev.mail.gudq.com>" onchange="saveSettings()">
+                  </div>
+                  <div class="setting-input-row" style="margin-top:8px;">
+                    <span class="setting-input-label">API Key</span>
+                    <span class="smtp-pass-wrap">
+                      <input type="password" id="settingResendKey" class="setting-input" placeholder="re_xxx..." onchange="saveSettings()" style="padding-right:32px">
+                      <button type="button" class="smtp-pass-toggle" onclick="toggleResendKeyVisibility()" title="显示/隐藏" tabindex="-1">👁️</button>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- SMTP 配置 -->
+              <div id="emailSmtpSection" style="display:none;">
+                <div class="setting-row" style="flex-direction:column;align-items:stretch;">
+                  <div class="setting-row-title" style="margin-bottom:8px;">⚙️ SMTP 服务器配置</div>
+                  <div class="setting-input-row" style="margin-bottom:8px;">
+                    <span class="setting-input-label">预设配置</span>
+                    <select id="settingEmailPreset" class="setting-input" style="max-width:200px" onchange="applyEmailPreset()">
+                      <option value="">-- 自定义 --</option>
+                      <option value="qq">QQ邮箱</option>
+                      <option value="163">163邮箱</option>
+                      <option value="gmail">Gmail</option>
+                    </select>
+                  </div>
+                  <div class="setting-input-row">
+                    <span class="setting-input-label">服务器</span>
+                    <input type="text" id="settingSmtpHost" class="setting-input" placeholder="smtp.qq.com" onchange="saveSettings()">
+                    <span class="setting-input-label">端口</span>
+                    <input type="number" id="settingSmtpPort" class="setting-input setting-input-sm" placeholder="465" onchange="saveSettings()">
+                  </div>
+                  <div class="setting-input-row" style="margin-top:8px;">
+                    <span class="setting-input-label">用户名</span>
+                    <input type="text" id="settingSmtpUser" class="setting-input" placeholder="user@qq.com" onchange="saveSettings()">
+                    <span class="setting-input-label">授权码</span>
+                    <span class="smtp-pass-wrap">
+                      <input type="text" id="settingSmtpPass" class="setting-input" placeholder="SMTP授权码" onchange="saveSettings()" style="padding-right:32px">
+                      <button type="button" class="smtp-pass-toggle" onclick="toggleSmtpPassVisibility()" title="显示/隐藏授权码" tabindex="-1">👁️</button>
+                    </span>
+                  </div>
+                </div>
+
+                <!-- 已保存的邮件配置 -->
+                <div class="setting-row" style="flex-direction:column;align-items:stretch;">
+                  <div class="setting-row-title" style="margin-bottom:4px;">📋 已保存的邮件配置（点击可切换）</div>
+                  <div class="email-config-list" id="emailConfigList"></div>
+                </div>
               </div>
 
               <div class="setting-row" style="border-bottom:none;flex-direction:column;align-items:flex-start;">
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
                   <button class="btn btn-primary" onclick="sendTestEmail()" id="testEmailBtn">📨 发送测试邮件</button>
                   <button class="btn btn-outline" onclick="saveEmailSettings()">💾 保存设置</button>
-                  <button class="btn btn-outline" onclick="saveCurrentAsEmailConfig()">➕ 保存为新配置</button>
+                  <button class="btn btn-outline" onclick="saveCurrentAsEmailConfig()" id="saveEmailConfigBtn">➕ 保存为新配置</button>
                 </div>
                 <div class="setting-test-result" id="testEmailResult"></div>
                 <div class="test-email-detail" id="testEmailDetail"></div>
@@ -5288,7 +5325,10 @@
       notifyEnabled: true,
       notifyTo: 'guomengtao@gmail.com',
       notifyFromName: 'app-auth',
+      emailProvider: 'resend',
       emailPreset: '',
+      resendFrom: 'System Alert <notify@ev.mail.gudq.com>',
+      resendKey: '',
       smtpHost: 'smtp.qq.com',
       smtpPort: 465,
       smtpUser: 'rinuo@qq.com',
@@ -5319,7 +5359,10 @@
         notifyEnabled: !!document.getElementById('settingNotifyEnabled').checked,
         notifyTo: document.getElementById('settingNotifyTo').value.trim(),
         notifyFromName: document.getElementById('settingNotifyFromName').value.trim(),
+        emailProvider: getSelectedEmailProvider(),
         emailPreset: document.getElementById('settingEmailPreset').value,
+        resendFrom: document.getElementById('settingResendFrom').value.trim(),
+        resendKey: document.getElementById('settingResendKey').value.trim(),
         smtpHost: document.getElementById('settingSmtpHost').value.trim(),
         smtpPort: parseInt(document.getElementById('settingSmtpPort').value, 10) || 465,
         smtpUser: document.getElementById('settingSmtpUser').value.trim(),
@@ -5363,10 +5406,19 @@
       setInput('settingNotifyTo', s.notifyTo);
       setInput('settingNotifyFromName', s.notifyFromName);
       setInput('settingEmailPreset', s.emailPreset);
+      setInput('settingResendFrom', s.resendFrom);
+      setInput('settingResendKey', s.resendKey);
       setInput('settingSmtpHost', s.smtpHost);
       setInput('settingSmtpPort', s.smtpPort);
       setInput('settingSmtpUser', s.smtpUser);
       setInput('settingSmtpPass', s.smtpPass);
+
+      var provider = s.emailProvider || 'resend';
+      var radios = document.getElementsByName('emailProvider');
+      for (var i = 0; i < radios.length; i++) {
+        if (radios[i].value === provider) radios[i].checked = true;
+      }
+      switchEmailProvider(provider);
       renderEmailConfigList();
     }
 
@@ -5487,6 +5539,31 @@
       }
     }
 
+    function toggleResendKeyVisibility() {
+      var el = document.getElementById('settingResendKey');
+      if (!el) return;
+      var btn = el.nextElementSibling;
+      if (el.type === 'password') {
+        el.type = 'text';
+        if (btn) btn.textContent = '🙈';
+      } else {
+        el.type = 'password';
+        if (btn) btn.textContent = '👁️';
+      }
+    }
+
+    function switchEmailProvider(provider) {
+      var resendSection = document.getElementById('emailResendSection');
+      var smtpSection = document.getElementById('emailSmtpSection');
+      var resendLabel = document.getElementById('providerResendLabel');
+      var smtpLabel = document.getElementById('providerSmtpLabel');
+      if (resendSection) resendSection.style.display = provider === 'resend' ? '' : 'none';
+      if (smtpSection) smtpSection.style.display = provider === 'smtp' ? '' : 'none';
+      if (resendLabel) resendLabel.style.borderColor = provider === 'resend' ? 'var(--accent)' : 'var(--line)';
+      if (smtpLabel) smtpLabel.style.borderColor = provider === 'smtp' ? 'var(--accent)' : 'var(--line)';
+      saveSettings();
+    }
+
     async function sendTestEmail() {
       var btn = document.getElementById('testEmailBtn');
       var resultEl = document.getElementById('testEmailResult');
@@ -5495,10 +5572,7 @@
 
       var notifyTo = (document.getElementById('settingNotifyTo').value || '').trim();
       var notifyFromName = (document.getElementById('settingNotifyFromName').value || '').trim();
-      var smtpHost = (document.getElementById('settingSmtpHost').value || '').trim();
-      var smtpPort = parseInt(document.getElementById('settingSmtpPort').value, 10) || 465;
-      var smtpUser = (document.getElementById('settingSmtpUser').value || '').trim();
-      var smtpPass = (document.getElementById('settingSmtpPass').value || '').trim();
+      var provider = getSelectedEmailProvider();
 
       if (!notifyTo) {
         resultEl.className = 'setting-test-result error';
@@ -5506,23 +5580,52 @@
         if (detailEl) detailEl.innerHTML = '';
         return;
       }
-      if (!smtpHost) {
-        resultEl.className = 'setting-test-result error';
-        resultEl.textContent = '❌ 请先填写SMTP服务器地址';
-        if (detailEl) detailEl.innerHTML = '';
-        return;
-      }
-      if (!smtpUser) {
-        resultEl.className = 'setting-test-result error';
-        resultEl.textContent = '❌ 请先填写SMTP用户名';
-        if (detailEl) detailEl.innerHTML = '';
-        return;
-      }
-      if (!smtpPass) {
-        resultEl.className = 'setting-test-result error';
-        resultEl.textContent = '❌ 请先填写SMTP授权码';
-        if (detailEl) detailEl.innerHTML = '';
-        return;
+
+      var body = {
+        action: 'test-email',
+        notifyTo: notifyTo,
+        notifyFromName: notifyFromName || 'app-auth',
+        provider: provider,
+      };
+
+      if (provider === 'resend') {
+        var resendFrom = (document.getElementById('settingResendFrom').value || '').trim();
+        var resendKey = (document.getElementById('settingResendKey').value || '').trim();
+        if (!resendKey) {
+          resultEl.className = 'setting-test-result error';
+          resultEl.textContent = '❌ 请先填写 Resend API Key';
+          if (detailEl) detailEl.innerHTML = '';
+          return;
+        }
+        body.resendFrom = resendFrom;
+        body.resendKey = resendKey;
+      } else {
+        var smtpHost = (document.getElementById('settingSmtpHost').value || '').trim();
+        var smtpPort = parseInt(document.getElementById('settingSmtpPort').value, 10) || 465;
+        var smtpUser = (document.getElementById('settingSmtpUser').value || '').trim();
+        var smtpPass = (document.getElementById('settingSmtpPass').value || '').trim();
+        if (!smtpHost) {
+          resultEl.className = 'setting-test-result error';
+          resultEl.textContent = '❌ 请先填写SMTP服务器地址';
+          if (detailEl) detailEl.innerHTML = '';
+          return;
+        }
+        if (!smtpUser) {
+          resultEl.className = 'setting-test-result error';
+          resultEl.textContent = '❌ 请先填写SMTP用户名';
+          if (detailEl) detailEl.innerHTML = '';
+          return;
+        }
+        if (!smtpPass) {
+          resultEl.className = 'setting-test-result error';
+          resultEl.textContent = '❌ 请先填写SMTP授权码';
+          if (detailEl) detailEl.innerHTML = '';
+          return;
+        }
+        body.smtpHost = smtpHost;
+        body.smtpPort = smtpPort;
+        body.smtpUser = smtpUser;
+        body.smtpPass = smtpPass;
       }
 
       btn.disabled = true;
@@ -5534,15 +5637,7 @@
         var resp = await fetch('/api/admin/me?action=test-email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'test-email',
-            notifyTo: notifyTo,
-            notifyFromName: notifyFromName || 'app-auth',
-            smtpHost: smtpHost,
-            smtpPort: smtpPort,
-            smtpUser: smtpUser,
-            smtpPass: smtpPass,
-          }),
+          body: JSON.stringify(body),
         });
         var data = await resp.json();
 
@@ -5565,18 +5660,26 @@
         }
 
         if (data.config) {
-          detailHtml += '<div class="test-email-detail-section"><strong>📋 配置信息：</strong>' +
-            '<br>服务器：' + escapeHtml(data.config.host) + ':' + data.config.port +
-            '<br>发件人：' + escapeHtml(data.config.user) +
-            '<br>收件人：' + escapeHtml(data.config.to) +
-            (data.config.fromName ? '<br>发件名称：' + escapeHtml(data.config.fromName) : '') +
-            (data.config.time ? '<br>发送时间：' + escapeHtml(data.config.time) : '') +
-            '</div>';
+          var cfg = data.config;
+          detailHtml += '<div class="test-email-detail-section"><strong>📋 配置信息：</strong>';
+          if (cfg.provider === 'resend') {
+            detailHtml += '<br>发送方式：Resend API' +
+              '<br>发件人：' + escapeHtml(cfg.from || '') +
+              '<br>收件人：' + escapeHtml(cfg.to || '') +
+              (cfg.time ? '<br>发送时间：' + escapeHtml(cfg.time) : '');
+          } else {
+            detailHtml += '<br>服务器：' + escapeHtml(cfg.host) + ':' + cfg.port +
+              '<br>发件人：' + escapeHtml(cfg.user) +
+              '<br>收件人：' + escapeHtml(cfg.to) +
+              (cfg.fromName ? '<br>发件名称：' + escapeHtml(cfg.fromName) : '') +
+              (cfg.time ? '<br>发送时间：' + escapeHtml(cfg.time) : '');
+          }
+          detailHtml += '</div>';
         }
 
         if (data.steps && data.steps.length > 0) {
-          detailHtml += '<div class="test-email-detail-section"><strong>📡 SMTP 交互详情：</strong>' +
-            '<table class="test-email-steps-table"><thead><tr><th>步骤</th><th>命令</th><th>服务器响应</th></tr></thead><tbody>';
+          detailHtml += '<div class="test-email-detail-section"><strong>📡 交互详情：</strong>' +
+            '<table class="test-email-steps-table"><thead><tr><th>步骤</th><th>命令</th><th>响应</th></tr></thead><tbody>';
           data.steps.forEach(function(step, i) {
             var respDisplay = step.response.length > 200 ? step.response.substring(0, 200) + '...' : step.response;
             detailHtml += '<tr class="' + (step.ok ? 'step-ok' : 'step-fail') + '">' +
@@ -5596,6 +5699,14 @@
       } finally {
         btn.disabled = false;
       }
+    }
+
+    function getSelectedEmailProvider() {
+      var radios = document.getElementsByName('emailProvider');
+      for (var i = 0; i < radios.length; i++) {
+        if (radios[i].checked) return radios[i].value;
+      }
+      return 'resend';
     }
 
     function saveEmailSettings() {
