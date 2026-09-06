@@ -3115,7 +3115,16 @@
                 </div>
               </div>
 
-              <div class="setting-row" style="border-bottom:none;flex-direction:column;align-items:flex-start;">
+              <div class="setting-row" style="border-bottom:none;flex-direction:column;align-items:stretch;">
+                <div class="setting-row-title" style="margin-bottom:8px;">📝 自定义测试邮件内容（可选，留空使用默认）</div>
+                <div class="setting-input-row" style="margin-bottom:8px;">
+                  <span class="setting-input-label">标题</span>
+                  <input type="text" id="settingTestSubject" class="setting-input" placeholder="[Test] app-auth Email Notification Test">
+                </div>
+                <div class="setting-input-row" style="margin-bottom:12px;">
+                  <span class="setting-input-label">内容</span>
+                  <textarea id="settingTestBody" class="setting-input" placeholder="自定义邮件正文..." style="min-height:60px;resize:vertical;"></textarea>
+                </div>
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
                   <button class="btn btn-primary" onclick="sendTestEmail()" id="testEmailBtn">📨 发送测试邮件</button>
                   <button class="btn btn-outline" onclick="saveEmailSettings()">💾 保存设置</button>
@@ -5323,7 +5332,7 @@
       autoClearDeletes: true,
       pageSize: 10,
       notifyEnabled: true,
-      notifyTo: 'guomengtao@gmail.com',
+      notifyTo: 'rinuo@qq.com',
       notifyFromName: 'app-auth',
       emailProvider: 'resend',
       emailPreset: '',
@@ -5573,6 +5582,8 @@
       var notifyTo = (document.getElementById('settingNotifyTo').value || '').trim();
       var notifyFromName = (document.getElementById('settingNotifyFromName').value || '').trim();
       var provider = getSelectedEmailProvider();
+      var customSubject = (document.getElementById('settingTestSubject').value || '').trim();
+      var customBody = (document.getElementById('settingTestBody').value || '').trim();
 
       if (!notifyTo) {
         resultEl.className = 'setting-test-result error';
@@ -5586,6 +5597,8 @@
         notifyTo: notifyTo,
         notifyFromName: notifyFromName || 'app-auth',
         provider: provider,
+        customSubject: customSubject,
+        customBody: customBody,
       };
 
       if (provider === 'resend') {
