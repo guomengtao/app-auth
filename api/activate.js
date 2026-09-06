@@ -44,6 +44,12 @@ function normalizeMonths(months) {
   return n;
 }
 
+function buildNotificationStatus(result) {
+  if (result && result.sent) return "sent";
+  if (result && result.error) return "email_failed";
+  return "skipped";
+}
+
 module.exports = async (req, res) => {
   try { quota.bumpQuotaTick("/api/activate"); } catch (_) {}
   if (req.method !== "POST") {
@@ -57,7 +63,7 @@ module.exports = async (req, res) => {
 
   var ipCheck = await rateLimit.checkIpRateLimit(req);
   if (ipCheck.blocked) {
-    notify.sendActivationFailure(req, {
+    var ipNotifyResult = await notify.sendActivationFailure(req, {
       reason: ipCheck.reason,
       redeemCode: rawRedeemCode || "",
       deviceId: rawDeviceId || "",
@@ -66,7 +72,7 @@ module.exports = async (req, res) => {
       source: "user",
     }).catch(function () {});
     res.setHeader("Retry-After", Math.ceil(ipCheck.retryAfterMs / 1000));
-    return res.status(429).json({ success: false, error: ipCheck.reason, debug: { visitor: visitorInfo, notification: "failure", reason: ipCheck.reason } });
+    return res.status(429).json({ success: false, error: ipCheck.reason, debug: { visitor: visitorInfo, notification: buildNotificationStatus(ipNotifyResult), reason: ipCheck.reason } });
   }
 
   try {
@@ -75,7 +81,7 @@ module.exports = async (req, res) => {
 
     var deviceCheck = validateDeviceId(deviceId);
     if (!deviceCheck.valid) {
-      notify.sendActivationFailure(req, {
+      var deviceNotifyResult = await notify.sendActivationFailure(req, {
         reason: deviceCheck.error,
         redeemCode: redeemCode || "",
         deviceId: deviceId || "",
@@ -83,12 +89,12 @@ module.exports = async (req, res) => {
         months: "",
         source: "user",
       }).catch(function () {});
-      return res.status(400).json({ success: false, error: deviceCheck.error, debug: { visitor: visitorInfo, notification: "failure", reason: deviceCheck.error } });
+      return res.status(400).json({ success: false, error: deviceCheck.error, debug: { visitor: visitorInfo, notification: buildNotificationStatus(deviceNotifyResult), reason: deviceCheck.error } });
     }
 
     var codeCheck = validateRedeemCode(redeemCode);
     if (!codeCheck.valid) {
-      notify.sendActivationFailure(req, {
+      var codeNotifyResult = await notify.sendActivationFailure(req, {
         reason: codeCheck.error,
         redeemCode: redeemCode || "",
         deviceId: deviceCheck.value || "",
@@ -96,7 +102,7 @@ module.exports = async (req, res) => {
         months: "",
         source: "user",
       }).catch(function () {});
-      return res.status(400).json({ success: false, error: codeCheck.error, debug: { visitor: visitorInfo, notification: "failure", reason: codeCheck.error } });
+      return res.status(400).json({ success: false, error: codeCheck.error, debug: { visitor: visitorInfo, notification: buildNotificationStatus(codeNotifyResult), reason: codeCheck.error } });
     }
 
     var code = codeCheck.value;
@@ -104,7 +110,7 @@ module.exports = async (req, res) => {
 
     var deviceCheck2 = await rateLimit.checkDeviceRateLimit(device);
     if (deviceCheck2.blocked) {
-      notify.sendActivationFailure(req, {
+      var device2NotifyResult = await notify.sendActivationFailure(req, {
         reason: deviceCheck2.reason,
         redeemCode: code,
         deviceId: device,
@@ -113,14 +119,14 @@ module.exports = async (req, res) => {
         source: "user",
       }).catch(function () {});
       res.setHeader("Retry-After", Math.ceil(deviceCheck2.retryAfterMs / 1000));
-      return res.status(429).json({ success: false, error: deviceCheck2.reason, debug: { visitor: visitorInfo, notification: "failure", reason: deviceCheck2.reason } });
+      return res.status(429).json({ success: false, error: deviceCheck2.reason, debug: { visitor: visitorInfo, notification: buildNotificationStatus(device2NotifyResult), reason: deviceCheck2.reason } });
     }
 
     var deviceHash = crypto.sha256(device);
 
     var codeData = await redis.get("auth:redeem:" + code);
     if (!codeData) {
-      notify.sendActivationFailure(req, {
+      var codeNotFoundResult = await notify.sendActivationFailure(req, {
         reason: "兑换码不存在或尚未同步到服务器",
         redeemCode: code,
         deviceId: device,
@@ -128,12 +134,12 @@ module.exports = async (req, res) => {
         months: "",
         source: "user",
       }).catch(function () {});
-      return res.status(400).json({ success: false, error: "兑换码不存在或尚未同步到服务器，请在管理后台同步后重试", debug: { visitor: visitorInfo, notification: "failure", reason: "兑换码不存在" } });
+      return res.status(400).json({ success: false, error: "兑换码不存在或尚未同步到服务器，请在管理后台同步后重试", debug: { visitor: visitorInfo, notification: buildNotificationStatus(codeNotFoundResult), reason: "兑换码不存在" } });
     }
 
     var info = parseRedisJson(codeData);
     if (!info) {
-      notify.sendActivationFailure(req, {
+      var corruptNotifyResult = await notify.sendActivationFailure(req, {
         reason: "兑换码数据已损坏",
         redeemCode: code,
         deviceId: device,
@@ -142,13 +148,13 @@ module.exports = async (req, res) => {
         source: "user",
       }).catch(function () {});
       console.error("Activate: invalid redeem payload", typeof codeData, codeData);
-      return res.status(500).json({ success: false, error: "兑换码数据已损坏，请联系管理员", debug: { visitor: visitorInfo, notification: "failure", reason: "兑换码数据已损坏" } });
+      return res.status(500).json({ success: false, error: "兑换码数据已损坏，请联系管理员", debug: { visitor: visitorInfo, notification: buildNotificationStatus(corruptNotifyResult), reason: "兑换码数据已损坏" } });
     }
 
     var productId = normalizeProductId(info.product_id);
     var months = normalizeMonths(info.duration_months);
     if (!productId || !months) {
-      notify.sendActivationFailure(req, {
+      var configNotifyResult = await notify.sendActivationFailure(req, {
         reason: "兑换码配置异常（商品或时长无效）",
         redeemCode: code,
         deviceId: device,
@@ -160,7 +166,7 @@ module.exports = async (req, res) => {
       return res.status(500).json({
         success: false,
         error: "兑换码配置异常（商品或时长无效），请联系管理员",
-        debug: { visitor: visitorInfo, notification: "failure", reason: "兑换码配置异常" },
+        debug: { visitor: visitorInfo, notification: buildNotificationStatus(configNotifyResult), reason: "兑换码配置异常" },
       });
     }
 
@@ -227,7 +233,7 @@ module.exports = async (req, res) => {
 
         return res.json({ success: true, activationCode: activationCodeReuse, debug: { visitor: visitorInfo, notification: "success", productId: productId, months: months } });
       }
-      notify.sendActivationFailure(req, {
+      var alreadyUsedNotifyResult = await notify.sendActivationFailure(req, {
         reason: "该兑换码已被其他设备使用过，无法重复激活",
         redeemCode: code,
         deviceId: device,
@@ -238,7 +244,7 @@ module.exports = async (req, res) => {
       return res.status(400).json({
         success: false,
         error: "该兑换码已被其他设备使用过，无法重复激活",
-        debug: { visitor: visitorInfo, notification: "failure", reason: "该兑换码已被其他设备使用过" },
+        debug: { visitor: visitorInfo, notification: buildNotificationStatus(alreadyUsedNotifyResult), reason: "该兑换码已被其他设备使用过" },
       });
     }
 
@@ -315,7 +321,7 @@ module.exports = async (req, res) => {
     } else if (error && /connection|ECONNREFUSED|ENOTFOUND|Unauthorized|401|403/i.test(String(error.message || ""))) {
       msg = "服务器数据库连接失败，请稍后重试或联系管理员";
     }
-    notify.sendActivationFailure(req, {
+    var catchNotifyResult = await notify.sendActivationFailure(req, {
       reason: msg,
       redeemCode: rawRedeemCode || "",
       deviceId: rawDeviceId || "",
@@ -323,6 +329,6 @@ module.exports = async (req, res) => {
       months: "",
       source: "user",
     }).catch(function () {});
-    return res.status(500).json({ success: false, error: msg, debug: { visitor: visitorInfo, notification: "failure", reason: msg } });
+    return res.status(500).json({ success: false, error: msg, debug: { visitor: visitorInfo, notification: buildNotificationStatus(catchNotifyResult), reason: msg } });
   }
 };
