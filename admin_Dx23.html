@@ -2772,6 +2772,7 @@
             <div class="logs-tabs" style="display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid var(--line,#e5e7eb);">
               <button class="logs-tab active" onclick="switchLogsTab('system')" id="logsTabSystem" style="padding:8px 20px;border:none;background:none;font-size:0.84rem;font-weight:600;color:var(--accent);cursor:pointer;border-bottom:2px solid var(--accent);margin-bottom:-2px;transition:all 0.15s;">🚀 系统日志</button>
               <button class="logs-tab" onclick="switchLogsTab('email')" id="logsTabEmail" style="padding:8px 20px;border:none;background:none;font-size:0.84rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">📧 邮件日志</button>
+              <button class="logs-tab" onclick="switchLogsTab('resend')" id="logsTabResend" style="padding:8px 20px;border:none;background:none;font-size:0.84rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">📬 Resend平台</button>
               <button class="logs-tab" onclick="switchLogsTab('afdian-dm')" id="logsTabAfdianDm" style="padding:8px 20px;border:none;background:none;font-size:0.84rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">💬 爱发电私信日志</button>
             </div>
 
@@ -2796,6 +2797,18 @@
                   <button class="btn btn-outline" onclick="loadEmailLogs()" style="margin-left:6px">🔄 刷新</button>
                 </div>
                 <div id="emailLogsList" class="health-log-list"></div>
+              </div>
+            </div>
+
+            <div id="logsSectionResend" style="display:none;">
+              <div class="setting-block">
+                <h3 class="setting-title">📬 Resend 平台实际发送记录</h3>
+                <p class="setting-desc">直接从 Resend API 拉取的实际邮件发送记录，包括送达状态、退信、拒收等。与本地日志对比可发现不一致。</p>
+                <div style="margin-bottom:10px">
+                  <button class="btn btn-primary" onclick="loadResendLogs()">📬 拉取Resend记录</button>
+                  <button class="btn btn-outline" onclick="loadResendLogs()" style="margin-left:6px">🔄 刷新</button>
+                </div>
+                <div id="resendLogsList" class="health-log-list"></div>
               </div>
             </div>
 
@@ -5239,6 +5252,71 @@
       }
     }
 
+    async function loadResendLogs() {
+      var listEl = document.getElementById('resendLogsList');
+      if (!listEl) return;
+      listEl.innerHTML = '<div class="empty">加载中...</div>';
+
+      try {
+        var data = await api('/api/admin/health?section=resend-logs');
+        if (!data.success) {
+          listEl.innerHTML = '<div class="empty" style="text-align:left;color:#f59e0b;">⚠️ ' + escapeHtml(data.error || 'Resend 日志不可用') + '</div>';
+          showToast('Resend 日志加载失败', 'error');
+          return;
+        }
+
+        var logs = data.logs || [];
+        if (!logs.length) {
+          listEl.innerHTML = '<div class="empty">暂无 Resend 发送记录</div>';
+          return;
+        }
+
+        var statusMap = {
+          'delivered': { label: '✅ 已送达', cls: 'el-status-success' },
+          'bounced': { label: '↩️ 退信', cls: 'el-status-failed' },
+          'complained': { label: '🚫 投诉', cls: 'el-status-failed' },
+          'queued': { label: '⏳ 队列中', cls: 'el-status-skipped' },
+          'sent': { label: '📤 已发送', cls: 'el-status-skipped' },
+          'clicked': { label: '👆 已点击', cls: 'el-status-success' },
+          'opened': { label: '📖 已打开', cls: 'el-status-success' },
+          'delivery_delayed': { label: '⏰ 延迟', cls: 'el-status-skipped' },
+        };
+
+        var html = '';
+        for (var i = 0; i < logs.length; i++) {
+          var l = logs[i];
+          var st = statusMap[l.status] || { label: l.status || 'unknown', cls: '' };
+          var timeStr = '';
+          if (l.created_at) {
+            try { timeStr = new Date(l.created_at).toLocaleString('zh-CN'); } catch (_) { timeStr = l.created_at; }
+          }
+          var detailId = 'rlDetail' + i;
+
+          html += '<div class="el-row" onclick="toggleElDetail(\'' + detailId + '\', this)" style="cursor:pointer;user-select:none;">' +
+            '<span class="el-expand">▶</span>' +
+            '<span class="el-time">' + escapeHtml(timeStr) + '</span>' +
+            '<span class="el-status ' + st.cls + '">' + st.label + '</span>' +
+            '<span class="el-to">→ ' + escapeHtml(l.to || '') + '</span>' +
+            '<span class="el-subject">' + escapeHtml((l.subject || '').substring(0, 60)) + '</span>' +
+            '</div>';
+
+          html += '<div class="el-detail" id="' + detailId + '" style="display:none;">';
+          html += '<div class="el-detail-row"><span class="el-detail-key">Subject</span><span class="el-detail-val">' + escapeHtml(l.subject || '') + '</span></div>';
+          html += '<div class="el-detail-row"><span class="el-detail-key">From</span><span class="el-detail-val">' + escapeHtml(l.from || '') + '</span></div>';
+          html += '<div class="el-detail-row"><span class="el-detail-key">To</span><span class="el-detail-val">' + escapeHtml(l.to || '') + '</span></div>';
+          html += '<div class="el-detail-row"><span class="el-detail-key">Status</span><span class="el-detail-val">' + st.label + '</span></div>';
+          html += '<div class="el-detail-row"><span class="el-detail-key">Resend ID</span><span class="el-detail-val" style="font-family:monospace;font-size:0.7rem">' + escapeHtml(l.id || '') + '</span></div>';
+          html += '</div>';
+        }
+        listEl.innerHTML = html;
+
+        showToast('Resend 日志加载成功 - ' + logs.length + ' 条记录', 'success');
+      } catch (e) {
+        console.error('loadResendLogs failed:', e);
+        listEl.innerHTML = '<div class="empty" style="color:#ef4444;">加载失败: ' + escapeHtml(e.message || '') + '</div>';
+      }
+    }
+
     async function loadAfdianDmLogs() {
       var listEl = document.getElementById('afdianDmLogsList');
       var timeEl = document.getElementById('logsTimeHint');
@@ -5735,13 +5813,15 @@
     function switchLogsTab(tab) {
       var systemSection = document.getElementById('logsSectionSystem');
       var emailSection = document.getElementById('logsSectionEmail');
+      var resendSection = document.getElementById('logsSectionResend');
       var dmSection = document.getElementById('logsSectionAfdianDm');
       var systemTab = document.getElementById('logsTabSystem');
       var emailTab = document.getElementById('logsTabEmail');
+      var resendTab = document.getElementById('logsTabResend');
       var dmTab = document.getElementById('logsTabAfdianDm');
 
-      var tabs = [systemTab, emailTab, dmTab];
-      var sections = [systemSection, emailSection, dmSection];
+      var tabs = [systemTab, emailTab, resendTab, dmTab];
+      var sections = [systemSection, emailSection, resendSection, dmSection];
       tabs.forEach(function(t) { if (t) { t.style.color = 'var(--muted)'; t.style.borderBottomColor = 'transparent'; t.classList.remove('active'); } });
       sections.forEach(function(s) { if (s) s.style.display = 'none'; });
 
@@ -5753,6 +5833,10 @@
         if (emailSection) emailSection.style.display = '';
         if (emailTab) { emailTab.style.color = 'var(--accent)'; emailTab.style.borderBottomColor = 'var(--accent)'; emailTab.classList.add('active'); }
         loadEmailLogs();
+      } else if (tab === 'resend') {
+        if (resendSection) resendSection.style.display = '';
+        if (resendTab) { resendTab.style.color = 'var(--accent)'; resendTab.style.borderBottomColor = 'var(--accent)'; resendTab.classList.add('active'); }
+        loadResendLogs();
       } else if (tab === 'afdian-dm') {
         if (dmSection) dmSection.style.display = '';
         if (dmTab) { dmTab.style.color = 'var(--accent)'; dmTab.style.borderBottomColor = 'var(--accent)'; dmTab.classList.add('active'); }
@@ -6515,6 +6599,8 @@
           var planTitle = (o.plan_title || '') + (o.product_id ? ' (' + escapeHtml(o.product_id) + ')' : '');
           var redeemCode = o.redeem_code || '';
           var activationCode = o.activation_code || '';
+          var activationTime = o.activation_time || null;
+          var activationTimeStr = activationTime ? new Date(activationTime).toLocaleString('zh-CN') : '';
 
           var rawJson = '';
           try { rawJson = JSON.stringify(o.raw_order || o, null, 2); } catch (_) { rawJson = '{}'; }
@@ -6535,7 +6621,7 @@
               ' <button class="btn btn-outline" style="padding:1px 6px;font-size:0.7rem;border-radius:4px" onclick="editAfdianRedeem(\'' + escapeJs(o.out_trade_no) + '\')" title="Edit redeem code">✎</button>' +
             '</td>' +
             '<td style="font-family:monospace;font-size:0.7rem">' +
-              '<span id="afdian-act-' + escapeHtml(o.out_trade_no) + '">' + (activationCode ? formatActivationCode(activationCode) : '<i style="color:#94a3b8">-</i>') + '</span>' +
+              '<span id="afdian-act-' + escapeHtml(o.out_trade_no) + '">' + (activationCode ? formatActivationCode(activationCode) + (activationTimeStr ? '<br><span style="font-size:0.65rem;color:#64748b">' + escapeHtml(activationTimeStr) + '</span>' : '') : '<i style="color:#94a3b8">-</i>') + '</span>' +
             '</td>' +
             '<td>' + statusHtml + '</td>' +
             '<td style="font-size:0.75rem">' + escapeHtml(timeStr) + '</td>' +

@@ -100,6 +100,44 @@ module.exports = async (req, res) => {
         return (b.created_at || 0) - (a.created_at || 0);
       });
 
+      var redeemLookups = [];
+      for (var i = 0; i < processedOrders.length; i++) {
+        var order = processedOrders[i];
+        if (order.redeem_code && !order.activation_code) {
+          redeemLookups.push({ index: i, out_trade_no: order.out_trade_no, redeem_code: order.redeem_code });
+        }
+      }
+      console.log("[afdian:sync] list mode: redeemLookups count=" + redeemLookups.length);
+
+      if (redeemLookups.length > 0) {
+        var lookupPromises = redeemLookups.map(function (item) {
+          return redis.get("auth:redeem:" + item.redeem_code).then(function (raw) {
+            return { item: item, raw: raw };
+          }).catch(function () {
+            return { item: item, raw: null };
+          });
+        });
+        var lookupResults = await Promise.all(lookupPromises);
+
+        var updatedCount = 0;
+        for (var j = 0; j < lookupResults.length; j++) {
+          var result = lookupResults[j];
+          var item = result.item;
+          if (result.raw) {
+            var redeemData = afdianProcessor.parseRedisValue(result.raw);
+            if (redeemData && redeemData.generated_activation_code) {
+              processedOrders[item.index].activation_code = redeemData.generated_activation_code;
+              processedOrders[item.index].activation_time = redeemData.used_at || null;
+              updatedCount++;
+            }
+            if (redeemData && redeemData.used_device_id) {
+              processedOrders[item.index].activation_device = redeemData.used_device_id;
+            }
+          }
+        }
+        console.log("[afdian:sync] list mode: activation lookup updated " + updatedCount + " orders");
+      }
+
       var planMap = afdianProcessor.getPlanProductMap();
       console.log("[afdian:sync] list mode: done, orders=" + processedOrders.length + " planMapKeys=" + Object.keys(planMap).length);
 
@@ -158,6 +196,8 @@ module.exports = async (req, res) => {
         if (redeemData && redeemData.generated_activation_code) {
           activationCode = redeemData.generated_activation_code;
           order.activation_code = activationCode;
+          order.activation_time = redeemData.used_at || null;
+          order.activation_device = redeemData.used_device_id || null;
         }
       }
 

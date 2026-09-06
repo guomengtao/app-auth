@@ -301,6 +301,80 @@ module.exports = async (req, res) => {
     }
   }
 
+  if (req.query && req.query.section === "resend-logs") {
+    if (req.method !== "GET") {
+      return res.status(405).json({ success: false, error: "Method not allowed" });
+    }
+    try {
+      var resendKey = process.env.RESEND_API_KEY || "";
+      if (!resendKey) {
+        return res.status(400).json({ success: false, error: "RESEND_API_KEY not configured" });
+      }
+
+      var limit = 50;
+      if (req.query.limit) {
+        var li = parseInt(req.query.limit, 10);
+        if (Number.isFinite(li) && li > 0 && li <= 200) limit = li;
+      }
+
+      var resendResult = await new Promise(function (resolve, reject) {
+        var https = require("https");
+        var req2 = https.get({
+          hostname: "api.resend.com",
+          path: "/emails?limit=" + limit,
+          headers: {
+            "Authorization": "Bearer " + resendKey,
+            "Content-Type": "application/json",
+          },
+          timeout: 10000,
+        }, function (resp) {
+          var body = "";
+          resp.on("data", function (chunk) { body += chunk; });
+          resp.on("end", function () {
+            try {
+              var json = JSON.parse(body);
+              resolve({ statusCode: resp.statusCode, data: json });
+            } catch (e) {
+              reject(new Error("Resend API parse error: " + body.substring(0, 200)));
+            }
+          });
+        });
+        req2.on("error", function (e) { reject(e); });
+        req2.on("timeout", function () { req2.destroy(); reject(new Error("Resend API timeout")); });
+      });
+
+      if (resendResult.statusCode !== 200) {
+        return res.status(502).json({
+          success: false,
+          error: "Resend API returned HTTP " + resendResult.statusCode,
+          detail: resendResult.data,
+        });
+      }
+
+      var emails = (resendResult.data && resendResult.data.data) || [];
+      var logs = emails.map(function (email) {
+        return {
+          id: email.id || "",
+          from: email.from || "",
+          to: Array.isArray(email.to) ? email.to.join(", ") : (email.to || ""),
+          subject: email.subject || "",
+          status: email.last_event || "unknown",
+          created_at: email.created_at || "",
+        };
+      });
+
+      return res.json({
+        success: true,
+        fetchedAt: new Date().toISOString(),
+        total: logs.length,
+        logs: logs,
+      });
+    } catch (e) {
+      console.error("resend-logs error:", e);
+      return res.status(500).json({ success: false, error: (e && e.message) || String(e) });
+    }
+  }
+
   if (req.query && req.query.section === "afdian-dm-logs") {
     if (req.method !== "GET") {
       return res.status(405).json({ success: false, error: "Method not allowed" });
