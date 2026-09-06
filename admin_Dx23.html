@@ -5656,7 +5656,7 @@
 
         if (data.success) {
           resultEl.className = 'setting-test-result success';
-          resultEl.textContent = '✅ 测试邮件发送成功！请检查收件箱 ' + notifyTo;
+          resultEl.textContent = '✅ ' + (data.message || '测试邮件发送成功！请检查收件箱 ' + notifyTo);
         } else {
           resultEl.className = 'setting-test-result error';
           resultEl.textContent = '❌ 发送失败: ' + (data.error || 'Unknown error');
