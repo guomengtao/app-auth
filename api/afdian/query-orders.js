@@ -2,6 +2,7 @@ var redis = require("../../lib/redis");
 var afdianApi = require("../../lib/afdian-api");
 var afdianProcessor = require("../../lib/afdian-processor");
 var { requireAuth } = require("../../lib/auth");
+var quota = require("../../lib/quota");
 
 async function processBatchOrders(orders) {
   var newOrders = 0;
@@ -63,6 +64,7 @@ async function processBatchOrders(orders) {
 
 module.exports = async (req, res) => {
   var action = req.query && req.query.action;
+  try { quota.bumpQuotaTick("/api/afdian/query-orders"); } catch (_) {}
   console.log("[afdian:sync] ========== request start, action=" + (action || "sync") + " ==========");
 
   if (action === "list") {

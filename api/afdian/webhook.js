@@ -1,5 +1,6 @@
 var afdianSign = require("../../lib/afdian-sign");
 var afdianProcessor = require("../../lib/afdian-processor");
+var quota = require("../../lib/quota");
 
 function parseBody(req) {
   var body = req.body;
@@ -15,6 +16,7 @@ function parseBody(req) {
 }
 
 module.exports = async (req, res) => {
+  try { quota.bumpQuotaTick("/api/afdian/webhook"); } catch (_) {}
   console.log("[afdian:webhook] ========== webhook received, method=" + req.method + " ==========");
 
   if (req.method !== "POST") {
