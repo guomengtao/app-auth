@@ -931,6 +931,77 @@
     }
     .empty { text-align: center; padding: 48px 20px; color: #aaa; }
 
+    .record-detail-row { display: none; }
+    .record-detail-row.show { display: table-row; }
+    .record-detail-row td {
+      padding: 0 !important;
+      border-bottom: 2px solid var(--accent) !important;
+    }
+    .record-detail {
+      background: var(--row-hover);
+      padding: 16px 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      font-size: 0.8rem;
+    }
+    .detail-section {
+      flex: 1;
+      min-width: 240px;
+      background: var(--surface);
+      border-radius: 8px;
+      padding: 12px 16px;
+      border: 1px solid var(--line);
+    }
+    .detail-section-title {
+      font-weight: 700;
+      font-size: 0.82rem;
+      color: var(--accent);
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--line);
+    }
+    .detail-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .detail-table td {
+      padding: 2px 8px 2px 0 !important;
+      border: none !important;
+      font-size: 0.78rem;
+      vertical-align: top;
+    }
+    .detail-table td:first-child {
+      color: var(--muted);
+      white-space: nowrap;
+      width: 80px;
+      font-weight: 500;
+    }
+    .detail-table td:last-child {
+      color: var(--ink);
+      word-break: break-all;
+    }
+    .detail-toggle-btn {
+      background: none;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 0.72rem;
+      cursor: pointer;
+      color: var(--muted);
+      transition: background 0.15s, color 0.15s;
+    }
+    .detail-toggle-btn:hover {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .detail-toggle-btn.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
     .modal-overlay {
       display: none;
       position: fixed;
@@ -4684,14 +4755,14 @@
         }
       }
       allRecords = allRecords || [];
-      var tableHtml = '<table><thead><tr><th>激活码</th><th>兑换码</th><th>设备ID</th><th>产品</th><th>时长</th><th>激活时间</th><th>到期时间</th></tr></thead><tbody>';
+      var tableHtml = '<table><thead><tr><th>Activation Code</th><th>Redeem Code</th><th>Device ID</th><th>Product</th><th>Duration</th><th>Activated At</th><th>Expires At</th><th style="width:60px">Detail</th></tr></thead><tbody>';
       if (allRecords.length === 0) {
         var emptyReason = rc
           ? '没有找到兑换码「' + rc + '」对应的激活记录。如果该兑换码刚使用，尝试点「刷新」或检查 API 是否连通。'
           : (ADMIN_MODE === 'local-first' ? '暂无激活记录（离线模式，点击顶部「⬇ 同步线上数据」从服务器刷新）' : (fromApi ? '暂无激活记录' : '暂无激活记录（API 失败，本地缓存也为空）'));
-        tableHtml += '<tr><td colspan="7" class="empty">' + escapeHtml(emptyReason) + '</td></tr>';
+        tableHtml += '<tr><td colspan="8" class="empty">' + escapeHtml(emptyReason) + '</td></tr>';
       } else {
-        allRecords.forEach(function(r) {
+        allRecords.forEach(function(r, idx) {
           var durationMonths = Number(r.duration_months);
           var isPermanent = durationMonths === 99;
           var durationText = isPermanent ? '永久' : durationMonths + ' 个月';
@@ -4739,7 +4810,9 @@
           tableHtml += '<td>' + durationText + '</td>';
           tableHtml += '<td>' + new Date(Number(r.generated_at) || 0).toLocaleString('zh-CN') + '</td>';
           tableHtml += '<td>' + expiresText + '</td>';
+          tableHtml += '<td><button class="detail-toggle-btn" onclick="toggleRecordDetail(event, this)" data-idx="' + idx + '">Show</button></td>';
           tableHtml += '</tr>';
+          tableHtml += '<tr class="record-detail-row" id="detailRow' + idx + '"><td colspan="8">' + renderRecordDetail(r) + '</td></tr>';
         });
       }
       tableHtml += '</tbody></table>';
@@ -5099,6 +5172,69 @@
       api('/api/admin/health?section=quota').then(function(d) {
         if (d && d.success) saveQuotaToLocal(d);
       }).catch(function() {});
+    }
+
+    function renderRecordDetail(r) {
+      var di = r.device_info || {};
+      var vi = r.visitor_info || {};
+      var hasDevice = di.model || di.product || di.deviceType;
+      var hasVisitor = vi.ip || vi.os || vi.browser;
+
+      if (!hasDevice && !hasVisitor) return '<span style="color:#aaa">No detail</span>';
+
+      var html = '<div class="record-detail">';
+
+      if (hasDevice) {
+        html += '<div class="detail-section">';
+        html += '<div class="detail-section-title">Device Info</div>';
+        html += '<table class="detail-table">';
+        if (di.model) html += '<tr><td>Model</td><td>' + escapeHtml(di.model) + '</td></tr>';
+        if (di.product) html += '<tr><td>Product</td><td>' + escapeHtml(di.product) + '</td></tr>';
+        if (di.osVersionCode) html += '<tr><td>OS Version</td><td>' + escapeHtml(di.osVersionCode) + '</td></tr>';
+        if (di.platformVersionCode) html += '<tr><td>Platform</td><td>' + escapeHtml(di.platformVersionCode) + '</td></tr>';
+        if (di.deviceType) html += '<tr><td>Type</td><td>' + escapeHtml(di.deviceType) + '</td></tr>';
+        if (di.screenShape) {
+          var screen = di.screenShape;
+          if (di.screenWidth && di.screenHeight) screen += ' (' + di.screenWidth + 'x' + di.screenHeight + ')';
+          html += '<tr><td>Screen</td><td>' + escapeHtml(screen) + '</td></tr>';
+        }
+        if (di.apiLevel) html += '<tr><td>API Level</td><td>' + escapeHtml(di.apiLevel) + '</td></tr>';
+        if (di.language) html += '<tr><td>Language</td><td>' + escapeHtml(di.language) + '</td></tr>';
+        html += '</table></div>';
+      }
+
+      if (hasVisitor) {
+        html += '<div class="detail-section">';
+        html += '<div class="detail-section-title">Browser Info</div>';
+        html += '<table class="detail-table">';
+        if (vi.ip) html += '<tr><td>IP</td><td>' + escapeHtml(vi.ip) + '</td></tr>';
+        if (vi.os) html += '<tr><td>OS</td><td>' + escapeHtml(vi.os) + '</td></tr>';
+        if (vi.browser) html += '<tr><td>Browser</td><td>' + escapeHtml(vi.browser) + '</td></tr>';
+        if (vi.device) html += '<tr><td>Device</td><td>' + escapeHtml(vi.device) + '</td></tr>';
+        if (vi.referer) html += '<tr><td>Referer</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(vi.referer) + '</td></tr>';
+        if (vi.language) html += '<tr><td>Language</td><td>' + escapeHtml(vi.language) + '</td></tr>';
+        html += '</table></div>';
+      }
+
+      html += '</div>';
+      return html;
+    }
+
+    function toggleRecordDetail(event, btn) {
+      event.stopPropagation();
+      var idx = btn.getAttribute('data-idx');
+      var row = document.getElementById('detailRow' + idx);
+      if (!row) return;
+      var isOpen = row.classList.contains('show');
+      if (isOpen) {
+        row.classList.remove('show');
+        btn.classList.remove('active');
+        btn.textContent = 'Show';
+      } else {
+        row.classList.add('show');
+        btn.classList.add('active');
+        btn.textContent = 'Hide';
+      }
     }
 
     function escapeHtml(str) {

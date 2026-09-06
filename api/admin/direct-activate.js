@@ -201,12 +201,15 @@ module.exports = async (req, res) => {
         activation_code: activationCode,
         device_id_hash: deviceHash,
         device_id: device,
+        device_id_full: device,
         product_id: productId,
         duration_months: m,
         redeem_code: redeemCode,
         generated_at: now,
         expires_at: expiresAt,
         source: "direct",
+        device_info: null,
+        visitor_info: notify.collectRequestInfo(req),
       };
 
       saveTasks.push(redis.set("auth:redeem:" + redeemCode, JSON.stringify(redeemData)));

@@ -59,6 +59,7 @@ module.exports = async (req, res) => {
   var body = parseBody(req);
   var rawDeviceId = body.deviceId;
   var rawRedeemCode = body.redeemCode;
+  var deviceInfo = body.deviceInfo || null;
   var visitorInfo = notify.collectRequestInfo(req);
 
   var ipCheck = await rateLimit.checkIpRateLimit(req);
@@ -199,11 +200,14 @@ module.exports = async (req, res) => {
             activation_code: activationCodeReuse,
             device_id_hash: deviceHash,
             device_id: device,
+            device_id_full: rawDeviceId,
             product_id: productId,
             duration_months: months,
             redeem_code: code,
             generated_at: _existing.generated_at || reuseNow,
             expires_at: reuseExpires,
+            device_info: deviceInfo || _existing.device_info || null,
+            visitor_info: visitorInfo,
           });
         }
         info.generated_activation_code = activationCodeReuse;
@@ -226,6 +230,7 @@ module.exports = async (req, res) => {
           productId: productId,
           deviceId: device,
           months: months,
+          deviceInfo: deviceInfo,
           source: "user-reuse",
         }).catch(function (e) {
           console.error("[activate] Notification failed:", e.message);
@@ -278,11 +283,14 @@ module.exports = async (req, res) => {
       activation_code: activationCode,
       device_id_hash: deviceHash,
       device_id: device,
+      device_id_full: rawDeviceId,
       product_id: productId,
       duration_months: months,
       redeem_code: code,
       generated_at: now,
       expires_at: expiresAt,
+      device_info: deviceInfo || null,
+      visitor_info: visitorInfo,
     };
 
     var USED_COUNTER_KEY = "auth:counter:used_redeem_codes";
@@ -307,6 +315,7 @@ module.exports = async (req, res) => {
       productId: productId,
       deviceId: device,
       months: months,
+      deviceInfo: deviceInfo,
       source: "user",
     }).catch(function (e) {
       console.error("[activate] Notification failed:", e.message);

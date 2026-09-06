@@ -158,6 +158,42 @@
       color: #aaa;
       margin-top: 14px;
     }
+
+    .device-panel {
+      background: #f8f9ff;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 20px;
+      border: 1px solid #e0e0f0;
+      animation: fadeIn 0.3s ease;
+    }
+    .device-panel-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #6c63ff;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .device-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.75rem;
+    }
+    .device-table td {
+      padding: 3px 6px;
+      color: #555;
+    }
+    .device-table td:first-child {
+      color: #888;
+      width: 60px;
+      white-space: nowrap;
+    }
+    .device-table td:last-child {
+      font-weight: 500;
+      color: #333;
+      word-break: break-all;
+    }
   </style>
 </head>
 <body>
@@ -166,13 +202,27 @@
     <h1>设备激活</h1>
     <p class="subtitle">输入兑换码获取激活码</p>
 
+    <div class="device-panel" id="devicePanel" style="display:none">
+      <div class="device-panel-title">Device Info</div>
+      <table class="device-table">
+        <tr><td>Model</td><td id="dModel">-</td></tr>
+        <tr><td>Product</td><td id="dProduct">-</td></tr>
+        <tr><td>OS Ver</td><td id="dOsVer">-</td></tr>
+        <tr><td>Platform</td><td id="dPlatVer">-</td></tr>
+        <tr><td>Type</td><td id="dType">-</td></tr>
+        <tr><td>Screen</td><td id="dScreen">-</td></tr>
+        <tr><td>API Level</td><td id="dApiLevel">-</td></tr>
+        <tr><td>Language</td><td id="dLang">-</td></tr>
+      </table>
+    </div>
+
     <div class="steps">
-      <div class="steps-title">操作步骤</div>
+      <div class="steps-title">Steps</div>
       <ol>
-        <li>确认下方设备ID与您的设备匹配</li>
-        <li>输入您的 <strong>4位兑换码</strong></li>
-        <li>点击激活获取 <strong>18位激活码</strong></li>
-        <li>将激活码输入到手环/手表应用中</li>
+        <li>Confirm the device ID below matches your device</li>
+        <li>Enter your <strong>4-digit redeem code</strong></li>
+        <li>Click activate to get <strong>18-digit activation code</strong></li>
+        <li>Enter the activation code into your band/watch app</li>
       </ol>
     </div>
 
@@ -195,6 +245,43 @@
       var params = new URLSearchParams(window.location.search);
       return params.get('deviceId') || params.get('deviceid') || params.get('id') || '';
     }
+
+    function getDeviceInfoFromUrl() {
+      var params = new URLSearchParams(window.location.search);
+      return {
+        model: params.get('m') || '',
+        product: params.get('p') || '',
+        osVersionCode: params.get('o') || '',
+        platformVersionCode: params.get('v') || '',
+        deviceType: params.get('t') || '',
+        screenShape: params.get('s') || '',
+        screenWidth: params.get('w') || '',
+        screenHeight: params.get('h') || '',
+        apiLevel: params.get('a') || '',
+        language: params.get('l') || navigator.language || '',
+      };
+    }
+
+    function populateDevicePanel(info) {
+      var hasInfo = info.model || info.product || info.deviceType;
+      if (!hasInfo) return;
+      document.getElementById('devicePanel').style.display = 'block';
+      if (info.model) document.getElementById('dModel').textContent = info.model;
+      if (info.product) document.getElementById('dProduct').textContent = info.product;
+      if (info.osVersionCode) document.getElementById('dOsVer').textContent = info.osVersionCode;
+      if (info.platformVersionCode) document.getElementById('dPlatVer').textContent = info.platformVersionCode;
+      if (info.deviceType) document.getElementById('dType').textContent = info.deviceType;
+      if (info.screenShape) {
+        var screenText = info.screenShape;
+        if (info.screenWidth && info.screenHeight) screenText += ' (' + info.screenWidth + 'x' + info.screenHeight + ')';
+        document.getElementById('dScreen').textContent = screenText;
+      }
+      if (info.apiLevel) document.getElementById('dApiLevel').textContent = info.apiLevel;
+      if (info.language) document.getElementById('dLang').textContent = info.language;
+    }
+
+    var deviceInfo = getDeviceInfoFromUrl();
+    populateDevicePanel(deviceInfo);
 
     var deviceId = getDeviceIdFromUrl();
     if (!deviceId) {
@@ -272,10 +359,16 @@
       document.getElementById('result').className = 'result';
 
       try {
+        var hasDeviceInfo = deviceInfo.model || deviceInfo.product || deviceInfo.deviceType;
+
         var res = await fetch('/api/activate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ deviceId: deviceId, redeemCode: code }),
+          body: JSON.stringify({
+            deviceId: deviceId,
+            redeemCode: code,
+            deviceInfo: hasDeviceInfo ? deviceInfo : null,
+          }),
         });
         var data = await res.json();
 
