@@ -785,8 +785,29 @@
       font-size: 0.82rem;
       color: var(--ink);
       outline: none;
+      height: 36px;
     }
     .toolbar select:focus { border-color: var(--accent); }
+    .toolbar input[type="text"] {
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      font-size: 0.82rem;
+      color: var(--ink);
+      outline: none;
+      height: 36px;
+      box-sizing: border-box;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .toolbar input[type="text"]:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(102,126,234,0.15);
+    }
+    .toolbar input[type="text"]::placeholder {
+      color: #bbb;
+      font-size: 0.78rem;
+    }
     .toolbar .spacer { flex: 1; min-width: 8px; }
 
     .filter-panel {

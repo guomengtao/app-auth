@@ -10,15 +10,20 @@ function parseRecord(raw) {
 }
 
 async function fetchRecordsFromSet(setKey, keyPrefix, count) {
-  const [nextCursor, keys] = await redis.sscan(setKey, 0, { count });
-  if (keys.length === 0) return { nextCursor: 0, records: [] };
-  const pipeline = redis.pipeline();
-  keys.forEach((k) => pipeline.get(k));
-  const results = await pipeline.exec();
-  const records = results
-    .map(parseRecord)
-    .filter(Boolean);
-  return { nextCursor, records };
+  try {
+    const [nextCursor, keys] = await redis.sscan(setKey, 0, { count });
+    if (keys.length === 0) return { nextCursor: 0, records: [] };
+    const pipeline = redis.pipeline();
+    keys.forEach((k) => pipeline.get(keyPrefix ? (keyPrefix + k) : k));
+    const results = await pipeline.exec();
+    const records = results
+      .map(parseRecord)
+      .filter(Boolean);
+    return { nextCursor, records };
+  } catch (e) {
+    console.error("fetchRecordsFromSet error:", setKey, e.message);
+    return { nextCursor: 0, records: [] };
+  }
 }
 
 module.exports = async (req, res) => {
