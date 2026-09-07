@@ -104,36 +104,22 @@ Upstash current keys: 0
 
 ## 切换到 Upstash KV 的方案
 
-### 方案 A：环境变量切换（推荐）
+### 方案 A：环境变量切换（已实现 ✅）
 
-修改 `lib/redis.js`，检测 `USE_UPSTASH=true` 环境变量时切换到 Upstash SDK：
+`lib/redis.js` 已内置 `USE_UPSTASH=true` 切换逻辑。设置此环境变量后，系统自动使用 Upstash KV 替代 Neon Postgres。
 
-```javascript
-// lib/redis.js 中增加
-if (process.env.USE_UPSTASH === "true") {
-  var Redis = require("@upstash/redis");
-  var redis = new Redis.Redis({
-    url: process.env.UPSTASH_REDIS_REST_URL,
-    token: process.env.UPSTASH_REDIS_REST_TOKEN,
-  });
-  module.exports = redis;
-  return;
-}
-```
+**切换步骤：**
 
-安装依赖：
+1. 确保数据已同步到 Upstash KV（执行备份脚本）
+2. Vercel Dashboard → Settings → Environment Variables
+3. 添加 `USE_UPSTASH` = `true`
+4. 重新部署（或等待 Vercel 自动重新部署）
 
-```bash
-npm install @upstash/redis
-```
+**切回 Postgres：**
 
-在 Vercel 中设置环境变量 `USE_UPSTASH=true` 即可切换。
+删除 `USE_UPSTASH` 环境变量，重新部署即可。
 
-### 方案 B：手动切换
-
-1. 执行备份脚本将数据同步到 Upstash KV
-2. 部署包含方案 A 代码的新版本
-3. 设置环境变量 `USE_UPSTASH=true`
+**注意：** 切换前务必执行 `scripts/backup-to-upstash.js` 同步最新数据。
 
 ## 注意事项
 
