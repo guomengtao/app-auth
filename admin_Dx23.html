@@ -2774,11 +2774,18 @@
           <div class="panel" id="panel-records">
             <div class="toolbar">
               <select id="filterRecordProduct" onchange="loadRecords()">
-                <option value="">全部产品</option>
+                <option value="">All Products</option>
               </select>
-              <input type="text" id="filterRecordRedeemCode" class="input-mono" placeholder="筛选兑换码 (例如 1BZR)" maxlength="16" style="max-width:220px" onkeydown="if(event.key==='Enter')loadRecords()">
-              <button class="btn btn-outline" onclick="clearRecordFilter()">清除筛选</button>
-              <button class="btn btn-outline" onclick="loadRecords()">刷新</button>
+              <select id="filterRecordStatus" onchange="loadRecords()">
+                <option value="all">All Status</option>
+                <option value="success">Success</option>
+                <option value="failure">Failed</option>
+              </select>
+              <input type="text" id="filterRecordDeviceId" class="input-mono" placeholder="Device ID" maxlength="32" style="max-width:140px" onkeydown="if(event.key==='Enter')loadRecords()">
+              <input type="text" id="filterRecordIp" class="input-mono" placeholder="IP" maxlength="24" style="max-width:120px" onkeydown="if(event.key==='Enter')loadRecords()">
+              <input type="text" id="filterRecordRedeemCode" class="input-mono" placeholder="Redeem Code" maxlength="16" style="max-width:160px" onkeydown="if(event.key==='Enter')loadRecords()">
+              <button class="btn btn-outline" onclick="clearRecordFilter()">Clear</button>
+              <button class="btn btn-outline" onclick="loadRecords()">Refresh</button>
             </div>
             <div id="recordFilterHint" style="display:none;margin-bottom:8px;font-size:0.85rem;color:#667eea"></div>
             <div class="table-wrap" id="recordsTable"></div>
@@ -4563,6 +4570,12 @@
       if (sel) sel.value = '';
       var inp = document.getElementById('filterRecordRedeemCode');
       if (inp) inp.value = '';
+      var statusSel = document.getElementById('filterRecordStatus');
+      if (statusSel) statusSel.value = 'all';
+      var deviceInp = document.getElementById('filterRecordDeviceId');
+      if (deviceInp) deviceInp.value = '';
+      var ipInp = document.getElementById('filterRecordIp');
+      if (ipInp) ipInp.value = '';
       var hint = document.getElementById('recordFilterHint');
       if (hint) hint.style.display = 'none';
       loadRecords();
@@ -4600,11 +4613,14 @@
       switchTab('decrypt');
     }
 
-    async function fetchAndCacheRecords(pid, rc) {
+    async function fetchAndCacheRecords(pid, rc, status, deviceId, ip) {
       try {
         var params = new URLSearchParams();
         if (pid && pid !== '0000') params.set('product_id', pid);
         if (rc) params.set('redeem_code', rc);
+        if (status && status !== 'all') params.set('status', status);
+        if (deviceId) params.set('device_id', deviceId);
+        if (ip) params.set('ip', ip);
         params.set('count', '500');
         var data = await api('/api/admin/records?' + params.toString());
         if (data && data.success && Array.isArray(data.records)) {
@@ -4626,11 +4642,17 @@
       try {
         var selPid = document.getElementById('filterRecordProduct');
         var inpRc = document.getElementById('filterRecordRedeemCode');
+        var selStatus = document.getElementById('filterRecordStatus');
+        var inpDeviceId = document.getElementById('filterRecordDeviceId');
+        var inpIp = document.getElementById('filterRecordIp');
         var hint = document.getElementById('recordFilterHint');
 
         var pid = selPid ? selPid.value : '';
         var redeemRaw = (inpRc ? inpRc.value : '') || '';
         var rc = String(redeemRaw).trim().toUpperCase();
+        var status = selStatus ? selStatus.value : 'all';
+        var deviceId = (inpDeviceId ? inpDeviceId.value : '') || '';
+        var ip = (inpIp ? inpIp.value : '') || '';
 
         if (_pendingRedeemCode) {
           highlightRc = String(_pendingRedeemCode).toUpperCase();
@@ -4649,9 +4671,12 @@
           var localRecs = getLocalData(STORAGE_KEY_RECORDS, []);
           if (pid && pid !== '0000') localRecs = localRecs.filter(function(r) { return String(r.product_id) === pid; });
           if (rc) localRecs = localRecs.filter(function(r) { return String(r.redeem_code || '').toUpperCase() === rc; });
+          if (status && status !== 'all') localRecs = localRecs.filter(function(r) { return (r.status || 'success') === status; });
+          if (deviceId) localRecs = localRecs.filter(function(r) { return String(r.device_id || r.device_id_full || '').toLowerCase().includes(deviceId.toLowerCase()); });
+          if (ip) localRecs = localRecs.filter(function(r) { var vi = r.visitor_info; return vi && String(vi.ip || '').toLowerCase().includes(ip.toLowerCase()); });
           localRecs.sort(function(a, b) { return (Number(b.generated_at) || 0) - (Number(a.generated_at) || 0); });
           renderRecordsTable(localRecs, highlightRc, highlightAc, true, null, rc);
-          fetchAndCacheRecords(pid, rc);
+          fetchAndCacheRecords(pid, rc, status, deviceId, ip);
           if (hint) {
             hint.style.display = 'block';
             hint.innerHTML = '📴 本地缓存模式，后台正在从服务器更新...';
@@ -4663,6 +4688,9 @@
           var params = new URLSearchParams();
           if (pid && pid !== '0000') params.set('product_id', pid);
           if (rc) params.set('redeem_code', rc);
+          if (status && status !== 'all') params.set('status', status);
+          if (deviceId) params.set('device_id', deviceId);
+          if (ip) params.set('ip', ip);
           params.set('count', '500');
           var data = await api('/api/admin/records?' + params.toString());
           if (data && data.success && Array.isArray(data.records)) {
@@ -4695,16 +4723,21 @@
         });
 
         if (hint) {
-          if (rc) {
+          var hasFilter = rc || deviceId || ip || (status && status !== 'all');
+          if (hasFilter) {
             var foundCount = allRecords.length;
-            var msg = '🔎 当前筛选：兑换码 <span class="mono" style="font-weight:700;color:#4c51bf">' + escapeHtml(rc) + '</span>，命中 <b>' + foundCount + '</b> 条。';
-            if (!fromApi) msg += ' <span style="color:#e65100">(API 不可用：' + escapeHtml(apiErrMsg || 'fallback 本地缓存') + ')</span>';
-            msg += ' 可点击「清除筛选」返回全量列表。';
+            var parts = [];
+            if (rc) parts.push('Redeem: <span class="mono" style="font-weight:700;color:#4c51bf">' + escapeHtml(rc) + '</span>');
+            if (deviceId) parts.push('Device: <span class="mono" style="font-weight:700;color:#4c51bf">' + escapeHtml(deviceId) + '</span>');
+            if (ip) parts.push('IP: <span class="mono" style="font-weight:700;color:#4c51bf">' + escapeHtml(ip) + '</span>');
+            if (status && status !== 'all') parts.push('Status: <b>' + (status === 'failure' ? 'Failed' : 'Success') + '</b>');
+            var msg = 'Filter: ' + parts.join(', ') + ' — <b>' + foundCount + '</b> results.';
+            if (!fromApi) msg += ' <span style="color:#e65100">(API unavailable: ' + escapeHtml(apiErrMsg || 'fallback to local cache') + ')</span>';
             hint.style.display = 'block';
             hint.innerHTML = msg;
           } else if (!fromApi) {
             hint.style.display = 'block';
-            hint.innerHTML = '⚠️ 已回退到本地缓存（' + escapeHtml(apiErrMsg || 'API 不可用') + '），数据可能是旧的。';
+            hint.innerHTML = 'Fallback to local cache (' + escapeHtml(apiErrMsg || 'API unavailable') + ')';
           } else {
             hint.style.display = 'none';
             hint.innerHTML = '';
@@ -4755,20 +4788,23 @@
         }
       }
       allRecords = allRecords || [];
-      var tableHtml = '<table><thead><tr><th>Activation Code</th><th>Redeem Code</th><th>Device ID</th><th>Product</th><th>Duration</th><th>Activated At</th><th>Expires At</th><th style="width:60px">Detail</th></tr></thead><tbody>';
+      var tableHtml = '<table><thead><tr><th>Status</th><th>Activation Code</th><th>Redeem Code</th><th>Device ID</th><th>Product</th><th>Duration</th><th>Activated At</th><th>Expires At</th><th style="width:60px">Detail</th></tr></thead><tbody>';
       if (allRecords.length === 0) {
         var emptyReason = rc
-          ? '没有找到兑换码「' + rc + '」对应的激活记录。如果该兑换码刚使用，尝试点「刷新」或检查 API 是否连通。'
-          : (ADMIN_MODE === 'local-first' ? '暂无激活记录（离线模式，点击顶部「⬇ 同步线上数据」从服务器刷新）' : (fromApi ? '暂无激活记录' : '暂无激活记录（API 失败，本地缓存也为空）'));
-        tableHtml += '<tr><td colspan="8" class="empty">' + escapeHtml(emptyReason) + '</td></tr>';
+          ? 'No records found for redeem code "' + rc + '".'
+          : (ADMIN_MODE === 'local-first' ? 'No activation records (offline mode).' : (fromApi ? 'No activation records' : 'No records (API failed, local cache empty).'));
+        tableHtml += '<tr><td colspan="9" class="empty">' + escapeHtml(emptyReason) + '</td></tr>';
       } else {
         allRecords.forEach(function(r, idx) {
+          var isFailure = r.status === 'failure';
           var durationMonths = Number(r.duration_months);
           var isPermanent = durationMonths === 99;
-          var durationText = isPermanent ? '永久' : durationMonths + ' 个月';
+          var durationText = isPermanent ? 'Permanent' : (durationMonths > 0 ? durationMonths + ' months' : '-');
           var expiresText;
-          if (isPermanent) {
-            expiresText = '<span class="badge badge-info">永久</span>';
+          if (isFailure) {
+            expiresText = '<span class="badge" style="background:#f5f5f5;color:#999">-</span>';
+          } else if (isPermanent) {
+            expiresText = '<span class="badge badge-info">Permanent</span>';
           } else if (r.expires_at && Number(r.expires_at) > 0) {
             expiresText = new Date(Number(r.expires_at)).toLocaleDateString('zh-CN');
           } else {
@@ -4777,7 +4813,7 @@
             if (durationMonths > 0 && durationMonths < 99) {
               d.setUTCMonth(d.getUTCMonth() + durationMonths);
             }
-            expiresText = new Date(d).toLocaleDateString('zh-CN') + '<span style="color:#e65100;font-size:0.75rem;margin-left:4px" title="旧数据无 expires_at，已按激活时间+月数推算">推算</span>';
+            expiresText = new Date(d).toLocaleDateString('zh-CN') + '<span style="color:#e65100;font-size:0.75rem;margin-left:4px">(est)</span>';
           }
           var rcCell = r.redeem_code
             ? ('<span class="mono" style="font-weight:700">' + escapeHtml(r.redeem_code) + '</span>')
@@ -4786,9 +4822,9 @@
           var hashDeviceId = r.device_id_hash || r.used_device_id || '';
           var deviceCell;
           if (rawDeviceId) {
-            deviceCell = '<span class="mono" style="font-size:0.75rem;letter-spacing:0.5px" title="原文 device_id">' + escapeHtml(rawDeviceId) + '</span>';
+            deviceCell = '<span class="mono" style="font-size:0.75rem;letter-spacing:0.5px">' + escapeHtml(rawDeviceId) + '</span>';
           } else if (hashDeviceId) {
-            deviceCell = '<span class="mono" style="font-size:0.7rem;letter-spacing:0;opacity:0.65" title="旧数据未保存原文，显示哈希值 (device_id_hash)">' + escapeHtml(hashDeviceId) + '</span>';
+            deviceCell = '<span class="mono" style="font-size:0.7rem;letter-spacing:0;opacity:0.65">' + escapeHtml(hashDeviceId) + '</span>';
           } else {
             deviceCell = '<span style="color:#aaa">-</span>';
           }
@@ -4797,10 +4833,19 @@
               (highlightAc && String(r.activation_code || '') === highlightAc)) {
             hl = ' record-row-hl';
           }
+          var statusBadge;
+          if (isFailure) {
+            statusBadge = '<span class="badge" style="background:#fff3cd;color:#856404;border:1px solid #ffc107">Failed</span>';
+          } else {
+            statusBadge = '<span class="badge badge-success">OK</span>';
+          }
           tableHtml += '<tr class="' + hl.trim() + '">';
+          tableHtml += '<td>' + statusBadge + '</td>';
           var ac = r.activation_code || '';
           if (ac) {
-            tableHtml += '<td class="mono" style="font-size:0.78rem;letter-spacing:0.5px"><a href="javascript:void(0)" class="redeem-link" onclick="openDecryptForActivationCode(\'' + escapeJs(ac) + '\')" title="点击跳转到解密验证">' + formatActivationCode(ac) + ' →</a></td>';
+            tableHtml += '<td class="mono" style="font-size:0.78rem;letter-spacing:0.5px"><a href="javascript:void(0)" class="redeem-link" onclick="openDecryptForActivationCode(\'' + escapeJs(ac) + '\')">' + formatActivationCode(ac) + ' -></a></td>';
+          } else if (isFailure) {
+            tableHtml += '<td style="color:#aaa;font-size:0.78rem">' + escapeHtml(r.reason || 'Failed') + '</td>';
           } else {
             tableHtml += '<td style="color:#aaa">-</td>';
           }
@@ -4812,7 +4857,7 @@
           tableHtml += '<td>' + expiresText + '</td>';
           tableHtml += '<td><button class="detail-toggle-btn" onclick="toggleRecordDetail(event, this)" data-idx="' + idx + '">Show</button></td>';
           tableHtml += '</tr>';
-          tableHtml += '<tr class="record-detail-row" id="detailRow' + idx + '"><td colspan="8">' + renderRecordDetail(r) + '</td></tr>';
+          tableHtml += '<tr class="record-detail-row" id="detailRow' + idx + '"><td colspan="9">' + renderRecordDetail(r) + '</td></tr>';
         });
       }
       tableHtml += '</tbody></table>';
@@ -5177,12 +5222,21 @@
     function renderRecordDetail(r) {
       var di = r.device_info || {};
       var vi = r.visitor_info || {};
+      var isFailure = r.status === 'failure';
       var hasDevice = di.model || di.product || di.deviceType;
       var hasVisitor = vi.ip || vi.os || vi.browser;
 
-      if (!hasDevice && !hasVisitor) return '<span style="color:#aaa">No detail</span>';
+      if (!hasDevice && !hasVisitor && !isFailure) return '<span style="color:#aaa">No detail</span>';
 
       var html = '<div class="record-detail">';
+
+      if (isFailure) {
+        html += '<div class="detail-section">';
+        html += '<div class="detail-section-title" style="color:#856404">Failure Info</div>';
+        html += '<table class="detail-table">';
+        html += '<tr><td>Reason</td><td style="color:#856404;font-weight:600">' + escapeHtml(r.reason || 'Unknown') + '</td></tr>';
+        html += '</table></div>';
+      }
 
       if (hasDevice) {
         html += '<div class="detail-section">';

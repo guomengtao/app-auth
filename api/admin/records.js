@@ -1,6 +1,26 @@
 const redis = require("../../lib/redis");
 const { requireAuth } = require("../../lib/auth");
 
+function parseRecord(raw) {
+  if (!raw) return null;
+  if (typeof raw === "string") {
+    try { return JSON.parse(raw); } catch (_) { return null; }
+  }
+  return raw;
+}
+
+async function fetchRecordsFromSet(setKey, keyPrefix, count) {
+  const [nextCursor, keys] = await redis.sscan(setKey, 0, { count });
+  if (keys.length === 0) return { nextCursor: 0, records: [] };
+  const pipeline = redis.pipeline();
+  keys.forEach((k) => pipeline.get(k));
+  const results = await pipeline.exec();
+  const records = results
+    .map(parseRecord)
+    .filter(Boolean);
+  return { nextCursor, records };
+}
+
 module.exports = async (req, res) => {
   const auth = requireAuth(req);
   if (!auth.authorized) {
@@ -12,41 +32,63 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { cursor, product_id, redeem_code } = req.query;
-    const count = Math.min(parseInt(req.query.count) || 100, 200);
+    const { product_id, redeem_code, status, device_id, ip } = req.query;
+    const count = Math.min(parseInt(req.query.count) || 500, 500);
 
-    const [nextCursor, keys] = await redis.sscan("auth:activation_codes", cursor || 0, {
-      count,
-    });
+    const statusFilter = status || "all";
 
-    let records = [];
-    if (keys.length > 0) {
-      const pipeline = redis.pipeline();
-      keys.forEach((code) => pipeline.get(`auth:activation:${code}`));
-      const results = await pipeline.exec();
-      records = results
-        .map((r) => (typeof r === "string" ? JSON.parse(r) : r))
-        .filter(Boolean);
+    let allRecords = [];
+
+    if (statusFilter === "all" || statusFilter === "success") {
+      const { records } = await fetchRecordsFromSet("auth:activation_codes", "auth:activation:", count);
+      allRecords = allRecords.concat(records);
+    }
+
+    if (statusFilter === "all" || statusFilter === "failure") {
+      const { records } = await fetchRecordsFromSet("auth:activation_failures", "auth:activation_failure:", count);
+      allRecords = allRecords.concat(records);
     }
 
     if (product_id) {
-      records = records.filter((r) => r.product_id === product_id);
+      allRecords = allRecords.filter((r) => r.product_id === product_id);
     }
 
     if (redeem_code) {
       const rc = String(redeem_code).trim().toUpperCase();
       if (rc) {
-        records = records.filter((r) => String(r.redeem_code || "").toUpperCase() === rc);
+        allRecords = allRecords.filter((r) => String(r.redeem_code || "").toUpperCase() === rc);
       }
     }
 
-    records.sort((a, b) => b.generated_at - a.generated_at);
+    if (device_id) {
+      const did = String(device_id).trim().toLowerCase();
+      if (did) {
+        allRecords = allRecords.filter((r) => {
+          var rd = String(r.device_id || r.device_id_full || "").toLowerCase();
+          return rd.includes(did);
+        });
+      }
+    }
+
+    if (ip) {
+      const ipStr = String(ip).trim();
+      if (ipStr) {
+        allRecords = allRecords.filter((r) => {
+          var vi = r.visitor_info;
+          if (!vi) return false;
+          var recordIp = String(vi.ip || "").toLowerCase();
+          return recordIp.includes(ipStr.toLowerCase());
+        });
+      }
+    }
+
+    allRecords.sort((a, b) => (Number(b.generated_at) || 0) - (Number(a.generated_at) || 0));
 
     return res.json({
       success: true,
-      records,
-      cursor: nextCursor,
-      hasMore: nextCursor !== 0,
+      records: allRecords,
+      cursor: 0,
+      hasMore: false,
     });
   } catch (error) {
     console.error("Records error:", error);

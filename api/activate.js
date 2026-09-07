@@ -44,6 +44,30 @@ function normalizeMonths(months) {
   return n;
 }
 
+function saveFailureRecord(reason, deviceId, redeemCode, productId, months, visitorInfo, deviceInfo) {
+  var now = Date.now();
+  var rnd = Math.random().toString(36).slice(2, 6);
+  var key = "auth:activation_failure:" + now + ":" + rnd;
+  var record = {
+    status: "failure",
+    reason: reason,
+    device_id: deviceId || "",
+    device_id_full: deviceId || "",
+    redeem_code: redeemCode || "",
+    product_id: productId || "",
+    duration_months: months || "",
+    generated_at: now,
+    device_info: deviceInfo || null,
+    visitor_info: visitorInfo || null,
+  };
+  return Promise.all([
+    redis.set(key, JSON.stringify(record)),
+    redis.sadd("auth:activation_failures", key),
+  ]).catch(function (e) {
+    console.error("[activate] Failed to save failure record:", e.message);
+  });
+}
+
 function buildNotificationStatus(result) {
   if (result && result.sent) return "sent";
   if (result && result.error) return "email_failed";
@@ -64,6 +88,7 @@ module.exports = async (req, res) => {
 
   var ipCheck = await rateLimit.checkIpRateLimit(req);
   if (ipCheck.blocked) {
+    saveFailureRecord(ipCheck.reason, rawDeviceId, rawRedeemCode, "", "", visitorInfo, deviceInfo);
     var ipNotifyResult = await notify.sendActivationFailure(req, {
       reason: ipCheck.reason,
       redeemCode: rawRedeemCode || "",
@@ -82,6 +107,7 @@ module.exports = async (req, res) => {
 
     var deviceCheck = validateDeviceId(deviceId);
     if (!deviceCheck.valid) {
+      saveFailureRecord(deviceCheck.error, deviceId, redeemCode, "", "", visitorInfo, deviceInfo);
       var deviceNotifyResult = await notify.sendActivationFailure(req, {
         reason: deviceCheck.error,
         redeemCode: redeemCode || "",
@@ -95,6 +121,7 @@ module.exports = async (req, res) => {
 
     var codeCheck = validateRedeemCode(redeemCode);
     if (!codeCheck.valid) {
+      saveFailureRecord(codeCheck.error, device, redeemCode, "", "", visitorInfo, deviceInfo);
       var codeNotifyResult = await notify.sendActivationFailure(req, {
         reason: codeCheck.error,
         redeemCode: redeemCode || "",
@@ -111,6 +138,7 @@ module.exports = async (req, res) => {
 
     var deviceCheck2 = await rateLimit.checkDeviceRateLimit(device);
     if (deviceCheck2.blocked) {
+      saveFailureRecord(deviceCheck2.reason, device, code, "", "", visitorInfo, deviceInfo);
       var device2NotifyResult = await notify.sendActivationFailure(req, {
         reason: deviceCheck2.reason,
         redeemCode: code,
@@ -127,6 +155,7 @@ module.exports = async (req, res) => {
 
     var codeData = await redis.get("auth:redeem:" + code);
     if (!codeData) {
+      saveFailureRecord("兑换码不存在", device, code, "", "", visitorInfo, deviceInfo);
       var codeNotFoundResult = await notify.sendActivationFailure(req, {
         reason: "兑换码不存在或尚未同步到服务器",
         redeemCode: code,
@@ -140,6 +169,7 @@ module.exports = async (req, res) => {
 
     var info = parseRedisJson(codeData);
     if (!info) {
+      saveFailureRecord("兑换码数据已损坏", device, code, "", "", visitorInfo, deviceInfo);
       var corruptNotifyResult = await notify.sendActivationFailure(req, {
         reason: "兑换码数据已损坏",
         redeemCode: code,
@@ -155,6 +185,7 @@ module.exports = async (req, res) => {
     var productId = normalizeProductId(info.product_id);
     var months = normalizeMonths(info.duration_months);
     if (!productId || !months) {
+      saveFailureRecord("兑换码配置异常（商品或时长无效）", device, code, info.product_id || "", info.duration_months || "", visitorInfo, deviceInfo);
       var configNotifyResult = await notify.sendActivationFailure(req, {
         reason: "兑换码配置异常（商品或时长无效）",
         redeemCode: code,
@@ -238,6 +269,7 @@ module.exports = async (req, res) => {
 
         return res.json({ success: true, activationCode: activationCodeReuse, debug: { visitor: visitorInfo, notification: "success", productId: productId, months: months } });
       }
+      saveFailureRecord("该兑换码已被其他设备使用过", device, code, productId, months, visitorInfo, deviceInfo);
       var alreadyUsedNotifyResult = await notify.sendActivationFailure(req, {
         reason: "该兑换码已被其他设备使用过，无法重复激活",
         redeemCode: code,
@@ -330,6 +362,7 @@ module.exports = async (req, res) => {
     } else if (error && /connection|ECONNREFUSED|ENOTFOUND|Unauthorized|401|403/i.test(String(error.message || ""))) {
       msg = "服务器数据库连接失败，请稍后重试或联系管理员";
     }
+    saveFailureRecord(msg, rawDeviceId, rawRedeemCode, "", "", visitorInfo, deviceInfo);
     var catchNotifyResult = await notify.sendActivationFailure(req, {
       reason: msg,
       redeemCode: rawRedeemCode || "",

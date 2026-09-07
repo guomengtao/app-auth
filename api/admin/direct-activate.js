@@ -42,6 +42,31 @@ function normalizeMonths(months) {
   return n;
 }
 
+function saveFailureRecord(reason, deviceId, productId, months, visitorInfo) {
+  var now = Date.now();
+  var rnd = Math.random().toString(36).slice(2, 6);
+  var key = "auth:activation_failure:" + now + ":" + rnd;
+  var record = {
+    status: "failure",
+    reason: reason,
+    device_id: deviceId || "",
+    device_id_full: deviceId || "",
+    redeem_code: "",
+    product_id: productId || "",
+    duration_months: months || "",
+    generated_at: now,
+    source: "admin-direct",
+    device_info: null,
+    visitor_info: visitorInfo || null,
+  };
+  return Promise.all([
+    redis.set(key, JSON.stringify(record)),
+    redis.sadd("auth:activation_failures", key),
+  ]).catch(function (e) {
+    console.error("[direct-activate] Failed to save failure record:", e.message);
+  });
+}
+
 module.exports = async (req, res) => {
   var auth = requireAuth(req);
   if (!auth.authorized) {
@@ -57,9 +82,11 @@ module.exports = async (req, res) => {
     var deviceId = body.deviceId;
     var productIds = body.productIds;
     var months = body.months;
+    var visitorInfo = notify.collectRequestInfo(req);
 
     var deviceCheck = validateDeviceId(deviceId);
     if (!deviceCheck.valid) {
+      saveFailureRecord(deviceCheck.error, deviceId, "", months, visitorInfo);
       notify.sendActivationFailure(req, {
         reason: deviceCheck.error,
         redeemCode: "",
@@ -73,6 +100,7 @@ module.exports = async (req, res) => {
     var device = deviceCheck.value;
 
     if (!Array.isArray(productIds) || productIds.length === 0) {
+      saveFailureRecord("Please select at least one product", device, "", months, visitorInfo);
       notify.sendActivationFailure(req, {
         reason: "Please select at least one product",
         redeemCode: "",
@@ -84,6 +112,7 @@ module.exports = async (req, res) => {
       return res.status(400).json({ success: false, error: "Please select at least one product" });
     }
     if (productIds.length > 20) {
+      saveFailureRecord("Too many products selected (max 20)", device, "", months, visitorInfo);
       notify.sendActivationFailure(req, {
         reason: "Too many products selected (max 20)",
         redeemCode: "",
@@ -97,6 +126,7 @@ module.exports = async (req, res) => {
 
     var m = normalizeMonths(months);
     if (!m) {
+      saveFailureRecord("Months must be 1-99", device, "", months, visitorInfo);
       notify.sendActivationFailure(req, {
         reason: "Months must be 1-99",
         redeemCode: "",
@@ -112,6 +142,7 @@ module.exports = async (req, res) => {
     for (var i = 0; i < productIds.length; i++) {
       var pid = normalizeProductId(productIds[i]);
       if (!pid) {
+        saveFailureRecord("Invalid product ID: " + productIds[i], device, productIds[i] || "", m, visitorInfo);
         notify.sendActivationFailure(req, {
           reason: "Invalid product ID: " + productIds[i],
           redeemCode: "",
@@ -133,6 +164,7 @@ module.exports = async (req, res) => {
       var raw = allRaw && allRaw[pid] ? allRaw[pid] : null;
       var data = parseRedisValue(raw);
       if (!data) {
+        saveFailureRecord("Product not found: " + productIds[j], device, productIds[j] || "", m, visitorInfo);
         notify.sendActivationFailure(req, {
           reason: "Product not found: " + productIds[j],
           redeemCode: "",
@@ -165,6 +197,7 @@ module.exports = async (req, res) => {
         }
       }
       if (!redeemCode) {
+        saveFailureRecord("Unable to generate unique redeem code", device, productId, m, visitorInfo);
         notify.sendActivationFailure(req, {
           reason: "Unable to generate unique redeem code, please retry",
           redeemCode: "",
@@ -248,6 +281,7 @@ module.exports = async (req, res) => {
     return res.json({ success: true, results: results });
   } catch (error) {
     console.error("Direct-activate error:", error);
+    saveFailureRecord(error && error.message ? error.message : "Internal server error", deviceId, "", months, visitorInfo);
     notify.sendActivationFailure(req, {
       reason: error && error.message ? error.message : "Internal server error",
       redeemCode: "",
