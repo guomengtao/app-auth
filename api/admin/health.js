@@ -3,6 +3,52 @@ var { requireAuth } = require("../../lib/auth");
 var crypto = require("../../lib/crypto");
 var quota = require("../../lib/quota");
 
+var CRON_STATS_KEY = "auth:cron:stats";
+var CRON_LIST_KEY = "auth:cron:list";
+
+async function recordCronRun(cronId, result) {
+  var now = Date.now();
+  var key = CRON_STATS_KEY + ":" + cronId;
+  var existing = await redis.get(key);
+  var stats = { name: cronId, count: 0, lastRun: null, lastDuration: 0, lastStatus: "", lastResult: "", firstRun: null };
+  if (existing) {
+    try { stats = JSON.parse(existing); } catch (_) {}
+  }
+  stats.count = (stats.count || 0) + 1;
+  stats.lastRun = now;
+  stats.lastDuration = result.duration || 0;
+  stats.lastStatus = result.status || "unknown";
+  stats.lastResult = result.summary || "";
+  if (!stats.firstRun) stats.firstRun = now;
+  await redis.set(key, JSON.stringify(stats));
+  var pip = redis.pipeline();
+  pip.sadd(CRON_LIST_KEY, cronId);
+  pip.set(CRON_STATS_KEY + ":last_update", String(now));
+  await pip.exec();
+  return stats;
+}
+
+async function getCronStats() {
+  var cronIds = await redis.smembers(CRON_LIST_KEY);
+  var stats = [];
+  if (cronIds && cronIds.length) {
+    var keys = cronIds.map(function(id) { return CRON_STATS_KEY + ":" + id; });
+    var vals = await redis.mget(keys);
+    for (var i = 0; i < cronIds.length; i++) {
+      var raw = vals[i];
+      if (raw) {
+        try {
+          var s = JSON.parse(raw);
+          s.id = cronIds[i];
+          stats.push(s);
+        } catch (_) {}
+      }
+    }
+  }
+  stats.sort(function(a, b) { return (b.lastRun || 0) - (a.lastRun || 0); });
+  return stats;
+}
+
 function nowMs() {
   return Date.now();
 }
@@ -283,10 +329,16 @@ module.exports = async (req, res) => {
   var isBackup = req.query.section === "backup";
 
   if (isCron && isBackup) {
+    var cronStart = Date.now();
     try {
       var configRaw = await redis.get(BACKUP_CONFIG_KEY);
       var config = configRaw ? JSON.parse(configRaw) : { enabled: false };
       if (!config.enabled) {
+        await recordCronRun("health-backup", {
+          duration: Date.now() - cronStart,
+          status: "skipped",
+          summary: "Auto backup disabled",
+        });
         return res.json({ success: true, message: "Auto backup disabled", skipped: true });
       }
 
@@ -297,6 +349,12 @@ module.exports = async (req, res) => {
         lastBackupAt: new Date().toISOString(),
         lastBackupId: result.backupId,
       }));
+
+      await recordCronRun("health-backup", {
+        duration: Date.now() - cronStart,
+        status: "success",
+        summary: "Tables: " + (result.backupData.tables || 0) + ", Records: " + (result.backupData.totalCount || 0) + ", Size: " + (result.sizeBytes || 0) + "B",
+      });
 
       return res.json({
         success: true,
@@ -310,6 +368,11 @@ module.exports = async (req, res) => {
       });
     } catch (e) {
       console.error("Auto backup error:", e);
+      await recordCronRun("health-backup", {
+        duration: Date.now() - cronStart,
+        status: "error",
+        summary: (e && e.message) || String(e),
+      });
       return res.status(500).json({ error: e.message });
     }
   }
@@ -1077,6 +1140,26 @@ module.exports = async (req, res) => {
         success: false,
         error: (e && e.message) || String(e),
       });
+    }
+  }
+
+  if (req.query && req.query.section === "cron-stats") {
+    if (req.method !== "GET") {
+      return res.status(405).json({ success: false, error: "Method not allowed" });
+    }
+    try {
+      var stats = await getCronStats();
+      var lastUpdate = await redis.get(CRON_STATS_KEY + ":last_update");
+      return res.json({
+        success: true,
+        generatedAt: new Date().toISOString(),
+        lastUpdate: lastUpdate ? Number(lastUpdate) : null,
+        tasks: stats,
+        total: stats.length,
+      });
+    } catch (e) {
+      console.error("cron-stats error:", e);
+      return res.status(500).json({ success: false, error: (e && e.message) || String(e) });
     }
   }
 

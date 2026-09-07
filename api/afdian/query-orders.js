@@ -64,6 +64,8 @@ async function processBatchOrders(orders) {
 
 module.exports = async (req, res) => {
   var action = req.query && req.query.action;
+  var cronStart = Date.now();
+  var isCron = !action || action === "sync";
   try { quota.bumpQuotaTick("/api/afdian/query-orders"); } catch (_) {}
   console.log("[afdian:sync] ========== request start, action=" + (action || "sync") + " ==========");
 
@@ -362,6 +364,26 @@ module.exports = async (req, res) => {
     console.log("[afdian:sync] sync mode: saving last_sync timestamp...");
     await redis.set("afdian:last_sync", String(Date.now()));
 
+    if (isCron) {
+      try {
+        var cronKey = "auth:cron:stats:afdian-query-orders";
+        var existing = await redis.get(cronKey);
+        var stats = { name: "afdian-query-orders", count: 0, lastRun: null, lastDuration: 0, lastStatus: "", lastResult: "", firstRun: null };
+        if (existing) { try { stats = JSON.parse(existing); } catch (_) {} }
+        stats.count = (stats.count || 0) + 1;
+        stats.lastRun = Date.now();
+        stats.lastDuration = Date.now() - cronStart;
+        stats.lastStatus = totalErrors > 0 ? "partial" : "success";
+        stats.lastResult = "New: " + totalNew + ", Processed: " + totalProcessed + ", Skipped: " + totalSkipped + ", Errors: " + totalErrors;
+        if (!stats.firstRun) stats.firstRun = stats.lastRun;
+        var pip = redis.pipeline();
+        pip.set(cronKey, JSON.stringify(stats));
+        pip.sadd("auth:cron:list", "afdian-query-orders");
+        pip.set("auth:cron:stats:last_update", String(Date.now()));
+        await pip.exec();
+      } catch (_) {}
+    }
+
     console.log("[afdian:sync] sync mode: DONE. total new=" + totalNew + " processed=" + totalProcessed + " skipped=" + totalSkipped + " errors=" + totalErrors);
     return res.status(200).json({
       success: true,
@@ -373,6 +395,25 @@ module.exports = async (req, res) => {
     });
   } catch (e) {
     console.error("[afdian:sync] sync mode: FATAL EXCEPTION:", e.message, e.stack);
+    if (isCron) {
+      try {
+        var cronKey = "auth:cron:stats:afdian-query-orders";
+        var existing = await redis.get(cronKey);
+        var stats = { name: "afdian-query-orders", count: 0, lastRun: null, lastDuration: 0, lastStatus: "", lastResult: "", firstRun: null };
+        if (existing) { try { stats = JSON.parse(existing); } catch (_) {} }
+        stats.count = (stats.count || 0) + 1;
+        stats.lastRun = Date.now();
+        stats.lastDuration = Date.now() - cronStart;
+        stats.lastStatus = "error";
+        stats.lastResult = (e && e.message) || String(e);
+        if (!stats.firstRun) stats.firstRun = stats.lastRun;
+        var pip = redis.pipeline();
+        pip.set(cronKey, JSON.stringify(stats));
+        pip.sadd("auth:cron:list", "afdian-query-orders");
+        pip.set("auth:cron:stats:last_update", String(Date.now()));
+        await pip.exec();
+      } catch (_) {}
+    }
     return res.status(500).json({
       success: false,
       error: (e && e.message) || "Unknown error",

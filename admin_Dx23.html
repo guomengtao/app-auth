@@ -2007,6 +2007,97 @@
       font-size: 0.7rem;
     }
 
+    .cron-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    .cron-table th {
+      text-align: left;
+      padding: 10px 12px;
+      background: var(--bg);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      border-bottom: 2px solid var(--line);
+    }
+    .cron-table td {
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: middle;
+    }
+    .cron-table tr:hover td {
+      background: var(--bg);
+    }
+    .cron-name {
+      font-weight: 600;
+      color: var(--ink);
+      font-size: 0.84rem;
+    }
+    .cron-schedule {
+      font-size: 0.68rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .cron-status {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+    .cron-status-success { background: #dcfce7; color: #166534; }
+    .cron-status-error { background: #fee2e2; color: #991b1b; }
+    .cron-status-partial { background: #fef3c7; color: #92400e; }
+    .cron-status-skipped { background: #e0e7ff; color: #3730a3; }
+    .cron-status-unknown { background: #f3f4f6; color: #6b7280; }
+    .cron-count {
+      font-weight: 700;
+      color: var(--accent);
+      font-size: 0.9rem;
+    }
+    .cron-time {
+      font-size: 0.76rem;
+      color: var(--ink);
+    }
+    .cron-time-ago {
+      font-size: 0.68rem;
+      color: var(--muted);
+      margin-top: 1px;
+    }
+    .cron-duration {
+      font-size: 0.74rem;
+      color: var(--muted);
+    }
+    .cron-result {
+      font-size: 0.74rem;
+      color: var(--muted);
+      max-width: 260px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .cron-loading {
+      text-align: center;
+      padding: 40px;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .cron-empty {
+      text-align: center;
+      padding: 40px;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .cron-meta {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-top: 8px;
+      text-align: right;
+    }
+
     .sidebar-backdrop {
       display: none;
       position: fixed;
@@ -3154,7 +3245,7 @@
               <button class="settings-tab" onclick="switchSettingsTab('email')" data-stab="email">📧 邮件</button>
               <button class="settings-tab" onclick="switchSettingsTab('database')" data-stab="database">🗄️ 数据库</button>
               <button class="settings-tab" onclick="switchSettingsTab('backup')" data-stab="backup">📦 备份恢复</button>
-              <button class="settings-tab" onclick="switchSettingsTab('about')" data-stab="about">ℹ️ 关于</button>
+              <button class="settings-tab" onclick="switchSettingsTab('cron-stats')" data-stab="cron-stats">⏰ 定时任务</button>
             </div>
 
             <div class="settings-sub-panel active" id="settings-sub-appearance">
@@ -3556,26 +3647,15 @@
             </div>
 
             <!-- 关于（安全子面板） -->
-            <div class="settings-sub-panel" id="settings-sub-about">
+            <div class="settings-sub-panel" id="settings-sub-cron-stats">
             <div class="setting-block">
-              <h3 class="setting-title">ℹ️ 关于数据同步的安全机制</h3>
-              <div class="about-grid">
-                <div class="about-card">
-                  <div class="about-title">🔒 写入保护</div>
-                  <div class="about-text">Merge 模式下，服务端数据 <code>updated_at</code> 更新才覆盖本地，避免旧数据回刷新数据。</div>
-                </div>
-                <div class="about-card">
-                  <div class="about-title">🧯 异常检测</div>
-                  <div class="about-text">Pull 时如果发现服务器数据量比本地少 90% 以上（<code>50 → 3</code>），会自动中止 replace 保护本地。</div>
-                </div>
-                <div class="about-card">
-                  <div class="about-title">📛 删除白名单</div>
-                  <div class="about-text">删除操作只允许推送到<b>服务器上已存在</b>的目标。本地删除了一个服务器上根本没有的 ID → 拒绝。</div>
-                </div>
-                <div class="about-card">
-                  <div class="about-title">🔐 鉴权保护</div>
-                  <div class="about-text">所有 <code>/api/admin/*</code> 路由需要 JWT token，未授权返回 401。activate 不走这个通道。</div>
-                </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+                <h3 class="setting-title">⏰ 定时任务监控</h3>
+                <button class="btn btn-primary" onclick="loadCronStats()" style="font-size:0.82rem;padding:6px 14px">🔄 刷新</button>
+              </div>
+              <p class="setting-desc" style="margin-bottom:12px">当前所有定时任务（Vercel Cron Jobs）的执行状态、执行次数和最后执行时间。</p>
+              <div id="cronStatsContainer">
+                <div class="cron-loading">加载中...</div>
               </div>
             </div>
             </div>
@@ -6378,6 +6458,9 @@
         loadBackupList();
         loadAutoBackupConfig();
       }
+      if (tab === 'cron-stats') {
+        loadCronStats();
+      }
     }
 
     async function loadAutoBackupConfig() {
@@ -6399,6 +6482,98 @@
       } catch (e) {
         console.error('loadAutoBackupConfig error:', e);
       }
+    }
+
+    var CRON_SCHEDULES = {
+      'afdian-query-orders': '每天 03:00 (UTC)',
+      'health-backup': '每天 04:00 (UTC)',
+    };
+
+    var CRON_DESCRIPTIONS = {
+      'afdian-query-orders': '查询爱发电订单，同步激活数据',
+      'health-backup': '数据库自动备份到 Redis',
+    };
+
+    var STATUS_LABELS = {
+      'success': '成功',
+      'error': '失败',
+      'partial': '部分失败',
+      'skipped': '已跳过',
+      'unknown': '未知',
+    };
+
+    var STATUS_CSS = {
+      'success': 'cron-status-success',
+      'error': 'cron-status-error',
+      'partial': 'cron-status-partial',
+      'skipped': 'cron-status-skipped',
+      'unknown': 'cron-status-unknown',
+    };
+
+    async function loadCronStats() {
+      var container = document.getElementById('cronStatsContainer');
+      if (!container) return;
+      container.innerHTML = '<div class="cron-loading">⏳ 加载中...</div>';
+      try {
+        var res = await fetch('/api/admin/health?section=cron-stats', { credentials: 'include' });
+        var data = await res.json();
+        if (!data.success || !data.tasks || data.tasks.length === 0) {
+          container.innerHTML = '<div class="cron-empty">📭 暂无定时任务执行记录</div>';
+          return;
+        }
+
+        var html = '<table class="cron-table"><thead><tr><th>任务名称</th><th>状态</th><th>执行次数</th><th>最后执行</th><th>耗时</th><th>执行结果</th></tr></thead><tbody>';
+
+        data.tasks.forEach(function(task) {
+          var schedule = CRON_SCHEDULES[task.id] || '-';
+          var desc = CRON_DESCRIPTIONS[task.id] || '';
+          var statusLabel = STATUS_LABELS[task.lastStatus] || task.lastStatus || '未知';
+          var statusCss = STATUS_CSS[task.lastStatus] || 'cron-status-unknown';
+          var lastTime = task.lastRun ? new Date(task.lastRun).toLocaleString() : '从未执行';
+          var ago = task.lastRun ? timeAgo(task.lastRun) : '';
+          var duration = task.lastDuration ? (task.lastDuration > 1000 ? (task.lastDuration / 1000).toFixed(1) + 's' : task.lastDuration + 'ms') : '-';
+          var result = task.lastResult || '-';
+
+          html += '<tr>';
+          html += '<td><div class="cron-name">' + escapeHtml(task.id) + '</div>';
+          if (desc) html += '<div class="cron-schedule">' + escapeHtml(desc) + '</div>';
+          html += '<div class="cron-schedule">⏱ ' + escapeHtml(schedule) + '</div></td>';
+          html += '<td><span class="cron-status ' + statusCss + '">' + escapeHtml(statusLabel) + '</span></td>';
+          html += '<td><span class="cron-count">' + escapeHtml(String(task.count || 0)) + '</span></td>';
+          html += '<td><div class="cron-time">' + escapeHtml(lastTime) + '</div>';
+          if (ago) html += '<div class="cron-time-ago">' + escapeHtml(ago) + '</div></td>';
+          html += '<td><span class="cron-duration">' + escapeHtml(duration) + '</span></td>';
+          html += '<td><span class="cron-result" title="' + escapeHtml(result) + '">' + escapeHtml(result) + '</span></td>';
+          html += '</tr>';
+        });
+
+        html += '</tbody></table>';
+
+        if (data.lastUpdate) {
+          html += '<div class="cron-meta">数据更新时间：' + new Date(data.lastUpdate).toLocaleString() + '</div>';
+        }
+
+        container.innerHTML = html;
+      } catch (e) {
+        console.error('loadCronStats error:', e);
+        container.innerHTML = '<div class="cron-empty">❌ 加载失败: ' + escapeHtml(e.message) + '</div>';
+      }
+    }
+
+    function timeAgo(ts) {
+      var now = Date.now();
+      var diff = now - ts;
+      if (diff < 60000) return '刚刚';
+      if (diff < 3600000) return Math.floor(diff / 60000) + ' 分钟前';
+      if (diff < 86400000) return Math.floor(diff / 3600000) + ' 小时前';
+      if (diff < 2592000000) return Math.floor(diff / 86400000) + ' 天前';
+      return Math.floor(diff / 2592000000) + ' 月前';
+    }
+
+    function escapeHtml(str) {
+      var div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
     }
 
     async function toggleAutoBackup() {
