@@ -6369,21 +6369,47 @@
           var sizeStr = b.size > 1024 ? (b.size / 1024).toFixed(1) + ' KB' : b.size + ' B';
           var isAuto = b.type === 'auto';
           var dateStr = b.created_at ? new Date(b.created_at).toLocaleString() : '';
+          var expandId = 'backup-detail-' + b.id.replace(/[^a-zA-Z0-9]/g, '_');
+          var tables = b.tables || {};
+          var tableNames = {
+            products: '产品',
+            redeem_codes: '兑换码',
+            activations: '激活记录',
+            failures: '失败记录',
+          };
+          var tableRows = '';
+          Object.keys(tableNames).forEach(function(tk) {
+            var td = tables[tk] || {};
+            var cnt = td.count !== undefined ? td.count : '-';
+            tableRows += '<tr><td style="padding:3px 8px;font-size:0.72rem;color:#64748b">' + tableNames[tk] + '</td>' +
+              '<td style="padding:3px 8px;font-size:0.72rem;font-family:monospace;color:#334155">' + cnt + ' 条</td>' +
+              '<td style="padding:3px 8px;font-size:0.65rem;color:#94a3b8;font-family:monospace">' + (td.set || tk) + '</td></tr>';
+          });
           html += '<div class="backup-item">' +
-            '<div class="backup-item-info">' +
+            '<div class="backup-item-info" style="cursor:pointer" onclick="toggleBackupDetail(\'' + expandId + '\')">' +
               '<div class="backup-item-date">' + escapeHtml(dateStr) + '</div>' +
-              '<div class="backup-item-meta">' + b.activationCount + ' 激活记录 + ' + b.failureCount + ' 失败记录 · ' + sizeStr + '</div>' +
+              '<div class="backup-item-meta">' + (b.activationCount || 0) + ' 激活记录 + ' + (b.failureCount || 0) + ' 失败记录 · ' + sizeStr + '</div>' +
             '</div>' +
             '<span class="backup-item-badge ' + (isAuto ? 'auto' : 'manual') + '">' + (isAuto ? '自动' : '手动') + '</span>' +
             '<div class="backup-item-actions">' +
               '<button class="btn btn-outline" style="padding:4px 12px;font-size:0.75rem" onclick="restoreBackup(\'' + b.id + '\')">↩️ 还原</button>' +
               '<button class="btn btn-outline" style="padding:4px 12px;font-size:0.75rem;color:#dc2626;border-color:#dc2626" onclick="deleteBackup(\'' + b.id + '\')">🗑️</button>' +
             '</div>' +
+          '</div>' +
+          '<div id="' + expandId + '" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;margin-top:-1px;padding:8px 12px">' +
+            '<table style="width:100%;border-collapse:collapse">' + tableRows + '</table>' +
           '</div>';
         });
         list.innerHTML = html;
       } catch (e) {
         list.innerHTML = '<div class="muted" style="padding:16px;text-align:center;color:#dc2626">加载失败: ' + escapeHtml(e.message) + '</div>';
+      }
+    }
+
+    function toggleBackupDetail(expandId) {
+      var el = document.getElementById(expandId);
+      if (el) {
+        el.style.display = el.style.display === 'none' ? 'block' : 'none';
       }
     }
 
@@ -6399,7 +6425,8 @@
         });
         var data = await res.json();
         if (data.success) {
-          showToast('✅ 备份完成！' + data.backup.totalCount + ' 条记录', 'success');
+          var tb = data.backup.tables || {};
+          showToast('✅ 备份完成！产品' + (tb.products ? tb.products.count : 0) + ' 兑换码' + (tb.redeem_codes ? tb.redeem_codes.count : 0) + ' 激活' + (tb.activations ? tb.activations.count : 0) + ' 失败' + (tb.failures ? tb.failures.count : 0), 'success');
           loadBackupList();
         } else {
           showToast('❌ 备份失败: ' + (data.error || '未知错误'), 'error');
@@ -6421,7 +6448,8 @@
         });
         var data = await res.json();
         if (data.success) {
-          showToast('✅ 数据已还原！激活 ' + (data.restored ? data.restored.activations : 0) + ' + 失败 ' + (data.restored ? data.restored.failures : 0) + ' 条记录', 'success');
+          var r = data.restored || {};
+          showToast('✅ 数据已还原！产品' + (r.products || 0) + ' 兑换码' + (r.redeem_codes || 0) + ' 激活' + (r.activations || 0) + ' 失败' + (r.failures || 0), 'success');
           loadBackupList();
         } else {
           showToast('❌ 还原失败: ' + (data.error || '未知错误'), 'error');

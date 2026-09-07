@@ -60,6 +60,92 @@ const BACKUP_CONFIG_KEY = "auth:backup:config";
 const BACKUP_LIST_KEY = "auth:backup:list";
 const BACKUP_PREFIX = "auth:backup:";
 
+async function readSetMembers(redis, setKey, valueKeyPrefix) {
+  var set = await redis.smembers(setKey);
+  var keys = Array.isArray(set) ? set : [];
+  var records = [];
+  if (keys.length) {
+    var chunks = [];
+    for (var i = 0; i < keys.length; i += 200) chunks.push(keys.slice(i, i + 200));
+    for (var c = 0; c < chunks.length; c++) {
+      var batch = chunks[c];
+      var vals = await redis.mget(batch.map(function(x) { return valueKeyPrefix + x; }));
+      for (var j = 0; j < batch.length; j++) {
+        var raw = vals && vals[j];
+        if (typeof raw === "string") {
+          try { records.push(JSON.parse(raw)); } catch (_) {}
+        }
+      }
+    }
+  }
+  return records;
+}
+
+async function readHashAll(redis, hashKey) {
+  var raw = await redis.hgetall(hashKey);
+  var records = [];
+  if (raw) {
+    Object.keys(raw).forEach(function(k) {
+      try { records.push({ id: k, data: JSON.parse(raw[k]) }); } catch (_) {
+        try { records.push({ id: k, value: raw[k] }); } catch (_) {}
+      }
+    });
+  }
+  return records;
+}
+
+async function doBackup(redis, isAuto) {
+  var timestamp = Date.now();
+  var label = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  var backupId = isAuto ? ("auto-" + label) : ("manual-" + label);
+
+  var products = await readHashAll(redis, "auth:products");
+  var redeemCodes = await readSetMembers(redis, "auth:redeem_codes", "auth:redeem:");
+  var activations = await readSetMembers(redis, "auth:activation_codes", "auth:activation:");
+  var failures = await readSetMembers(redis, "auth:activation_failures", "auth:activation_failure:");
+
+  var backupData = {
+    id: backupId,
+    type: isAuto ? "auto" : "manual",
+    created_at: new Date().toISOString(),
+    timestamp: timestamp,
+    tables: {
+      products:      { count: products.length,    set: "auth:products",            type: "hash" },
+      redeem_codes:  { count: redeemCodes.length,  set: "auth:redeem_codes",        type: "set" },
+      activations:   { count: activations.length,  set: "auth:activation_codes",    type: "set" },
+      failures:      { count: failures.length,     set: "auth:activation_failures", type: "set" },
+    },
+    activationCount: activations.length,
+    failureCount: failures.length,
+    totalCount: activations.length + failures.length,
+    products: products,
+    redeem_codes: redeemCodes,
+    activations: activations,
+    failures: failures,
+  };
+
+  var jsonData = JSON.stringify(backupData);
+  var sizeBytes = Buffer.byteLength(jsonData, "utf8");
+
+  var pip = redis.pipeline();
+  pip.set(BACKUP_PREFIX + "meta:" + backupId, JSON.stringify({
+    id: backupId,
+    type: backupData.type,
+    created_at: backupData.created_at,
+    timestamp: timestamp,
+    tables: backupData.tables,
+    activationCount: backupData.activationCount,
+    failureCount: backupData.failureCount,
+    totalCount: backupData.totalCount,
+    size: sizeBytes,
+  }));
+  pip.set(BACKUP_PREFIX + "data:" + backupId, jsonData);
+  pip.zadd(BACKUP_LIST_KEY, timestamp, backupId);
+  await pip.exec();
+
+  return { backupId: backupId, backupData: backupData, sizeBytes: sizeBytes };
+}
+
 module.exports = async (req, res) => {
   var isCron = req.query.cron === "1";
   var isBackup = req.query.section === "backup";
@@ -72,91 +158,22 @@ module.exports = async (req, res) => {
         return res.json({ success: true, message: "Auto backup disabled", skipped: true });
       }
 
-      var timestamp = Date.now();
-      var label = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-      var backupId = "auto-" + label;
-
-      var actSet = await redis.smembers("auth:activation_codes");
-      var actKeys = Array.isArray(actSet) ? actSet : [];
-      var activations = [];
-      if (actKeys.length) {
-        var chunksA = [];
-        for (var i2 = 0; i2 < actKeys.length; i2 += 200) chunksA.push(actKeys.slice(i2, i2 + 200));
-        for (var c2 = 0; c2 < chunksA.length; c2++) {
-          var batchA = chunksA[c2];
-          var keysA = batchA.map(function(x) { return "auth:activation:" + x; });
-          var valsA = await redis.mget(keysA);
-          for (var j2 = 0; j2 < batchA.length; j2++) {
-            var rawA = valsA && valsA[j2];
-            if (typeof rawA === "string") {
-              try { activations.push(JSON.parse(rawA)); } catch (_) {}
-            }
-          }
-        }
-      }
-
-      var failSet = await redis.smembers("auth:activation_failures");
-      var failKeys = Array.isArray(failSet) ? failSet : [];
-      var failures = [];
-      if (failKeys.length) {
-        var chunksF = [];
-        for (var i3 = 0; i3 < failKeys.length; i3 += 200) chunksF.push(failKeys.slice(i3, i3 + 200));
-        for (var c3 = 0; c3 < chunksF.length; c3++) {
-          var batchF = chunksF[c3];
-          var keysF = batchF.map(function(x) { return "auth:activation_failure:" + x; });
-          var valsF = await redis.mget(keysF);
-          for (var j3 = 0; j3 < batchF.length; j3++) {
-            var rawF = valsF && valsF[j3];
-            if (typeof rawF === "string") {
-              try { failures.push(JSON.parse(rawF)); } catch (_) {}
-            }
-          }
-        }
-      }
-
-      var backupData = {
-        id: backupId,
-        type: "auto",
-        created_at: new Date().toISOString(),
-        timestamp: timestamp,
-        activationCount: activations.length,
-        failureCount: failures.length,
-        totalCount: activations.length + failures.length,
-        activations: activations,
-        failures: failures,
-      };
-
-      var jsonData = JSON.stringify(backupData);
-      var sizeBytes = Buffer.byteLength(jsonData, "utf8");
-
-      var pip = redis.pipeline();
-      pip.set(BACKUP_PREFIX + "meta:" + backupId, JSON.stringify({
-        id: backupId,
-        type: "auto",
-        created_at: backupData.created_at,
-        timestamp: timestamp,
-        activationCount: activations.length,
-        failureCount: failures.length,
-        totalCount: activations.length + failures.length,
-        size: sizeBytes,
-      }));
-      pip.set(BACKUP_PREFIX + "data:" + backupId, jsonData);
-      pip.zadd(BACKUP_LIST_KEY, timestamp, backupId);
-      await pip.exec();
+      var result = await doBackup(redis, true);
 
       await redis.set(BACKUP_CONFIG_KEY, JSON.stringify({
         enabled: config.enabled,
         lastBackupAt: new Date().toISOString(),
-        lastBackupId: backupId,
+        lastBackupId: result.backupId,
       }));
 
       return res.json({
         success: true,
         message: "Auto backup completed",
         backup: {
-          id: backupId,
-          totalCount: backupData.totalCount,
-          size: sizeBytes,
+          id: result.backupId,
+          tables: result.backupData.tables,
+          totalCount: result.backupData.totalCount,
+          size: result.sizeBytes,
         },
       });
     } catch (e) {
@@ -214,94 +231,25 @@ module.exports = async (req, res) => {
         }
 
         var isAuto = body && body.auto === true;
-        var timestamp = Date.now();
-        var label = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-        var backupId = isAuto ? ("auto-" + label) : ("manual-" + label);
-
-        var actSet = await redis.smembers("auth:activation_codes");
-        var actKeys = Array.isArray(actSet) ? actSet : [];
-        var activations = [];
-        if (actKeys.length) {
-          var chunksA = [];
-          for (var i4 = 0; i4 < actKeys.length; i4 += 200) chunksA.push(actKeys.slice(i4, i4 + 200));
-          for (var c4 = 0; c4 < chunksA.length; c4++) {
-            var batchA = chunksA[c4];
-            var keysA = batchA.map(function(x) { return "auth:activation:" + x; });
-            var valsA = await redis.mget(keysA);
-            for (var j4 = 0; j4 < batchA.length; j4++) {
-              var rawA = valsA && valsA[j4];
-              if (typeof rawA === "string") {
-                try { activations.push(JSON.parse(rawA)); } catch (_) {}
-              }
-            }
-          }
-        }
-
-        var failSet = await redis.smembers("auth:activation_failures");
-        var failKeys = Array.isArray(failSet) ? failSet : [];
-        var failures = [];
-        if (failKeys.length) {
-          var chunksF = [];
-          for (var i5 = 0; i5 < failKeys.length; i5 += 200) chunksF.push(failKeys.slice(i5, i5 + 200));
-          for (var c5 = 0; c5 < chunksF.length; c5++) {
-            var batchF = chunksF[c5];
-            var keysF = batchF.map(function(x) { return "auth:activation_failure:" + x; });
-            var valsF = await redis.mget(keysF);
-            for (var j5 = 0; j5 < batchF.length; j5++) {
-              var rawF = valsF && valsF[j5];
-              if (typeof rawF === "string") {
-                try { failures.push(JSON.parse(rawF)); } catch (_) {}
-              }
-            }
-          }
-        }
-
-        var backupData = {
-          id: backupId,
-          type: isAuto ? "auto" : "manual",
-          created_at: new Date().toISOString(),
-          timestamp: timestamp,
-          activationCount: activations.length,
-          failureCount: failures.length,
-          totalCount: activations.length + failures.length,
-          activations: activations,
-          failures: failures,
-        };
-
-        var jsonData = JSON.stringify(backupData);
-        var sizeBytes = Buffer.byteLength(jsonData, "utf8");
-
-        var pip = redis.pipeline();
-        pip.set(BACKUP_PREFIX + "meta:" + backupId, JSON.stringify({
-          id: backupId,
-          type: isAuto ? "auto" : "manual",
-          created_at: backupData.created_at,
-          timestamp: timestamp,
-          activationCount: activations.length,
-          failureCount: failures.length,
-          totalCount: activations.length + failures.length,
-          size: sizeBytes,
-        }));
-        pip.set(BACKUP_PREFIX + "data:" + backupId, jsonData);
-        pip.zadd(BACKUP_LIST_KEY, timestamp, backupId);
-        await pip.exec();
+        var result = await doBackup(redis, isAuto);
 
         await redis.set(BACKUP_CONFIG_KEY, JSON.stringify({
           enabled: true,
           lastBackupAt: new Date().toISOString(),
-          lastBackupId: backupId,
+          lastBackupId: result.backupId,
         }));
 
         return res.json({
           success: true,
           backup: {
-            id: backupId,
+            id: result.backupId,
             type: isAuto ? "auto" : "manual",
-            activationCount: activations.length,
-            failureCount: failures.length,
-            totalCount: activations.length + failures.length,
-            size: sizeBytes,
-            created_at: backupData.created_at,
+            tables: result.backupData.tables,
+            activationCount: result.backupData.activationCount,
+            failureCount: result.backupData.failureCount,
+            totalCount: result.backupData.totalCount,
+            size: result.sizeBytes,
+            created_at: result.backupData.created_at,
           },
         });
       } catch (e) {
@@ -337,38 +285,64 @@ module.exports = async (req, res) => {
             return res.status(500).json({ success: false, error: "Backup data corrupted" });
           }
 
+          var restored = { products: 0, redeem_codes: 0, activations: 0, failures: 0 };
+
+          if (backup.products && backup.products.length) {
+            var pip1 = redis.pipeline();
+            for (var pi = 0; pi < backup.products.length; pi++) {
+              var prod = backup.products[pi];
+              if (prod.id && prod.data) {
+                pip1.hset("auth:products", prod.id, JSON.stringify(prod.data));
+              }
+            }
+            await pip1.exec();
+            restored.products = backup.products.length;
+          }
+
+          if (backup.redeem_codes && backup.redeem_codes.length) {
+            var pip2 = redis.pipeline();
+            for (var ri = 0; ri < backup.redeem_codes.length; ri++) {
+              var rc = backup.redeem_codes[ri];
+              if (rc.code) {
+                pip2.set("auth:redeem:" + rc.code, JSON.stringify(rc));
+                pip2.sadd("auth:redeem_codes", rc.code);
+              }
+            }
+            await pip2.exec();
+            restored.redeem_codes = backup.redeem_codes.length;
+          }
+
           if (backup.activations && backup.activations.length) {
-            var pip = redis.pipeline();
+            var pip3 = redis.pipeline();
             for (var ai = 0; ai < backup.activations.length; ai++) {
               var act = backup.activations[ai];
               if (act.activation_code) {
-                pip.set("auth:activation:" + act.activation_code, JSON.stringify(act));
-                pip.sadd("auth:activation_codes", act.activation_code);
+                pip3.set("auth:activation:" + act.activation_code, JSON.stringify(act));
+                pip3.sadd("auth:activation_codes", act.activation_code);
               }
             }
-            await pip.exec();
+            await pip3.exec();
+            restored.activations = backup.activations.length;
           }
 
           if (backup.failures && backup.failures.length) {
-            var pip2 = redis.pipeline();
+            var pip4 = redis.pipeline();
             for (var fi = 0; fi < backup.failures.length; fi++) {
               var fail = backup.failures[fi];
               var failKey = fail.id || fail.code || (fail.activation_code ? ("fail:" + fail.activation_code) : null);
               if (failKey) {
-                pip2.set("auth:activation_failure:" + failKey, JSON.stringify(fail));
-                pip2.sadd("auth:activation_failures", failKey);
+                pip4.set("auth:activation_failure:" + failKey, JSON.stringify(fail));
+                pip4.sadd("auth:activation_failures", failKey);
               }
             }
-            await pip2.exec();
+            await pip4.exec();
+            restored.failures = backup.failures.length;
           }
 
           return res.json({
             success: true,
             message: "Restored from backup: " + restoreId,
-            restored: {
-              activations: backup.activations ? backup.activations.length : 0,
-              failures: backup.failures ? backup.failures.length : 0,
-            },
+            restored: restored,
           });
         }
 
