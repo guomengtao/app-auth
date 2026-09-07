@@ -1125,6 +1125,25 @@
       color: #4c51bf;
       border-bottom-color: #4c51bf;
     }
+
+    .device-link {
+      color: #2563eb;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.75rem;
+      letter-spacing: 0.5px;
+      font-family: 'Courier New', Courier, monospace;
+      border-bottom: 1px dashed rgba(37,99,235,0.4);
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 4px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .device-link:hover {
+      background: rgba(37,99,235,0.1);
+      color: #1d4ed8;
+      border-bottom-color: #1d4ed8;
+    }
     tr.record-row-hl {
       background: rgba(102,126,234,0.14) !important;
       box-shadow: inset 3px 0 0 #667eea;
@@ -5426,9 +5445,13 @@
             : '<span style="color:#aaa">-</span>';
           var rawDeviceId = r.device_id || '';
           var hashDeviceId = r.device_id_hash || r.used_device_id || '';
+          var displayDeviceId = rawDeviceId;
+          if (displayDeviceId && displayDeviceId.length > 4) {
+            displayDeviceId = '...' + displayDeviceId.slice(-4);
+          }
           var deviceCell;
           if (rawDeviceId) {
-            deviceCell = '<span class="mono" style="font-size:0.75rem;letter-spacing:0.5px">' + escapeHtml(rawDeviceId) + '</span>';
+            deviceCell = '<a href="javascript:void(0)" class="device-link" onclick="toggleRecordDetailByIdx(' + idx + ')" title="' + escapeHtml(rawDeviceId) + '">' + escapeHtml(displayDeviceId) + '</a>';
           } else if (hashDeviceId) {
             deviceCell = '<span class="mono" style="font-size:0.7rem;letter-spacing:0;opacity:0.65">' + escapeHtml(hashDeviceId) + '</span>';
           } else {
@@ -5878,6 +5901,27 @@
 
       html += '</div>';
       return html;
+    }
+
+    function toggleRecordDetailByIdx(idx) {
+      var row = document.getElementById('detailRow' + idx);
+      if (!row) return;
+      var isOpen = row.classList.contains('show');
+      if (isOpen) {
+        row.classList.remove('show');
+      } else {
+        row.classList.add('show');
+      }
+      var btn = document.querySelector('button[data-idx="' + idx + '"]');
+      if (btn) {
+        if (isOpen) {
+          btn.classList.remove('active');
+          btn.textContent = 'Show';
+        } else {
+          btn.classList.add('active');
+          btn.textContent = 'Hide';
+        }
+      }
     }
 
     function toggleRecordDetail(event, btn) {
