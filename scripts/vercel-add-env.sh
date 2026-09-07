@@ -1,12 +1,36 @@
 #!/bin/bash
 set -e
-cd /Users/Banner/Documents/guomengtao/app-auth
+cd "$(dirname "$0")/.."
+
+# Load env vars from .env file (gitignored, contains real secrets)
+# Use grep to parse key=value pairs, skipping comments and empty lines
+while IFS='=' read -r key value; do
+  if [ -n "$key" ] && [ "${key:0:1}" != "#" ]; then
+    # Remove surrounding quotes from value
+    value="${value#\"}"
+    value="${value%\"}"
+    value="${value#\'}"
+    value="${value%\'}"
+    export "$key=$value"
+  fi
+done < <(grep -E '^[A-Za-z_][A-Za-z0-9_]*=' .env 2>/dev/null || true)
+
+# Unset VERCEL_TOKEN to use Vercel CLI's stored auth token
+unset VERCEL_TOKEN
+
+SCOPE="guomengtaos-projects-7a91cee5"
+PROJECT="app-auth"
 
 add_env() {
   local name="$1"
   local value="$2"
+  local extra_args=""
+  # NEXT_PUBLIC_ prefixed vars that look like credentials need --type config
+  if [[ "$name" == NEXT_PUBLIC_* ]]; then
+    extra_args="--type config"
+  fi
   echo "Adding: $name"
-  printf "%s" "$value" | npx vercel env add "$name" production --force --yes 2>&1 || true
+  printf "%s" "$value" | npx vercel env add "$name" production --scope "$SCOPE" --project "$PROJECT" --force --yes $extra_args 2>&1 || true
 }
 
 add_env DB_PROVIDER "${DB_PROVIDER:-supabase}"
