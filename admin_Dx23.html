@@ -7488,25 +7488,19 @@
       var detailEl = document.getElementById('supabaseQuotaDetail');
       var tipsEl = document.getElementById('supabaseQuotaTips');
 
-      var supabaseFree = {
-        database: { limit: '500 MB', used: '--', desc: '每个项目 500MB 数据库存储' },
-        bandwidth: { limit: '2 GB', used: '--', desc: '每月 2GB 带宽' },
-        auth: { limit: '50,000 MAU', used: '--', desc: '每月 5 万活跃用户' },
-        storage: { limit: '1 GB', used: '--', desc: '文件存储空间' },
-        edgeFunctions: { limit: '500,000', used: '--', desc: '每月 50 万次 Edge Function 调用' },
-        realtime: { limit: '200', used: '--', desc: '200 个并发实时连接' },
-        projects: { limit: '2', used: '--', desc: '最多 2 个免费项目' },
-      };
+      var dbSizeMB = '--';
+      var dbSizePct = 0;
 
-      if (cardsEl) {
+      function renderCards() {
+        if (!cardsEl) return;
         var html = '';
         html += _quotaCard(
           '💾 数据库存储 (Database)',
-          '<span style="color:#9ca3af">--</span><small>MB</small>',
+          '<span style="color:#10b981;font-weight:700">' + dbSizeMB + '</span><small> MB</small>',
           '500 MB',
-          0,
+          dbSizePct,
           '每个项目 500MB 数据库存储',
-          '免费套餐包含 500MB 数据库空间，适合中小型项目'
+          '实时查询 pg_database_size()，数值为当前数据库实际占用'
         );
         html += _quotaCard(
           '🌐 带宽 (Bandwidth)',
@@ -7514,7 +7508,7 @@
           '2 GB',
           0,
           '每月 2GB 数据传输',
-          '包含上传和下载流量，一般项目足够使用'
+          '免费版无 API 可查，请到 Supabase 控制台查看'
         );
         html += _quotaCard(
           '👤 活跃用户 (MAU)',
@@ -7522,7 +7516,7 @@
           '50,000',
           0,
           '每月 5 万活跃用户',
-          '通过 Supabase Auth 认证的用户数'
+          '免费版无 API 可查，请到 Supabase 控制台查看'
         );
         html += _quotaCard(
           '📁 文件存储 (Storage)',
@@ -7530,7 +7524,7 @@
           '1 GB',
           0,
           '文件/图片存储空间',
-          '可用于用户头像、附件等文件存储'
+          '免费版无 API 可查，请到 Supabase 控制台查看'
         );
         html += _quotaCard(
           '⚡ Edge Functions',
@@ -7538,7 +7532,7 @@
           '500,000',
           0,
           '每月 50 万次调用',
-          'Serverless 函数，全球边缘节点执行'
+          '免费版无 API 可查，请到 Supabase 控制台查看'
         );
         html += _quotaCard(
           '🔌 实时连接 (Realtime)',
@@ -7546,14 +7540,18 @@
           '200',
           0,
           '200 个并发 WebSocket 连接',
-          'WebSocket 实时数据同步的最大并发数'
+          '免费版无 API 可查，请到 Supabase 控制台查看'
         );
         cardsEl.innerHTML = html;
       }
 
-      if (detailEl) {
+      function renderDetail() {
+        if (!detailEl) return;
+        var dbStatus = dbSizeMB !== '--'
+          ? '<span class="tag t-ok">✓ ' + dbSizeMB + ' MB / 500 MB (' + (dbSizePct).toFixed(1) + '%)</span>'
+          : '<span class="tag t-ok">✓ 充足</span>';
         detailEl.innerHTML = '<table class="storage-detail-table"><thead><tr><th>资源项</th><th style="text-align:right">免费额度</th><th style="text-align:right">状态</th><th>说明</th></tr></thead><tbody>' +
-          '<tr><td>数据库存储</td><td style="text-align:right">500 MB</td><td style="text-align:right"><span class="tag t-ok">✓ 充足</span></td><td>PostgreSQL 数据库，含备份</td></tr>' +
+          '<tr><td>数据库存储</td><td style="text-align:right">500 MB</td><td style="text-align:right">' + dbStatus + '</td><td>PostgreSQL 数据库，含备份</td></tr>' +
           '<tr><td>带宽</td><td style="text-align:right">2 GB/月</td><td style="text-align:right"><span class="tag t-ok">✓ 充足</span></td><td>数据上传+下载总量</td></tr>' +
           '<tr><td>Auth 用户</td><td style="text-align:right">50,000 MAU</td><td style="text-align:right"><span class="tag t-ok">✓ 充足</span></td><td>每月活跃认证用户数</td></tr>' +
           '<tr><td>文件存储</td><td style="text-align:right">1 GB</td><td style="text-align:right"><span class="tag t-ok">✓ 充足</span></td><td>图片、文档等文件</td></tr>' +
@@ -7564,6 +7562,18 @@
           '<tr><td>API 请求</td><td style="text-align:right">无限</td><td style="text-align:right"><span class="tag t-ok">✓ 无限</span></td><td>REST/GraphQL API 请求无限制</td></tr>' +
           '</tbody></table>';
       }
+
+      renderCards();
+      renderDetail();
+
+      api('/api/admin/health?section=dbstatus').then(function(d) {
+        if (d && d.success && d.dbSizeMB) {
+          dbSizeMB = parseFloat(d.dbSizeMB).toFixed(2);
+          dbSizePct = Math.min((parseFloat(dbSizeMB) / 500) * 100, 100);
+          renderCards();
+          renderDetail();
+        }
+      }).catch(function() {});
 
       if (tipsEl) {
         tipsEl.innerHTML =
