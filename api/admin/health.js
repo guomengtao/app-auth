@@ -1198,6 +1198,37 @@ module.exports = async (req, res) => {
         syncStatus = null;
       }
 
+      var lastDbActivity = null;
+      var daysSinceLastActivity = null;
+      var pausedInDays = null;
+      var activityWarning = null;
+      try {
+        var lastUpdateStr = await redis.get(CRON_STATS_KEY + ":last_update");
+        if (lastUpdateStr) {
+          var lastTs = parseInt(lastUpdateStr, 10);
+          if (lastTs > 0) {
+            lastDbActivity = lastTs;
+            var now = Date.now();
+            var diffMs = now - lastTs;
+            daysSinceLastActivity = Math.round(diffMs / (1000 * 60 * 60 * 24) * 10) / 10;
+            var supabasePauseDays = 7;
+            if (daysSinceLastActivity >= supabasePauseDays) {
+              pausedInDays = 0;
+              activityWarning = "paused";
+            } else {
+              pausedInDays = Math.round((supabasePauseDays - daysSinceLastActivity) * 10) / 10;
+              if (daysSinceLastActivity >= 5) {
+                activityWarning = "critical";
+              } else if (daysSinceLastActivity >= 3) {
+                activityWarning = "warning";
+              } else {
+                activityWarning = "ok";
+              }
+            }
+          }
+        }
+      } catch (_) {}
+
       var connStr = String(process.env.Ev_POSTGRES_URL || process.env.POSTGRES_URL || "");
 
       var databases = [
@@ -1234,6 +1265,10 @@ module.exports = async (req, res) => {
         currentDatabase: dbProvider === "supabase" ? "Supabase" : (dbProvider === "neon" ? "Neon" : "Auto-detected"),
         dbSizeBytes: dbSizeBytes,
         dbSizeMB: (dbSizeBytes / (1024 * 1024)).toFixed(2),
+        lastDbActivity: lastDbActivity,
+        daysSinceLastActivity: daysSinceLastActivity,
+        pausedInDays: pausedInDays,
+        activityWarning: activityWarning,
         tables: tables.map(function(t) {
           return {
             schema: t.schemaname,
