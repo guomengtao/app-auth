@@ -993,6 +993,93 @@ module.exports = async (req, res) => {
     }
   }
 
+  if (req.query && req.query.section === "dbstatus") {
+    if (req.method !== "GET") {
+      return res.status(405).json({ success: false, error: "Method not allowed" });
+    }
+    try {
+      var pg = require("../../lib/postgres");
+      var dbProvider = String(process.env.DB_PROVIDER || "auto").trim();
+
+      var tablesResult = await pg.query(
+        "SELECT schemaname, relname, n_live_tup AS est_rows, pg_total_relation_size(quote_ident(schemaname)||'.'||quote_ident(relname)) AS bytes FROM pg_stat_user_tables ORDER BY bytes DESC"
+      );
+      var tables = (tablesResult && tablesResult.rows) ? tablesResult.rows : [];
+
+      var dbSizeResult = await pg.query("SELECT pg_database_size(current_database()) AS bytes");
+      var dbSizeBytes = (dbSizeResult && dbSizeResult.rows && dbSizeResult.rows[0]) ? Number(dbSizeResult.rows[0].bytes) || 0 : 0;
+
+      var syncStatus = null;
+      try {
+        var raw = await redis.get("auth:db:sync_status");
+        if (raw && typeof raw === "string") {
+          syncStatus = JSON.parse(raw);
+        }
+      } catch (e) {
+        syncStatus = null;
+      }
+
+      var connStr = String(process.env.Ev_POSTGRES_URL || process.env.POSTGRES_URL || "");
+
+      var databases = [
+        {
+          name: "Supabase",
+          role: dbProvider === "supabase" ? "primary" : "standby",
+          type: "PostgreSQL",
+          host: connStr.includes("supabase") ? "db.kqzkdpmyivtpxkfmibnd.supabase.co" : "-",
+          freeLimit: "500MB storage, 2GB bandwidth, 50K MAU",
+          configured: Boolean(process.env.Ev_POSTGRES_URL || process.env.Ev_SUPABASE_URL),
+        },
+        {
+          name: "Neon",
+          role: dbProvider === "neon" ? "primary" : "standby",
+          type: "PostgreSQL",
+          host: "ep-*.neon.tech",
+          freeLimit: "100h compute/month, 512MB storage, 1GB egress",
+          configured: Boolean(process.env.POSTGRES_URL || process.env.DATABASE_URL),
+        },
+        {
+          name: "Upstash KV",
+          role: "tertiary",
+          type: "Redis",
+          host: "upstash.io",
+          freeLimit: "10K commands/day, 256MB storage",
+          configured: Boolean(process.env.UPSTASH_REDIS_URL || process.env.REDIS_URL),
+        },
+      ];
+
+      return res.json({
+        success: true,
+        generatedAt: new Date().toISOString(),
+        currentProvider: dbProvider || "auto",
+        currentDatabase: dbProvider === "supabase" ? "Supabase" : (dbProvider === "neon" ? "Neon" : "Auto-detected"),
+        dbSizeBytes: dbSizeBytes,
+        dbSizeMB: (dbSizeBytes / (1024 * 1024)).toFixed(2),
+        tables: tables.map(function(t) {
+          return {
+            schema: t.schemaname,
+            name: t.relname,
+            estRows: Number(t.est_rows) || 0,
+            sizeBytes: Number(t.bytes) || 0,
+            sizeMB: (Number(t.bytes || 0) / (1024 * 1024)).toFixed(2),
+          };
+        }),
+        syncStatus: syncStatus || {
+          lastSyncDate: null,
+          updateCount: 0,
+          lastSyncType: null,
+        },
+        databases: databases,
+      });
+    } catch (e) {
+      console.error("dbstatus error:", e);
+      return res.status(500).json({
+        success: false,
+        error: (e && e.message) || String(e),
+      });
+    }
+  }
+
   if (req.method !== "GET") {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }

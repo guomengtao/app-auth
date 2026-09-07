@@ -2798,7 +2798,7 @@
         <li><a href="javascript:void(0)" onclick="switchTab('decrypt')" data-tab="decrypt"><i data-lucide="search" class="menu-icon"></i><span class="menu-text">解密验证</span></a></li>
         <li class="menu-separator"><hr></li>
         <li><a href="javascript:void(0)" onclick="switchTab('afdian-orders')" data-tab="afdian-orders"><i data-lucide="heart" class="menu-icon"></i><span class="menu-text">爱发电订单</span></a></li>
-        <li><a href="javascript:void(0)" onclick="switchTab('quota')" data-tab="quota"><i data-lucide="coins" class="menu-icon"></i><span class="menu-text">免费额度</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('quota')" data-tab="quota"><i data-lucide="coins" class="menu-icon"></i><span class="menu-text">额度</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('logs')" data-tab="logs"><i data-lucide="scroll-text" class="menu-icon"></i><span class="menu-text">日志</span></a></li>
         <li class="menu-separator"><hr></li>
         <li><a href="javascript:void(0)" onclick="switchTab('settings')" data-tab="settings"><i data-lucide="settings" class="menu-icon"></i><span class="menu-text">设置</span></a></li>
@@ -3027,33 +3027,59 @@
               <span id="quotaCheckedAt" class="health-meta">尚未检测</span>
             </div>
 
-            <div class="toolbar filter-row" id="quotaSummaryBar" style="margin-top:10px">
-              <div style="flex:1">
-                <div class="section-title" style="margin:0 0 6px">免费额度使用情况</div>
-                <div style="color:#6b7280;font-size:0.8rem" id="quotaMetaInfo">-</div>
+            <div class="quota-tabs" style="display:flex;gap:0;margin:12px 0 16px;border-bottom:2px solid var(--line,#e5e7eb);">
+              <button class="quota-tab active" onclick="switchQuotaTab('neon')" id="quotaTabNeon" style="padding:8px 20px;border:none;background:none;font-size:0.84rem;font-weight:600;color:var(--accent);cursor:pointer;border-bottom:2px solid var(--accent);margin-bottom:-2px;transition:all 0.15s;">🟢 Neon 额度</button>
+              <button class="quota-tab" onclick="switchQuotaTab('supabase')" id="quotaTabSupabase" style="padding:8px 20px;border:none;background:none;font-size:0.84rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">🟣 Supabase 额度</button>
+            </div>
+
+            <div id="quotaSubNeon">
+              <div class="toolbar filter-row" id="quotaSummaryBar" style="margin-top:0">
+                <div style="flex:1">
+                  <div class="section-title" style="margin:0 0 6px">Neon 免费额度使用情况</div>
+                  <div style="color:#6b7280;font-size:0.8rem" id="quotaMetaInfo">-</div>
+                </div>
+                <a href="https://console.neon.tech/app/billing" target="_blank" class="btn btn-outline" style="font-size:0.8rem">到 Neon 控制台看精确值 ↗</a>
               </div>
-              <a href="https://console.neon.tech/app/billing" target="_blank" class="btn btn-outline" style="font-size:0.8rem">到 Neon 控制台看精确值 ↗</a>
+
+              <div class="quota-cards" id="quotaCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin:16px 0 20px">
+                <div class="empty" style="grid-column:1/-1">点击「刷新额度」获取本月免费额度使用情况。</div>
+              </div>
+
+              <div class="section-title" style="margin-top:10px">📐 每月 100 小时怎么计算的？</div>
+              <div id="quotaHowTo" class="info-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-bottom:18px"></div>
+
+              <div class="section-title" style="margin-top:10px">💡 怎么节省免费额度（防止月底打不开）</div>
+              <div id="quotaTips" class="info-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-bottom:18px"></div>
+
+              <div class="section-title" style="margin-top:10px">📊 本月数据库活跃估算明细</div>
+              <div id="quotaBreakdownEl" class="breakdown-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:18px"></div>
+
+              <div class="section-title" style="margin-top:10px">🗄️ 数据库存储明细 (当前月)</div>
+              <div id="quotaStorageEl"></div>
+
+              <div class="section-title" style="margin-top:10px">📅 每日消耗记录 (本月)</div>
+              <div id="quotaDailyEl" class="table-wrap" style="margin-bottom:18px">
+                <div class="empty">点击「刷新额度」获取每日消耗记录。</div>
+              </div>
             </div>
 
-            <div class="quota-cards" id="quotaCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin:16px 0 20px">
-              <div class="empty" style="grid-column:1/-1">点击「刷新额度」获取本月免费额度使用情况。</div>
-            </div>
+            <div id="quotaSubSupabase" style="display:none;">
+              <div class="toolbar filter-row" style="margin-top:0">
+                <div style="flex:1">
+                  <div class="section-title" style="margin:0 0 6px">Supabase 免费额度</div>
+                  <div style="color:#6b7280;font-size:0.8rem">每个 Supabase 账户可创建 2 个免费项目，以下为单个项目免费额度</div>
+                </div>
+                <a href="https://supabase.com/dashboard/project/kqzkdpmyivtpxkfmibnd" target="_blank" class="btn btn-outline" style="font-size:0.8rem">到 Supabase 控制台 ↗</a>
+              </div>
 
-            <div class="section-title" style="margin-top:10px">📐 每月 100 小时怎么计算的？</div>
-            <div id="quotaHowTo" class="info-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-bottom:18px"></div>
+              <div class="quota-cards" id="supabaseQuotaCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin:16px 0 20px">
+              </div>
 
-            <div class="section-title" style="margin-top:10px">💡 怎么节省免费额度（防止月底打不开）</div>
-            <div id="quotaTips" class="info-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-bottom:18px"></div>
+              <div class="section-title" style="margin-top:10px">📊 Supabase 免费套餐详情</div>
+              <div id="supabaseQuotaDetail" style="margin-bottom:18px"></div>
 
-            <div class="section-title" style="margin-top:10px">📊 本月数据库活跃估算明细</div>
-            <div id="quotaBreakdownEl" class="breakdown-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:18px"></div>
-
-            <div class="section-title" style="margin-top:10px">🗄️ 数据库存储明细 (当前月)</div>
-            <div id="quotaStorageEl"></div>
-
-            <div class="section-title" style="margin-top:10px">📅 每日消耗记录 (本月)</div>
-            <div id="quotaDailyEl" class="table-wrap" style="margin-bottom:18px">
-              <div class="empty">点击「刷新额度」获取每日消耗记录。</div>
+              <div class="section-title" style="margin-top:10px">💡 Supabase 使用建议</div>
+              <div id="supabaseQuotaTips" class="info-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-bottom:18px"></div>
             </div>
           </div>
 
@@ -3126,6 +3152,7 @@
               <button class="settings-tab" onclick="switchSettingsTab('data')" data-stab="data">💾 数据</button>
               <button class="settings-tab" onclick="switchSettingsTab('security')" data-stab="security">🛡️ 安全</button>
               <button class="settings-tab" onclick="switchSettingsTab('email')" data-stab="email">📧 邮件</button>
+              <button class="settings-tab" onclick="switchSettingsTab('database')" data-stab="database">🗄️ 数据库</button>
               <button class="settings-tab" onclick="switchSettingsTab('backup')" data-stab="backup">📦 备份恢复</button>
               <button class="settings-tab" onclick="switchSettingsTab('about')" data-stab="about">ℹ️ 关于</button>
             </div>
@@ -3457,6 +3484,44 @@
             </div>
 
             <!-- 备份恢复子面板 -->
+            <div class="settings-sub-panel" id="settings-sub-database">
+              <div class="setting-block">
+                <h3 class="setting-title">🗄️ 数据库概览</h3>
+                <p class="setting-desc">当前运行的数据库实例及各数据库状态。主库故障时可手动切换到备库。</p>
+                <div style="margin-bottom:10px">
+                  <button class="btn btn-primary" onclick="loadDatabaseStatus()">🔄 刷新数据库状态</button>
+                  <span style="margin-left:10px;font-size:0.78rem;color:#6b7280" id="dbStatusCheckedAt"></span>
+                </div>
+                <div id="dbStatusCurrent" style="margin-bottom:16px;padding:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;">
+                  <span style="font-weight:600">当前运行数据库：</span><span id="dbCurrentName" style="color:var(--accent);font-weight:700">加载中...</span>
+                  <span style="margin-left:12px;font-size:0.78rem;color:#6b7280">(DB_PROVIDER: <code id="dbCurrentProvider">-</code>)</span>
+                </div>
+              </div>
+
+              <div class="setting-block">
+                <h3 class="setting-title">📊 三个数据库对比</h3>
+                <div id="dbCompareCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-bottom:16px">
+                  <div class="empty" style="grid-column:1/-1">点击「刷新数据库状态」加载...</div>
+                </div>
+              </div>
+
+              <div class="setting-block">
+                <h3 class="setting-title">📋 数据表详情</h3>
+                <p class="setting-desc">当前数据库中的所有数据表及其行数、大小</p>
+                <div id="dbTablesList">
+                  <div class="empty">点击「刷新数据库状态」加载...</div>
+                </div>
+              </div>
+
+              <div class="setting-block">
+                <h3 class="setting-title">🔄 数据同步状态</h3>
+                <p class="setting-desc">Neon → Supabase 数据同步的最后日期和更新次数</p>
+                <div id="dbSyncStatus" style="padding:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;">
+                  <div class="empty">点击「刷新数据库状态」加载...</div>
+                </div>
+              </div>
+            </div>
+
             <div class="settings-sub-panel" id="settings-sub-backup">
               <div class="setting-block">
                 <h3 class="setting-title">⏰ 自动备份</h3>
@@ -4219,7 +4284,7 @@
       decrypt: { title: '解密验证', sub: '离线解析激活码内容' },
       'direct-activate': { title: '快捷激活', sub: '跳过兑换码流程，直接为设备生成激活码' },
       'afdian-orders': { title: '爱发电订单', sub: '管理爱发电赞助订单，手动同步并查看激活码' },
-      quota: { title: '免费额度', sub: 'Neon Postgres 免费资源消耗与剩余额度估算' },
+      quota: { title: '额度', sub: 'Neon / Supabase 免费资源消耗与剩余额度估算' },
       health: { title: '服务器状态', sub: '检测 Postgres / 鉴权 / 激活链路是否正常' },
       'vercel-logs': { title: 'Vercel日志', sub: '部署事件与函数运行日志（Vercel API）' },
       'logs': { title: '系统日志', sub: 'Vercel部署事件 · 邮件发送记录 · 爱发电私信日志' },
@@ -6306,6 +6371,9 @@
         var contPanel = document.getElementById('settings-sub-data-cont');
         if (contPanel) contPanel.classList.add('active');
       }
+      if (tab === 'database') {
+        loadDatabaseStatus();
+      }
       if (tab === 'backup') {
         loadBackupList();
         loadAutoBackupConfig();
@@ -6877,6 +6945,199 @@
         console.error('loadQuota failed:', e);
         if (cardsEl) cardsEl.innerHTML = '<div class="empty" style="grid-column:1/-1">加载失败：' + escapeHtml(e.message || '未知错误') + '。请检查 /api/admin/health?section=quota 是否部署成功，或重新登录。</div>';
         showToast('加载额度数据失败: ' + (e.message || '未知错误'), 'error');
+      });
+    }
+
+    function switchQuotaTab(tab) {
+      document.querySelectorAll('.quota-tab').forEach(function(t) { t.classList.remove('active'); });
+      var activeTab = document.getElementById('quotaTab' + (tab === 'neon' ? 'Neon' : 'Supabase'));
+      if (activeTab) activeTab.classList.add('active');
+      var neonSub = document.getElementById('quotaSubNeon');
+      var supabaseSub = document.getElementById('quotaSubSupabase');
+      if (tab === 'neon') {
+        if (neonSub) neonSub.style.display = '';
+        if (supabaseSub) supabaseSub.style.display = 'none';
+        loadQuota();
+      } else {
+        if (neonSub) neonSub.style.display = 'none';
+        if (supabaseSub) supabaseSub.style.display = '';
+        loadSupabaseQuota();
+      }
+    }
+
+    function loadSupabaseQuota() {
+      var cardsEl = document.getElementById('supabaseQuotaCards');
+      var detailEl = document.getElementById('supabaseQuotaDetail');
+      var tipsEl = document.getElementById('supabaseQuotaTips');
+
+      var supabaseFree = {
+        database: { limit: '500 MB', used: '--', desc: '每个项目 500MB 数据库存储' },
+        bandwidth: { limit: '2 GB', used: '--', desc: '每月 2GB 带宽' },
+        auth: { limit: '50,000 MAU', used: '--', desc: '每月 5 万活跃用户' },
+        storage: { limit: '1 GB', used: '--', desc: '文件存储空间' },
+        edgeFunctions: { limit: '500,000', used: '--', desc: '每月 50 万次 Edge Function 调用' },
+        realtime: { limit: '200', used: '--', desc: '200 个并发实时连接' },
+        projects: { limit: '2', used: '--', desc: '最多 2 个免费项目' },
+      };
+
+      if (cardsEl) {
+        var html = '';
+        html += _quotaCard(
+          '💾 数据库存储 (Database)',
+          '<span style="color:#9ca3af">--</span><small>MB</small>',
+          '500 MB',
+          0,
+          '每个项目 500MB 数据库存储',
+          '免费套餐包含 500MB 数据库空间，适合中小型项目'
+        );
+        html += _quotaCard(
+          '🌐 带宽 (Bandwidth)',
+          '<span style="color:#9ca3af">--</span><small>GB</small>',
+          '2 GB',
+          0,
+          '每月 2GB 数据传输',
+          '包含上传和下载流量，一般项目足够使用'
+        );
+        html += _quotaCard(
+          '👤 活跃用户 (MAU)',
+          '<span style="color:#9ca3af">--</span><small>人</small>',
+          '50,000',
+          0,
+          '每月 5 万活跃用户',
+          '通过 Supabase Auth 认证的用户数'
+        );
+        html += _quotaCard(
+          '📁 文件存储 (Storage)',
+          '<span style="color:#9ca3af">--</span><small>GB</small>',
+          '1 GB',
+          0,
+          '文件/图片存储空间',
+          '可用于用户头像、附件等文件存储'
+        );
+        html += _quotaCard(
+          '⚡ Edge Functions',
+          '<span style="color:#9ca3af">--</span><small>次</small>',
+          '500,000',
+          0,
+          '每月 50 万次调用',
+          'Serverless 函数，全球边缘节点执行'
+        );
+        html += _quotaCard(
+          '🔌 实时连接 (Realtime)',
+          '<span style="color:#9ca3af">--</span><small>个</small>',
+          '200',
+          0,
+          '200 个并发 WebSocket 连接',
+          'WebSocket 实时数据同步的最大并发数'
+        );
+        cardsEl.innerHTML = html;
+      }
+
+      if (detailEl) {
+        detailEl.innerHTML = '<table class="storage-detail-table"><thead><tr><th>资源项</th><th style="text-align:right">免费额度</th><th style="text-align:right">状态</th><th>说明</th></tr></thead><tbody>' +
+          '<tr><td>数据库存储</td><td style="text-align:right">500 MB</td><td style="text-align:right"><span class="tag t-ok">✓ 充足</span></td><td>PostgreSQL 数据库，含备份</td></tr>' +
+          '<tr><td>带宽</td><td style="text-align:right">2 GB/月</td><td style="text-align:right"><span class="tag t-ok">✓ 充足</span></td><td>数据上传+下载总量</td></tr>' +
+          '<tr><td>Auth 用户</td><td style="text-align:right">50,000 MAU</td><td style="text-align:right"><span class="tag t-ok">✓ 充足</span></td><td>每月活跃认证用户数</td></tr>' +
+          '<tr><td>文件存储</td><td style="text-align:right">1 GB</td><td style="text-align:right"><span class="tag t-ok">✓ 充足</span></td><td>图片、文档等文件</td></tr>' +
+          '<tr><td>Edge Functions</td><td style="text-align:right">500K 次/月</td><td style="text-align:right"><span class="tag t-ok">✓ 充足</span></td><td>Deno 边缘函数调用次数</td></tr>' +
+          '<tr><td>Realtime</td><td style="text-align:right">200 并发</td><td style="text-align:right"><span class="tag t-ok">✓ 充足</span></td><td>WebSocket 并发连接数</td></tr>' +
+          '<tr><td>免费项目</td><td style="text-align:right">2 个</td><td style="text-align:right"><span class="tag t-ok">✓ 可用</span></td><td>每个账户可创建的项目数</td></tr>' +
+          '<tr><td>数据库备份</td><td style="text-align:right">7 天</td><td style="text-align:right"><span class="tag t-ok">✓ 自动</span></td><td>自动每日备份，保留 7 天</td></tr>' +
+          '<tr><td>API 请求</td><td style="text-align:right">无限</td><td style="text-align:right"><span class="tag t-ok">✓ 无限</span></td><td>REST/GraphQL API 请求无限制</td></tr>' +
+          '</tbody></table>';
+      }
+
+      if (tipsEl) {
+        tipsEl.innerHTML =
+          '<div class="info-card"><h4><span class="tag t-ok">优势</span>Supabase vs Neon</h4><p>Supabase 免费额度更慷慨：500MB 存储（Neon 512MB 相当），但无计算时间限制。Supabase 不会休眠 (no cold start)，更适合生产环境。Neon 有 100h/月计算限制，闲置 5 分钟自动休眠。</p></div>' +
+          '<div class="info-card"><h4><span class="tag t-warn">注意</span>免费项目暂停</h4><p>Supabase 免费项目如果超过 1 周无活动，会被暂停。需要登录 Dashboard 手动恢复。建议定期访问后台管理页面保持活跃。</p></div>' +
+          '<div class="info-card"><h4><span class="tag">建议</span>多数据库策略</h4><p>当前架构：Supabase 主库 + Neon 备库 + Upstash KV 三级备。主库 Supabase 无计算时间限制，不会休眠，保证在线稳定性。Neon 作为备库，在主库故障时手动切换。</p></div>' +
+          '<div class="info-card"><h4><span class="tag t-ok">自动</span>每日备份</h4><p>Supabase 自动每日备份数据库，保留 7 天。可在 Dashboard → Database → Backups 查看和恢复。</p></div>';
+      }
+    }
+
+    function loadDatabaseStatus() {
+      var checkedAtEl = document.getElementById('dbStatusCheckedAt');
+      if (checkedAtEl) checkedAtEl.textContent = '加载中...';
+
+      api('/api/admin/health?section=dbstatus').then(function(d) {
+        if (!d || !d.success) throw new Error(d && d.error ? d.error : '接口返回失败');
+
+        if (checkedAtEl) checkedAtEl.textContent = '最后刷新：' + new Date().toLocaleString('zh-CN');
+
+        var currentNameEl = document.getElementById('dbCurrentName');
+        var currentProviderEl = document.getElementById('dbCurrentProvider');
+        if (currentNameEl) currentNameEl.textContent = d.currentDatabase || '未知';
+        if (currentProviderEl) currentProviderEl.textContent = d.currentProvider || 'auto';
+
+        var statusDiv = document.getElementById('dbStatusCurrent');
+        if (statusDiv && d.currentProvider === 'supabase') {
+          statusDiv.style.background = '#f0fdf4';
+          statusDiv.style.borderColor = '#bbf7d0';
+        } else if (statusDiv && d.currentProvider === 'neon') {
+          statusDiv.style.background = '#eff6ff';
+          statusDiv.style.borderColor = '#bfdbfe';
+        }
+
+        var compareEl = document.getElementById('dbCompareCards');
+        if (compareEl && Array.isArray(d.databases)) {
+          var html = '';
+          d.databases.forEach(function(db) {
+            var roleBadge = '';
+            if (db.role === 'primary') roleBadge = '<span class="tag t-ok" style="margin-left:6px">● 当前主库</span>';
+            else if (db.role === 'standby') roleBadge = '<span class="tag t-warn" style="margin-left:6px">○ 备库</span>';
+            else roleBadge = '<span class="tag" style="margin-left:6px;background:#f3f4f6;color:#6b7280">○ 三级备</span>';
+            var statusIcon = db.configured ? '✅' : '❌';
+            html += '<div class="info-card" style="border-left:3px solid ' + (db.role === 'primary' ? 'var(--accent)' : '#e5e7eb') + '">';
+            html += '<h4>' + statusIcon + ' ' + escapeHtml(db.name) + roleBadge + '</h4>';
+            html += '<p><strong>类型：</strong>' + escapeHtml(db.type) + ' · <strong>主机：</strong>' + escapeHtml(db.host) + '</p>';
+            html += '<p><strong>免费额度：</strong>' + escapeHtml(db.freeLimit) + '</p>';
+            html += '<p><strong>配置状态：</strong>' + (db.configured ? '<span style="color:#059669">已配置</span>' : '<span style="color:#dc2626">未配置</span>') + '</p>';
+            html += '</div>';
+          });
+          compareEl.innerHTML = html;
+        }
+
+        var tablesEl = document.getElementById('dbTablesList');
+        if (tablesEl && Array.isArray(d.tables)) {
+          if (d.tables.length === 0) {
+            tablesEl.innerHTML = '<div class="empty">暂无数据表</div>';
+          } else {
+            var th = '<table class="storage-detail-table"><thead><tr><th>数据表名</th><th style="text-align:right">Schema</th><th style="text-align:right">估算行数</th><th style="text-align:right">大小</th></tr></thead><tbody>';
+            d.tables.forEach(function(t) {
+              th += '<tr><td class="mono">' + escapeHtml(t.name) + '</td>';
+              th += '<td style="text-align:right">' + escapeHtml(t.schema) + '</td>';
+              th += '<td style="text-align:right">' + Number(t.estRows).toLocaleString('zh-CN') + '</td>';
+              th += '<td style="text-align:right">' + escapeHtml(t.sizeMB) + ' MB</td>';
+              th += '</tr>';
+            });
+            th += '<tr style="background:#f9fafb;font-weight:600"><td colspan="2">合计</td><td style="text-align:right">' + d.tables.reduce(function(s, t) { return s + Number(t.estRows); }, 0).toLocaleString('zh-CN') + '</td><td style="text-align:right">' + escapeHtml(d.dbSizeMB) + ' MB</td></tr>';
+            th += '</tbody></table>';
+            tablesEl.innerHTML = th;
+          }
+        }
+
+        var syncEl = document.getElementById('dbSyncStatus');
+        if (syncEl && d.syncStatus) {
+          var ss = d.syncStatus;
+          if (ss.lastSyncDate) {
+            syncEl.innerHTML =
+              '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">' +
+              '<div><strong>最后同步日期：</strong><br>' + new Date(ss.lastSyncDate).toLocaleString('zh-CN') + '</div>' +
+              '<div><strong>更新次数：</strong><br><span style="font-size:1.5rem;font-weight:700;color:var(--accent)">' + escapeHtml(String(ss.updateCount || 0)) + '</span> 次</div>' +
+              '<div><strong>同步类型：</strong><br>' + escapeHtml(ss.lastSyncType || '-') + '</div>' +
+              '<div><strong>状态：</strong><br>' + escapeHtml(ss.message || '正常') + '</div>' +
+              '</div>';
+          } else {
+            syncEl.innerHTML = '<div style="color:#9ca3af">尚未进行过数据同步。运行 <code>node scripts/setup-supabase.js</code> 执行 Neon → Supabase 数据同步。</div>';
+          }
+        }
+
+        showToast('数据库状态已更新', 'success');
+      }).catch(function(e) {
+        console.error('loadDatabaseStatus failed:', e);
+        if (checkedAtEl) checkedAtEl.textContent = '加载失败';
+        showToast('加载数据库状态失败: ' + (e.message || '未知错误'), 'error');
       });
     }
 

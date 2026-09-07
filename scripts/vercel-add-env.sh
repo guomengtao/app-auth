@@ -1,0 +1,28 @@
+#!/bin/bash
+set -e
+cd /Users/Banner/Documents/guomengtao/app-auth
+
+add_env() {
+  local name="$1"
+  local value="$2"
+  echo "Adding: $name"
+  printf "%s" "$value" | npx vercel env add "$name" production --force --yes 2>&1 || true
+}
+
+add_env DB_PROVIDER "${DB_PROVIDER:-supabase}"
+add_env NEXT_PUBLIC_Ev_SUPABASE_URL "${NEXT_PUBLIC_Ev_SUPABASE_URL:-YOUR_SUPABASE_URL}"
+add_env NEXT_PUBLIC_Ev_SUPABASE_ANON_KEY "${NEXT_PUBLIC_Ev_SUPABASE_ANON_KEY:-YOUR_ANON_KEY}"
+add_env Ev_POSTGRES_DATABASE "${Ev_POSTGRES_DATABASE:-postgres}"
+add_env Ev_POSTGRES_HOST "${Ev_POSTGRES_HOST:-YOUR_DB_HOST}"
+add_env Ev_POSTGRES_PASSWORD "${Ev_POSTGRES_PASSWORD:-YOUR_DB_PASSWORD}"
+add_env Ev_POSTGRES_USER "${Ev_POSTGRES_USER:-postgres}"
+add_env Ev_POSTGRES_URL "${Ev_POSTGRES_URL:-YOUR_POSTGRES_URL}"
+add_env Ev_POSTGRES_URL_NON_POOLING "${Ev_POSTGRES_URL_NON_POOLING:-YOUR_POSTGRES_URL_NON_POOLING}"
+add_env Ev_POSTGRES_PRISMA_URL "${Ev_POSTGRES_PRISMA_URL:-YOUR_PRISMA_URL}"
+add_env Ev_SUPABASE_PUBLISHABLE_KEY "${Ev_SUPABASE_PUBLISHABLE_KEY:-YOUR_PUBLISHABLE_KEY}"
+add_env Ev_SUPABASE_SECRET_KEY "${Ev_SUPABASE_SECRET_KEY:-YOUR_SECRET_KEY}"
+add_env Ev_SUPABASE_SERVICE_ROLE_KEY "${Ev_SUPABASE_SERVICE_ROLE_KEY:-YOUR_SERVICE_ROLE_KEY}"
+add_env Ev_SUPABASE_JWT_SECRET "${Ev_SUPABASE_JWT_SECRET:-YOUR_JWT_SECRET}"
+
+echo ""
+echo "All Supabase env vars added to Vercel production!"
