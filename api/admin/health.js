@@ -61,10 +61,13 @@ const BACKUP_LIST_KEY = "auth:backup:list";
 const BACKUP_PREFIX = "auth:backup:";
 
 async function readSetMembers(redis, setKey, valueKeyPrefix) {
-  var set = await redis.smembers(setKey);
-  var keys = Array.isArray(set) ? set : [];
   var records = [];
-  if (keys.length) {
+  var cursor = 0;
+  while (true) {
+    var sscanResult = await redis.sscan(setKey, cursor, { count: 500 });
+    var keys = sscanResult[1];
+    cursor = parseInt(sscanResult[0], 10);
+    if (!keys || keys.length === 0) break;
     var chunks = [];
     for (var i = 0; i < keys.length; i += 200) chunks.push(keys.slice(i, i + 200));
     for (var c = 0; c < chunks.length; c++) {
@@ -77,6 +80,7 @@ async function readSetMembers(redis, setKey, valueKeyPrefix) {
         }
       }
     }
+    if (cursor === 0) break;
   }
   return records;
 }
