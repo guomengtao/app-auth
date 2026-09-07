@@ -903,6 +903,92 @@
       padding-bottom: 0;
     }
 
+    .settings-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 16px;
+      padding: 4px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+    }
+    .settings-tab {
+      flex: 1;
+      min-width: 80px;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--ink);
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .settings-tab:hover { background: #f1f5f9; }
+    .settings-tab.active {
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+    }
+    .settings-sub-panel { display: none; }
+    .settings-sub-panel.active { display: block; }
+
+    .backup-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .backup-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .backup-item-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .backup-item-date {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--ink);
+    }
+    .backup-item-meta {
+      font-size: 0.72rem;
+      color: #94a3b8;
+    }
+    .backup-item-badge {
+      font-size: 0.68rem;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    .backup-item-badge.auto {
+      background: #dbeafe;
+      color: #2563eb;
+    }
+    .backup-item-badge.manual {
+      background: #dcfce7;
+      color: #16a34a;
+    }
+    .backup-item-actions {
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
     .filter-panel {
       background: var(--surface);
       border: 1px solid var(--line);
@@ -3035,16 +3121,20 @@
           </div>
 
           <div class="panel" id="panel-settings">
-            <div class="toolbar">
-              <span class="spacer"></span>
-              <span style="font-size:0.78rem;color:#6b7280;" id="settingsSavedHint"></span>
+            <div class="settings-tabs">
+              <button class="settings-tab active" onclick="switchSettingsTab('appearance')" data-stab="appearance">🎨 外观</button>
+              <button class="settings-tab" onclick="switchSettingsTab('data')" data-stab="data">💾 数据</button>
+              <button class="settings-tab" onclick="switchSettingsTab('security')" data-stab="security">🛡️ 安全</button>
+              <button class="settings-tab" onclick="switchSettingsTab('email')" data-stab="email">📧 邮件</button>
+              <button class="settings-tab" onclick="switchSettingsTab('backup')" data-stab="backup">📦 备份恢复</button>
+              <button class="settings-tab" onclick="switchSettingsTab('about')" data-stab="about">ℹ️ 关于</button>
             </div>
 
-            <!-- 主题配色 -->
-            <div class="setting-block">
-              <h3 class="setting-title">🎨 主题配色</h3>
-              <p class="setting-desc">选择适合你的界面配色方案，包括护眼模式、黑夜模式等多种风格。</p>
-              <div class="theme-grid" id="themeGrid">
+            <div class="settings-sub-panel active" id="settings-sub-appearance">
+              <div class="setting-block">
+                <h3 class="setting-title">🎨 主题配色</h3>
+                <p class="setting-desc">选择适合你的界面配色方案，包括护眼模式、黑夜模式等多种风格。</p>
+                <div class="theme-grid" id="themeGrid">
                 <div class="theme-card" data-theme="deep-blue" onclick="setTheme('deep-blue')">
                   <div class="theme-preview" style="background:#f1f4f9;border:1px solid #e5e7eb">
                     <div class="theme-preview-sidebar" style="background:#0f172a"></div>
@@ -3157,8 +3247,10 @@
                 </div>
               </div>
             </div>
+            </div>
 
-            <!-- 模式切换 -->
+            <!-- 数据子面板 -->
+            <div class="settings-sub-panel" id="settings-sub-data">
             <div class="setting-block">
               <h3 class="setting-title">🔀 数据优先模式</h3>
               <p class="setting-desc">选择默认从哪里读取数据。切换不影响已有数据，只是改变后续读数据的默认来源。</p>
@@ -3177,8 +3269,10 @@
                 </div>
               </div>
             </div>
+            </div>
 
-            <!-- 删除保护 -->
+            <!-- 安全子面板 -->
+            <div class="settings-sub-panel" id="settings-sub-security">
             <div class="setting-block">
               <h3 class="setting-title">🛡️ 删除保护</h3>
               <p class="setting-desc">这是最关键的安全设置 — 防止本地"删除标记"同步时误删线上数据。</p>
@@ -3213,7 +3307,10 @@
                 </div>
               </div>
             </div>
+            </div>
+            </div>
 
+            <div class="settings-sub-panel" id="settings-sub-data-cont">
             <div class="setting-block">
               <h3 class="setting-title">📋 列表显示条数</h3>
               <p class="setting-desc">控制所有列表页面默认显示的数据条数（兑换码、激活记录、订单等）。</p>
@@ -3237,8 +3334,11 @@
               </div>
               <p class="setting-desc">导出/导入方便备份、迁移或在多台设备之间手动同步。清空本地数据只影响当前浏览器，服务器 Postgres 数据完全不受影响。</p>
             </div>
+            </div>
+            </div>
 
-            <!-- 邮件通知 -->
+            <!-- 邮件子面板 -->
+            <div class="settings-sub-panel" id="settings-sub-email">
             <div class="setting-block">
               <h3 class="setting-title">📧 邮件通知设置</h3>
               <p class="setting-desc">默认使用 Resend API 发送邮件（域名 ev.mail.gudq.com 已验证），也可切换为 SMTP。</p>
@@ -3356,8 +3456,46 @@
                 <div class="test-email-detail" id="testEmailDetail"></div>
               </div>
             </div>
+            </div>
+            </div>
+            </div>
 
-            <!-- 关于 -->
+            <!-- 备份恢复子面板 -->
+            <div class="settings-sub-panel" id="settings-sub-backup">
+              <div class="setting-block">
+                <h3 class="setting-title">⏰ 自动备份</h3>
+                <p class="setting-desc">每天凌晨 4:00 自动备份数据库（激活记录 + 失败记录）。</p>
+                <div class="setting-row">
+                  <label class="setting-switch">
+                    <input type="checkbox" id="settingAutoBackup" onchange="toggleAutoBackup()">
+                    <span class="switch-slider"></span>
+                  </label>
+                  <div class="setting-row-info">
+                    <div class="setting-row-title">🔄 开启每日自动备份</div>
+                    <div class="setting-row-desc" id="autoBackupStatus">正在检查备份状态...</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="setting-block">
+                <h3 class="setting-title">📦 手动备份与还原</h3>
+                <p class="setting-desc">手动创建备份快照，或从已有备份恢复数据。</p>
+                <div class="setting-row" style="gap:12px;flex-wrap:wrap;">
+                  <button class="btn btn-primary" onclick="createBackup()" id="btnCreateBackup">📸 立即备份</button>
+                  <span class="muted" style="font-size:0.78rem;align-self:center">备份包含所有激活记录和失败记录</span>
+                </div>
+              </div>
+
+              <div class="setting-block">
+                <h3 class="setting-title">📋 备份列表</h3>
+                <div class="backup-list" id="backupList">
+                  <div class="muted" style="padding:16px;text-align:center">正在加载备份列表...</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 关于（安全子面板） -->
+            <div class="settings-sub-panel" id="settings-sub-about">
             <div class="setting-block">
               <h3 class="setting-title">ℹ️ 关于数据同步的安全机制</h3>
               <div class="about-grid">
@@ -3378,6 +3516,8 @@
                   <div class="about-text">所有 <code>/api/admin/*</code> 路由需要 JWT token，未授权返回 401。activate 不走这个通道。</div>
                 </div>
               </div>
+            </div>
+            </div>
             </div>
           </div>
 
@@ -4088,7 +4228,7 @@
       health: { title: '服务器状态', sub: '检测 Postgres / 鉴权 / 激活链路是否正常' },
       'vercel-logs': { title: 'Vercel日志', sub: '部署事件与函数运行日志（Vercel API）' },
       'logs': { title: '系统日志', sub: 'Vercel部署事件 · 邮件发送记录 · 爱发电私信日志' },
-      settings: { title: '设置', sub: '数据优先模式 · 删除保护 · 安全配置' }
+      settings: { title: '设置', sub: '外观 · 数据 · 安全 · 邮件 · 备份恢复' }
     };
 
     function switchTab(tab) {
@@ -5851,6 +5991,7 @@
       }
       switchEmailProvider(provider);
       renderEmailConfigList();
+      switchSettingsTab('appearance');
     }
 
     function warnBeforeDeleteEnabled() { return !!readSettings().warnBeforeDelete; }
@@ -6152,6 +6293,164 @@
         setTimeout(function() { if (hint) hint.textContent = ''; }, 2500);
       }
       showToast('💾 邮件通知设置已保存', 'success');
+    }
+
+    function switchSettingsTab(tab) {
+      document.querySelectorAll('.settings-tab').forEach(function(t) { t.classList.remove('active'); });
+      document.querySelectorAll('.settings-sub-panel').forEach(function(p) { p.classList.remove('active'); });
+
+      var activeTab = document.querySelector('.settings-tab[data-stab="' + tab + '"]');
+      if (activeTab) activeTab.classList.add('active');
+
+      var subPanel = document.getElementById('settings-sub-' + tab);
+      if (subPanel) {
+        subPanel.classList.add('active');
+      }
+
+      if (tab === 'data') {
+        var contPanel = document.getElementById('settings-sub-data-cont');
+        if (contPanel) contPanel.classList.add('active');
+      }
+      if (tab === 'backup') {
+        loadBackupList();
+        loadAutoBackupConfig();
+      }
+    }
+
+    async function loadAutoBackupConfig() {
+      try {
+        var res = await fetch('/api/admin/backup?action=config', { credentials: 'include' });
+        var data = await res.json();
+        var cb = document.getElementById('settingAutoBackup');
+        var status = document.getElementById('autoBackupStatus');
+        if (data.success && data.config) {
+          if (cb) cb.checked = data.config.enabled;
+          if (status) {
+            if (data.config.lastBackup) {
+              status.textContent = '上次自动备份：' + new Date(data.config.lastBackup).toLocaleString();
+            } else {
+              status.textContent = data.config.enabled ? '已开启，等待首次备份（每天凌晨 4:00）' : '已关闭';
+            }
+          }
+        }
+      } catch (e) {
+        console.error('loadAutoBackupConfig error:', e);
+      }
+    }
+
+    async function toggleAutoBackup() {
+      var cb = document.getElementById('settingAutoBackup');
+      var enabled = cb ? cb.checked : false;
+      try {
+        var res = await fetch('/api/admin/backup?action=config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ enabled: enabled, intervalHours: 24 }),
+        });
+        var data = await res.json();
+        if (data.success) {
+          showToast(enabled ? '✅ 自动备份已开启（每天凌晨 4:00）' : '⏸️ 自动备份已关闭', 'success');
+          loadAutoBackupConfig();
+        }
+      } catch (e) {
+        showToast('❌ 操作失败: ' + e.message, 'error');
+      }
+    }
+
+    async function loadBackupList() {
+      var list = document.getElementById('backupList');
+      if (!list) return;
+      list.innerHTML = '<div class="muted" style="padding:16px;text-align:center">正在加载备份列表...</div>';
+      try {
+        var res = await fetch('/api/admin/backup', { credentials: 'include' });
+        var data = await res.json();
+        if (!data.success || !data.backups || data.backups.length === 0) {
+          list.innerHTML = '<div class="muted" style="padding:16px;text-align:center">暂无备份记录</div>';
+          return;
+        }
+        var html = '';
+        data.backups.forEach(function(b) {
+          var sizeStr = b.size > 1024 ? (b.size / 1024).toFixed(1) + ' KB' : b.size + ' B';
+          html += '<div class="backup-item">' +
+            '<div class="backup-item-info">' +
+              '<div class="backup-item-date">' + escapeHtml(new Date(b.date).toLocaleString()) + '</div>' +
+              '<div class="backup-item-meta">' + b.recordCount + ' 激活记录 + ' + b.failureCount + ' 失败记录 · ' + sizeStr + '</div>' +
+            '</div>' +
+            '<span class="backup-item-badge ' + (b.auto ? 'auto' : 'manual') + '">' + (b.auto ? '自动' : '手动') + '</span>' +
+            '<div class="backup-item-actions">' +
+              '<button class="btn btn-outline" style="padding:4px 12px;font-size:0.75rem" onclick="restoreBackup(\'' + b.id + '\')">↩️ 还原</button>' +
+              '<button class="btn btn-outline" style="padding:4px 12px;font-size:0.75rem;color:#dc2626;border-color:#dc2626" onclick="deleteBackup(\'' + b.id + '\')">🗑️</button>' +
+            '</div>' +
+          '</div>';
+        });
+        list.innerHTML = html;
+      } catch (e) {
+        list.innerHTML = '<div class="muted" style="padding:16px;text-align:center;color:#dc2626">加载失败: ' + escapeHtml(e.message) + '</div>';
+      }
+    }
+
+    async function createBackup() {
+      var btn = document.getElementById('btnCreateBackup');
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ 备份中...'; }
+      try {
+        var res = await fetch('/api/admin/backup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ auto: false }),
+        });
+        var data = await res.json();
+        if (data.success) {
+          showToast('✅ 备份完成！' + data.backup.recordCount + ' 条记录', 'success');
+          loadBackupList();
+        } else {
+          showToast('❌ 备份失败: ' + (data.error || '未知错误'), 'error');
+        }
+      } catch (e) {
+        showToast('❌ 备份失败: ' + e.message, 'error');
+      }
+      if (btn) { btn.disabled = false; btn.textContent = '📸 立即备份'; }
+    }
+
+    async function restoreBackup(backupId) {
+      if (!confirm('确认从 ' + backupId + ' 还原数据？\n\n⚠️ 当前数据将被备份覆盖！')) return;
+      try {
+        var res = await fetch('/api/admin/backup?action=restore', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ backupId: backupId }),
+        });
+        var data = await res.json();
+        if (data.success) {
+          showToast('✅ 数据已还原！' + data.restoredKeys + ' 条记录', 'success');
+          loadBackupList();
+        } else {
+          showToast('❌ 还原失败: ' + (data.error || '未知错误'), 'error');
+        }
+      } catch (e) {
+        showToast('❌ 还原失败: ' + e.message, 'error');
+      }
+    }
+
+    async function deleteBackup(backupId) {
+      if (!confirm('确认删除备份 ' + backupId + '？')) return;
+      try {
+        var res = await fetch('/api/admin/backup?id=' + encodeURIComponent(backupId), {
+          method: 'DELETE',
+          credentials: 'include',
+        });
+        var data = await res.json();
+        if (data.success) {
+          showToast('🗑️ 备份已删除', 'success');
+          loadBackupList();
+        } else {
+          showToast('❌ 删除失败: ' + (data.error || '未知错误'), 'error');
+        }
+      } catch (e) {
+        showToast('❌ 删除失败: ' + e.message, 'error');
+      }
     }
 
     function switchLogsTab(tab) {

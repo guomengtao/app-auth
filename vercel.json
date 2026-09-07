@@ -6,6 +6,10 @@
     {
       "path": "/api/afdian/query-orders",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/admin/backup?cron=1",
+      "schedule": "0 4 * * *"
     }
   ]
 }
