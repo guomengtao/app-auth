@@ -1,8 +1,8 @@
 var pg = require("../lib/postgres");
 
 function getUpstashClient() {
-  var upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
-  var upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+  var upstashUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  var upstashToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 
   if (!upstashUrl || !upstashToken) {
     console.error("Missing UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN environment variables");
@@ -57,6 +57,11 @@ function getUpstashClient() {
     },
     flushdb: async function() {
       return await upstashRequest("/flushdb", { method: "POST" });
+    },
+    zadd: async function(key, score, member) {
+      return await upstashRequest("/zadd/" + encodeURIComponent(key) + "/" + score + "/" + encodeURIComponent(member), {
+        method: "POST",
+      });
     },
     dbsize: async function() {
       return await upstashRequest("/dbsize");
@@ -203,9 +208,7 @@ async function backupToUpstash() {
   for (var z = 0; z < data.zsets.length; z++) {
     var zrow = data.zsets[z];
     try {
-      await upstashRequest("/zadd/" + encodeURIComponent(zrow.key) + "/" + zrow.score + "/" + encodeURIComponent(zrow.member), {
-        method: "POST",
-      });
+      await upstash.zadd(zrow.key, zrow.score, zrow.member);
       processed++;
     } catch (e) {
       errors++;
