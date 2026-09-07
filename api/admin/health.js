@@ -725,7 +725,6 @@ module.exports = async (req, res) => {
       return res.status(405).json({ success: false, error: "Method not allowed" });
     }
     try {
-      var redis = require("../../lib/redis");
       var limit = 50;
       if (req.query.limit) {
         var li = parseInt(req.query.limit, 10);
