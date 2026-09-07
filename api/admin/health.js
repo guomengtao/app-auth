@@ -91,29 +91,36 @@ async function readSetMembersDirect(pg, setKey, valueKeyPrefix) {
   var memberResult = await pg.query("SELECT member FROM kv_sets WHERE key = $1 ORDER BY member", [setKey]);
   var members = (memberResult.rows || []).map(function(r) { return r.member; });
   console.log("[backup] direct query " + setKey + ": " + members.length + " members");
-  if (members.length > 0) {
-    var chunks = [];
-    for (var i = 0; i < members.length; i += 200) chunks.push(members.slice(i, i + 200));
-    for (var c = 0; c < chunks.length; c++) {
-      var batch = chunks[c];
-      var lookupKeys = valueKeyPrefix ? batch.map(function(x) { return valueKeyPrefix + x; }) : batch;
-      var placeholders = lookupKeys.map(function(_, idx) { return "$" + (idx + 1); }).join(",");
-      var valResult = await pg.query(
-        "SELECT key, value FROM kv_strings WHERE key IN (" + placeholders + ")",
-        lookupKeys
-      );
-      var valMap = {};
-      (valResult.rows || []).forEach(function(r) { valMap[r.key] = r.value; });
-      for (var j = 0; j < batch.length; j++) {
-        var raw = valMap[lookupKeys[j]];
-        if (raw) {
-          try {
-            var rec = JSON.parse(raw);
-            rec._backup_key = lookupKeys[j];
-            rec._backup_member = batch[j];
-            records.push(rec);
-          } catch (_) {}
-        }
+  if (members.length === 0) return records;
+
+  if (valueKeyPrefix === null || valueKeyPrefix === "") {
+    for (var i = 0; i < members.length; i++) {
+      records.push({ _backup_member: members[i], value: members[i] });
+    }
+    return records;
+  }
+
+  var chunks = [];
+  for (var i = 0; i < members.length; i += 200) chunks.push(members.slice(i, i + 200));
+  for (var c = 0; c < chunks.length; c++) {
+    var batch = chunks[c];
+    var lookupKeys = batch.map(function(x) { return valueKeyPrefix + x; });
+    var placeholders = lookupKeys.map(function(_, idx) { return "$" + (idx + 1); }).join(",");
+    var valResult = await pg.query(
+      "SELECT key, value FROM kv_strings WHERE key IN (" + placeholders + ")",
+      lookupKeys
+    );
+    var valMap = {};
+    (valResult.rows || []).forEach(function(r) { valMap[r.key] = r.value; });
+    for (var j = 0; j < batch.length; j++) {
+      var raw = valMap[lookupKeys[j]];
+      if (raw) {
+        try {
+          var rec = JSON.parse(raw);
+          rec._backup_key = lookupKeys[j];
+          rec._backup_member = batch[j];
+          records.push(rec);
+        } catch (_) {}
       }
     }
   }
@@ -127,6 +134,36 @@ async function readHashAllDirect(pg, hashKey) {
   (result.rows || []).forEach(function(r) {
     try { records.push({ id: r.field, data: JSON.parse(r.value) }); } catch (_) {
       try { records.push({ id: r.field, value: r.value }); } catch (_) {}
+    }
+  });
+  return records;
+}
+
+async function readStringDirect(pg, key) {
+  var result = await pg.query("SELECT value FROM kv_strings WHERE key = $1", [key]);
+  if (result.rows && result.rows.length > 0) {
+    try { return JSON.parse(result.rows[0].value); } catch (_) {
+      return result.rows[0].value;
+    }
+  }
+  return null;
+}
+
+async function scanKeysDirect(pg, pattern) {
+  var records = [];
+  var sqlPattern = pattern.replace(/\*/g, "%").replace(/\?/g, "_");
+  var result = await pg.query(
+    "SELECT key, value FROM kv_strings WHERE key LIKE $1 ORDER BY key",
+    [sqlPattern]
+  );
+  console.log("[backup] scan " + pattern + ": " + (result.rows ? result.rows.length : 0) + " keys");
+  (result.rows || []).forEach(function(r) {
+    try {
+      var rec = JSON.parse(r.value);
+      rec._backup_key = r.key;
+      records.push(rec);
+    } catch (_) {
+      records.push({ _backup_key: r.key, value: r.value });
     }
   });
   return records;
@@ -154,11 +191,30 @@ async function doBackup(redis, isAuto) {
   console.log("[backup] starting doBackup: " + backupId);
 
   var products = await readHashAllDirect(pg, "auth:products");
+  var productIds = await readSetMembersDirect(pg, "auth:product_ids", null);
   var redeemCodes = await readSetMembersDirect(pg, "auth:redeem_codes", "auth:redeem:");
   var activations = await readSetMembersDirect(pg, "auth:activation_codes", "auth:activation:");
   var failures = await readSetMembersDirect(pg, "auth:activation_failures", "");
+  var devices = await scanKeysDirect(pg, "auth:device:%");
+  var adminAccount = await readHashAllDirect(pg, "auth:admin");
+  var productCounter = await readStringDirect(pg, "auth:product_counter");
+  var usedCounter = await readStringDirect(pg, "auth:counter:used_redeem_codes");
+  var afdianOrders = await scanKeysDirect(pg, "afdian:order:%");
+  var afdianProcessed = await readSetMembersDirect(pg, "afdian:processed", null);
+  var afdianLastSync = await readStringDirect(pg, "afdian:last_sync");
+  var afdianPlanMap = await readHashAllDirect(pg, "afdian:plan_map");
+  var quotaStates = await scanKeysDirect(pg, "quota:monthstate:%");
 
-  console.log("[backup] results: products=" + products.length + " redeem=" + redeemCodes.length + " activations=" + activations.length + " failures=" + failures.length);
+  console.log("[backup] results: products=" + products.length +
+    " productIds=" + productIds.length +
+    " redeem=" + redeemCodes.length +
+    " activations=" + activations.length +
+    " failures=" + failures.length +
+    " devices=" + devices.length +
+    " admin=" + (adminAccount ? adminAccount.length : 0) +
+    " afdianOrders=" + afdianOrders.length +
+    " afdianProcessed=" + afdianProcessed.length +
+    " quotaStates=" + quotaStates.length);
 
   var backupData = {
     id: backupId,
@@ -166,18 +222,38 @@ async function doBackup(redis, isAuto) {
     created_at: new Date().toISOString(),
     timestamp: timestamp,
     tables: {
-      products:      { count: products.length,    set: "auth:products",            type: "hash" },
-      redeem_codes:  { count: redeemCodes.length,  set: "auth:redeem_codes",        type: "set" },
-      activations:   { count: activations.length,  set: "auth:activation_codes",    type: "set" },
-      failures:      { count: failures.length,     set: "auth:activation_failures", type: "set" },
+      products:         { count: products.length,       key: "auth:products",            type: "hash" },
+      product_ids:      { count: productIds.length,     key: "auth:product_ids",         type: "set" },
+      redeem_codes:     { count: redeemCodes.length,    key: "auth:redeem_codes",        type: "set" },
+      activations:      { count: activations.length,    key: "auth:activation_codes",    type: "set" },
+      failures:         { count: failures.length,       key: "auth:activation_failures", type: "set" },
+      devices:          { count: devices.length,        key: "auth:device:*",            type: "scan" },
+      admin_account:    { count: adminAccount ? adminAccount.length : 0, key: "auth:admin", type: "hash" },
+      product_counter:  { count: productCounter ? 1 : 0, key: "auth:product_counter",   type: "string" },
+      used_counter:     { count: usedCounter ? 1 : 0,   key: "auth:counter:used_redeem_codes", type: "string" },
+      afdian_orders:    { count: afdianOrders.length,   key: "afdian:order:*",           type: "scan" },
+      afdian_processed: { count: afdianProcessed.length,key: "afdian:processed",         type: "set" },
+      afdian_last_sync: { count: afdianLastSync ? 1 : 0,key: "afdian:last_sync",         type: "string" },
+      afdian_plan_map:  { count: afdianPlanMap ? afdianPlanMap.length : 0, key: "afdian:plan_map", type: "hash" },
+      quota_states:     { count: quotaStates.length,    key: "quota:monthstate:*",       type: "scan" },
     },
     activationCount: activations.length,
     failureCount: failures.length,
     totalCount: activations.length + failures.length,
     products: products,
+    product_ids: productIds,
     redeem_codes: redeemCodes,
     activations: activations,
     failures: failures,
+    devices: devices,
+    admin_account: adminAccount,
+    product_counter: productCounter,
+    used_counter: usedCounter,
+    afdian_orders: afdianOrders,
+    afdian_processed: afdianProcessed,
+    afdian_last_sync: afdianLastSync,
+    afdian_plan_map: afdianPlanMap,
+    quota_states: quotaStates,
   };
 
   var jsonData = JSON.stringify(backupData);
@@ -341,60 +417,153 @@ module.exports = async (req, res) => {
             return res.status(500).json({ success: false, error: "Backup data corrupted" });
           }
 
-          var restored = { products: 0, redeem_codes: 0, activations: 0, failures: 0 };
+          var restored = {
+            products: 0, product_ids: 0, redeem_codes: 0, activations: 0, failures: 0,
+            devices: 0, admin_account: 0, product_counter: 0, used_counter: 0,
+            afdian_orders: 0, afdian_processed: 0, afdian_last_sync: 0, afdian_plan_map: 0,
+            quota_states: 0,
+          };
 
           if (backup.products && backup.products.length) {
-            var pip1 = redis.pipeline();
-            for (var pi = 0; pi < backup.products.length; pi++) {
-              var prod = backup.products[pi];
-              if (prod.id && prod.data) {
-                pip1.hset("auth:products", prod.id, JSON.stringify(prod.data));
-              }
+            var pip = redis.pipeline();
+            for (var i = 0; i < backup.products.length; i++) {
+              var p = backup.products[i];
+              if (p.id && p.data) pip.hset("auth:products", p.id, JSON.stringify(p.data));
             }
-            await pip1.exec();
+            await pip.exec();
             restored.products = backup.products.length;
           }
 
+          if (backup.product_ids && backup.product_ids.length) {
+            var pip = redis.pipeline();
+            for (var i = 0; i < backup.product_ids.length; i++) {
+              var pid = backup.product_ids[i];
+              var m = pid._backup_member || pid.id || pid;
+              if (m) pip.sadd("auth:product_ids", m);
+            }
+            await pip.exec();
+            restored.product_ids = backup.product_ids.length;
+          }
+
           if (backup.redeem_codes && backup.redeem_codes.length) {
-            var pip2 = redis.pipeline();
-            for (var ri = 0; ri < backup.redeem_codes.length; ri++) {
-              var rc = backup.redeem_codes[ri];
+            var pip = redis.pipeline();
+            for (var i = 0; i < backup.redeem_codes.length; i++) {
+              var rc = backup.redeem_codes[i];
               var rcode = rc.code || rc._backup_member;
               if (rcode) {
-                pip2.set("auth:redeem:" + rcode, JSON.stringify(rc));
-                pip2.sadd("auth:redeem_codes", rcode);
+                pip.set("auth:redeem:" + rcode, JSON.stringify(rc));
+                pip.sadd("auth:redeem_codes", rcode);
               }
             }
-            await pip2.exec();
+            await pip.exec();
             restored.redeem_codes = backup.redeem_codes.length;
           }
 
           if (backup.activations && backup.activations.length) {
-            var pip3 = redis.pipeline();
-            for (var ai = 0; ai < backup.activations.length; ai++) {
-              var act = backup.activations[ai];
+            var pip = redis.pipeline();
+            for (var i = 0; i < backup.activations.length; i++) {
+              var act = backup.activations[i];
               var acode = act.activation_code || act._backup_member;
               if (acode) {
-                pip3.set("auth:activation:" + acode, JSON.stringify(act));
-                pip3.sadd("auth:activation_codes", acode);
+                pip.set("auth:activation:" + acode, JSON.stringify(act));
+                pip.sadd("auth:activation_codes", acode);
               }
             }
-            await pip3.exec();
+            await pip.exec();
             restored.activations = backup.activations.length;
           }
 
           if (backup.failures && backup.failures.length) {
-            var pip4 = redis.pipeline();
-            for (var fi = 0; fi < backup.failures.length; fi++) {
-              var fail = backup.failures[fi];
+            var pip = redis.pipeline();
+            for (var i = 0; i < backup.failures.length; i++) {
+              var fail = backup.failures[i];
               var failKey = fail._backup_member || fail._backup_key || "";
               if (failKey) {
-                pip4.set(failKey, JSON.stringify(fail));
-                pip4.sadd("auth:activation_failures", failKey);
+                pip.set(failKey, JSON.stringify(fail));
+                pip.sadd("auth:activation_failures", failKey);
               }
             }
-            await pip4.exec();
+            await pip.exec();
             restored.failures = backup.failures.length;
+          }
+
+          if (backup.devices && backup.devices.length) {
+            var pip = redis.pipeline();
+            for (var i = 0; i < backup.devices.length; i++) {
+              var dev = backup.devices[i];
+              var dk = dev._backup_key;
+              if (dk) pip.set(dk, JSON.stringify(dev));
+            }
+            await pip.exec();
+            restored.devices = backup.devices.length;
+          }
+
+          if (backup.admin_account && backup.admin_account.length) {
+            var pip = redis.pipeline();
+            for (var i = 0; i < backup.admin_account.length; i++) {
+              var adm = backup.admin_account[i];
+              if (adm.id) pip.hset("auth:admin", adm.id, JSON.stringify(adm.data || adm));
+            }
+            await pip.exec();
+            restored.admin_account = backup.admin_account.length;
+          }
+
+          if (backup.product_counter != null) {
+            await redis.set("auth:product_counter", String(backup.product_counter));
+            restored.product_counter = 1;
+          }
+
+          if (backup.used_counter != null) {
+            await redis.set("auth:counter:used_redeem_codes", String(backup.used_counter));
+            restored.used_counter = 1;
+          }
+
+          if (backup.afdian_orders && backup.afdian_orders.length) {
+            var pip = redis.pipeline();
+            for (var i = 0; i < backup.afdian_orders.length; i++) {
+              var ao = backup.afdian_orders[i];
+              var aok = ao._backup_key;
+              if (aok) pip.set(aok, JSON.stringify(ao));
+            }
+            await pip.exec();
+            restored.afdian_orders = backup.afdian_orders.length;
+          }
+
+          if (backup.afdian_processed && backup.afdian_processed.length) {
+            var pip = redis.pipeline();
+            for (var i = 0; i < backup.afdian_processed.length; i++) {
+              var ap = backup.afdian_processed[i];
+              var apm = ap._backup_member || ap._backup_key || "";
+              if (apm) pip.sadd("afdian:processed", apm);
+            }
+            await pip.exec();
+            restored.afdian_processed = backup.afdian_processed.length;
+          }
+
+          if (backup.afdian_last_sync != null) {
+            await redis.set("afdian:last_sync", String(backup.afdian_last_sync));
+            restored.afdian_last_sync = 1;
+          }
+
+          if (backup.afdian_plan_map && backup.afdian_plan_map.length) {
+            var pip = redis.pipeline();
+            for (var i = 0; i < backup.afdian_plan_map.length; i++) {
+              var pm = backup.afdian_plan_map[i];
+              if (pm.id) pip.hset("afdian:plan_map", pm.id, JSON.stringify(pm.data || pm));
+            }
+            await pip.exec();
+            restored.afdian_plan_map = backup.afdian_plan_map.length;
+          }
+
+          if (backup.quota_states && backup.quota_states.length) {
+            var pip = redis.pipeline();
+            for (var i = 0; i < backup.quota_states.length; i++) {
+              var qs = backup.quota_states[i];
+              var qk = qs._backup_key;
+              if (qk) pip.set(qk, JSON.stringify(qs));
+            }
+            await pip.exec();
+            restored.quota_states = backup.quota_states.length;
           }
 
           return res.json({

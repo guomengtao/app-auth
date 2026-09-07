@@ -6373,9 +6373,19 @@
           var tables = b.tables || {};
           var tableNames = {
             products: '产品',
+            product_ids: '产品ID',
             redeem_codes: '兑换码',
             activations: '激活记录',
             failures: '失败记录',
+            devices: '设备映射',
+            admin_account: '管理员账号',
+            product_counter: '产品计数器',
+            used_counter: '已用计数',
+            afdian_orders: '爱发电订单',
+            afdian_processed: '已处理订单',
+            afdian_last_sync: '最后同步',
+            afdian_plan_map: '方案映射',
+            quota_states: '配额状态',
           };
           var tableRows = '';
           Object.keys(tableNames).forEach(function(tk) {
@@ -6383,7 +6393,7 @@
             var cnt = td.count !== undefined ? td.count : '-';
             tableRows += '<tr><td style="padding:3px 8px;font-size:0.72rem;color:#64748b">' + tableNames[tk] + '</td>' +
               '<td style="padding:3px 8px;font-size:0.72rem;font-family:monospace;color:#334155">' + cnt + ' 条</td>' +
-              '<td style="padding:3px 8px;font-size:0.65rem;color:#94a3b8;font-family:monospace">' + (td.set || tk) + '</td></tr>';
+              '<td style="padding:3px 8px;font-size:0.65rem;color:#94a3b8;font-family:monospace">' + (td.key || tk) + '</td></tr>';
           });
           html += '<div class="backup-item">' +
             '<div class="backup-item-info" style="cursor:pointer" onclick="toggleBackupDetail(\'' + expandId + '\')">' +
