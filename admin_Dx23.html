@@ -6319,15 +6319,15 @@
 
     async function loadAutoBackupConfig() {
       try {
-        var res = await fetch('/api/admin/backup?action=config', { credentials: 'include' });
+        var res = await fetch('/api/admin/health?section=backup', { credentials: 'include' });
         var data = await res.json();
         var cb = document.getElementById('settingAutoBackup');
         var status = document.getElementById('autoBackupStatus');
         if (data.success && data.config) {
           if (cb) cb.checked = data.config.enabled;
           if (status) {
-            if (data.config.lastBackup) {
-              status.textContent = '上次自动备份：' + new Date(data.config.lastBackup).toLocaleString();
+            if (data.config.lastBackupAt) {
+              status.textContent = '上次自动备份：' + new Date(data.config.lastBackupAt).toLocaleString();
             } else {
               status.textContent = data.config.enabled ? '已开启，等待首次备份（每天凌晨 4:00）' : '已关闭';
             }
@@ -6342,11 +6342,11 @@
       var cb = document.getElementById('settingAutoBackup');
       var enabled = cb ? cb.checked : false;
       try {
-        var res = await fetch('/api/admin/backup?action=config', {
-          method: 'POST',
+        var res = await fetch('/api/admin/health?section=backup', {
+          method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ enabled: enabled, intervalHours: 24 }),
+          body: JSON.stringify({ enabled: enabled }),
         });
         var data = await res.json();
         if (data.success) {
@@ -6363,7 +6363,7 @@
       if (!list) return;
       list.innerHTML = '<div class="muted" style="padding:16px;text-align:center">正在加载备份列表...</div>';
       try {
-        var res = await fetch('/api/admin/backup', { credentials: 'include' });
+        var res = await fetch('/api/admin/health?section=backup', { credentials: 'include' });
         var data = await res.json();
         if (!data.success || !data.backups || data.backups.length === 0) {
           list.innerHTML = '<div class="muted" style="padding:16px;text-align:center">暂无备份记录</div>';
@@ -6372,12 +6372,14 @@
         var html = '';
         data.backups.forEach(function(b) {
           var sizeStr = b.size > 1024 ? (b.size / 1024).toFixed(1) + ' KB' : b.size + ' B';
+          var isAuto = b.type === 'auto';
+          var dateStr = b.created_at ? new Date(b.created_at).toLocaleString() : '';
           html += '<div class="backup-item">' +
             '<div class="backup-item-info">' +
-              '<div class="backup-item-date">' + escapeHtml(new Date(b.date).toLocaleString()) + '</div>' +
-              '<div class="backup-item-meta">' + b.recordCount + ' 激活记录 + ' + b.failureCount + ' 失败记录 · ' + sizeStr + '</div>' +
+              '<div class="backup-item-date">' + escapeHtml(dateStr) + '</div>' +
+              '<div class="backup-item-meta">' + b.activationCount + ' 激活记录 + ' + b.failureCount + ' 失败记录 · ' + sizeStr + '</div>' +
             '</div>' +
-            '<span class="backup-item-badge ' + (b.auto ? 'auto' : 'manual') + '">' + (b.auto ? '自动' : '手动') + '</span>' +
+            '<span class="backup-item-badge ' + (isAuto ? 'auto' : 'manual') + '">' + (isAuto ? '自动' : '手动') + '</span>' +
             '<div class="backup-item-actions">' +
               '<button class="btn btn-outline" style="padding:4px 12px;font-size:0.75rem" onclick="restoreBackup(\'' + b.id + '\')">↩️ 还原</button>' +
               '<button class="btn btn-outline" style="padding:4px 12px;font-size:0.75rem;color:#dc2626;border-color:#dc2626" onclick="deleteBackup(\'' + b.id + '\')">🗑️</button>' +
@@ -6394,7 +6396,7 @@
       var btn = document.getElementById('btnCreateBackup');
       if (btn) { btn.disabled = true; btn.textContent = '⏳ 备份中...'; }
       try {
-        var res = await fetch('/api/admin/backup', {
+        var res = await fetch('/api/admin/health?section=backup', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -6402,7 +6404,7 @@
         });
         var data = await res.json();
         if (data.success) {
-          showToast('✅ 备份完成！' + data.backup.recordCount + ' 条记录', 'success');
+          showToast('✅ 备份完成！' + data.backup.totalCount + ' 条记录', 'success');
           loadBackupList();
         } else {
           showToast('❌ 备份失败: ' + (data.error || '未知错误'), 'error');
@@ -6416,15 +6418,15 @@
     async function restoreBackup(backupId) {
       if (!confirm('确认从 ' + backupId + ' 还原数据？\n\n⚠️ 当前数据将被备份覆盖！')) return;
       try {
-        var res = await fetch('/api/admin/backup?action=restore', {
-          method: 'POST',
+        var res = await fetch('/api/admin/health?section=backup', {
+          method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ backupId: backupId }),
+          body: JSON.stringify({ restoreId: backupId }),
         });
         var data = await res.json();
         if (data.success) {
-          showToast('✅ 数据已还原！' + data.restoredKeys + ' 条记录', 'success');
+          showToast('✅ 数据已还原！激活 ' + (data.restored ? data.restored.activations : 0) + ' + 失败 ' + (data.restored ? data.restored.failures : 0) + ' 条记录', 'success');
           loadBackupList();
         } else {
           showToast('❌ 还原失败: ' + (data.error || '未知错误'), 'error');
@@ -6437,9 +6439,11 @@
     async function deleteBackup(backupId) {
       if (!confirm('确认删除备份 ' + backupId + '？')) return;
       try {
-        var res = await fetch('/api/admin/backup?id=' + encodeURIComponent(backupId), {
+        var res = await fetch('/api/admin/health?section=backup', {
           method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
+          body: JSON.stringify({ id: backupId }),
         });
         var data = await res.json();
         if (data.success) {
