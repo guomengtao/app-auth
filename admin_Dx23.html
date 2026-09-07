@@ -2097,6 +2097,132 @@
       margin-top: 8px;
       text-align: right;
     }
+    .cron-task-card {
+      background: var(--card-bg);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 10px;
+      transition: box-shadow 0.15s;
+    }
+    .cron-task-card:hover {
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .cron-task-card.disabled {
+      opacity: 0.55;
+      background: #fafafa;
+    }
+    .cron-task-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .cron-task-title {
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .cron-task-desc {
+      font-size: 0.76rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .cron-task-schedule {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 2px;
+      font-family: monospace;
+      background: var(--bg);
+      padding: 1px 6px;
+      border-radius: 3px;
+      display: inline-block;
+    }
+    .cron-task-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .cron-task-stats {
+      display: flex;
+      gap: 16px;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--line);
+      flex-wrap: wrap;
+      font-size: 0.76rem;
+      color: var(--muted);
+    }
+    .cron-task-stat {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .cron-task-stat strong {
+      color: var(--ink);
+    }
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #ccc;
+      transition: 0.2s;
+      border-radius: 24px;
+    }
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: 0.2s;
+      border-radius: 50%;
+    }
+    .toggle-switch input:checked + .toggle-slider {
+      background-color: var(--accent);
+    }
+    .toggle-switch input:checked + .toggle-slider:before {
+      transform: translateX(20px);
+    }
+    .btn-icon {
+      background: none;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 4px 8px;
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: var(--muted);
+      transition: all 0.15s;
+    }
+    .btn-icon:hover {
+      background: var(--bg);
+      color: var(--ink);
+      border-color: var(--accent);
+    }
+    .btn-icon.danger:hover {
+      border-color: #dc2626;
+      color: #dc2626;
+      background: #fef2f2;
+    }
 
     .sidebar-backdrop {
       display: none;
@@ -3650,12 +3776,58 @@
             <div class="settings-sub-panel" id="settings-sub-cron-stats">
             <div class="setting-block">
               <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
-                <h3 class="setting-title">⏰ 定时任务监控</h3>
-                <button class="btn btn-primary" onclick="loadCronStats()" style="font-size:0.82rem;padding:6px 14px">🔄 刷新</button>
+                <h3 class="setting-title">⏰ 定时任务管理</h3>
+                <div style="display:flex;gap:8px">
+                  <button class="btn btn-outline" onclick="loadCronTasks()" style="font-size:0.82rem;padding:6px 14px">🔄 刷新</button>
+                  <button class="btn btn-primary" onclick="showAddTaskModal()" style="font-size:0.82rem;padding:6px 14px">➕ 新增任务</button>
+                </div>
               </div>
-              <p class="setting-desc" style="margin-bottom:12px">当前所有定时任务（Vercel Cron Jobs）的执行状态、执行次数和最后执行时间。</p>
+              <p class="setting-desc" style="margin-bottom:12px">管理所有定时任务，支持启用/禁用、编辑信息、查看执行统计。</p>
               <div id="cronStatsContainer">
-                <div class="cron-loading">加载中...</div>
+                <div class="cron-loading">⏳ 加载中...</div>
+              </div>
+            </div>
+
+            <!-- 编辑任务弹窗 -->
+            <div id="taskEditModal" class="modal-overlay" style="display:none">
+              <div class="modal-card" style="max-width:500px">
+                <div class="modal-header">
+                  <strong id="taskEditModalTitle">编辑任务</strong>
+                  <button class="modal-close" onclick="closeTaskEditModal()">✕</button>
+                </div>
+                <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+                  <div>
+                    <label style="font-size:0.78rem;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">任务 ID</label>
+                    <input type="text" id="taskEditId" class="setting-input" disabled style="font-size:0.82rem;background:var(--bg);opacity:0.7">
+                  </div>
+                  <div>
+                    <label style="font-size:0.78rem;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">任务名称</label>
+                    <input type="text" id="taskEditName" class="setting-input" placeholder="例如：爱发电订单同步" style="font-size:0.82rem">
+                  </div>
+                  <div>
+                    <label style="font-size:0.78rem;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">描述</label>
+                    <input type="text" id="taskEditDesc" class="setting-input" placeholder="任务描述..." style="font-size:0.82rem">
+                  </div>
+                  <div>
+                    <label style="font-size:0.78rem;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">Cron 表达式</label>
+                    <input type="text" id="taskEditSchedule" class="setting-input" placeholder="0 3 * * *" style="font-size:0.82rem">
+                    <span style="font-size:0.68rem;color:var(--muted)">格式：分 时 日 月 星期</span>
+                  </div>
+                  <div>
+                    <label style="font-size:0.78rem;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">Vercel 路径</label>
+                    <input type="text" id="taskEditPath" class="setting-input" placeholder="/api/xxx" style="font-size:0.82rem">
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <label style="font-size:0.82rem;font-weight:600;color:var(--ink);cursor:pointer;display:flex;align-items:center;gap:6px">
+                      <input type="checkbox" id="taskEditEnabled"> 启用任务
+                    </label>
+                  </div>
+                </div>
+                <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end">
+                  <button class="btn btn-outline" onclick="closeTaskEditModal()">取消</button>
+                  <button class="btn btn-danger" id="taskEditDeleteBtn" onclick="deleteTask()" style="display:none">🗑 删除</button>
+                  <button class="btn btn-primary" onclick="saveTask()">💾 保存</button>
+                </div>
               </div>
             </div>
             </div>
@@ -6459,7 +6631,7 @@
         loadAutoBackupConfig();
       }
       if (tab === 'cron-stats') {
-        loadCronStats();
+        loadCronTasks();
       }
     }
 
@@ -6484,16 +6656,6 @@
       }
     }
 
-    var CRON_SCHEDULES = {
-      'afdian-query-orders': '每天 03:00 (UTC)',
-      'health-backup': '每天 04:00 (UTC)',
-    };
-
-    var CRON_DESCRIPTIONS = {
-      'afdian-query-orders': '查询爱发电订单，同步激活数据',
-      'health-backup': '数据库自动备份到 Redis',
-    };
-
     var STATUS_LABELS = {
       'success': '成功',
       'error': '失败',
@@ -6510,53 +6672,196 @@
       'unknown': 'cron-status-unknown',
     };
 
-    async function loadCronStats() {
+    var editingTaskId = null;
+
+    async function loadCronTasks() {
       var container = document.getElementById('cronStatsContainer');
       if (!container) return;
       container.innerHTML = '<div class="cron-loading">⏳ 加载中...</div>';
       try {
-        var res = await fetch('/api/admin/health?section=cron-stats', { credentials: 'include' });
+        var res = await fetch('/api/admin/cron-tasks', { credentials: 'include' });
         var data = await res.json();
         if (!data.success || !data.tasks || data.tasks.length === 0) {
-          container.innerHTML = '<div class="cron-empty">📭 暂无定时任务执行记录</div>';
+          container.innerHTML = '<div class="cron-empty">📭 暂无定时任务</div>';
           return;
         }
 
-        var html = '<table class="cron-table"><thead><tr><th>任务名称</th><th>状态</th><th>执行次数</th><th>最后执行</th><th>耗时</th><th>执行结果</th></tr></thead><tbody>';
-
+        var html = '';
         data.tasks.forEach(function(task) {
-          var schedule = CRON_SCHEDULES[task.id] || '-';
-          var desc = CRON_DESCRIPTIONS[task.id] || '';
-          var statusLabel = STATUS_LABELS[task.lastStatus] || task.lastStatus || '未知';
-          var statusCss = STATUS_CSS[task.lastStatus] || 'cron-status-unknown';
-          var lastTime = task.lastRun ? new Date(task.lastRun).toLocaleString() : '从未执行';
-          var ago = task.lastRun ? timeAgo(task.lastRun) : '';
-          var duration = task.lastDuration ? (task.lastDuration > 1000 ? (task.lastDuration / 1000).toFixed(1) + 's' : task.lastDuration + 'ms') : '-';
-          var result = task.lastResult || '-';
+          var disabled = !task.enabled ? ' disabled' : '';
+          var statusLabel = '-';
+          var statusCss = 'cron-status-unknown';
+          if (task.stats && task.stats.lastStatus) {
+            statusLabel = STATUS_LABELS[task.stats.lastStatus] || task.stats.lastStatus;
+            statusCss = STATUS_CSS[task.stats.lastStatus] || 'cron-status-unknown';
+          }
+          var lastTime = task.stats && task.stats.lastRun ? new Date(task.stats.lastRun).toLocaleString() : '从未执行';
+          var ago = task.stats && task.stats.lastRun ? timeAgo(task.stats.lastRun) : '';
+          var count = task.stats ? (task.stats.count || 0) : 0;
+          var duration = task.stats && task.stats.lastDuration ? (task.stats.lastDuration > 1000 ? (task.stats.lastDuration / 1000).toFixed(1) + 's' : task.stats.lastDuration + 'ms') : '-';
+          var result = task.stats && task.stats.lastResult ? task.stats.lastResult : '-';
 
-          html += '<tr>';
-          html += '<td><div class="cron-name">' + escapeHtml(task.id) + '</div>';
-          if (desc) html += '<div class="cron-schedule">' + escapeHtml(desc) + '</div>';
-          html += '<div class="cron-schedule">⏱ ' + escapeHtml(schedule) + '</div></td>';
-          html += '<td><span class="cron-status ' + statusCss + '">' + escapeHtml(statusLabel) + '</span></td>';
-          html += '<td><span class="cron-count">' + escapeHtml(String(task.count || 0)) + '</span></td>';
-          html += '<td><div class="cron-time">' + escapeHtml(lastTime) + '</div>';
-          if (ago) html += '<div class="cron-time-ago">' + escapeHtml(ago) + '</div></td>';
-          html += '<td><span class="cron-duration">' + escapeHtml(duration) + '</span></td>';
-          html += '<td><span class="cron-result" title="' + escapeHtml(result) + '">' + escapeHtml(result) + '</span></td>';
-          html += '</tr>';
+          html += '<div class="cron-task-card' + disabled + '">';
+          html += '<div class="cron-task-header">';
+          html += '<div style="flex:1;min-width:0">';
+          html += '<div class="cron-task-title">' + (task.enabled ? '🟢' : '⚫') + ' ' + escapeHtml(task.name) + '</div>';
+          if (task.description) html += '<div class="cron-task-desc">' + escapeHtml(task.description) + '</div>';
+          html += '<span class="cron-task-schedule">⏱ ' + escapeHtml(task.schedule || '-') + '</span>';
+          html += '</div>';
+          html += '<div class="cron-task-actions">';
+          html += '<label class="toggle-switch" title="' + (task.enabled ? '点击禁用' : '点击启用') + '">';
+          html += '<input type="checkbox" ' + (task.enabled ? 'checked' : '') + ' onchange="toggleTask(\'' + escapeHtml(task.id) + '\', this.checked)">';
+          html += '<span class="toggle-slider"></span>';
+          html += '</label>';
+          html += '<button class="btn-icon" onclick="showEditTaskModal(\'' + escapeHtml(task.id) + '\')" title="编辑">✏️</button>';
+          html += '</div>';
+          html += '</div>';
+          html += '<div class="cron-task-stats">';
+          html += '<span class="cron-task-stat">📊 执行次数：<strong>' + count + '</strong></span>';
+          html += '<span class="cron-task-stat">🕐 最后执行：<strong>' + escapeHtml(lastTime) + '</strong>' + (ago ? ' (' + escapeHtml(ago) + ')' : '') + '</span>';
+          html += '<span class="cron-task-stat">⏱ 耗时：<strong>' + escapeHtml(duration) + '</strong></span>';
+          html += '<span class="cron-task-stat"><span class="cron-status ' + statusCss + '">' + escapeHtml(statusLabel) + '</span></span>';
+          html += '<span class="cron-task-stat" style="flex-basis:100%;font-size:0.72rem">📝 ' + escapeHtml(result) + '</span>';
+          html += '</div>';
+          html += '</div>';
         });
-
-        html += '</tbody></table>';
-
-        if (data.lastUpdate) {
-          html += '<div class="cron-meta">数据更新时间：' + new Date(data.lastUpdate).toLocaleString() + '</div>';
-        }
 
         container.innerHTML = html;
       } catch (e) {
-        console.error('loadCronStats error:', e);
+        console.error('loadCronTasks error:', e);
         container.innerHTML = '<div class="cron-empty">❌ 加载失败: ' + escapeHtml(e.message) + '</div>';
+      }
+    }
+
+    async function toggleTask(taskId, enabled) {
+      try {
+        var res = await fetch('/api/admin/cron-tasks?id=' + encodeURIComponent(taskId), {
+          method: 'PUT',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: taskId, enabled: enabled }),
+        });
+        var data = await res.json();
+        if (data.success) {
+          loadCronTasks();
+        } else {
+          alert('操作失败：' + (data.error || '未知错误'));
+          loadCronTasks();
+        }
+      } catch (e) {
+        console.error('toggleTask error:', e);
+        alert('操作失败：' + e.message);
+        loadCronTasks();
+      }
+    }
+
+    function showAddTaskModal() {
+      editingTaskId = null;
+      document.getElementById('taskEditModalTitle').textContent = '新增任务';
+      document.getElementById('taskEditId').value = '';
+      document.getElementById('taskEditId').disabled = false;
+      document.getElementById('taskEditId').style.background = '';
+      document.getElementById('taskEditId').style.opacity = '';
+      document.getElementById('taskEditName').value = '';
+      document.getElementById('taskEditDesc').value = '';
+      document.getElementById('taskEditSchedule').value = '0 0 * * *';
+      document.getElementById('taskEditPath').value = '';
+      document.getElementById('taskEditEnabled').checked = true;
+      document.getElementById('taskEditDeleteBtn').style.display = 'none';
+      document.getElementById('taskEditModal').style.display = 'flex';
+    }
+
+    async function showEditTaskModal(taskId) {
+      editingTaskId = taskId;
+      try {
+        var res = await fetch('/api/admin/cron-tasks', { credentials: 'include' });
+        var data = await res.json();
+        var task = null;
+        if (data.success && data.tasks) {
+          for (var i = 0; i < data.tasks.length; i++) {
+            if (data.tasks[i].id === taskId) { task = data.tasks[i]; break; }
+          }
+        }
+        if (!task) {
+          alert('任务不存在');
+          return;
+        }
+        document.getElementById('taskEditModalTitle').textContent = '编辑任务';
+        document.getElementById('taskEditId').value = task.id;
+        document.getElementById('taskEditId').disabled = true;
+        document.getElementById('taskEditId').style.background = 'var(--bg)';
+        document.getElementById('taskEditId').style.opacity = '0.7';
+        document.getElementById('taskEditName').value = task.name || '';
+        document.getElementById('taskEditDesc').value = task.description || '';
+        document.getElementById('taskEditSchedule').value = task.schedule || '';
+        document.getElementById('taskEditPath').value = task.vercelPath || '';
+        document.getElementById('taskEditEnabled').checked = !!task.enabled;
+        document.getElementById('taskEditDeleteBtn').style.display = 'inline-block';
+        document.getElementById('taskEditModal').style.display = 'flex';
+      } catch (e) {
+        console.error('showEditTaskModal error:', e);
+        alert('加载任务失败：' + e.message);
+      }
+    }
+
+    function closeTaskEditModal() {
+      document.getElementById('taskEditModal').style.display = 'none';
+      editingTaskId = null;
+    }
+
+    async function saveTask() {
+      var id = document.getElementById('taskEditId').value.trim();
+      var name = document.getElementById('taskEditName').value.trim();
+      var desc = document.getElementById('taskEditDesc').value.trim();
+      var schedule = document.getElementById('taskEditSchedule').value.trim();
+      var path = document.getElementById('taskEditPath').value.trim();
+      var enabled = document.getElementById('taskEditEnabled').checked;
+
+      if (!id) { alert('请输入任务 ID'); return; }
+      if (!schedule) { alert('请输入 Cron 表达式'); return; }
+
+      var body = { id: id, name: name, description: desc, schedule: schedule, vercelPath: path, enabled: enabled };
+
+      try {
+        var method = editingTaskId ? 'PUT' : 'POST';
+        var url = editingTaskId ? '/api/admin/cron-tasks?id=' + encodeURIComponent(editingTaskId) : '/api/admin/cron-tasks';
+        var res = await fetch(url, {
+          method: method,
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        var data = await res.json();
+        if (data.success) {
+          closeTaskEditModal();
+          loadCronTasks();
+        } else {
+          alert('保存失败：' + (data.error || '未知错误'));
+        }
+      } catch (e) {
+        console.error('saveTask error:', e);
+        alert('保存失败：' + e.message);
+      }
+    }
+
+    async function deleteTask() {
+      if (!editingTaskId) return;
+      if (!confirm('确定要删除任务 "' + editingTaskId + '" 吗？此操作不可撤销。')) return;
+      try {
+        var res = await fetch('/api/admin/cron-tasks?id=' + encodeURIComponent(editingTaskId), {
+          method: 'DELETE',
+          credentials: 'include',
+        });
+        var data = await res.json();
+        if (data.success) {
+          closeTaskEditModal();
+          loadCronTasks();
+        } else {
+          alert('删除失败：' + (data.error || '未知错误'));
+        }
+      } catch (e) {
+        console.error('deleteTask error:', e);
+        alert('删除失败：' + e.message);
       }
     }
 
@@ -6568,12 +6873,6 @@
       if (diff < 86400000) return Math.floor(diff / 3600000) + ' 小时前';
       if (diff < 2592000000) return Math.floor(diff / 86400000) + ' 天前';
       return Math.floor(diff / 2592000000) + ' 月前';
-    }
-
-    function escapeHtml(str) {
-      var div = document.createElement('div');
-      div.textContent = str;
-      return div.innerHTML;
     }
 
     async function toggleAutoBackup() {

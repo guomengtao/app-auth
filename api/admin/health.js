@@ -331,6 +331,21 @@ module.exports = async (req, res) => {
   if (isCron && isBackup) {
     var cronStart = Date.now();
     try {
+      try {
+        var taskConfigRaw = await redis.get("auth:cron:config");
+        if (taskConfigRaw) {
+          var taskConfigs = JSON.parse(taskConfigRaw);
+          var taskConfig = null;
+          for (var ci = 0; ci < taskConfigs.length; ci++) {
+            if (taskConfigs[ci].id === "health-backup") { taskConfig = taskConfigs[ci]; break; }
+          }
+          if (taskConfig && taskConfig.enabled === false) {
+            console.log("health-backup cron: task disabled in config, skipping");
+            return res.json({ success: true, message: "Task disabled", skipped: true });
+          }
+        }
+      } catch (_) {}
+
       var configRaw = await redis.get(BACKUP_CONFIG_KEY);
       var config = configRaw ? JSON.parse(configRaw) : { enabled: false };
       if (!config.enabled) {

@@ -293,6 +293,24 @@ module.exports = async (req, res) => {
   }
 
   console.log("[afdian:sync] sync mode: checking if Afdian API is configured...");
+
+  if (isCron) {
+    try {
+      var configRaw = await redis.get("auth:cron:config");
+      if (configRaw) {
+        var configs = JSON.parse(configRaw);
+        var taskConfig = null;
+        for (var ci = 0; ci < configs.length; ci++) {
+          if (configs[ci].id === "afdian-query-orders") { taskConfig = configs[ci]; break; }
+        }
+        if (taskConfig && taskConfig.enabled === false) {
+          console.log("[afdian:sync] sync mode: task disabled in config, skipping");
+          return res.status(200).json({ success: true, message: "Task disabled", skipped: true });
+        }
+      }
+    } catch (_) {}
+  }
+
   if (!afdianApi.isConfigured()) {
     console.log("[afdian:sync] sync mode: Afdian API NOT configured (AFDIAN_USER_ID or AFDIAN_TOKEN missing)");
     return res.status(200).json({ success: true, message: "Afdian API not configured, skipped", new_orders: 0 });
