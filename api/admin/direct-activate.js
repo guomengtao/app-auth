@@ -266,16 +266,18 @@ module.exports = async (req, res) => {
 
     for (var n = 0; n < results.length; n++) {
       var r = results[n];
-      notify.sendActivationNotification(req, {
-        redeemCode: r.redeemCode,
-        activationCode: r.activationCode,
-        productId: r.productId,
-        deviceId: r.deviceId,
-        months: r.months,
-        source: "admin-direct",
-      }).catch(function (e) {
+      try {
+        await notify.sendActivationNotification(req, {
+          redeemCode: r.redeemCode,
+          activationCode: r.activationCode,
+          productId: r.productId,
+          deviceId: r.deviceId,
+          months: r.months,
+          source: "admin-direct",
+        });
+      } catch (e) {
         console.error("[direct-activate] Notification failed:", e.message);
-      });
+      }
     }
 
     return res.json({ success: true, results: results });

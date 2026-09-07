@@ -810,6 +810,99 @@
     }
     .toolbar .spacer { flex: 1; min-width: 8px; }
 
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 12px;
+      padding: 16px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      margin-bottom: 12px;
+    }
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 100px;
+    }
+    .filter-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding-left: 2px;
+    }
+    .filter-select {
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      font-size: 0.82rem;
+      color: var(--ink);
+      outline: none;
+      height: 40px;
+      min-width: 130px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .filter-select:focus { border-color: var(--accent); }
+    .filter-input {
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      font-size: 0.82rem;
+      color: var(--ink);
+      outline: none;
+      height: 40px;
+      width: 140px;
+      box-sizing: border-box;
+      font-family: 'SF Mono', 'Fira Code', 'Menlo', monospace;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .filter-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(102,126,234,0.15);
+    }
+    .filter-input::placeholder {
+      color: #cbd5e1;
+      font-size: 0.75rem;
+    }
+    .filter-segmented {
+      display: flex;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      height: 40px;
+    }
+    .filter-seg-btn {
+      padding: 0 14px;
+      border: none;
+      background: var(--surface);
+      font-size: 0.8rem;
+      color: var(--ink);
+      cursor: pointer;
+      font-weight: 500;
+      transition: background 0.15s, color 0.15s;
+      border-right: 1px solid var(--line);
+    }
+    .filter-seg-btn:last-child { border-right: none; }
+    .filter-seg-btn:hover { background: #f1f5f9; }
+    .filter-seg-btn.active {
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+    }
+    .filter-actions {
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+      padding-bottom: 0;
+    }
+
     .filter-panel {
       background: var(--surface);
       border: 1px solid var(--line);
@@ -2793,20 +2886,37 @@
           </div>
 
           <div class="panel" id="panel-records">
-            <div class="toolbar">
-              <select id="filterRecordProduct" onchange="loadRecords()">
-                <option value="">All Products</option>
-              </select>
-              <select id="filterRecordStatus" onchange="loadRecords()">
-                <option value="all">All Status</option>
-                <option value="success">Success</option>
-                <option value="failure">Failed</option>
-              </select>
-              <input type="text" id="filterRecordDeviceId" class="input-mono" placeholder="Device ID" maxlength="32" style="max-width:140px" onkeydown="if(event.key==='Enter')loadRecords()">
-              <input type="text" id="filterRecordIp" class="input-mono" placeholder="IP" maxlength="24" style="max-width:120px" onkeydown="if(event.key==='Enter')loadRecords()">
-              <input type="text" id="filterRecordRedeemCode" class="input-mono" placeholder="Redeem Code" maxlength="16" style="max-width:160px" onkeydown="if(event.key==='Enter')loadRecords()">
-              <button class="btn btn-outline" onclick="clearRecordFilter()">Clear</button>
-              <button class="btn btn-outline" onclick="loadRecords()">Refresh</button>
+            <div class="filter-bar">
+              <div class="filter-group">
+                <label class="filter-label">Product</label>
+                <select id="filterRecordProduct" onchange="loadRecords()" class="filter-select">
+                  <option value="">All Products</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label class="filter-label">Status</label>
+                <div class="filter-segmented">
+                  <button class="filter-seg-btn active" data-value="all" onclick="setStatusFilter('all', this)">All</button>
+                  <button class="filter-seg-btn" data-value="success" onclick="setStatusFilter('success', this)">Success</button>
+                  <button class="filter-seg-btn" data-value="failure" onclick="setStatusFilter('failure', this)">Failed</button>
+                </div>
+              </div>
+              <div class="filter-group">
+                <label class="filter-label">Device ID</label>
+                <input type="text" id="filterRecordDeviceId" class="filter-input" placeholder="e.g. Aa09" maxlength="32" onkeydown="if(event.key==='Enter')loadRecords()">
+              </div>
+              <div class="filter-group">
+                <label class="filter-label">IP Address</label>
+                <input type="text" id="filterRecordIp" class="filter-input" placeholder="e.g. 192.168" maxlength="24" onkeydown="if(event.key==='Enter')loadRecords()">
+              </div>
+              <div class="filter-group">
+                <label class="filter-label">Redeem Code</label>
+                <input type="text" id="filterRecordRedeemCode" class="filter-input" placeholder="e.g. 1BZR" maxlength="16" onkeydown="if(event.key==='Enter')loadRecords()">
+              </div>
+              <div class="filter-actions">
+                <button class="btn btn-outline" onclick="clearRecordFilter()" style="height:40px;padding:0 16px">Clear</button>
+                <button class="btn btn-primary" onclick="loadRecords()" style="height:40px;padding:0 16px">Search</button>
+              </div>
             </div>
             <div id="recordFilterHint" style="display:none;margin-bottom:8px;font-size:0.85rem;color:#667eea"></div>
             <div class="table-wrap" id="recordsTable"></div>
@@ -4586,19 +4696,34 @@
     var _pendingRedeemCode = null;
     var _pendingActivationCode = null;
 
+    function setStatusFilter(value, btn) {
+      var btns = document.querySelectorAll('.filter-seg-btn');
+      btns.forEach(function(b) { b.classList.remove('active'); });
+      if (btn) btn.classList.add('active');
+      loadRecords();
+    }
+
+    function getStatusFilterValue() {
+      var activeBtn = document.querySelector('.filter-seg-btn.active');
+      return activeBtn ? activeBtn.getAttribute('data-value') : 'all';
+    }
+
     function clearRecordFilter() {
       var sel = document.getElementById('filterRecordProduct');
       if (sel) sel.value = '';
       var inp = document.getElementById('filterRecordRedeemCode');
       if (inp) inp.value = '';
-      var statusSel = document.getElementById('filterRecordStatus');
-      if (statusSel) statusSel.value = 'all';
       var deviceInp = document.getElementById('filterRecordDeviceId');
       if (deviceInp) deviceInp.value = '';
       var ipInp = document.getElementById('filterRecordIp');
       if (ipInp) ipInp.value = '';
       var hint = document.getElementById('recordFilterHint');
       if (hint) hint.style.display = 'none';
+      var btns = document.querySelectorAll('.filter-seg-btn');
+      btns.forEach(function(b) {
+        b.classList.remove('active');
+        if (b.getAttribute('data-value') === 'all') b.classList.add('active');
+      });
       loadRecords();
     }
 
@@ -4614,10 +4739,19 @@
       if (inp) inp.value = rc;
       var sel = document.getElementById('filterRecordProduct');
       if (sel) sel.value = '';
+      var btns = document.querySelectorAll('.filter-seg-btn');
+      btns.forEach(function(b) {
+        b.classList.remove('active');
+        if (b.getAttribute('data-value') === 'all') b.classList.add('active');
+      });
+      var deviceInp = document.getElementById('filterRecordDeviceId');
+      if (deviceInp) deviceInp.value = '';
+      var ipInp = document.getElementById('filterRecordIp');
+      if (ipInp) ipInp.value = '';
       var hint = document.getElementById('recordFilterHint');
       if (hint) {
         hint.style.display = 'block';
-        hint.innerHTML = '🔎 正在从兑换码 <span class="mono" style="font-weight:700;color:#4c51bf">' + escapeHtml(rc) + '</span> 跳转到激活记录并筛选...';
+        hint.innerHTML = 'Filter: Redeem <span class="mono" style="font-weight:700;color:#4c51bf">' + escapeHtml(rc) + '</span> — loading...';
       }
       switchTab('records');
     }
@@ -4663,7 +4797,6 @@
       try {
         var selPid = document.getElementById('filterRecordProduct');
         var inpRc = document.getElementById('filterRecordRedeemCode');
-        var selStatus = document.getElementById('filterRecordStatus');
         var inpDeviceId = document.getElementById('filterRecordDeviceId');
         var inpIp = document.getElementById('filterRecordIp');
         var hint = document.getElementById('recordFilterHint');
@@ -4671,7 +4804,7 @@
         var pid = selPid ? selPid.value : '';
         var redeemRaw = (inpRc ? inpRc.value : '') || '';
         var rc = String(redeemRaw).trim().toUpperCase();
-        var status = selStatus ? selStatus.value : 'all';
+        var status = getStatusFilterValue();
         var deviceId = (inpDeviceId ? inpDeviceId.value : '') || '';
         var ip = (inpIp ? inpIp.value : '') || '';
 

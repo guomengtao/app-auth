@@ -50,7 +50,7 @@ module.exports = async (req, res) => {
     }
 
     if (statusFilter === "all" || statusFilter === "failure") {
-      const { records } = await fetchRecordsFromSet("auth:activation_failures", "auth:activation_failure:", count);
+      const { records } = await fetchRecordsFromSet("auth:activation_failures", "", count);
       allRecords = allRecords.concat(records);
     }
 
