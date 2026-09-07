@@ -6679,7 +6679,7 @@
       if (!container) return;
       container.innerHTML = '<div class="cron-loading">⏳ 加载中...</div>';
       try {
-        var res = await fetch('/api/admin/cron-tasks', { credentials: 'include' });
+        var res = await fetch('/api/admin/health?section=cron-tasks', { credentials: 'include' });
         var data = await res.json();
         if (!data.success || !data.tasks || data.tasks.length === 0) {
           container.innerHTML = '<div class="cron-empty">📭 暂无定时任务</div>';
@@ -6735,7 +6735,7 @@
 
     async function toggleTask(taskId, enabled) {
       try {
-        var res = await fetch('/api/admin/cron-tasks?id=' + encodeURIComponent(taskId), {
+        var res = await fetch('/api/admin/health?section=cron-tasks&id=' + encodeURIComponent(taskId), {
           method: 'PUT',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -6774,7 +6774,7 @@
     async function showEditTaskModal(taskId) {
       editingTaskId = taskId;
       try {
-        var res = await fetch('/api/admin/cron-tasks', { credentials: 'include' });
+        var res = await fetch('/api/admin/health?section=cron-tasks', { credentials: 'include' });
         var data = await res.json();
         var task = null;
         if (data.success && data.tasks) {
@@ -6824,7 +6824,7 @@
 
       try {
         var method = editingTaskId ? 'PUT' : 'POST';
-        var url = editingTaskId ? '/api/admin/cron-tasks?id=' + encodeURIComponent(editingTaskId) : '/api/admin/cron-tasks';
+        var url = editingTaskId ? '/api/admin/health?section=cron-tasks&id=' + encodeURIComponent(editingTaskId) : '/api/admin/health?section=cron-tasks';
         var res = await fetch(url, {
           method: method,
           credentials: 'include',
@@ -6848,7 +6848,7 @@
       if (!editingTaskId) return;
       if (!confirm('确定要删除任务 "' + editingTaskId + '" 吗？此操作不可撤销。')) return;
       try {
-        var res = await fetch('/api/admin/cron-tasks?id=' + encodeURIComponent(editingTaskId), {
+        var res = await fetch('/api/admin/health?section=cron-tasks&id=' + encodeURIComponent(editingTaskId), {
           method: 'DELETE',
           credentials: 'include',
         });
