@@ -380,7 +380,7 @@
 
         if (data.debug) {
           console.log('---');
-          console.log('📬 邮件通知:', data.debug.notification === 'success' ? '✅ 已发送激活成功通知' : (data.debug.notification === 'sent' ? '✅ 已发送激活失败通知' : '❌ 邮件通知发送失败'));
+          console.log('📬 邮件通知:', data.debug.notification === 'sent' ? '✅ 已发送激活成功通知' : '❌ 邮件通知发送失败');
           console.log('📋 原因:', data.debug.reason || 'N/A');
           if (data.debug.productId) console.log('📦 产品:', data.debug.productId);
           if (data.debug.months) console.log('📅 时长:', data.debug.months + '个月');

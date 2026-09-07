@@ -354,9 +354,10 @@ module.exports = async (req, res) => {
       });
     } catch (e) {
       console.error("[activate] Notification failed:", e.message);
+      notifyResult = { sent: false, error: e.message };
     }
 
-    return res.json({ success: true, activationCode: activationCode, debug: { visitor: visitorInfo, notification: notifyResult ? "sent" : "failed", productId: productId, months: months } });
+    return res.json({ success: true, activationCode: activationCode, debug: { visitor: visitorInfo, notification: (notifyResult && notifyResult.sent) ? "sent" : "failed", productId: productId, months: months } });
   } catch (error) {
     console.error("Activate error:", error && error.message ? error.message : error, error);
     var msg = "服务器内部错误，请稍后重试";
