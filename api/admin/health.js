@@ -72,7 +72,8 @@ async function readSetMembers(redis, setKey, valueKeyPrefix) {
     for (var i = 0; i < keys.length; i += 200) chunks.push(keys.slice(i, i + 200));
     for (var c = 0; c < chunks.length; c++) {
       var batch = chunks[c];
-      var vals = await redis.mget(batch.map(function(x) { return valueKeyPrefix + x; }));
+      var fullKeys = valueKeyPrefix ? batch.map(function(x) { return valueKeyPrefix + x; }) : batch;
+      var vals = await redis.mget.apply(redis, fullKeys);
       for (var j = 0; j < batch.length; j++) {
         var raw = vals && vals[j];
         if (typeof raw === "string") {
@@ -82,6 +83,52 @@ async function readSetMembers(redis, setKey, valueKeyPrefix) {
     }
     if (cursor === 0) break;
   }
+  return records;
+}
+
+async function readSetMembersDirect(pg, setKey, valueKeyPrefix) {
+  var records = [];
+  var memberResult = await pg.query("SELECT member FROM kv_sets WHERE key = $1 ORDER BY member", [setKey]);
+  var members = (memberResult.rows || []).map(function(r) { return r.member; });
+  console.log("[backup] direct query " + setKey + ": " + members.length + " members");
+  if (members.length > 0) {
+    var chunks = [];
+    for (var i = 0; i < members.length; i += 200) chunks.push(members.slice(i, i + 200));
+    for (var c = 0; c < chunks.length; c++) {
+      var batch = chunks[c];
+      var lookupKeys = valueKeyPrefix ? batch.map(function(x) { return valueKeyPrefix + x; }) : batch;
+      var placeholders = lookupKeys.map(function(_, idx) { return "$" + (idx + 1); }).join(",");
+      var valResult = await pg.query(
+        "SELECT key, value FROM kv_strings WHERE key IN (" + placeholders + ")",
+        lookupKeys
+      );
+      var valMap = {};
+      (valResult.rows || []).forEach(function(r) { valMap[r.key] = r.value; });
+      for (var j = 0; j < batch.length; j++) {
+        var raw = valMap[lookupKeys[j]];
+        if (raw) {
+          try {
+            var rec = JSON.parse(raw);
+            rec._backup_key = lookupKeys[j];
+            rec._backup_member = batch[j];
+            records.push(rec);
+          } catch (_) {}
+        }
+      }
+    }
+  }
+  return records;
+}
+
+async function readHashAllDirect(pg, hashKey) {
+  var records = [];
+  var result = await pg.query("SELECT field, value FROM kv_hashes WHERE key = $1", [hashKey]);
+  console.log("[backup] direct query " + hashKey + ": " + (result.rows ? result.rows.length : 0) + " fields");
+  (result.rows || []).forEach(function(r) {
+    try { records.push({ id: r.field, data: JSON.parse(r.value) }); } catch (_) {
+      try { records.push({ id: r.field, value: r.value }); } catch (_) {}
+    }
+  });
   return records;
 }
 
@@ -99,14 +146,19 @@ async function readHashAll(redis, hashKey) {
 }
 
 async function doBackup(redis, isAuto) {
+  var pg = require("../../lib/postgres");
   var timestamp = Date.now();
   var label = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
   var backupId = isAuto ? ("auto-" + label) : ("manual-" + label);
 
-  var products = await readHashAll(redis, "auth:products");
-  var redeemCodes = await readSetMembers(redis, "auth:redeem_codes", "auth:redeem:");
-  var activations = await readSetMembers(redis, "auth:activation_codes", "auth:activation:");
-  var failures = await readSetMembers(redis, "auth:activation_failures", "auth:activation_failure:");
+  console.log("[backup] starting doBackup: " + backupId);
+
+  var products = await readHashAllDirect(pg, "auth:products");
+  var redeemCodes = await readSetMembersDirect(pg, "auth:redeem_codes", "auth:redeem:");
+  var activations = await readSetMembersDirect(pg, "auth:activation_codes", "auth:activation:");
+  var failures = await readSetMembersDirect(pg, "auth:activation_failures", "");
+
+  console.log("[backup] results: products=" + products.length + " redeem=" + redeemCodes.length + " activations=" + activations.length + " failures=" + failures.length);
 
   var backupData = {
     id: backupId,
@@ -307,9 +359,10 @@ module.exports = async (req, res) => {
             var pip2 = redis.pipeline();
             for (var ri = 0; ri < backup.redeem_codes.length; ri++) {
               var rc = backup.redeem_codes[ri];
-              if (rc.code) {
-                pip2.set("auth:redeem:" + rc.code, JSON.stringify(rc));
-                pip2.sadd("auth:redeem_codes", rc.code);
+              var rcode = rc.code || rc._backup_member;
+              if (rcode) {
+                pip2.set("auth:redeem:" + rcode, JSON.stringify(rc));
+                pip2.sadd("auth:redeem_codes", rcode);
               }
             }
             await pip2.exec();
@@ -320,9 +373,10 @@ module.exports = async (req, res) => {
             var pip3 = redis.pipeline();
             for (var ai = 0; ai < backup.activations.length; ai++) {
               var act = backup.activations[ai];
-              if (act.activation_code) {
-                pip3.set("auth:activation:" + act.activation_code, JSON.stringify(act));
-                pip3.sadd("auth:activation_codes", act.activation_code);
+              var acode = act.activation_code || act._backup_member;
+              if (acode) {
+                pip3.set("auth:activation:" + acode, JSON.stringify(act));
+                pip3.sadd("auth:activation_codes", acode);
               }
             }
             await pip3.exec();
@@ -333,9 +387,9 @@ module.exports = async (req, res) => {
             var pip4 = redis.pipeline();
             for (var fi = 0; fi < backup.failures.length; fi++) {
               var fail = backup.failures[fi];
-              var failKey = fail.id || fail.code || (fail.activation_code ? ("fail:" + fail.activation_code) : null);
+              var failKey = fail._backup_member || fail._backup_key || "";
               if (failKey) {
-                pip4.set("auth:activation_failure:" + failKey, JSON.stringify(fail));
+                pip4.set(failKey, JSON.stringify(fail));
                 pip4.sadd("auth:activation_failures", failKey);
               }
             }
