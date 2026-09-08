@@ -1498,7 +1498,7 @@ module.exports = async (req, res) => {
       for (var di = 0; di < allDbs.length; di++) {
         var dbDef = allDbs[di];
         var isPrimary = dbProvider === dbDef.id;
-        var dbRole = dbDef.type === "redis" ? "tertiary" : (isPrimary ? "primary" : "standby");
+        var dbRole = dbDef.role === "coordinator" ? "coordinator" : (isPrimary ? "primary" : "standby");
         var dbEntry = {
           id: dbDef.id,
           name: dbDef.name,

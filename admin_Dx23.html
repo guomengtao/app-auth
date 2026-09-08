@@ -3780,20 +3780,32 @@
             <div class="settings-sub-panel" id="settings-sub-database">
               <div class="setting-block">
                 <h3 class="setting-title">🗄️ 数据库概览</h3>
-                <p class="setting-desc">当前运行的数据库实例及各数据库状态。主库故障时可手动切换到备库。</p>
+                <p class="setting-desc">双层架构：协调层（Upstash KV）管理配置与业务数据 + 数据层（PostgreSQL）可动态切换。</p>
                 <div style="margin-bottom:10px">
                   <button class="btn btn-primary" onclick="loadDatabaseStatus()">🔄 刷新数据库状态</button>
                   <span style="margin-left:10px;font-size:0.78rem;color:#6b7280" id="dbStatusCheckedAt"></span>
                 </div>
                 <div id="dbStatusCurrent" style="margin-bottom:16px;padding:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;">
-                  <span style="font-weight:600">当前运行数据库：</span><span id="dbCurrentName" style="color:var(--accent);font-weight:700">加载中...</span>
+                  <span style="font-weight:600">当前主数据库：</span><span id="dbCurrentName" style="color:var(--accent);font-weight:700">加载中...</span>
                   <span style="margin-left:12px;font-size:0.78rem;color:#6b7280">(DB_PROVIDER: <code id="dbCurrentProvider">-</code>)</span>
+                </div>
+                <div id="dbStatusInfo" style="margin-bottom:16px;padding:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;display:none">
+                  <span style="font-size:0.78rem;color:#6b7280">切换说明：切换后新请求将连接新的主数据库，内存缓存立即生效，无需重启。</span>
                 </div>
               </div>
 
               <div class="setting-block">
-                <h3 class="setting-title">📊 三个数据库对比</h3>
-                <div id="dbCompareCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-bottom:16px">
+                <h3 class="setting-title">⚙️ 协调层（不可切换）</h3>
+                <p class="setting-desc">Upstash KV 作为系统核心，存储业务数据、切换配置、同步状态。不参与数据库切换，不可作为主数据库。</p>
+                <div id="dbCoordinatorCard" style="margin-bottom:16px">
+                  <div class="empty">点击「刷新数据库状态」加载...</div>
+                </div>
+              </div>
+
+              <div class="setting-block">
+                <h3 class="setting-title">💾 数据层（可切换）</h3>
+                <p class="setting-desc">PostgreSQL 数据库之间直接批量同步，不经过 Redis 中转。可随时切换主数据库，切换后立即生效。</p>
+                <div id="dbDataCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-bottom:16px">
                   <div class="empty" style="grid-column:1/-1">点击「刷新数据库状态」加载...</div>
                 </div>
               </div>
@@ -3807,7 +3819,7 @@
               </div>
 
               <div class="setting-block">
-                <h3 class="setting-title">🔄 数据同步状态</h3>
+                <h3 class="setting-title">🔄 数据同步</h3>
                 <p class="setting-desc">PostgreSQL 数据库之间直接批量同步，不经过 Redis 中转。同步到 Upstash KV 需单独点击。</p>
                 <div style="margin-bottom:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
                   <button class="btn btn-primary" onclick="triggerSyncTo('all')" id="btnTriggerSyncAll" style="font-size:0.82rem;padding:6px 14px">Sync All (PG)</button>
@@ -7823,84 +7835,109 @@
           statusDiv.style.borderColor = '#bbf7d0';
         }
 
-        var compareEl = document.getElementById('dbCompareCards');
-        if (compareEl && Array.isArray(d.databases)) {
-          var html = '';
+        var coordinatorEl = document.getElementById('dbCoordinatorCard');
+        var dataCardsEl = document.getElementById('dbDataCards');
+        if (Array.isArray(d.databases)) {
+          var coordinators = [];
+          var dataDbs = [];
           d.databases.forEach(function(db) {
-            var roleBadge = '';
-            if (db.role === 'primary') roleBadge = '<span class="tag t-ok" style="margin-left:6px">● 当前主库</span>';
-            else if (db.role === 'standby') roleBadge = '<span class="tag t-warn" style="margin-left:6px">○ 备库</span>';
-            else roleBadge = '<span class="tag" style="margin-left:6px;background:#f3f4f6;color:#6b7280">○ 三级备</span>';
-            var statusIcon = db.configured ? '✅' : '❌';
-            html += '<div class="info-card" style="border-left:3px solid ' + (db.role === 'primary' ? 'var(--accent)' : '#e5e7eb') + '">';
-            html += '<h4>' + statusIcon + ' ' + escapeHtml(db.name) + roleBadge + '</h4>';
-            html += '<p><strong>类型：</strong>' + escapeHtml(db.type) + ' · <strong>主机：</strong>' + escapeHtml(db.host) + '</p>';
-            html += '<p><strong>免费额度：</strong>' + escapeHtml(db.freeLimit) + '</p>';
-            html += '<p><strong>配置状态：</strong>' + (db.configured ? '<span style="color:#059669">已配置</span>' : '<span style="color:#dc2626">未配置</span>') + '</p>';
+            if (db.role === 'coordinator') {
+              coordinators.push(db);
+            } else {
+              dataDbs.push(db);
+            }
+          });
 
-            if (db.type === 'Redis') {
+          // Render coordinator card
+          if (coordinatorEl) {
+            var coordHtml = '';
+            coordinators.forEach(function(db) {
+              var statusIcon = db.configured ? '✅' : '❌';
+              coordHtml += '<div class="info-card" style="border-left:3px solid #8b5cf6;background:#faf5ff">';
+              coordHtml += '<h4>' + statusIcon + ' ' + escapeHtml(db.name) + '<span class="tag" style="margin-left:6px;background:#ede9fe;color:#7c3aed">⚙️ 协调层</span></h4>';
+              coordHtml += '<p><strong>类型：</strong>' + escapeHtml(db.type) + ' · <strong>主机：</strong>' + escapeHtml(db.host) + '</p>';
+              coordHtml += '<p><strong>免费额度：</strong>' + escapeHtml(db.freeLimit) + '</p>';
+              coordHtml += '<p><strong>配置状态：</strong>' + (db.configured ? '<span style="color:#059669">已配置</span>' : '<span style="color:#dc2626">未配置</span>') + '</p>';
+
               if (db.syncStats) {
                 var ss = db.syncStats;
                 var syncTotal = (ss.strings || 0) + (ss.hashes || 0) + (ss.sets || 0) + (ss.zsets || 0);
-                html += '<p style="margin-top:6px"><strong>数据：</strong>4 种, <span style="font-size:1.1rem;font-weight:700;color:var(--accent)">' + syncTotal.toLocaleString() + '</span> 条记录</p>';
-                html += '<table style="width:100%;margin-top:4px;font-size:0.78rem;border-collapse:collapse">';
-                html += '<thead><tr style="color:#6b7280"><th style="text-align:left;padding:2px 4px">类型</th><th style="text-align:right;padding:2px 4px">条数</th></tr></thead><tbody>';
-                html += '<tr><td style="padding:1px 4px;font-family:monospace">strings</td><td style="text-align:right;padding:1px 4px">' + (ss.strings || 0).toLocaleString() + '</td></tr>';
-                html += '<tr><td style="padding:1px 4px;font-family:monospace">hashes</td><td style="text-align:right;padding:1px 4px">' + (ss.hashes || 0).toLocaleString() + '</td></tr>';
-                html += '<tr><td style="padding:1px 4px;font-family:monospace">sets</td><td style="text-align:right;padding:1px 4px">' + (ss.sets || 0).toLocaleString() + '</td></tr>';
-                html += '<tr><td style="padding:1px 4px;font-family:monospace">zsets</td><td style="text-align:right;padding:1px 4px">' + (ss.zsets || 0).toLocaleString() + '</td></tr>';
-                html += '</tbody></table>';
+                coordHtml += '<p style="margin-top:6px"><strong>数据：</strong>4 种, <span style="font-size:1.1rem;font-weight:700;color:#7c3aed">' + syncTotal.toLocaleString() + '</span> 条记录</p>';
+                coordHtml += '<table style="width:100%;margin-top:4px;font-size:0.78rem;border-collapse:collapse">';
+                coordHtml += '<thead><tr style="color:#6b7280"><th style="text-align:left;padding:2px 4px">类型</th><th style="text-align:right;padding:2px 4px">条数</th></tr></thead><tbody>';
+                coordHtml += '<tr><td style="padding:1px 4px;font-family:monospace">strings</td><td style="text-align:right;padding:1px 4px">' + (ss.strings || 0).toLocaleString() + '</td></tr>';
+                coordHtml += '<tr><td style="padding:1px 4px;font-family:monospace">hashes</td><td style="text-align:right;padding:1px 4px">' + (ss.hashes || 0).toLocaleString() + '</td></tr>';
+                coordHtml += '<tr><td style="padding:1px 4px;font-family:monospace">sets</td><td style="text-align:right;padding:1px 4px">' + (ss.sets || 0).toLocaleString() + '</td></tr>';
+                coordHtml += '<tr><td style="padding:1px 4px;font-family:monospace">zsets</td><td style="text-align:right;padding:1px 4px">' + (ss.zsets || 0).toLocaleString() + '</td></tr>';
+                coordHtml += '</tbody></table>';
                 if (db.keyCount !== null && db.keyCount !== undefined) {
-                  html += '<p style="font-size:0.75rem;color:#9ca3af;margin-top:4px">' + Number(db.keyCount).toLocaleString() + ' unique keys</p>';
+                  coordHtml += '<p style="font-size:0.75rem;color:#9ca3af;margin-top:4px">' + Number(db.keyCount).toLocaleString() + ' keys</p>';
                 }
               } else if (db.keyCount !== null && db.keyCount !== undefined) {
-                html += '<p style="margin-top:6px"><strong>数据：</strong><span style="font-size:1.1rem;font-weight:700;color:var(--accent)">' + Number(db.keyCount).toLocaleString() + '</span> keys</p>';
+                coordHtml += '<p style="margin-top:6px"><strong>数据：</strong><span style="font-size:1.1rem;font-weight:700;color:#7c3aed">' + Number(db.keyCount).toLocaleString() + '</span> keys</p>';
               }
               if (Array.isArray(db.keys) && db.keys.length > 0) {
-                html += '<div style="margin-top:4px;font-size:0.78rem;color:#6b7280">';
+                coordHtml += '<div style="margin-top:4px;font-size:0.78rem;color:#6b7280">';
                 for (var ki = 0; ki < db.keys.length; ki++) {
-                  html += '<span style="display:inline-block;background:#f3f4f6;padding:1px 6px;border-radius:3px;margin:1px 2px">' + escapeHtml(db.keys[ki].name) + ' x' + db.keys[ki].rowCount + '</span>';
+                  coordHtml += '<span style="display:inline-block;background:#ede9fe;padding:1px 6px;border-radius:3px;margin:1px 2px">' + escapeHtml(db.keys[ki].name) + ' x' + db.keys[ki].rowCount + '</span>';
                 }
-                html += '</div>';
-              } else if (db.keyCount === null || db.keyCount === undefined) {
-                html += '<p style="margin-top:6px;color:#9ca3af">未获取到数据</p>';
+                coordHtml += '</div>';
               }
               if (db.error) {
-                html += '<p style="margin-top:2px;color:#dc2626;font-size:0.75rem">错误: ' + escapeHtml(db.error) + '</p>';
+                coordHtml += '<p style="margin-top:2px;color:#dc2626;font-size:0.75rem">' + escapeHtml(db.error) + '</p>';
               }
-            } else {
-              html += '<p style="margin-top:6px"><strong>数据：</strong>' + db.tableCount + ' 表, <span style="font-size:1.1rem;font-weight:700;color:var(--accent)">' + Number(db.totalRows || 0).toLocaleString() + '</span> 条记录</p>';
+              coordHtml += '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #e9d5ff;font-size:0.78rem;color:#7c3aed">⚙️ 协调层不可切换，不参与主数据库选举</div>';
+              coordHtml += '</div>';
+            });
+            coordinatorEl.innerHTML = coordHtml || '<div class="empty">未配置协调层数据库</div>';
+          }
+
+          // Render data layer cards
+          if (dataCardsEl) {
+            var dataHtml = '';
+            dataDbs.forEach(function(db) {
+              var roleBadge = '';
+              if (db.role === 'primary') roleBadge = '<span class="tag t-ok" style="margin-left:6px">● 当前主库</span>';
+              else if (db.role === 'standby') roleBadge = '<span class="tag t-warn" style="margin-left:6px">○ 备库</span>';
+              var statusIcon = db.configured ? '✅' : '❌';
+              dataHtml += '<div class="info-card" style="border-left:3px solid ' + (db.role === 'primary' ? 'var(--accent)' : '#e5e7eb') + '">';
+              dataHtml += '<h4>' + statusIcon + ' ' + escapeHtml(db.name) + roleBadge + '</h4>';
+              dataHtml += '<p><strong>类型：</strong>' + escapeHtml(db.type) + ' · <strong>主机：</strong>' + escapeHtml(db.host) + '</p>';
+              dataHtml += '<p><strong>免费额度：</strong>' + escapeHtml(db.freeLimit) + '</p>';
+              dataHtml += '<p><strong>配置状态：</strong>' + (db.configured ? '<span style="color:#059669">已配置</span>' : '<span style="color:#dc2626">未配置</span>') + '</p>';
+
+              dataHtml += '<p style="margin-top:6px"><strong>数据：</strong>' + db.tableCount + ' 表, <span style="font-size:1.1rem;font-weight:700;color:var(--accent)">' + Number(db.totalRows || 0).toLocaleString() + '</span> 条记录</p>';
               if (Array.isArray(db.tables) && db.tables.length > 0) {
-                html += '<table style="width:100%;margin-top:4px;font-size:0.78rem;border-collapse:collapse">';
-                html += '<thead><tr style="color:#6b7280"><th style="text-align:left;padding:2px 4px">表名</th><th style="text-align:right;padding:2px 4px">行数</th></tr></thead><tbody>';
+                dataHtml += '<table style="width:100%;margin-top:4px;font-size:0.78rem;border-collapse:collapse">';
+                dataHtml += '<thead><tr style="color:#6b7280"><th style="text-align:left;padding:2px 4px">表名</th><th style="text-align:right;padding:2px 4px">行数</th></tr></thead><tbody>';
                 for (var ti = 0; ti < db.tables.length; ti++) {
-                  html += '<tr><td style="padding:1px 4px;font-family:monospace">' + escapeHtml(db.tables[ti].name) + '</td><td style="text-align:right;padding:1px 4px">' + Number(db.tables[ti].rowCount).toLocaleString() + '</td></tr>';
+                  dataHtml += '<tr><td style="padding:1px 4px;font-family:monospace">' + escapeHtml(db.tables[ti].name) + '</td><td style="text-align:right;padding:1px 4px">' + Number(db.tables[ti].rowCount).toLocaleString() + '</td></tr>';
                 }
-                html += '</tbody></table>';
+                dataHtml += '</tbody></table>';
               }
               if (db.error) {
-                html += '<p style="margin-top:2px;color:#dc2626;font-size:0.75rem">错误: ' + escapeHtml(db.error) + '</p>';
+                dataHtml += '<p style="margin-top:2px;color:#dc2626;font-size:0.75rem">' + escapeHtml(db.error) + '</p>';
               }
-            }
-            var dbSwitchKey = db.id || db.name;
-            var isOn = db.enabled === 'on';
-            html += '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between">' +
-              '<span style="font-size:0.78rem;color:var(--muted)">开关</span>' +
-              '<label class="toggle-switch" style="width:36px;height:20px">' +
-              '<input type="checkbox" ' + (isOn ? 'checked' : '') + ' onchange="toggleDbSwitch(\'' + dbSwitchKey + '\', this.checked)" ' + (db.role === 'primary' ? 'disabled' : '') + '>' +
-              '<span class="toggle-slider" style="border-radius:20px"></span>' +
-              '</label>' +
-              '</div>';
-            if (db.role !== 'primary') {
-              html += '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">' +
-                '<button class="btn btn-outline" style="width:100%;font-size:0.8rem;padding:6px 12px" onclick="verifyDbSwitch(\'' + dbSwitchKey + '\', \'' + escapeHtml(db.name) + '\')">' +
-                '🔄 Switch to Primary' +
-                '</button>' +
+              var dbSwitchKey = db.id || db.name;
+              var isOn = db.enabled === 'on';
+              dataHtml += '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between">' +
+                '<span style="font-size:0.78rem;color:var(--muted)">开关</span>' +
+                '<label class="toggle-switch" style="width:36px;height:20px">' +
+                '<input type="checkbox" ' + (isOn ? 'checked' : '') + ' onchange="toggleDbSwitch(\'' + dbSwitchKey + '\', this.checked)" ' + (db.role === 'primary' ? 'disabled' : '') + '>' +
+                '<span class="toggle-slider" style="border-radius:20px"></span>' +
+                '</label>' +
                 '</div>';
-            }
-            html += '</div>';
-          });
-          compareEl.innerHTML = html;
+              if (db.role !== 'primary') {
+                dataHtml += '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">' +
+                  '<button class="btn btn-outline" style="width:100%;font-size:0.8rem;padding:6px 12px" onclick="verifyDbSwitch(\'' + dbSwitchKey + '\', \'' + escapeHtml(db.name) + '\')">' +
+                  '🔄 Switch to Primary' +
+                  '</button>' +
+                  '</div>';
+              }
+              dataHtml += '</div>';
+            });
+            dataCardsEl.innerHTML = dataHtml || '<div class="empty" style="grid-column:1/-1">未配置数据层数据库</div>';
+          }
         }
 
         var tablesEl = document.getElementById('dbTablesList');
