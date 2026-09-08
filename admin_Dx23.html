@@ -8121,6 +8121,7 @@
         } else {
           confirmBtn.style.display = 'none';
           syncBtn.style.display = '';
+          syncBtn.disabled = false;
           pendingSwitchTarget = null;
           pendingSyncTarget = { dbKey: dbKey, dbName: dbName };
           syncBtn.textContent = '🔄 Sync from ' + (data.primary && data.primary.name ? data.primary.name : 'primary') + ' to ' + dbName;

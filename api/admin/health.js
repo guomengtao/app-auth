@@ -1695,8 +1695,50 @@ module.exports = async (req, res) => {
           }
         }
 
+        var orphanCleanup = { kv_strings: 0, kv_sets: 0, kv_zsets: 0, kv_hashes: 0 };
+        try {
+          // Clean orphan kv_strings keys
+          var srcStrKeys = await sourcePg.query("SELECT key FROM kv_strings");
+          var tgtStrKeys = await targetPg.query("SELECT key FROM kv_strings");
+          var srcStrSet = new Set();
+          for (var sri = 0; sri < srcStrKeys.rows.length; sri++) srcStrSet.add(srcStrKeys.rows[sri].key);
+          for (var tri = 0; tri < tgtStrKeys.rows.length; tri++) {
+            if (!srcStrSet.has(tgtStrKeys.rows[tri].key)) {
+              await targetPg.query("DELETE FROM kv_strings WHERE key = $1", [tgtStrKeys.rows[tri].key]);
+              orphanCleanup.kv_strings++;
+            }
+          }
+
+          var orphanTables = [
+            { name: "kv_sets", keyCol: "key", memberCol: "member" },
+            { name: "kv_zsets", keyCol: "key", memberCol: "member" },
+            { name: "kv_hashes", keyCol: "key", memberCol: "field" },
+          ];
+          for (var ot = 0; ot < orphanTables.length; ot++) {
+            var otDef = orphanTables[ot];
+            var srcRows = await sourcePg.query("SELECT " + otDef.keyCol + ", " + otDef.memberCol + " FROM " + otDef.name);
+            var tgtRows = await targetPg.query("SELECT " + otDef.keyCol + ", " + otDef.memberCol + " FROM " + otDef.name);
+            var srcSet = new Set();
+            for (var sri = 0; sri < srcRows.rows.length; sri++) {
+              srcSet.add(srcRows.rows[sri][otDef.keyCol] + "||" + srcRows.rows[sri][otDef.memberCol]);
+            }
+            for (var tri = 0; tri < tgtRows.rows.length; tri++) {
+              var tgtRow = tgtRows.rows[tri];
+              if (!srcSet.has(tgtRow[otDef.keyCol] + "||" + tgtRow[otDef.memberCol])) {
+                await targetPg.query("DELETE FROM " + otDef.name + " WHERE " + otDef.keyCol + " = $1 AND " + otDef.memberCol + " = $2", [tgtRow[otDef.keyCol], tgtRow[otDef.memberCol]]);
+                orphanCleanup[otDef.name]++;
+              }
+            }
+          }
+        } catch (e) {
+          console.warn("orphan cleanup error:", e.message);
+        }
+
         results.targets.push(dbProvider2 === "supabase" ? "Neon" : "Supabase");
         results.stats[dbProvider2 === "supabase" ? "Neon" : "Supabase"] = syncStats;
+        if (orphanCleanup.kv_strings > 0 || orphanCleanup.kv_sets > 0 || orphanCleanup.kv_zsets > 0 || orphanCleanup.kv_hashes > 0) {
+          results.orphanCleanup = orphanCleanup;
+        }
         await targetPg.end();
       }
 
