@@ -1285,7 +1285,8 @@ module.exports = async (req, res) => {
     }
     try {
       var pg = require("../../lib/postgres");
-      var dbProvider = String(process.env.DB_PROVIDER || "auto").trim();
+      var primaryFromRedis = dbSwitches.getPrimary();
+      var dbProvider = primaryFromRedis || String(process.env.DB_PROVIDER || "auto").trim();
 
       var tablesResult = await pg.query(
         "SELECT schemaname, relname, n_live_tup AS est_rows, pg_total_relation_size(quote_ident(schemaname)||'.'||quote_ident(relname)) AS bytes FROM pg_stat_user_tables ORDER BY bytes DESC"
@@ -1610,7 +1611,8 @@ module.exports = async (req, res) => {
 
       var Pool = pgSync.Pool;
 
-      var dbProvider2 = String(process.env.DB_PROVIDER || "auto").trim();
+      var primaryFromRedis2 = dbSwitches.getPrimary();
+      var dbProvider2 = primaryFromRedis2 || String(process.env.DB_PROVIDER || "auto").trim();
 
       var neonUrl = process.env.POSTGRES_URL ||
         process.env.POSTGRES_PRISMA_URL ||

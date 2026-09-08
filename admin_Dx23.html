@@ -8136,8 +8136,48 @@
 
     function confirmDbSwitch() {
       if (!pendingSwitchTarget) return;
-      showToast('Primary database switch is not yet implemented (Phase 3). Data verification passed for ' + pendingSwitchTarget.dbName + '.', 'info');
-      closeVerifySwitchModal();
+      var target = pendingSwitchTarget;
+      var body = document.getElementById('verifySwitchBody');
+      var actions = document.getElementById('verifySwitchActions');
+      var confirmBtn = document.getElementById('btnConfirmSwitch');
+      var syncBtn = document.getElementById('btnSyncNow');
+      var cancelBtn = actions ? actions.querySelector('.btn-outline') : null;
+
+      if (confirmBtn) confirmBtn.disabled = true;
+      if (syncBtn) syncBtn.style.display = 'none';
+      body.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto 12px"></div><p style="color:#6b7280">Switching primary database to ' + target.dbName + '...</p></div>';
+
+      fetch('/api/admin/switch-db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ target: target.dbKey }),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data && data.success) {
+            body.innerHTML = '<div style="text-align:center;padding:20px"><div style="font-size:2rem;margin-bottom:12px">&#9989;</div><p style="color:#059669;font-weight:600">Primary database switched!</p><p style="color:#6b7280;margin-top:8px">From <strong>' + (data.from || '') + '</strong> to <strong>' + (data.to || '') + '</strong></p><p style="font-size:0.75rem;color:#9ca3af;margin-top:4px">The switch takes effect on the next request.</p></div>';
+            showToast('Primary database switched to ' + target.dbName, 'success');
+            if (cancelBtn) cancelBtn.disabled = false;
+            if (actions) { actions.style.display = 'flex'; }
+            if (confirmBtn) confirmBtn.style.display = 'none';
+            if (syncBtn) syncBtn.style.display = 'none';
+            pendingSwitchTarget = null;
+            pendingSyncTarget = null;
+            setTimeout(function () {
+              loadDbStatus();
+              closeVerifySwitchModal();
+            }, 2000);
+          } else {
+            throw new Error(data && data.error ? data.error : 'Switch failed');
+          }
+        })
+        .catch(function (err) {
+          body.innerHTML = '<div style="text-align:center;padding:20px"><div style="font-size:2rem;margin-bottom:12px">&#10060;</div><p style="color:#dc2626;font-weight:600">Switch Failed</p><p style="color:#6b7280;margin-top:8px">' + (err.message || 'Unknown error') + '</p></div>';
+          if (cancelBtn) cancelBtn.disabled = false;
+          if (actions) { actions.style.display = 'flex'; }
+          if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.style.display = ''; }
+        });
     }
 
     async function syncFromVerifyModal() {
