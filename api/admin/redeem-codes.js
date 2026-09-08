@@ -241,6 +241,8 @@ module.exports = async (req, res) => {
       msg = "Server database (Postgres) not configured, contact admin";
     } else if (error && /connection|ECONNREFUSED|ENOTFOUND/i.test(String(error.message || ""))) {
       msg = "Server database connection failed, try again later or contact admin";
+    } else if (error && error.message) {
+      msg = error.message;
     }
     return res.status(500).json({ success: false, error: msg });
   }
