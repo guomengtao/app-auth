@@ -1,7 +1,11 @@
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
 var redis = require("../../lib/redis");
 var { requireAuth } = require("../../lib/auth");
 var crypto = require("../../lib/crypto");
 var quota = require("../../lib/quota");
+var pgSync = null;
+try { pgSync = require("pg"); } catch(e) { console.warn("pg module not available:", e.message); }
 
 var CRON_STATS_KEY = "auth:cron:stats";
 var CRON_LIST_KEY = "auth:cron:list";
@@ -1309,6 +1313,10 @@ module.exports = async (req, res) => {
     var isSyncCron = req.query.cron === "1";
 
     try {
+      if (!pgSync) {
+        return res.status(500).json({ success: false, error: "pg module not available" });
+      }
+
       if (isSyncCron) {
         try {
           var taskConfigRaw3 = await redis.get("auth:cron:config");
@@ -1326,7 +1334,7 @@ module.exports = async (req, res) => {
         } catch (_) {}
       }
 
-      var Pool = require("pg").Pool;
+      var Pool = pgSync.Pool;
 
       var sourceUrl = process.env.POSTGRES_URL ||
         process.env.POSTGRES_PRISMA_URL ||
@@ -1346,11 +1354,11 @@ module.exports = async (req, res) => {
       var results = { targets: [], stats: {} };
 
       if (sourceUrl) {
-        sourcePg = new Pool({ connectionString: sourceUrl, max: 5, ssl: { rejectUnauthorized: false } });
+        sourcePg = new Pool({ connectionString: sourceUrl, max: 3, connectionTimeoutMillis: 10000, ssl: { rejectUnauthorized: false } });
       }
 
       if (targetUrl && targetUrl !== sourceUrl) {
-        targetPg = new Pool({ connectionString: targetUrl, max: 5, ssl: { rejectUnauthorized: false } });
+        targetPg = new Pool({ connectionString: targetUrl, max: 3, connectionTimeoutMillis: 10000, ssl: { rejectUnauthorized: false } });
 
         await targetPg.query(`
           CREATE TABLE IF NOT EXISTS kv_strings (
@@ -1444,8 +1452,8 @@ module.exports = async (req, res) => {
       var now = new Date().toISOString();
       var existingStatus = null;
       try {
-        var pgSync = require("../../lib/postgres");
-        var statusRes = await pgSync.query("SELECT value FROM kv_strings WHERE key = $1", ["auth:db:sync_status"]);
+        var mainPg = require("../../lib/postgres");
+        var statusRes = await mainPg.query("SELECT value FROM kv_strings WHERE key = $1", ["auth:db:sync_status"]);
         if (statusRes && statusRes.rows && statusRes.rows.length > 0) {
           existingStatus = JSON.parse(statusRes.rows[0].value);
         }
@@ -1462,8 +1470,8 @@ module.exports = async (req, res) => {
       };
 
       try {
-        var pgSync2 = require("../../lib/postgres");
-        await pgSync2.query(
+        var mainPg2 = require("../../lib/postgres");
+        await mainPg2.query(
           "INSERT INTO kv_strings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
           ["auth:db:sync_status", JSON.stringify(status)]
         );
