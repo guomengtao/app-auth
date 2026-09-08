@@ -1429,6 +1429,7 @@ module.exports = async (req, res) => {
           configured: Boolean(process.env.UPSTASH_REDIS_URL || process.env.REDIS_URL),
           keyCount: upstashKeyCount,
           keys: upstashKeys,
+          syncStats: (syncStatus && syncStatus.stats && syncStatus.stats["Upstash KV"]) ? syncStatus.stats["Upstash KV"] : null,
           error: upstashError,
         },
       ];

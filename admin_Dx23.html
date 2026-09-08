@@ -7765,7 +7765,21 @@
             html += '<p><strong>配置状态：</strong>' + (db.configured ? '<span style="color:#059669">已配置</span>' : '<span style="color:#dc2626">未配置</span>') + '</p>';
 
             if (db.type === 'Redis') {
-              if (db.keyCount !== null && db.keyCount !== undefined) {
+              if (db.syncStats) {
+                var ss = db.syncStats;
+                var syncTotal = (ss.strings || 0) + (ss.hashes || 0) + (ss.sets || 0) + (ss.zsets || 0);
+                html += '<p style="margin-top:6px"><strong>数据：</strong>4 种, <span style="font-size:1.1rem;font-weight:700;color:var(--accent)">' + syncTotal.toLocaleString() + '</span> 条记录</p>';
+                html += '<table style="width:100%;margin-top:4px;font-size:0.78rem;border-collapse:collapse">';
+                html += '<thead><tr style="color:#6b7280"><th style="text-align:left;padding:2px 4px">类型</th><th style="text-align:right;padding:2px 4px">条数</th></tr></thead><tbody>';
+                html += '<tr><td style="padding:1px 4px;font-family:monospace">strings</td><td style="text-align:right;padding:1px 4px">' + (ss.strings || 0).toLocaleString() + '</td></tr>';
+                html += '<tr><td style="padding:1px 4px;font-family:monospace">hashes</td><td style="text-align:right;padding:1px 4px">' + (ss.hashes || 0).toLocaleString() + '</td></tr>';
+                html += '<tr><td style="padding:1px 4px;font-family:monospace">sets</td><td style="text-align:right;padding:1px 4px">' + (ss.sets || 0).toLocaleString() + '</td></tr>';
+                html += '<tr><td style="padding:1px 4px;font-family:monospace">zsets</td><td style="text-align:right;padding:1px 4px">' + (ss.zsets || 0).toLocaleString() + '</td></tr>';
+                html += '</tbody></table>';
+                if (db.keyCount !== null && db.keyCount !== undefined) {
+                  html += '<p style="font-size:0.75rem;color:#9ca3af;margin-top:4px">' + Number(db.keyCount).toLocaleString() + ' unique keys</p>';
+                }
+              } else if (db.keyCount !== null && db.keyCount !== undefined) {
                 html += '<p style="margin-top:6px"><strong>数据：</strong><span style="font-size:1.1rem;font-weight:700;color:var(--accent)">' + Number(db.keyCount).toLocaleString() + '</span> keys</p>';
               }
               if (Array.isArray(db.keys) && db.keys.length > 0) {
