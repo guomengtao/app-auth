@@ -7,6 +7,8 @@ var quota = require("../../lib/quota");
 var pgSync = null;
 try { pgSync = require("pg"); } catch(e) { console.warn("pg module not available:", e.message); }
 var dbSwitches = require("../../lib/db-switches");
+var verifySwitch = null;
+try { verifySwitch = require("../../lib/verify-switch"); } catch(e) { console.warn("verify-switch module not available:", e.message); }
 
 var CRON_STATS_KEY = "auth:cron:stats";
 var CRON_LIST_KEY = "auth:cron:list";
@@ -1996,7 +1998,9 @@ module.exports = async (req, res) => {
   }
 
   if (req.query && req.query.section === "verify-switch") {
-    var verifySwitch = require("./verify-switch");
+    if (!verifySwitch) {
+      return res.status(500).json({ success: false, error: "verify-switch module not available" });
+    }
     return verifySwitch(req, res);
   }
 
