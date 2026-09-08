@@ -257,6 +257,7 @@ async function syncUpstashToPg(upstash, pg, label) {
   var processed = 0;
   var cursor = 0;
   var round = 0;
+  var upstashKeys = [];
 
   do {
     round++;
@@ -268,6 +269,7 @@ async function syncUpstashToPg(upstash, pg, label) {
 
     for (var i = 0; i < keys.length; i++) {
       var key = keys[i];
+      upstashKeys.push(key);
       try {
         var type = await upstash.type(key);
 
@@ -344,8 +346,59 @@ async function syncUpstashToPg(upstash, pg, label) {
     }
   } while (cursor !== 0 && cursor !== '0');
 
-  log('Upstash -> ' + label + ' complete: strings=' + stats.strings + ' hashes=' + stats.hashes + ' sets=' + stats.sets + ' zsets=' + stats.zsets + ' errors=' + stats.errors);
+  log('Upstash -> ' + label + ' upsert complete: strings=' + stats.strings + ' hashes=' + stats.hashes + ' sets=' + stats.sets + ' zsets=' + stats.zsets + ' errors=' + stats.errors);
+
+  var cleaned = await cleanupOrphanKeys(pg, label, upstashKeys);
+  stats.cleaned = cleaned;
+
+  log('Upstash -> ' + label + ' total: strings=' + stats.strings + ' hashes=' + stats.hashes + ' sets=' + stats.sets + ' zsets=' + stats.zsets + ' errors=' + stats.errors + ' cleaned=' + cleaned);
   return stats;
+}
+
+async function cleanupOrphanKeys(pg, label, sourceKeys) {
+  log('  Cleaning orphan keys in ' + label + '...');
+  var cleaned = 0;
+  var sourceKeySet = {};
+  for (var i = 0; i < sourceKeys.length; i++) {
+    sourceKeySet[sourceKeys[i]] = true;
+  }
+
+  try {
+    var targetKeysRes = await pg.query("SELECT DISTINCT key FROM kv_strings UNION SELECT DISTINCT key FROM kv_hashes UNION SELECT DISTINCT key FROM kv_sets UNION SELECT DISTINCT key FROM kv_zsets");
+    var targetKeys = targetKeysRes.rows.map(function(r) { return r.key; });
+    var orphanKeys = [];
+    for (var i = 0; i < targetKeys.length; i++) {
+      if (!sourceKeySet[targetKeys[i]]) {
+        orphanKeys.push(targetKeys[i]);
+      }
+    }
+
+    if (orphanKeys.length > 0) {
+      log('  Found ' + orphanKeys.length + ' orphan keys to delete in ' + label);
+      for (var i = 0; i < orphanKeys.length; i++) {
+        var key = orphanKeys[i];
+        try {
+          var del1 = await pg.query("DELETE FROM kv_strings WHERE key = $1", [key]);
+          var del2 = await pg.query("DELETE FROM kv_hashes WHERE key = $1", [key]);
+          var del3 = await pg.query("DELETE FROM kv_sets WHERE key = $1", [key]);
+          var del4 = await pg.query("DELETE FROM kv_zsets WHERE key = $1", [key]);
+          cleaned += (del1.rowCount || 0) + (del2.rowCount || 0) + (del3.rowCount || 0) + (del4.rowCount || 0);
+          if (cleaned > 0 && cleaned % 10 === 0) {
+            log('  cleaned ' + cleaned + ' records so far...');
+          }
+        } catch (e) {
+          log('  error deleting orphan key ' + key + ': ' + (e.message || e));
+        }
+      }
+      log('  Cleaned ' + cleaned + ' orphan records in ' + label);
+    } else {
+      log('  No orphan keys found in ' + label);
+    }
+  } catch (e) {
+    log('  cleanup error: ' + (e.message || e));
+  }
+
+  return cleaned;
 }
 
 async function syncPgToPg(sourcePool, sourceLabel, targetPool, targetLabel) {

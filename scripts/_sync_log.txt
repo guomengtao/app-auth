@@ -1,35 +1,35 @@
 === Three-Database Sync Tool ===
-Time: 2026-09-08T09:44:54.110Z
+Time: 2026-09-08T10:39:56.603Z
 
 Supabase: connected (postgres://postgres.kqzkdpmyivtpxkfmibnd:****@aws-0-us-east-1.pooler.supabase.com:6543/postgres?sslmode=no-verify&supa=base-pooler.x)
 Neon: connected (postgresql://neondb_owner:****@ep-red-mode-awn73c0a-pooler.c-12.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=no-verify)
 
 --- Step 1: Diagnose all databases ---
 
-Upstash: total keys=287
+Upstash: total keys=302
   auth:activation_codes: 60 members
-  auth:redeem_codes: 107 members
-Supabase: strings=269 sets=194 hashes=8 zsets=5
+  auth:redeem_codes: 110 members
+Supabase: strings=293 sets=197 hashes=8 zsets=6
   auth:activation_codes: 60 members
-  auth:redeem_codes: 107 members
+  auth:redeem_codes: 110 members
   auth:activation:* records: 60
-  auth:redeem:* records: 109
-Neon: strings=277 sets=201 hashes=8 zsets=6
+  auth:redeem:* records: 112
+Neon: strings=301 sets=204 hashes=8 zsets=7
   auth:activation_codes: 60 members
-  auth:redeem_codes: 112 members
+  auth:redeem_codes: 115 members
   auth:activation:* records: 60
-  auth:redeem:* records: 114
+  auth:redeem:* records: 117
 
 --- Step 2: Determine data source ---
 
-Upstash has data: true (287 keys)
-Supabase has data: true (strings=269 sets=194)
-Neon has data: true (strings=277 sets=201)
+Upstash has data: true (302 keys)
+Supabase has data: true (strings=293 sets=197)
+Neon has data: true (strings=301 sets=204)
 Ensuring tables exist in Supabase...
 Tables ready in Supabase
 
 === Syncing Upstash -> Supabase ===
-Upstash keys: 287
+Upstash keys: 302
 Scan round 1: 10 keys (cursor=12576817620812047801)
 Scan round 2: 10 keys (cursor=12479188797359586636)
 Scan round 3: 10 keys (cursor=3522672936843525354)
@@ -40,33 +40,39 @@ Scan round 7: 10 keys (cursor=4506701052588651865)
 Scan round 8: 10 keys (cursor=1544897069358776913)
 Scan round 9: 10 keys (cursor=1093075080469552061)
 Scan round 10: 10 keys (cursor=17658860043058160539)
-  progress: 100/287
+  progress: 100/302
 Scan round 11: 10 keys (cursor=4930906405926423714)
-Scan round 12: 10 keys (cursor=12462057861511855468)
-Scan round 13: 10 keys (cursor=3914055492491628441)
-Scan round 14: 10 keys (cursor=6892241706782991444)
-Scan round 15: 10 keys (cursor=16531807546433379257)
-Scan round 16: 10 keys (cursor=12043038340890180470)
-Scan round 17: 10 keys (cursor=15167604096837237418)
-Scan round 18: 10 keys (cursor=17037329117674874479)
-Scan round 19: 10 keys (cursor=17906841595008908825)
-Scan round 20: 10 keys (cursor=18415255771751945814)
-  progress: 200/287
-Scan round 21: 10 keys (cursor=7597717660876267883)
-Scan round 22: 10 keys (cursor=5664591060120254814)
-Scan round 23: 10 keys (cursor=6825844663989783378)
-Scan round 24: 10 keys (cursor=8794818201439834939)
-Scan round 25: 10 keys (cursor=12448127004619948464)
-Scan round 26: 10 keys (cursor=7834294741326035058)
-Scan round 27: 10 keys (cursor=14325353888163992394)
-Scan round 28: 10 keys (cursor=14124388593500475456)
-Scan round 29: 7 keys (cursor=0)
-Upstash -> Supabase complete: strings=286 hashes=8 sets=194 zsets=5 errors=0
+Scan round 12: 10 keys (cursor=10193531337246297245)
+Scan round 13: 10 keys (cursor=17265734741698892394)
+Scan round 14: 10 keys (cursor=11513628255710418988)
+Scan round 15: 10 keys (cursor=3687883703505290484)
+Scan round 16: 10 keys (cursor=12800046599164384880)
+Scan round 17: 10 keys (cursor=15154195552533853538)
+Scan round 18: 10 keys (cursor=17770391112203002203)
+Scan round 19: 10 keys (cursor=16056419600312359796)
+Scan round 20: 10 keys (cursor=17179453080481214667)
+  progress: 200/302
+Scan round 21: 10 keys (cursor=1817110702459747878)
+Scan round 22: 10 keys (cursor=4464912823387205610)
+Scan round 23: 10 keys (cursor=4970414393827679203)
+Scan round 24: 10 keys (cursor=7482527983767743639)
+Scan round 25: 10 keys (cursor=9942719336099018151)
+Scan round 26: 10 keys (cursor=2134562801620014231)
+Scan round 27: 10 keys (cursor=525572061434844335)
+Scan round 28: 10 keys (cursor=1854747813991835816)
+Scan round 29: 10 keys (cursor=14446996035375246596)
+Scan round 30: 10 keys (cursor=13689680914725561971)
+  progress: 300/302
+Scan round 31: 2 keys (cursor=0)
+Upstash -> Supabase upsert complete: strings=301 hashes=8 sets=197 zsets=6 errors=0
+  Cleaning orphan keys in Supabase...
+  No orphan keys found in Supabase
+Upstash -> Supabase total: strings=301 hashes=8 sets=197 zsets=6 errors=0 cleaned=0
 Ensuring tables exist in Neon...
 Tables ready in Neon
 
 === Syncing Upstash -> Neon ===
-Upstash keys: 287
+Upstash keys: 302
 Scan round 1: 10 keys (cursor=12576817620812047801)
 Scan round 2: 10 keys (cursor=12479188797359586636)
 Scan round 3: 10 keys (cursor=3522672936843525354)
@@ -77,43 +83,51 @@ Scan round 7: 10 keys (cursor=4506701052588651865)
 Scan round 8: 10 keys (cursor=1544897069358776913)
 Scan round 9: 10 keys (cursor=1093075080469552061)
 Scan round 10: 10 keys (cursor=17658860043058160539)
-  progress: 100/287
+  progress: 100/302
 Scan round 11: 10 keys (cursor=4930906405926423714)
-Scan round 12: 10 keys (cursor=12462057861511855468)
-Scan round 13: 10 keys (cursor=3914055492491628441)
-Scan round 14: 10 keys (cursor=6892241706782991444)
-Scan round 15: 10 keys (cursor=16531807546433379257)
-Scan round 16: 10 keys (cursor=12043038340890180470)
-Scan round 17: 10 keys (cursor=15167604096837237418)
-Scan round 18: 10 keys (cursor=17037329117674874479)
-Scan round 19: 10 keys (cursor=17906841595008908825)
-Scan round 20: 10 keys (cursor=18415255771751945814)
-  progress: 200/287
-Scan round 21: 10 keys (cursor=7597717660876267883)
-Scan round 22: 10 keys (cursor=5664591060120254814)
-Scan round 23: 10 keys (cursor=6825844663989783378)
-Scan round 24: 10 keys (cursor=8794818201439834939)
-Scan round 25: 10 keys (cursor=12448127004619948464)
-Scan round 26: 10 keys (cursor=7834294741326035058)
-Scan round 27: 10 keys (cursor=14325353888163992394)
-Scan round 28: 10 keys (cursor=14124388593500475456)
-Scan round 29: 7 keys (cursor=0)
-Upstash -> Neon complete: strings=286 hashes=8 sets=194 zsets=5 errors=0
+Scan round 12: 10 keys (cursor=10193531337246297245)
+Scan round 13: 10 keys (cursor=17265734741698892394)
+Scan round 14: 10 keys (cursor=11513628255710418988)
+Scan round 15: 10 keys (cursor=3687883703505290484)
+Scan round 16: 10 keys (cursor=12800046599164384880)
+Scan round 17: 10 keys (cursor=15154195552533853538)
+Scan round 18: 10 keys (cursor=17770391112203002203)
+Scan round 19: 10 keys (cursor=16056419600312359796)
+Scan round 20: 10 keys (cursor=17179453080481214667)
+  progress: 200/302
+Scan round 21: 10 keys (cursor=1817110702459747878)
+Scan round 22: 10 keys (cursor=4464912823387205610)
+Scan round 23: 10 keys (cursor=4970414393827679203)
+Scan round 24: 10 keys (cursor=7482527983767743639)
+Scan round 25: 10 keys (cursor=9942719336099018151)
+Scan round 26: 10 keys (cursor=2134562801620014231)
+Scan round 27: 10 keys (cursor=525572061434844335)
+Scan round 28: 10 keys (cursor=1854747813991835816)
+Scan round 29: 10 keys (cursor=14446996035375246596)
+Scan round 30: 10 keys (cursor=13689680914725561971)
+  progress: 300/302
+Scan round 31: 2 keys (cursor=0)
+Upstash -> Neon upsert complete: strings=301 hashes=8 sets=197 zsets=6 errors=0
+  Cleaning orphan keys in Neon...
+  Found 11 orphan keys to delete in Neon
+  cleaned 10 records so far...
+  Cleaned 12 orphan records in Neon
+Upstash -> Neon total: strings=301 hashes=8 sets=197 zsets=6 errors=0 cleaned=12
 
 --- Step 3: Final verification ---
 
-Upstash: total keys=287
+Upstash: total keys=302
   auth:activation_codes: 60 members
-  auth:redeem_codes: 107 members
-Supabase: strings=287 sets=194 hashes=8 zsets=5
+  auth:redeem_codes: 110 members
+Supabase: strings=293 sets=197 hashes=8 zsets=6
   auth:activation_codes: 60 members
-  auth:redeem_codes: 107 members
+  auth:redeem_codes: 110 members
   auth:activation:* records: 60
-  auth:redeem:* records: 109
-Neon: strings=295 sets=201 hashes=8 zsets=6
+  auth:redeem:* records: 112
+Neon: strings=291 sets=202 hashes=8 zsets=7
   auth:activation_codes: 60 members
-  auth:redeem_codes: 112 members
+  auth:redeem_codes: 115 members
   auth:activation:* records: 60
-  auth:redeem:* records: 114
+  auth:redeem:* records: 112
 
 === All syncs complete ===

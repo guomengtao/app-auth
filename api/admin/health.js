@@ -1995,6 +1995,11 @@ module.exports = async (req, res) => {
     }
   }
 
+  if (req.query && req.query.section === "verify-switch") {
+    var verifySwitch = require("./verify-switch");
+    return verifySwitch(req, res);
+  }
+
   if (req.method !== "GET") {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
