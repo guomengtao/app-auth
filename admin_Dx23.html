@@ -7684,6 +7684,9 @@
               } else if (db.keyCount === null || db.keyCount === undefined) {
                 html += '<p style="margin-top:6px;color:#9ca3af">未获取到数据</p>';
               }
+              if (db.error) {
+                html += '<p style="margin-top:2px;color:#dc2626;font-size:0.75rem">错误: ' + escapeHtml(db.error) + '</p>';
+              }
             } else {
               html += '<p style="margin-top:6px"><strong>数据：</strong>' + db.tableCount + ' 表, <span style="font-size:1.1rem;font-weight:700;color:var(--accent)">' + Number(db.totalRows || 0).toLocaleString() + '</span> 条记录</p>';
               if (Array.isArray(db.tables) && db.tables.length > 0) {
@@ -7693,6 +7696,9 @@
                   html += '<tr><td style="padding:1px 4px;font-family:monospace">' + escapeHtml(db.tables[ti].name) + '</td><td style="text-align:right;padding:1px 4px">' + Number(db.tables[ti].rowCount).toLocaleString() + '</td></tr>';
                 }
                 html += '</tbody></table>';
+              }
+              if (db.error) {
+                html += '<p style="margin-top:2px;color:#dc2626;font-size:0.75rem">错误: ' + escapeHtml(db.error) + '</p>';
               }
             }
             html += '</div>';

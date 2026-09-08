@@ -1282,6 +1282,7 @@ module.exports = async (req, res) => {
       var otherDbTableCount = 0;
       var otherDbUrl = "";
       var otherDbName = "";
+      var otherDbError = "";
       if (dbProvider === "supabase") {
         otherDbUrl = process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL || process.env.DATABASE_URL || "";
         otherDbName = "Neon";
@@ -1293,34 +1294,43 @@ module.exports = async (req, res) => {
         otherDbName = "Supabase";
       }
       if (otherDbUrl && otherDbUrl !== (process.env.POSTGRES_URL || "")) {
-        try {
-          var otherPg = new pgSync.Pool({ connectionString: otherDbUrl, max: 1, connectionTimeoutMillis: 8000, ssl: { rejectUnauthorized: false } });
-          var otherRows = await otherPg.query(
-            "SELECT relname AS name, n_live_tup AS row_count FROM pg_stat_user_tables WHERE relname = ANY($1) ORDER BY relname",
-            [KV_TABLES]
-          );
-          if (otherRows && otherRows.rows) {
-            otherDbTables = [];
-            var otherCounts = countRowsFromRows(otherRows.rows);
-            for (var ok2 = 0; ok2 < KV_TABLES.length; ok2++) {
-              var otname = KV_TABLES[ok2];
-              var orc = otherCounts[otname] || 0;
-              otherDbTables.push({ name: otname, rowCount: orc });
-              otherDbTotalRows += orc;
+        if (!pgSync) {
+          otherDbError = "pg module not available";
+        } else {
+          try {
+            var otherPg = new pgSync.Pool({ connectionString: otherDbUrl, max: 1, connectionTimeoutMillis: 10000, ssl: { rejectUnauthorized: false } });
+            var otherRows = await otherPg.query(
+              "SELECT relname AS name, n_live_tup AS row_count FROM pg_stat_user_tables WHERE relname = ANY($1) ORDER BY relname",
+              [KV_TABLES]
+            );
+            if (otherRows && otherRows.rows) {
+              otherDbTables = [];
+              var otherCounts = countRowsFromRows(otherRows.rows);
+              for (var ok2 = 0; ok2 < KV_TABLES.length; ok2++) {
+                var otname = KV_TABLES[ok2];
+                var orc = otherCounts[otname] || 0;
+                otherDbTables.push({ name: otname, rowCount: orc });
+                otherDbTotalRows += orc;
+              }
+              otherDbTableCount = otherRows.rows.length;
             }
-            otherDbTableCount = otherRows.rows.length;
+            await otherPg.end();
+          } catch (e) {
+            console.warn(otherDbName + " tables query error:", e.message);
+            otherDbError = e.message || "connection failed";
           }
-          await otherPg.end();
-        } catch (e) {
-          console.warn(otherDbName + " tables query error:", e.message);
         }
       }
 
       var upstashKeyCount = null;
       var upstashKeys = [];
+      var upstashError = "";
       try {
-        var upstashUrl = process.env.UPSTASH_REDIS_URL || process.env.UPSTASH_REDIS_REST_URL || process.env.REDIS_URL || "";
-        var upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.REDIS_TOKEN || "";
+        var upstashUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "";
+        var upstashToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || process.env.REDIS_TOKEN || "";
+        if (!upstashUrl) {
+          upstashUrl = process.env.UPSTASH_REDIS_URL || process.env.REDIS_URL || "";
+        }
         if (upstashUrl) {
           var dbsizeUrl = upstashUrl.replace(/\/$/, "") + "/dbsize";
           var dsOpts = { method: "GET" };
@@ -1329,29 +1339,38 @@ module.exports = async (req, res) => {
           if (dsResp.ok) {
             var dsJson = await dsResp.json();
             upstashKeyCount = Number(dsJson.result) || 0;
+          } else {
+            upstashError = "DBSIZE failed: " + dsResp.status;
           }
 
-          var prefixCounts = {};
-          var keysUrl = upstashUrl.replace(/\/$/, "") + "/keys/*";
-          var keysOpts = { method: "GET" };
-          if (upstashToken) { keysOpts.headers = { Authorization: "Bearer " + upstashToken }; }
-          var keysResp = await fetch(keysUrl, keysOpts);
-          if (keysResp.ok) {
-            var keysJson = await keysResp.json();
-            var allKeys = (keysJson && keysJson.result) ? keysJson.result : [];
-            for (var ki = 0; ki < allKeys.length; ki++) {
-              var fullKey = allKeys[ki];
-              var prefix = fullKey.split(":")[0] || "other";
-              prefixCounts[prefix] = (prefixCounts[prefix] || 0) + 1;
-            }
-            var prefixNames = Object.keys(prefixCounts);
-            for (var pi = 0; pi < prefixNames.length; pi++) {
-              upstashKeys.push({ name: prefixNames[pi] + ":*", rowCount: prefixCounts[prefixNames[pi]] });
+          if (upstashKeyCount !== null && upstashKeyCount <= 500) {
+            try {
+              var prefixCounts = {};
+              var keysUrl = upstashUrl.replace(/\/$/, "") + "/keys/*";
+              var keysOpts = { method: "GET" };
+              if (upstashToken) { keysOpts.headers = { Authorization: "Bearer " + upstashToken }; }
+              var keysResp = await fetch(keysUrl, keysOpts);
+              if (keysResp.ok) {
+                var keysJson = await keysResp.json();
+                var allKeys = (keysJson && keysJson.result) ? keysJson.result : [];
+                for (var ki = 0; ki < allKeys.length; ki++) {
+                  var fullKey = allKeys[ki];
+                  var prefix = fullKey.split(":")[0] || "other";
+                  prefixCounts[prefix] = (prefixCounts[prefix] || 0) + 1;
+                }
+                var prefixNames = Object.keys(prefixCounts);
+                for (var pi = 0; pi < prefixNames.length; pi++) {
+                  upstashKeys.push({ name: prefixNames[pi] + ":*", rowCount: prefixCounts[prefixNames[pi]] });
+                }
+              }
+            } catch (e2) {
+              console.warn("Upstash KEYS query error:", e2.message);
             }
           }
         }
       } catch (e) {
         console.warn("Upstash query error:", e.message);
+        upstashError = e.message || "query failed";
       }
 
       var databases = [
@@ -1365,6 +1384,7 @@ module.exports = async (req, res) => {
           tableCount: dbProvider === "supabase" ? primaryTableCount : (otherDbName === "Supabase" ? otherDbTableCount : 0),
           totalRows: dbProvider === "supabase" ? primaryTotalRows : (otherDbName === "Supabase" ? otherDbTotalRows : 0),
           tables: dbProvider === "supabase" ? primaryTables : (otherDbName === "Supabase" ? (otherDbTables || []) : []),
+          error: dbProvider === "supabase" ? "" : (otherDbName === "Supabase" ? otherDbError : ""),
         },
         {
           name: "Neon",
@@ -1376,6 +1396,7 @@ module.exports = async (req, res) => {
           tableCount: dbProvider === "neon" ? primaryTableCount : (otherDbName === "Neon" ? otherDbTableCount : 0),
           totalRows: dbProvider === "neon" ? primaryTotalRows : (otherDbName === "Neon" ? otherDbTotalRows : 0),
           tables: dbProvider === "neon" ? primaryTables : (otherDbName === "Neon" ? (otherDbTables || []) : []),
+          error: dbProvider === "neon" ? "" : (otherDbName === "Neon" ? otherDbError : ""),
         },
         {
           name: "Upstash KV",
@@ -1386,6 +1407,7 @@ module.exports = async (req, res) => {
           configured: Boolean(process.env.UPSTASH_REDIS_URL || process.env.REDIS_URL),
           keyCount: upstashKeyCount,
           keys: upstashKeys,
+          error: upstashError,
         },
       ];
 
