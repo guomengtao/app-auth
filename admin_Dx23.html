@@ -8150,7 +8150,6 @@
       var cancelBtn = actions ? actions.querySelector('.btn-outline') : null;
 
       if (syncBtn) syncBtn.disabled = true;
-      if (cancelBtn) cancelBtn.disabled = true;
       if (actions) actions.style.display = 'flex';
 
       body.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto 12px"></div><p style="color:#6b7280">Syncing from ' + (target.dbKey === 'neon' ? 'current primary' : 'current primary') + ' to ' + target.dbName + '...</p><p style="font-size:0.75rem;color:#9ca3af;margin-top:4px">This may take a moment</p></div>';
@@ -8167,6 +8166,7 @@
         if (data && data.success) {
           showToast('Sync to ' + target.dbName + ' completed successfully', 'success');
           body.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto 12px"></div><p style="color:#6b7280">Sync complete. Re-verifying...</p></div>';
+          if (cancelBtn) cancelBtn.disabled = false;
           if (actions) actions.style.display = 'none';
           setTimeout(function() {
             verifyDbSwitch(target.dbKey, target.dbName);
@@ -8177,7 +8177,6 @@
       } catch (e) {
         body.innerHTML = '<div style="text-align:center;padding:20px"><p style="color:#dc2626;font-size:1.1rem">Sync Failed</p><p style="color:#6b7280">' + escapeHtml(e.message || 'Network error') + '</p></div>';
         if (syncBtn) { syncBtn.disabled = false; syncBtn.style.display = ''; }
-        if (cancelBtn) cancelBtn.disabled = false;
         if (confirmBtn) confirmBtn.style.display = 'none';
         if (actions) actions.style.display = 'flex';
       }
