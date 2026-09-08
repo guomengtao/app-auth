@@ -3808,9 +3808,9 @@
 
               <div class="setting-block">
                 <h3 class="setting-title">🔄 数据同步状态</h3>
-                <p class="setting-desc">Data sync between databases. Sync all or target a specific database.</p>
+                <p class="setting-desc">PostgreSQL 数据库之间直接批量同步，不经过 Redis 中转。同步到 Upstash KV 需单独点击。</p>
                 <div style="margin-bottom:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-                  <button class="btn btn-primary" onclick="triggerSyncTo('all')" id="btnTriggerSyncAll" style="font-size:0.82rem;padding:6px 14px">Sync All</button>
+                  <button class="btn btn-primary" onclick="triggerSyncTo('all')" id="btnTriggerSyncAll" style="font-size:0.82rem;padding:6px 14px">Sync All (PG)</button>
                   <button class="btn btn-outline" onclick="triggerSyncTo('neon')" id="btnTriggerSyncNeon" style="font-size:0.82rem;padding:6px 14px">Sync to Neon</button>
                   <button class="btn btn-outline" onclick="triggerSyncTo('upstash')" id="btnTriggerSyncUpstash" style="font-size:0.82rem;padding:6px 14px">Sync to Upstash KV</button>
                   <span id="syncStatusMsg" style="font-size:0.78rem;color:#6b7280"></span>
@@ -7968,7 +7968,7 @@
       var btn = document.getElementById(btnId);
       var allBtns = document.querySelectorAll('#btnTriggerSyncAll, #btnTriggerSyncNeon, #btnTriggerSyncUpstash');
       var msgEl = document.getElementById('syncStatusMsg');
-      var targetLabel = target === 'all' ? '全部备用数据库' : (target === 'neon' ? 'Neon' : 'Upstash KV');
+      var targetLabel = target === 'all' ? 'PostgreSQL 备用数据库' : (target === 'neon' ? 'Neon' : 'Upstash KV');
 
       allBtns.forEach(function(b) { b.disabled = true; });
       if (btn) btn.textContent = '⏳ 同步中...';
@@ -7992,7 +7992,7 @@
         showToast('数据同步到 ' + targetLabel + ' 失败: ' + (e.message || '未知错误'), 'error');
       }).finally(function() {
         allBtns.forEach(function(b) { b.disabled = false; });
-        if (btn) btn.textContent = '🔄 ' + (target === 'all' ? '同步全部' : ('同步到 ' + targetLabel));
+        if (btn) btn.textContent = '🔄 ' + (target === 'all' ? 'Sync All (PG)' : ('同步到 ' + targetLabel));
       });
     }
 

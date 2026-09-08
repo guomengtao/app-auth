@@ -37,8 +37,8 @@ var DEFAULT_TASKS = [
   },
   {
     id: "db-sync-backup",
-    name: "Database Multi-Sync",
-    description: "Daily auto sync primary DB data to Supabase and Upstash KV backup databases",
+    name: "数据库多路同步",
+    description: "每天自动将主数据库数据批量同步到其他 PostgreSQL 备用数据库（不经过 Redis）",
     schedule: "0 5 * * *",
     enabled: true,
     vercelPath: "/api/admin/health?section=sync&cron=1",
@@ -1660,24 +1660,38 @@ module.exports = async (req, res) => {
           { name: "kv_zsets", columns: "key, member, score", conflict: "(key, member) DO UPDATE SET score = EXCLUDED.score" },
         ];
 
+        var BATCH_SIZE = 100;
         for (var ti = 0; ti < tables.length; ti++) {
           var t = tables[ti];
           try {
             var cols = t.columns.split(", ");
-            var placeholders = cols.map(function(_, i) { return "$" + (i + 1); }).join(", ");
+            var colCount = cols.length;
             var rows = await sourcePg.query("SELECT " + t.columns + " FROM " + t.name);
-            for (var ri = 0; ri < rows.rows.length; ri++) {
-              var row = rows.rows[ri];
-              try {
-                var values = cols.map(function(c) { return row[c.trim()]; });
-                await targetPg.query(
-                  "INSERT INTO " + t.name + " (" + t.columns + ") VALUES (" + placeholders + ") ON CONFLICT " + t.conflict,
-                  values
-                );
-                syncStats[t.name.replace("kv_", "")]++;
-              } catch (e) {
-                syncStats.errors++;
+            var totalRows = rows.rows.length;
+
+            for (var batchStart = 0; batchStart < totalRows; batchStart += BATCH_SIZE) {
+              var batchEnd = Math.min(batchStart + BATCH_SIZE, totalRows);
+              var batch = rows.rows.slice(batchStart, batchEnd);
+              var batchSize = batch.length;
+
+              var valuePlaceholders = [];
+              var allValues = [];
+              for (var bi = 0; bi < batchSize; bi++) {
+                var row = batch[bi];
+                var rowPlaceholders = [];
+                for (var ci = 0; ci < colCount; ci++) {
+                  var paramIndex = allValues.length + 1;
+                  rowPlaceholders.push("$" + paramIndex);
+                  allValues.push(row[cols[ci].trim()]);
+                }
+                valuePlaceholders.push("(" + rowPlaceholders.join(", ") + ")");
               }
+
+              await targetPg.query(
+                "INSERT INTO " + t.name + " (" + t.columns + ") VALUES " + valuePlaceholders.join(", ") + " ON CONFLICT " + t.conflict,
+                allValues
+              );
+              syncStats[t.name.replace("kv_", "")] += batchSize;
             }
           } catch (e) {
             syncStats.errors++;
@@ -1686,16 +1700,19 @@ module.exports = async (req, res) => {
 
         var orphanCleanup = { kv_strings: 0, kv_sets: 0, kv_zsets: 0, kv_hashes: 0 };
         try {
-          // Clean orphan kv_strings keys
           var srcStrKeys = await sourcePg.query("SELECT key FROM kv_strings");
           var tgtStrKeys = await targetPg.query("SELECT key FROM kv_strings");
           var srcStrSet = new Set();
           for (var sri = 0; sri < srcStrKeys.rows.length; sri++) srcStrSet.add(srcStrKeys.rows[sri].key);
+          var orphanStrKeys = [];
           for (var tri = 0; tri < tgtStrKeys.rows.length; tri++) {
             if (!srcStrSet.has(tgtStrKeys.rows[tri].key)) {
-              await targetPg.query("DELETE FROM kv_strings WHERE key = $1", [tgtStrKeys.rows[tri].key]);
-              orphanCleanup.kv_strings++;
+              orphanStrKeys.push(tgtStrKeys.rows[tri].key);
             }
+          }
+          if (orphanStrKeys.length > 0) {
+            await targetPg.query("DELETE FROM kv_strings WHERE key = ANY($1::text[])", [orphanStrKeys]);
+            orphanCleanup.kv_strings = orphanStrKeys.length;
           }
 
           var orphanTables = [
@@ -1711,12 +1728,24 @@ module.exports = async (req, res) => {
             for (var sri = 0; sri < srcRows.rows.length; sri++) {
               srcSet.add(srcRows.rows[sri][otDef.keyCol] + "||" + srcRows.rows[sri][otDef.memberCol]);
             }
+            var orphanPairs = [];
             for (var tri = 0; tri < tgtRows.rows.length; tri++) {
               var tgtRow = tgtRows.rows[tri];
               if (!srcSet.has(tgtRow[otDef.keyCol] + "||" + tgtRow[otDef.memberCol])) {
-                await targetPg.query("DELETE FROM " + otDef.name + " WHERE " + otDef.keyCol + " = $1 AND " + otDef.memberCol + " = $2", [tgtRow[otDef.keyCol], tgtRow[otDef.memberCol]]);
-                orphanCleanup[otDef.name]++;
+                orphanPairs.push([tgtRow[otDef.keyCol], tgtRow[otDef.memberCol]]);
               }
+            }
+            if (orphanPairs.length > 0) {
+              var placeholders = [];
+              var params = [];
+              for (var opi = 0; opi < orphanPairs.length; opi++) {
+                var p1 = params.length + 1;
+                var p2 = params.length + 2;
+                placeholders.push("($" + p1 + ", $" + p2 + ")");
+                params.push(orphanPairs[opi][0], orphanPairs[opi][1]);
+              }
+              await targetPg.query("DELETE FROM " + otDef.name + " WHERE (" + otDef.keyCol + ", " + otDef.memberCol + ") IN (" + placeholders.join(", ") + ")", params);
+              orphanCleanup[otDef.name] = orphanPairs.length;
             }
           }
         } catch (e) {
@@ -1736,7 +1765,7 @@ module.exports = async (req, res) => {
       var upstashUrl = upstashDb ? dbRegistry.getDatabaseUrl("upstash") || "" : "";
       var upstashToken = upstashDb && upstashDb.tokenEnv ? (process.env[upstashDb.tokenEnv] || "") : "";
 
-      var doUpstashSync = !syncTarget || syncTarget === "all" || syncTarget === "upstash";
+      var doUpstashSync = syncTarget === "upstash";
       if (doUpstashSync && upstashUrl) {
         var upstashStats = { strings: 0, hashes: 0, sets: 0, zsets: 0, errors: 0 };
         var baseUrl = upstashUrl.replace(/\/$/, "");
