@@ -3406,7 +3406,7 @@
               <button class="settings-tab" onclick="switchSettingsTab('data')" data-stab="data">💾 数据</button>
               <button class="settings-tab" onclick="switchSettingsTab('security')" data-stab="security">🛡️ 安全</button>
               <button class="settings-tab" onclick="switchSettingsTab('email')" data-stab="email">📧 邮件</button>
-              <button class="settings-tab" onclick="switchSettingsTab('database')" data-stab="database">🗄️ 数据库</button>
+              <button class="settings-tab" onclick="switchSettingsTab('database')" data-stab="database">🗄️ 数据库管理</button>
               <button class="settings-tab" onclick="switchSettingsTab('backup')" data-stab="backup">📦 备份恢复</button>
               <button class="settings-tab" onclick="switchSettingsTab('cron-stats')" data-stab="cron-stats">⏰ 定时任务</button>
             </div>
@@ -7843,6 +7843,15 @@
                 html += '<p style="margin-top:2px;color:#dc2626;font-size:0.75rem">错误: ' + escapeHtml(db.error) + '</p>';
               }
             }
+            var dbSwitchKey = db.name === 'Supabase' ? 'supabase' : (db.name === 'Neon' ? 'neon' : 'upstash');
+            var isOn = db.enabled === 'on';
+            html += '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between">' +
+              '<span style="font-size:0.78rem;color:var(--muted)">开关</span>' +
+              '<label class="toggle-switch" style="width:36px;height:20px">' +
+              '<input type="checkbox" ' + (isOn ? 'checked' : '') + ' onchange="toggleDbSwitch(\'' + dbSwitchKey + '\', this.checked)" ' + (db.role === 'primary' ? 'disabled' : '') + '>' +
+              '<span class="toggle-slider" style="border-radius:20px"></span>' +
+              '</label>' +
+              '</div>';
             html += '</div>';
           });
           compareEl.innerHTML = html;
@@ -7939,6 +7948,30 @@
         allBtns.forEach(function(b) { b.disabled = false; });
         if (btn) btn.textContent = '🔄 ' + (target === 'all' ? '同步全部' : ('同步到 ' + targetLabel));
       });
+    }
+
+    async function toggleDbSwitch(dbName, checked) {
+      var value = checked ? 'on' : 'off';
+      var dbLabel = dbName === 'supabase' ? 'Supabase' : (dbName === 'neon' ? 'Neon' : 'Upstash KV');
+      try {
+        var res = await fetch('/api/admin/health?section=dbswitches', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ db: dbName, value: value }),
+        });
+        var data = await res.json();
+        if (data.success) {
+          showToast(dbLabel + ' 已' + (checked ? '启用' : '禁用'), 'success');
+          loadDatabaseStatus();
+        } else {
+          showToast('操作失败: ' + (data.error || '未知错误'), 'error');
+          loadDatabaseStatus();
+        }
+      } catch (e) {
+        showToast('操作失败: ' + (e.message || '网络错误'), 'error');
+        loadDatabaseStatus();
+      }
     }
 
     // ========== Direct Activate ==========
