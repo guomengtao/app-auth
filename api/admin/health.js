@@ -27,6 +27,16 @@ var DEFAULT_TASKS = [
     createdAt: Date.now(),
     updatedAt: Date.now(),
   },
+  {
+    id: "db-sync-backup",
+    name: "Database Multi-Sync",
+    description: "Daily auto sync primary DB data to Supabase and Upstash KV backup databases",
+    schedule: "0 5 * * *",
+    enabled: true,
+    vercelPath: "/api/admin/health?section=sync&cron=1",
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  },
 ];
 
 async function getTaskConfigs() {
@@ -1287,6 +1297,203 @@ module.exports = async (req, res) => {
       });
     } catch (e) {
       console.error("dbstatus error:", e);
+      return res.status(500).json({
+        success: false,
+        error: (e && e.message) || String(e),
+      });
+    }
+  }
+
+  if (req.query && req.query.section === "sync") {
+    var syncStart = Date.now();
+    var isSyncCron = req.query.cron === "1";
+
+    try {
+      if (isSyncCron) {
+        try {
+          var taskConfigRaw3 = await redis.get("auth:cron:config");
+          if (taskConfigRaw3) {
+            var taskConfigs3 = JSON.parse(taskConfigRaw3);
+            var syncTaskConfig = null;
+            for (var si = 0; si < taskConfigs3.length; si++) {
+              if (taskConfigs3[si].id === "db-sync-backup") { syncTaskConfig = taskConfigs3[si]; break; }
+            }
+            if (syncTaskConfig && syncTaskConfig.enabled === false) {
+              console.log("db-sync-backup cron: task disabled in config, skipping");
+              return res.json({ success: true, message: "Task disabled", skipped: true });
+            }
+          }
+        } catch (_) {}
+      }
+
+      var Pool = require("pg").Pool;
+
+      var sourceUrl = process.env.POSTGRES_URL ||
+        process.env.POSTGRES_PRISMA_URL ||
+        process.env.DATABASE_URL;
+
+      var targetUrl = process.env.Ev_POSTGRES_URL ||
+        process.env.Ev_POSTGRES_URL_NON_POOLING ||
+        process.env.SUPABASE_POSTGRES_URL ||
+        process.env.Ev_POSTGRES_PRISMA_URL;
+
+      if (targetUrl) {
+        targetUrl = targetUrl.replace(/&supa=base-pooler\.x/, "").replace(/\?sslmode=require/, "?sslmode=verify-full");
+      }
+
+      var sourcePg = null;
+      var targetPg = null;
+      var results = { targets: [], stats: {} };
+
+      if (sourceUrl) {
+        sourcePg = new Pool({ connectionString: sourceUrl, max: 5, ssl: { rejectUnauthorized: false } });
+      }
+
+      if (targetUrl && targetUrl !== sourceUrl) {
+        targetPg = new Pool({ connectionString: targetUrl, max: 5, ssl: { rejectUnauthorized: false } });
+
+        await targetPg.query(`
+          CREATE TABLE IF NOT EXISTS kv_strings (
+            key TEXT PRIMARY KEY, value TEXT, expires_at TIMESTAMPTZ
+          );
+          CREATE TABLE IF NOT EXISTS kv_hashes (
+            key TEXT NOT NULL, field TEXT NOT NULL, value TEXT, PRIMARY KEY (key, field)
+          );
+          CREATE TABLE IF NOT EXISTS kv_sets (
+            key TEXT NOT NULL, member TEXT NOT NULL, PRIMARY KEY (key, member)
+          );
+          CREATE TABLE IF NOT EXISTS kv_zsets (
+            key TEXT NOT NULL, member TEXT NOT NULL, score DOUBLE PRECISION DEFAULT 0, PRIMARY KEY (key, member)
+          );
+        `);
+
+        var syncStats = { strings: 0, hashes: 0, sets: 0, zsets: 0, errors: 0 };
+
+        var tables = [
+          { name: "kv_strings", columns: "key, value, expires_at", conflict: "(key) DO UPDATE SET value = EXCLUDED.value, expires_at = EXCLUDED.expires_at" },
+          { name: "kv_hashes", columns: "key, field, value", conflict: "(key, field) DO UPDATE SET value = EXCLUDED.value" },
+          { name: "kv_sets", columns: "key, member", conflict: "DO NOTHING" },
+          { name: "kv_zsets", columns: "key, member, score", conflict: "(key, member) DO UPDATE SET score = EXCLUDED.score" },
+        ];
+
+        for (var ti = 0; ti < tables.length; ti++) {
+          var t = tables[ti];
+          try {
+            var cols = t.columns.split(", ");
+            var placeholders = cols.map(function(_, i) { return "$" + (i + 1); }).join(", ");
+            var rows = await sourcePg.query("SELECT " + t.columns + " FROM " + t.name);
+            for (var ri = 0; ri < rows.rows.length; ri++) {
+              var row = rows.rows[ri];
+              try {
+                var values = cols.map(function(c) { return row[c.trim()]; });
+                await targetPg.query(
+                  "INSERT INTO " + t.name + " (" + t.columns + ") VALUES (" + placeholders + ") ON CONFLICT " + t.conflict,
+                  values
+                );
+                syncStats[t.name.replace("kv_", "")]++;
+              } catch (e) {
+                syncStats.errors++;
+              }
+            }
+          } catch (e) {
+            syncStats.errors++;
+          }
+        }
+
+        results.targets.push("Supabase");
+        results.stats.Supabase = syncStats;
+        await targetPg.end();
+      }
+
+      var upstashUrl = process.env.UPSTASH_REDIS_URL ||
+        process.env.UPSTASH_REDIS_REST_URL ||
+        process.env.REDIS_URL;
+      var upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.REDIS_TOKEN || "";
+
+      if (upstashUrl) {
+        var upstashStats = { keys: 0, errors: 0 };
+        try {
+          var kvRows = await sourcePg.query("SELECT key, value FROM kv_strings");
+          for (var ui = 0; ui < kvRows.rows.length; ui++) {
+            var kr = kvRows.rows[ui];
+            try {
+              var fetchUrl = upstashUrl.replace(/\/$/, "") + "/set/" + encodeURIComponent(kr.key) + "/" + encodeURIComponent(kr.value || "");
+              var fetchOpts = { method: "GET" };
+              if (upstashToken) {
+                fetchOpts.headers = { Authorization: "Bearer " + upstashToken };
+              }
+              var fetchResp = await fetch(fetchUrl, fetchOpts);
+              if (fetchResp.ok) {
+                upstashStats.keys++;
+              } else {
+                upstashStats.errors++;
+              }
+            } catch (e) {
+              upstashStats.errors++;
+            }
+          }
+        } catch (e) {
+          upstashStats.errors++;
+        }
+        results.targets.push("Upstash KV");
+        results.stats["Upstash KV"] = upstashStats;
+      }
+
+      if (sourcePg) await sourcePg.end();
+
+      var now = new Date().toISOString();
+      var existingStatus = null;
+      try {
+        var pgSync = require("../../lib/postgres");
+        var statusRes = await pgSync.query("SELECT value FROM kv_strings WHERE key = $1", ["auth:db:sync_status"]);
+        if (statusRes && statusRes.rows && statusRes.rows.length > 0) {
+          existingStatus = JSON.parse(statusRes.rows[0].value);
+        }
+      } catch (e) {}
+
+      var updateCount = (existingStatus && existingStatus.updateCount ? existingStatus.updateCount : 0) + 1;
+      var status = {
+        lastSyncDate: now,
+        updateCount: updateCount,
+        lastSyncType: "multi-db-sync",
+        message: "Synced to " + results.targets.join(", "),
+        targets: results.targets,
+        stats: results.stats,
+      };
+
+      try {
+        var pgSync2 = require("../../lib/postgres");
+        await pgSync2.query(
+          "INSERT INTO kv_strings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+          ["auth:db:sync_status", JSON.stringify(status)]
+        );
+      } catch (e) {}
+
+      if (isSyncCron) {
+        await recordCronRun("db-sync-backup", {
+          duration: Date.now() - syncStart,
+          status: "success",
+          summary: "Targets: " + results.targets.join(", "),
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: "Sync completed",
+        syncStatus: status,
+        duration: Date.now() - syncStart,
+      });
+    } catch (e) {
+      console.error("Sync error:", e);
+      if (isSyncCron) {
+        try {
+          await recordCronRun("db-sync-backup", {
+            duration: Date.now() - syncStart,
+            status: "error",
+            summary: (e && e.message) || String(e),
+          });
+        } catch (_) {}
+      }
       return res.status(500).json({
         success: false,
         error: (e && e.message) || String(e),

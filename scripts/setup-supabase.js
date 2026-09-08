@@ -1,3 +1,10 @@
+try {
+  require('dotenv').config();
+  require('dotenv').config({ path: '.env.local', override: false });
+} catch(e) {
+  console.warn('dotenv not available, using system env vars only');
+}
+
 function getSupabasePg() {
   var url = process.env.Ev_POSTGRES_URL ||
     process.env.Ev_POSTGRES_URL_NON_POOLING ||
