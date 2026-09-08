@@ -3555,6 +3555,20 @@
             <!-- 安全子面板 -->
             <div class="settings-sub-panel" id="settings-sub-security">
             <div class="setting-block">
+              <h3 class="setting-title">🔐 激活码系统</h3>
+              <p class="setting-desc">全局开关，关闭后所有激活请求（包括用户激活和快捷激活）将被拒绝。不影响已激活的设备。</p>
+              <div class="setting-row">
+                <label class="setting-switch">
+                  <input type="checkbox" id="settingActivationSystemEnabled" onchange="saveSettings()">
+                  <span class="switch-slider"></span>
+                </label>
+                <div class="setting-row-info">
+                  <div class="setting-row-title">🟢 启用激活码系统</div>
+                  <div class="setting-row-desc">关闭后，用户端激活页面和后台快捷激活均无法生成新激活码。后台管理功能（查看/导出记录等）不受影响。</div>
+                </div>
+              </div>
+            </div>
+            <div class="setting-block">
               <h3 class="setting-title">🛡️ 删除保护</h3>
               <p class="setting-desc">这是最关键的安全设置 — 防止本地"删除标记"同步时误删线上数据。</p>
               <div class="setting-row">
@@ -6341,6 +6355,7 @@
     // ==================== Settings ====================
     var SETTINGS_KEY = 'admin_settings_v1';
     var DEFAULT_SETTINGS = {
+      activationSystemEnabled: true,
       deleteProtection: true,
       warnBeforeDelete: true,
       autoClearDeletes: true,
@@ -6375,6 +6390,7 @@
       if (pageSizeEl) pageSizeEl.value = pageSize;
 
       var s = {
+        activationSystemEnabled: !!document.getElementById('settingActivationSystemEnabled').checked,
         deleteProtection: !!document.getElementById('settingDeleteProtection').checked,
         warnBeforeDelete: !!document.getElementById('settingWarnBeforeDelete').checked,
         autoClearDeletes: !!document.getElementById('settingAutoClearDeletes').checked,
@@ -6392,11 +6408,27 @@
         smtpPass: document.getElementById('settingSmtpPass').value.trim(),
       };
       try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch (_) {}
+      syncActivationSystemSetting(s.activationSystemEnabled);
       var hint = document.getElementById('settingsSavedHint');
       if (hint) {
-        hint.textContent = '✓ 已保存 · ' + new Date().toLocaleTimeString();
+        hint.textContent = '✓ Saved · ' + new Date().toLocaleTimeString();
         setTimeout(function() { if (hint) hint.textContent = ''; }, 2500);
       }
+    }
+
+    function syncActivationSystemSetting(enabled) {
+      if (typeof api !== 'function') return;
+      api('/api/admin/health?section=activation-system', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: !!enabled }),
+      }).then(function(data) {
+        if (data && data.success) {
+          console.log('[settings] Activation system ' + (enabled ? 'enabled' : 'disabled') + ' synced to server');
+        }
+      }).catch(function(e) {
+        console.error('[settings] Failed to sync activation system setting:', e.message);
+      });
     }
 
     function switchAdminMode(mode) {
@@ -6421,6 +6453,7 @@
         var el = document.getElementById(id);
         if (el) el.value = v != null ? String(v) : '';
       }
+      setCheck('settingActivationSystemEnabled', s.activationSystemEnabled);
       setCheck('settingDeleteProtection', s.deleteProtection);
       setCheck('settingWarnBeforeDelete', s.warnBeforeDelete);
       setCheck('settingAutoClearDeletes', s.autoClearDeletes);

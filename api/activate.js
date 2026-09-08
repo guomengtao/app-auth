@@ -77,7 +77,12 @@ function buildNotificationStatus(result) {
 module.exports = async (req, res) => {
   try { quota.bumpQuotaTick("/api/activate"); } catch (_) {}
   if (req.method !== "POST") {
-    return res.status(405).json({ success: false, error: "请求方式不正确" });
+    return res.status(405).json({ success: false, error: "Request method not supported" });
+  }
+
+  var activationSystemEnabled = await redis.get("auth:activation_system_enabled");
+  if (activationSystemEnabled === "disabled") {
+    return res.status(503).json({ success: false, error: "Activation system is currently disabled" });
   }
 
   var body = parseBody(req);

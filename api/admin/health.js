@@ -6,6 +6,7 @@ var crypto = require("../../lib/crypto");
 var quota = require("../../lib/quota");
 var pgSync = null;
 try { pgSync = require("pg"); } catch(e) { console.warn("pg module not available:", e.message); }
+var dbSwitches = require("../../lib/db-switches");
 
 var CRON_STATS_KEY = "auth:cron:stats";
 var CRON_LIST_KEY = "auth:cron:list";
@@ -1200,6 +1201,82 @@ module.exports = async (req, res) => {
     }
   }
 
+  if (req.query && req.query.section === "activation-system") {
+    try {
+      if (req.method === "GET") {
+        var rawEnabled = await redis.get("auth:activation_system_enabled");
+        return res.json({
+          success: true,
+          enabled: rawEnabled !== "disabled",
+        });
+      }
+      if (req.method === "POST") {
+        var body = req.body || {};
+        var enabled = body.enabled !== false;
+        await redis.set("auth:activation_system_enabled", enabled ? "enabled" : "disabled");
+        return res.json({ success: true, enabled: enabled });
+      }
+      return res.status(405).json({ success: false, error: "Method not allowed" });
+    } catch (e) {
+      console.error("activation-system error:", e);
+      return res.status(500).json({ success: false, error: (e && e.message) || String(e) });
+    }
+  }
+
+  if (req.query && req.query.section === "dbswitches") {
+    try {
+      if (req.method === "GET") {
+        var rawSupabase = await redis.get("db:switch:supabase");
+        var rawNeon = await redis.get("db:switch:neon");
+        var rawUpstash = await redis.get("db:switch:upstash");
+        return res.json({
+          success: true,
+          switches: {
+            supabase: (rawSupabase === "off") ? "off" : "on",
+            neon: (rawNeon === "off") ? "off" : "on",
+            upstash: (rawUpstash === "off") ? "off" : "on",
+          },
+        });
+      }
+      if (req.method === "POST") {
+        var body = req.body || {};
+        var db = body.db;
+        var value = body.value;
+        if (!db || !value || ["supabase", "neon", "upstash"].indexOf(db) === -1 || ["on", "off"].indexOf(value) === -1) {
+          return res.status(400).json({ success: false, error: "Invalid db or value. db: supabase/neon/upstash, value: on/off" });
+        }
+        await redis.set("db:switch:" + db, value);
+        var allSwitches = { supabase: "on", neon: "on", upstash: "on" };
+        allSwitches[db] = value;
+        var rawS = await redis.get("db:switch:supabase");
+        var rawN = await redis.get("db:switch:neon");
+        var rawU = await redis.get("db:switch:upstash");
+        allSwitches.supabase = (rawS === "off") ? "off" : "on";
+        allSwitches.neon = (rawN === "off") ? "off" : "on";
+        allSwitches.upstash = (rawU === "off") ? "off" : "on";
+        dbSwitches.setSwitches(allSwitches);
+        var enabledCount = 0;
+        if (allSwitches.supabase === "on") enabledCount++;
+        if (allSwitches.neon === "on") enabledCount++;
+        if (allSwitches.upstash === "on") enabledCount++;
+        if (enabledCount === 0) {
+          await redis.set("db:switch:" + db, "on");
+          allSwitches[db] = "on";
+          return res.json({
+            success: false,
+            error: "Cannot disable all databases. At least one must remain enabled.",
+            switches: allSwitches,
+          });
+        }
+        return res.json({ success: true, switches: allSwitches });
+      }
+      return res.status(405).json({ success: false, error: "Method not allowed" });
+    } catch (e) {
+      console.error("dbswitches error:", e);
+      return res.status(500).json({ success: false, error: (e && e.message) || String(e) });
+    }
+  }
+
   if (req.query && req.query.section === "dbstatus") {
     if (req.method !== "GET") {
       return res.status(405).json({ success: false, error: "Method not allowed" });
@@ -1395,6 +1472,21 @@ module.exports = async (req, res) => {
         upstashError = e.message || "query failed";
       }
 
+      var switchSupabase = "on";
+      var switchNeon = "on";
+      var switchUpstash = "on";
+      try {
+        var rawS = await redis.get("db:switch:supabase");
+        var rawN = await redis.get("db:switch:neon");
+        var rawU = await redis.get("db:switch:upstash");
+        if (rawS === "off") switchSupabase = "off";
+        if (rawN === "off") switchNeon = "off";
+        if (rawU === "off") switchUpstash = "off";
+      } catch (_) {}
+
+      var enabledPgCount = (switchSupabase === "on" ? 1 : 0) + (switchNeon === "on" ? 1 : 0);
+      var enabledTotal = enabledPgCount + (switchUpstash === "on" ? 1 : 0);
+
       var databases = [
         {
           name: "Supabase",
@@ -1407,6 +1499,7 @@ module.exports = async (req, res) => {
           totalRows: dbProvider === "supabase" ? primaryTotalRows : (otherDbName === "Supabase" ? otherDbTotalRows : 0),
           tables: dbProvider === "supabase" ? primaryTables : (otherDbName === "Supabase" ? (otherDbTables || []) : []),
           error: dbProvider === "supabase" ? "" : (otherDbName === "Supabase" ? otherDbError : ""),
+          enabled: switchSupabase,
         },
         {
           name: "Neon",
@@ -1419,6 +1512,7 @@ module.exports = async (req, res) => {
           totalRows: dbProvider === "neon" ? primaryTotalRows : (otherDbName === "Neon" ? otherDbTotalRows : 0),
           tables: dbProvider === "neon" ? primaryTables : (otherDbName === "Neon" ? (otherDbTables || []) : []),
           error: dbProvider === "neon" ? "" : (otherDbName === "Neon" ? otherDbError : ""),
+          enabled: switchNeon,
         },
         {
           name: "Upstash KV",
@@ -1431,6 +1525,7 @@ module.exports = async (req, res) => {
           keys: upstashKeys,
           syncStats: (syncStatus && syncStatus.stats && syncStatus.stats["Upstash KV"]) ? syncStatus.stats["Upstash KV"] : null,
           error: upstashError,
+          enabled: switchUpstash,
         },
       ];
 
@@ -1439,6 +1534,12 @@ module.exports = async (req, res) => {
         generatedAt: new Date().toISOString(),
         currentProvider: dbProvider || "auto",
         currentDatabase: dbProvider === "supabase" ? "Supabase" : (dbProvider === "neon" ? "Neon" : "Auto-detected"),
+        dbDiagnostics: {
+          primaryUrl: (process.env.Ev_POSTGRES_URL || process.env.POSTGRES_URL || "").replace(/\/\/.*@/, "//***@"),
+          primaryResolved: (typeof pg === "object" && pg.connectionString) ? pg.connectionString.replace(/\/\/.*@/, "//***@") : "unknown",
+          otherDbUrl: otherDbUrl.replace(/\/\/.*@/, "//***@"),
+          otherDbSkipped: (!otherDbUrl || otherDbUrl === (process.env.Ev_POSTGRES_URL || process.env.Ev_POSTGRES_URL_NON_POOLING || "")) ? "same as primary" : null,
+        },
         dbSizeBytes: dbSizeBytes,
         dbSizeMB: (dbSizeBytes / (1024 * 1024)).toFixed(2),
         lastDbActivity: lastDbActivity,
@@ -1461,6 +1562,13 @@ module.exports = async (req, res) => {
         },
         syncLogs: syncLogsList,
         databases: databases,
+        dbSwitches: {
+          supabase: switchSupabase,
+          neon: switchNeon,
+          upstash: switchUpstash,
+          enabledPgCount: enabledPgCount,
+          enabledTotal: enabledTotal,
+        },
       });
     } catch (e) {
       console.error("dbstatus error:", e);
