@@ -7670,6 +7670,31 @@
             html += '<p><strong>类型：</strong>' + escapeHtml(db.type) + ' · <strong>主机：</strong>' + escapeHtml(db.host) + '</p>';
             html += '<p><strong>免费额度：</strong>' + escapeHtml(db.freeLimit) + '</p>';
             html += '<p><strong>配置状态：</strong>' + (db.configured ? '<span style="color:#059669">已配置</span>' : '<span style="color:#dc2626">未配置</span>') + '</p>';
+
+            if (db.type === 'Redis') {
+              if (db.keyCount !== null && db.keyCount !== undefined) {
+                html += '<p style="margin-top:6px"><strong>数据：</strong><span style="font-size:1.1rem;font-weight:700;color:var(--accent)">' + Number(db.keyCount).toLocaleString() + '</span> keys</p>';
+              }
+              if (Array.isArray(db.keys) && db.keys.length > 0) {
+                html += '<div style="margin-top:4px;font-size:0.78rem;color:#6b7280">';
+                for (var ki = 0; ki < db.keys.length; ki++) {
+                  html += '<span style="display:inline-block;background:#f3f4f6;padding:1px 6px;border-radius:3px;margin:1px 2px">' + escapeHtml(db.keys[ki].name) + ' x' + db.keys[ki].rowCount + '</span>';
+                }
+                html += '</div>';
+              } else if (db.keyCount === null || db.keyCount === undefined) {
+                html += '<p style="margin-top:6px;color:#9ca3af">未获取到数据</p>';
+              }
+            } else {
+              html += '<p style="margin-top:6px"><strong>数据：</strong>' + db.tableCount + ' 表, <span style="font-size:1.1rem;font-weight:700;color:var(--accent)">' + Number(db.totalRows || 0).toLocaleString() + '</span> 条记录</p>';
+              if (Array.isArray(db.tables) && db.tables.length > 0) {
+                html += '<table style="width:100%;margin-top:4px;font-size:0.78rem;border-collapse:collapse">';
+                html += '<thead><tr style="color:#6b7280"><th style="text-align:left;padding:2px 4px">表名</th><th style="text-align:right;padding:2px 4px">行数</th></tr></thead><tbody>';
+                for (var ti = 0; ti < db.tables.length; ti++) {
+                  html += '<tr><td style="padding:1px 4px;font-family:monospace">' + escapeHtml(db.tables[ti].name) + '</td><td style="text-align:right;padding:1px 4px">' + Number(db.tables[ti].rowCount).toLocaleString() + '</td></tr>';
+                }
+                html += '</tbody></table>';
+              }
+            }
             html += '</div>';
           });
           compareEl.innerHTML = html;

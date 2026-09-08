@@ -1245,6 +1245,115 @@ module.exports = async (req, res) => {
 
       var connStr = String(process.env.Ev_POSTGRES_URL || process.env.POSTGRES_URL || "");
 
+      var KV_TABLES = ["kv_strings", "kv_hashes", "kv_sets", "kv_zsets"];
+
+      function countRowsFromRows(rows) {
+        var result = {};
+        for (var i = 0; i < rows.length; i++) {
+          result[rows[i].name] = Number(rows[i].row_count) || 0;
+        }
+        return result;
+      }
+
+      var primaryTables = [];
+      var primaryTotalRows = 0;
+      var primaryTableCount = 0;
+      try {
+        var primaryRows = await pg.query(
+          "SELECT relname AS name, n_live_tup AS row_count FROM pg_stat_user_tables WHERE relname = ANY($1) ORDER BY relname",
+          [KV_TABLES]
+        );
+        if (primaryRows && primaryRows.rows) {
+          var counts = countRowsFromRows(primaryRows.rows);
+          for (var k = 0; k < KV_TABLES.length; k++) {
+            var tname = KV_TABLES[k];
+            var rc = counts[tname] || 0;
+            primaryTables.push({ name: tname, rowCount: rc });
+            primaryTotalRows += rc;
+          }
+          primaryTableCount = primaryRows.rows.length;
+        }
+      } catch (e) {
+        console.warn("primary tables query error:", e.message);
+      }
+
+      var otherDbTables = null;
+      var otherDbTotalRows = 0;
+      var otherDbTableCount = 0;
+      var otherDbUrl = "";
+      var otherDbName = "";
+      if (dbProvider === "supabase") {
+        otherDbUrl = process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL || process.env.DATABASE_URL || "";
+        otherDbName = "Neon";
+      } else {
+        otherDbUrl = process.env.Ev_POSTGRES_URL || process.env.Ev_POSTGRES_URL_NON_POOLING || process.env.SUPABASE_POSTGRES_URL || process.env.Ev_POSTGRES_PRISMA_URL || "";
+        if (otherDbUrl) {
+          otherDbUrl = otherDbUrl.replace(/&supa=base-pooler\.x/, "").replace(/\?sslmode=require/, "?sslmode=verify-full");
+        }
+        otherDbName = "Supabase";
+      }
+      if (otherDbUrl && otherDbUrl !== (process.env.POSTGRES_URL || "")) {
+        try {
+          var otherPg = new pgSync.Pool({ connectionString: otherDbUrl, max: 1, connectionTimeoutMillis: 8000, ssl: { rejectUnauthorized: false } });
+          var otherRows = await otherPg.query(
+            "SELECT relname AS name, n_live_tup AS row_count FROM pg_stat_user_tables WHERE relname = ANY($1) ORDER BY relname",
+            [KV_TABLES]
+          );
+          if (otherRows && otherRows.rows) {
+            otherDbTables = [];
+            var otherCounts = countRowsFromRows(otherRows.rows);
+            for (var ok2 = 0; ok2 < KV_TABLES.length; ok2++) {
+              var otname = KV_TABLES[ok2];
+              var orc = otherCounts[otname] || 0;
+              otherDbTables.push({ name: otname, rowCount: orc });
+              otherDbTotalRows += orc;
+            }
+            otherDbTableCount = otherRows.rows.length;
+          }
+          await otherPg.end();
+        } catch (e) {
+          console.warn(otherDbName + " tables query error:", e.message);
+        }
+      }
+
+      var upstashKeyCount = null;
+      var upstashKeys = [];
+      try {
+        var upstashUrl = process.env.UPSTASH_REDIS_URL || process.env.UPSTASH_REDIS_REST_URL || process.env.REDIS_URL || "";
+        var upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.REDIS_TOKEN || "";
+        if (upstashUrl) {
+          var dbsizeUrl = upstashUrl.replace(/\/$/, "") + "/dbsize";
+          var dsOpts = { method: "GET" };
+          if (upstashToken) { dsOpts.headers = { Authorization: "Bearer " + upstashToken }; }
+          var dsResp = await fetch(dbsizeUrl, dsOpts);
+          if (dsResp.ok) {
+            var dsJson = await dsResp.json();
+            upstashKeyCount = Number(dsJson.result) || 0;
+          }
+
+          var prefixCounts = {};
+          var keysUrl = upstashUrl.replace(/\/$/, "") + "/keys/*";
+          var keysOpts = { method: "GET" };
+          if (upstashToken) { keysOpts.headers = { Authorization: "Bearer " + upstashToken }; }
+          var keysResp = await fetch(keysUrl, keysOpts);
+          if (keysResp.ok) {
+            var keysJson = await keysResp.json();
+            var allKeys = (keysJson && keysJson.result) ? keysJson.result : [];
+            for (var ki = 0; ki < allKeys.length; ki++) {
+              var fullKey = allKeys[ki];
+              var prefix = fullKey.split(":")[0] || "other";
+              prefixCounts[prefix] = (prefixCounts[prefix] || 0) + 1;
+            }
+            var prefixNames = Object.keys(prefixCounts);
+            for (var pi = 0; pi < prefixNames.length; pi++) {
+              upstashKeys.push({ name: prefixNames[pi] + ":*", rowCount: prefixCounts[prefixNames[pi]] });
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Upstash query error:", e.message);
+      }
+
       var databases = [
         {
           name: "Supabase",
@@ -1253,6 +1362,9 @@ module.exports = async (req, res) => {
           host: connStr.includes("supabase") ? "db.kqzkdpmyivtpxkfmibnd.supabase.co" : "-",
           freeLimit: "500MB storage, 2GB bandwidth, 50K MAU",
           configured: Boolean(process.env.Ev_POSTGRES_URL || process.env.Ev_SUPABASE_URL),
+          tableCount: dbProvider === "supabase" ? primaryTableCount : (otherDbName === "Supabase" ? otherDbTableCount : 0),
+          totalRows: dbProvider === "supabase" ? primaryTotalRows : (otherDbName === "Supabase" ? otherDbTotalRows : 0),
+          tables: dbProvider === "supabase" ? primaryTables : (otherDbName === "Supabase" ? (otherDbTables || []) : []),
         },
         {
           name: "Neon",
@@ -1261,6 +1373,9 @@ module.exports = async (req, res) => {
           host: "ep-*.neon.tech",
           freeLimit: "100h compute/month, 512MB storage, 1GB egress",
           configured: Boolean(process.env.POSTGRES_URL || process.env.DATABASE_URL),
+          tableCount: dbProvider === "neon" ? primaryTableCount : (otherDbName === "Neon" ? otherDbTableCount : 0),
+          totalRows: dbProvider === "neon" ? primaryTotalRows : (otherDbName === "Neon" ? otherDbTotalRows : 0),
+          tables: dbProvider === "neon" ? primaryTables : (otherDbName === "Neon" ? (otherDbTables || []) : []),
         },
         {
           name: "Upstash KV",
@@ -1269,6 +1384,8 @@ module.exports = async (req, res) => {
           host: "upstash.io",
           freeLimit: "10K commands/day, 256MB storage",
           configured: Boolean(process.env.UPSTASH_REDIS_URL || process.env.REDIS_URL),
+          keyCount: upstashKeyCount,
+          keys: upstashKeys,
         },
       ];
 
