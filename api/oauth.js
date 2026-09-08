@@ -5,7 +5,7 @@ var { sign, parseCookies } = require("../lib/auth");
 var VERCEL_OAUTH_CLIENT_ID = process.env.VERCEL_OAUTH_CLIENT_ID || "";
 var VERCEL_OAUTH_CLIENT_SECRET = process.env.VERCEL_OAUTH_CLIENT_SECRET || "";
 var ADMIN_EMAIL = process.env.ADMIN_EMAIL || "guomengtao@gmail.com";
-var REDIRECT_URI = "https://app-auth.gudq.com/api/oauth/callback";
+var REDIRECT_URI = "https://app-auth.gudq.com/api/oauth";
 
 function postForm(url, body) {
   return new Promise(function (resolve, reject) {
