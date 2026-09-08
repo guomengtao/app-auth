@@ -1814,7 +1814,7 @@ module.exports = async (req, res) => {
         } catch (e) { upstashStats.errors++; }
 
         try {
-          var allUpstashKeys = [];
+          var keySet = {};
           var cursor = 0;
           var rounds = 0;
           do {
@@ -1824,10 +1824,11 @@ module.exports = async (req, res) => {
             cursor = scanData.result[0];
             var batch = scanData.result[1] || [];
             for (var bi = 0; bi < batch.length; bi++) {
-              allUpstashKeys.push(batch[bi]);
+              keySet[batch[bi]] = true;
             }
             rounds++;
-          } while (cursor !== 0 && rounds < 100);
+          } while (String(cursor) !== "0" && rounds < 100);
+          var allUpstashKeys = Object.keys(keySet);
 
           var pgKeys = new Set();
           var allPgRows = await sourcePg.query("SELECT key FROM kv_strings UNION SELECT key FROM kv_hashes UNION SELECT key FROM kv_sets UNION SELECT key FROM kv_zsets");

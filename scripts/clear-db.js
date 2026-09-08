@@ -16,7 +16,7 @@ async function clearAll() {
       totalDeleted += keys.length;
       console.log("  Deleted " + keys.length + " keys (total: " + totalDeleted + ")");
     }
-  } while (cursor !== 0);
+  } while (String(cursor) !== "0");
 
   console.log("Done. Total keys deleted: " + totalDeleted);
   process.exit(0);
