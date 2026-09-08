@@ -1,6 +1,7 @@
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 var dbSwitches = require("../../lib/db-switches");
+var dbRegistry = require("../../lib/db-registry");
 
 module.exports = async function switchDb(req, res) {
   if (req.method !== "POST") {
@@ -14,10 +15,11 @@ module.exports = async function switchDb(req, res) {
     }
 
     var targetDb = (body.target || "").toLowerCase();
-    if (["supabase", "neon", "upstash"].indexOf(targetDb) === -1) {
+    var allDbIds = dbRegistry.getAllDatabases().map(function(db) { return db.id; });
+    if (allDbIds.indexOf(targetDb) === -1) {
       return res.status(400).json({
         success: false,
-        error: "Invalid target. Use: supabase, neon, or upstash",
+        error: "Invalid target. Available databases: " + allDbIds.join(", "),
       });
     }
 

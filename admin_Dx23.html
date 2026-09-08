@@ -3415,7 +3415,7 @@
             <div id="logsSectionDbSync" style="display:none;">
               <div class="setting-block">
                 <h3 class="setting-title">🔄 数据库同步日志</h3>
-                <p class="setting-desc">记录每次 Neon → Supabase / Upstash KV 数据同步的详细结果，包括同步目标、数据量、耗时。</p>
+                <p class="setting-desc">Detailed sync results including target database, record count, and duration.</p>
                 <div style="margin-bottom:10px">
                   <button class="btn btn-primary" onclick="loadDbSyncLogs()">🔄 拉取同步日志</button>
                   <button class="btn btn-outline" onclick="loadDbSyncLogs()" style="margin-left:6px">🔄 刷新</button>
@@ -3808,11 +3808,11 @@
 
               <div class="setting-block">
                 <h3 class="setting-title">🔄 数据同步状态</h3>
-                <p class="setting-desc">Neon → Supabase / Upstash KV 数据同步的最后日期和更新次数</p>
+                <p class="setting-desc">Data sync between databases. Sync all or target a specific database.</p>
                 <div style="margin-bottom:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-                  <button class="btn btn-primary" onclick="triggerSyncTo('all')" id="btnTriggerSyncAll" style="font-size:0.82rem;padding:6px 14px">🔄 同步全部</button>
-                  <button class="btn btn-outline" onclick="triggerSyncTo('neon')" id="btnTriggerSyncNeon" style="font-size:0.82rem;padding:6px 14px">🔄 同步到 Neon</button>
-                  <button class="btn btn-outline" onclick="triggerSyncTo('upstash')" id="btnTriggerSyncUpstash" style="font-size:0.82rem;padding:6px 14px">🔄 同步到 Upstash KV</button>
+                  <button class="btn btn-primary" onclick="triggerSyncTo('all')" id="btnTriggerSyncAll" style="font-size:0.82rem;padding:6px 14px">Sync All</button>
+                  <button class="btn btn-outline" onclick="triggerSyncTo('neon')" id="btnTriggerSyncNeon" style="font-size:0.82rem;padding:6px 14px">Sync to Neon</button>
+                  <button class="btn btn-outline" onclick="triggerSyncTo('upstash')" id="btnTriggerSyncUpstash" style="font-size:0.82rem;padding:6px 14px">Sync to Upstash KV</button>
                   <span id="syncStatusMsg" style="font-size:0.78rem;color:#6b7280"></span>
                 </div>
                 <div id="dbSyncStatus" style="padding:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;">
@@ -7796,10 +7796,10 @@
 
       if (tipsEl) {
         tipsEl.innerHTML =
-          '<div class="info-card"><h4><span class="tag t-ok">优势</span>Supabase vs Neon</h4><p>Supabase 免费额度更慷慨：500MB 存储（Neon 512MB 相当），但无计算时间限制。Supabase 不会休眠 (no cold start)，更适合生产环境。Neon 有 100h/月计算限制，闲置 5 分钟自动休眠。</p></div>' +
-          '<div class="info-card"><h4><span class="tag t-warn">注意</span>免费项目暂停</h4><p>Supabase 免费项目如果超过 1 周无活动，会被暂停。需要登录 Dashboard 手动恢复。建议定期访问后台管理页面保持活跃。</p></div>' +
-          '<div class="info-card"><h4><span class="tag">建议</span>多数据库策略</h4><p>当前架构：Supabase 主库 + Neon 备库 + Upstash KV 三级备。主库 Supabase 无计算时间限制，不会休眠，保证在线稳定性。Neon 作为备库，在主库故障时手动切换。</p></div>' +
-          '<div class="info-card"><h4><span class="tag t-ok">自动</span>每日备份</h4><p>Supabase 自动每日备份数据库，保留 7 天。可在 Dashboard → Database → Backups 查看和恢复。</p></div>';
+          '<div class="info-card"><h4><span class="tag t-ok">Dynamic</span>Multi-Database Registry</h4><p>Databases are managed via <code>db-registry.json</code>. Add new databases by editing the registry file and setting the corresponding environment variables.</p></div>' +
+          '<div class="info-card"><h4><span class="tag t-warn">Free Tier</span>Auto-Pause Warning</h4><p>Free-tier databases may pause after inactivity. Regular admin panel visits help keep databases active and prevent auto-pause.</p></div>' +
+          '<div class="info-card"><h4><span class="tag">Strategy</span>Multi-Database Strategy</h4><p>Current architecture supports dynamic database switching. The primary database is resolved via Redis config, allowing runtime switching without deployment.</p></div>' +
+          '<div class="info-card"><h4><span class="tag t-ok">Auto</span>Daily Backups</h4><p>PostgreSQL databases typically provide automatic daily backups. Check your provider\'s dashboard for backup and restore options.</p></div>';
       }
     }
 
@@ -7818,12 +7818,9 @@
         if (currentProviderEl) currentProviderEl.textContent = d.currentProvider || 'auto';
 
         var statusDiv = document.getElementById('dbStatusCurrent');
-        if (statusDiv && d.currentProvider === 'supabase') {
+        if (statusDiv && d.currentProvider) {
           statusDiv.style.background = '#f0fdf4';
           statusDiv.style.borderColor = '#bbf7d0';
-        } else if (statusDiv && d.currentProvider === 'neon') {
-          statusDiv.style.background = '#eff6ff';
-          statusDiv.style.borderColor = '#bfdbfe';
         }
 
         var compareEl = document.getElementById('dbCompareCards');
@@ -7885,7 +7882,7 @@
                 html += '<p style="margin-top:2px;color:#dc2626;font-size:0.75rem">错误: ' + escapeHtml(db.error) + '</p>';
               }
             }
-            var dbSwitchKey = db.name === 'Supabase' ? 'supabase' : (db.name === 'Neon' ? 'neon' : 'upstash');
+            var dbSwitchKey = db.id || db.name;
             var isOn = db.enabled === 'on';
             html += '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between">' +
               '<span style="font-size:0.78rem;color:var(--muted)">开关</span>' +

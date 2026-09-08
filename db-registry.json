@@ -1,0 +1,30 @@
+{
+  "comment": "Database Registry - Add new databases here. Each database needs an id, name, type, and urlEnv pointing to the environment variable with the connection URL.",
+  "databases": [
+    {
+      "id": "upstash",
+      "name": "Upstash KV",
+      "type": "redis",
+      "urlEnv": "UPSTASH_REDIS_REST_URL",
+      "tokenEnv": "UPSTASH_REDIS_REST_TOKEN",
+      "freeLimit": "10K commands/day, 256MB storage",
+      "host": "upstash.io"
+    },
+    {
+      "id": "supabase",
+      "name": "Supabase",
+      "type": "postgres",
+      "urlEnv": "Ev_POSTGRES_URL",
+      "freeLimit": "500MB storage, 2GB egress/month",
+      "host": "db.*.supabase.co"
+    },
+    {
+      "id": "neon",
+      "name": "Neon",
+      "type": "postgres",
+      "urlEnv": "POSTGRES_URL",
+      "freeLimit": "100h compute/month, 512MB storage",
+      "host": "ep-*.neon.tech"
+    }
+  ]
+}

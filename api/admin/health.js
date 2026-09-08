@@ -7,6 +7,7 @@ var quota = require("../../lib/quota");
 var pgSync = null;
 try { pgSync = require("pg"); } catch(e) { console.warn("pg module not available:", e.message); }
 var dbSwitches = require("../../lib/db-switches");
+var dbRegistry = require("../../lib/db-registry");
 var verifySwitch = null;
 try { verifySwitch = require("../../lib/verify-switch"); } catch(e) { console.warn("verify-switch module not available:", e.message); }
 
@@ -1227,50 +1228,44 @@ module.exports = async (req, res) => {
 
   if (req.query && req.query.section === "dbswitches") {
     try {
+      var allDbIds2 = dbRegistry.getAllDatabases().map(function(db) { return db.id; });
       if (req.method === "GET") {
-        var rawSupabase = await redis.get("db:switch:supabase");
-        var rawNeon = await redis.get("db:switch:neon");
-        var rawUpstash = await redis.get("db:switch:upstash");
-        return res.json({
-          success: true,
-          switches: {
-            supabase: (rawSupabase === "off") ? "off" : "on",
-            neon: (rawNeon === "off") ? "off" : "on",
-            upstash: (rawUpstash === "off") ? "off" : "on",
-          },
-        });
+        var switchesResult = {};
+        for (var sdi = 0; sdi < allDbIds2.length; sdi++) {
+          var rawVal = await redis.get("db:switch:" + allDbIds2[sdi]);
+          switchesResult[allDbIds2[sdi]] = (rawVal === "off") ? "off" : "on";
+        }
+        return res.json({ success: true, switches: switchesResult });
       }
       if (req.method === "POST") {
         var body = req.body || {};
         var db = body.db;
         var value = body.value;
-        if (!db || !value || ["supabase", "neon", "upstash"].indexOf(db) === -1 || ["on", "off"].indexOf(value) === -1) {
-          return res.status(400).json({ success: false, error: "Invalid db or value. db: supabase/neon/upstash, value: on/off" });
+        if (!db || !value || allDbIds2.indexOf(db) === -1 || ["on", "off"].indexOf(value) === -1) {
+          return res.status(400).json({ success: false, error: "Invalid db or value. db: " + allDbIds2.join("/") + ", value: on/off" });
         }
         await redis.set("db:switch:" + db, value);
-        var allSwitches = { supabase: "on", neon: "on", upstash: "on" };
-        allSwitches[db] = value;
-        var rawS = await redis.get("db:switch:supabase");
-        var rawN = await redis.get("db:switch:neon");
-        var rawU = await redis.get("db:switch:upstash");
-        allSwitches.supabase = (rawS === "off") ? "off" : "on";
-        allSwitches.neon = (rawN === "off") ? "off" : "on";
-        allSwitches.upstash = (rawU === "off") ? "off" : "on";
-        dbSwitches.setSwitches(allSwitches);
-        var enabledCount = 0;
-        if (allSwitches.supabase === "on") enabledCount++;
-        if (allSwitches.neon === "on") enabledCount++;
-        if (allSwitches.upstash === "on") enabledCount++;
-        if (enabledCount === 0) {
+        var allSwitches2 = {};
+        for (var sdi2 = 0; sdi2 < allDbIds2.length; sdi2++) {
+          var rawVal2 = await redis.get("db:switch:" + allDbIds2[sdi2]);
+          allSwitches2[allDbIds2[sdi2]] = (rawVal2 === "off") ? "off" : "on";
+        }
+        allSwitches2[db] = value;
+        dbSwitches.setSwitches(allSwitches2);
+        var enabledCount2 = 0;
+        for (var sdi3 = 0; sdi3 < allDbIds2.length; sdi3++) {
+          if (allSwitches2[allDbIds2[sdi3]] === "on") enabledCount2++;
+        }
+        if (enabledCount2 === 0) {
           await redis.set("db:switch:" + db, "on");
-          allSwitches[db] = "on";
+          allSwitches2[db] = "on";
           return res.json({
             success: false,
             error: "Cannot disable all databases. At least one must remain enabled.",
-            switches: allSwitches,
+            switches: allSwitches2,
           });
         }
-        return res.json({ success: true, switches: allSwitches });
+        return res.json({ success: true, switches: allSwitches2 });
       }
       return res.status(405).json({ success: false, error: "Method not allowed" });
     } catch (e) {
@@ -1287,6 +1282,7 @@ module.exports = async (req, res) => {
       var pg = require("../../lib/postgres");
       var primaryFromRedis = dbSwitches.getPrimary();
       var dbProvider = primaryFromRedis || String(process.env.DB_PROVIDER || "auto").trim();
+      var providerDb = dbRegistry.getDatabase(dbProvider);
 
       var tablesResult = await pg.query(
         "SELECT schemaname, relname, n_live_tup AS est_rows, pg_total_relation_size(quote_ident(schemaname)||'.'||quote_ident(relname)) AS bytes FROM pg_stat_user_tables ORDER BY bytes DESC"
@@ -1385,17 +1381,19 @@ module.exports = async (req, res) => {
       var otherDbUrl = "";
       var otherDbName = "";
       var otherDbError = "";
-      if (dbProvider === "supabase") {
-        otherDbUrl = process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL || process.env.DATABASE_URL || "";
-        otherDbName = "Neon";
-      } else {
-        otherDbUrl = process.env.Ev_POSTGRES_URL || process.env.Ev_POSTGRES_URL_NON_POOLING || process.env.SUPABASE_POSTGRES_URL || process.env.Ev_POSTGRES_PRISMA_URL || "";
-        if (otherDbUrl) {
-          otherDbUrl = otherDbUrl.replace(/&supa=base-pooler\.x/, "").replace(/\?sslmode=require/, "?sslmode=verify-full");
+      var pgDbs = dbRegistry.getPostgresDatabases();
+      var otherDbDef = null;
+      for (var odi = 0; odi < pgDbs.length; odi++) {
+        if (pgDbs[odi].id !== dbProvider) {
+          otherDbDef = pgDbs[odi];
+          break;
         }
-        otherDbName = "Supabase";
       }
-      if (otherDbUrl && otherDbUrl !== (process.env.Ev_POSTGRES_URL || process.env.Ev_POSTGRES_URL_NON_POOLING || "")) {
+      if (otherDbDef) {
+        otherDbName = otherDbDef.name;
+        otherDbUrl = dbRegistry.getDatabaseUrl(otherDbDef.id) || "";
+      }
+      if (otherDbUrl) {
         if (!pgSync) {
           otherDbError = "pg module not available";
         } else {
@@ -1428,11 +1426,9 @@ module.exports = async (req, res) => {
       var upstashKeys = [];
       var upstashError = "";
       try {
-        var upstashUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "";
-        var upstashToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || process.env.REDIS_TOKEN || "";
-        if (!upstashUrl) {
-          upstashUrl = process.env.UPSTASH_REDIS_URL || process.env.REDIS_URL || "";
-        }
+        var upstashDb3 = dbRegistry.getDatabase("upstash");
+        var upstashUrl = upstashDb3 ? dbRegistry.getDatabaseUrl("upstash") || "" : "";
+        var upstashToken = upstashDb3 && upstashDb3.tokenEnv ? (process.env[upstashDb3.tokenEnv] || "") : "";
         if (upstashUrl) {
           var dbsizeUrl = upstashUrl.replace(/\/$/, "") + "/dbsize";
           var dsOpts = { method: "GET" };
@@ -1475,73 +1471,71 @@ module.exports = async (req, res) => {
         upstashError = e.message || "query failed";
       }
 
-      var switchSupabase = "on";
-      var switchNeon = "on";
-      var switchUpstash = "on";
+      var allSwitches = {};
+      var allDbIds = dbRegistry.getAllDatabases().map(function(db) { return db.id; });
+      for (var ai = 0; ai < allDbIds.length; ai++) {
+        allSwitches[allDbIds[ai]] = "on";
+      }
       try {
-        var rawS = await redis.get("db:switch:supabase");
-        var rawN = await redis.get("db:switch:neon");
-        var rawU = await redis.get("db:switch:upstash");
-        if (rawS === "off") switchSupabase = "off";
-        if (rawN === "off") switchNeon = "off";
-        if (rawU === "off") switchUpstash = "off";
+        for (var ai2 = 0; ai2 < allDbIds.length; ai2++) {
+          var rawVal = await redis.get("db:switch:" + allDbIds[ai2]);
+          if (rawVal === "off") allSwitches[allDbIds[ai2]] = "off";
+        }
       } catch (_) {}
 
-      var enabledPgCount = (switchSupabase === "on" ? 1 : 0) + (switchNeon === "on" ? 1 : 0);
-      var enabledTotal = enabledPgCount + (switchUpstash === "on" ? 1 : 0);
+      var enabledPgCount = 0;
+      var enabledTotal = 0;
+      for (var ai3 = 0; ai3 < allDbIds.length; ai3++) {
+        if (allSwitches[allDbIds[ai3]] === "on") {
+          enabledTotal++;
+          var dbInfo = dbRegistry.getDatabase(allDbIds[ai3]);
+          if (dbInfo && dbInfo.type === "postgres") enabledPgCount++;
+        }
+      }
 
-      var databases = [
-        {
-          name: "Supabase",
-          role: dbProvider === "supabase" ? "primary" : "standby",
-          type: "PostgreSQL",
-          host: connStr.includes("supabase") ? "db.kqzkdpmyivtpxkfmibnd.supabase.co" : "-",
-          freeLimit: "500MB storage, 2GB bandwidth, 50K MAU",
-          configured: Boolean(process.env.Ev_POSTGRES_URL || process.env.Ev_SUPABASE_URL),
-          tableCount: dbProvider === "supabase" ? primaryTableCount : (otherDbName === "Supabase" ? otherDbTableCount : 0),
-          totalRows: dbProvider === "supabase" ? primaryTotalRows : (otherDbName === "Supabase" ? otherDbTotalRows : 0),
-          tables: dbProvider === "supabase" ? primaryTables : (otherDbName === "Supabase" ? (otherDbTables || []) : []),
-          error: dbProvider === "supabase" ? "" : (otherDbName === "Supabase" ? otherDbError : ""),
-          enabled: switchSupabase,
-        },
-        {
-          name: "Neon",
-          role: dbProvider === "neon" ? "primary" : "standby",
-          type: "PostgreSQL",
-          host: "ep-*.neon.tech",
-          freeLimit: "100h compute/month, 512MB storage, 1GB egress",
-          configured: Boolean(process.env.POSTGRES_URL || process.env.DATABASE_URL),
-          tableCount: dbProvider === "neon" ? primaryTableCount : (otherDbName === "Neon" ? otherDbTableCount : 0),
-          totalRows: dbProvider === "neon" ? primaryTotalRows : (otherDbName === "Neon" ? otherDbTotalRows : 0),
-          tables: dbProvider === "neon" ? primaryTables : (otherDbName === "Neon" ? (otherDbTables || []) : []),
-          error: dbProvider === "neon" ? "" : (otherDbName === "Neon" ? otherDbError : ""),
-          enabled: switchNeon,
-        },
-        {
-          name: "Upstash KV",
-          role: "tertiary",
-          type: "Redis",
-          host: "upstash.io",
-          freeLimit: "10K commands/day, 256MB storage",
-          configured: Boolean(process.env.UPSTASH_REDIS_URL || process.env.REDIS_URL),
-          keyCount: upstashKeyCount,
-          keys: upstashKeys,
-          syncStats: (syncStatus && syncStatus.stats && syncStatus.stats["Upstash KV"]) ? syncStatus.stats["Upstash KV"] : null,
-          error: upstashError,
-          enabled: switchUpstash,
-        },
-      ];
+      var databases = [];
+      var allDbs = dbRegistry.getAllDatabases();
+      for (var di = 0; di < allDbs.length; di++) {
+        var dbDef = allDbs[di];
+        var isPrimary = dbProvider === dbDef.id;
+        var dbRole = dbDef.type === "redis" ? "tertiary" : (isPrimary ? "primary" : "standby");
+        var dbEntry = {
+          id: dbDef.id,
+          name: dbDef.name,
+          role: dbRole,
+          type: dbDef.type === "redis" ? "Redis" : "PostgreSQL",
+          host: dbDef.host || "-",
+          freeLimit: dbDef.freeLimit || "",
+          configured: dbDef.type === "redis"
+            ? Boolean(process.env[dbDef.urlEnv] && process.env[dbDef.tokenEnv])
+            : Boolean(process.env[dbDef.urlEnv]),
+          enabled: allSwitches[dbDef.id] || "on",
+        };
+
+        if (dbDef.type === "redis") {
+          dbEntry.keyCount = upstashKeyCount;
+          dbEntry.keys = upstashKeys;
+          dbEntry.syncStats = (syncStatus && syncStatus.stats && syncStatus.stats[dbDef.name]) ? syncStatus.stats[dbDef.name] : null;
+          dbEntry.error = upstashError;
+        } else {
+          dbEntry.tableCount = isPrimary ? primaryTableCount : (otherDbName === dbDef.name ? otherDbTableCount : 0);
+          dbEntry.totalRows = isPrimary ? primaryTotalRows : (otherDbName === dbDef.name ? otherDbTotalRows : 0);
+          dbEntry.tables = isPrimary ? primaryTables : (otherDbName === dbDef.name ? (otherDbTables || []) : []);
+          dbEntry.error = isPrimary ? "" : (otherDbName === dbDef.name ? otherDbError : "");
+        }
+        databases.push(dbEntry);
+      }
 
       return res.json({
         success: true,
         generatedAt: new Date().toISOString(),
         currentProvider: dbProvider || "auto",
-        currentDatabase: dbProvider === "supabase" ? "Supabase" : (dbProvider === "neon" ? "Neon" : "Auto-detected"),
+        currentDatabase: providerDb ? providerDb.name : "Auto-detected",
         dbDiagnostics: {
           primaryUrl: (process.env.Ev_POSTGRES_URL || process.env.POSTGRES_URL || "").replace(/\/\/.*@/, "//***@"),
           primaryResolved: (typeof pg === "object" && pg.connectionString) ? pg.connectionString.replace(/\/\/.*@/, "//***@") : "unknown",
           otherDbUrl: otherDbUrl.replace(/\/\/.*@/, "//***@"),
-          otherDbSkipped: (!otherDbUrl || otherDbUrl === (process.env.Ev_POSTGRES_URL || process.env.Ev_POSTGRES_URL_NON_POOLING || "")) ? "same as primary" : null,
+          otherDbSkipped: (!otherDbUrl) ? "no other database configured" : null,
         },
         dbSizeBytes: dbSizeBytes,
         dbSizeMB: (dbSizeBytes / (1024 * 1024)).toFixed(2),
@@ -1565,13 +1559,9 @@ module.exports = async (req, res) => {
         },
         syncLogs: syncLogsList,
         databases: databases,
-        dbSwitches: {
-          supabase: switchSupabase,
-          neon: switchNeon,
-          upstash: switchUpstash,
-          enabledPgCount: enabledPgCount,
-          enabledTotal: enabledTotal,
-        },
+        dbSwitches: allSwitches,
+        enabledPgCount: enabledPgCount,
+        enabledTotal: enabledTotal,
       });
     } catch (e) {
       console.error("dbstatus error:", e);
@@ -1614,14 +1604,10 @@ module.exports = async (req, res) => {
       var primaryFromRedis2 = dbSwitches.getPrimary();
       var dbProvider2 = primaryFromRedis2 || String(process.env.DB_PROVIDER || "auto").trim();
 
-      var neonUrl = process.env.POSTGRES_URL ||
-        process.env.POSTGRES_PRISMA_URL ||
-        process.env.DATABASE_URL || "";
-
-      var supabaseUrl = process.env.Ev_POSTGRES_URL ||
-        process.env.Ev_POSTGRES_URL_NON_POOLING ||
-        process.env.SUPABASE_POSTGRES_URL ||
-        process.env.Ev_POSTGRES_PRISMA_URL || "";
+      var supabaseDb = dbRegistry.getDatabase("supabase");
+      var neonDb = dbRegistry.getDatabase("neon");
+      var supabaseUrl = supabaseDb ? dbRegistry.getDatabaseUrl("supabase") || "" : "";
+      var neonUrl = neonDb ? dbRegistry.getDatabaseUrl("neon") || "" : "";
 
       if (supabaseUrl) {
         supabaseUrl = supabaseUrl.replace(/&supa=base-pooler\.x/, "").replace(/\?sslmode=require/, "?sslmode=verify-full");
@@ -1645,7 +1631,8 @@ module.exports = async (req, res) => {
         sourcePg = new Pool({ connectionString: sourceUrl, max: 3, connectionTimeoutMillis: 10000, ssl: { rejectUnauthorized: false } });
       }
 
-      var doPgSync = !syncTarget || syncTarget === "all" || syncTarget === "neon" || syncTarget === "supabase";
+      var pgDbIds = dbRegistry.getPostgresDatabases().map(function(db) { return db.id; });
+      var doPgSync = !syncTarget || syncTarget === "all" || pgDbIds.indexOf(syncTarget) !== -1;
       if (doPgSync && targetPgUrl && targetPgUrl !== sourceUrl) {
         targetPg = new Pool({ connectionString: targetPgUrl, max: 3, connectionTimeoutMillis: 10000, ssl: { rejectUnauthorized: false } });
 
@@ -1736,19 +1723,18 @@ module.exports = async (req, res) => {
           console.warn("orphan cleanup error:", e.message);
         }
 
-        results.targets.push(dbProvider2 === "supabase" ? "Neon" : "Supabase");
-        results.stats[dbProvider2 === "supabase" ? "Neon" : "Supabase"] = syncStats;
+        var targetDbName = dbProvider2 === "supabase" ? (neonDb ? neonDb.name : "Neon") : (supabaseDb ? supabaseDb.name : "Supabase");
+        results.targets.push(targetDbName);
+        results.stats[targetDbName] = syncStats;
         if (orphanCleanup.kv_strings > 0 || orphanCleanup.kv_sets > 0 || orphanCleanup.kv_zsets > 0 || orphanCleanup.kv_hashes > 0) {
           results.orphanCleanup = orphanCleanup;
         }
         await targetPg.end();
       }
 
-      var upstashUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "";
-      var upstashToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || process.env.REDIS_TOKEN || "";
-      if (!upstashUrl) {
-        upstashUrl = process.env.UPSTASH_REDIS_URL || process.env.REDIS_URL || "";
-      }
+      var upstashDb = dbRegistry.getDatabase("upstash");
+      var upstashUrl = upstashDb ? dbRegistry.getDatabaseUrl("upstash") || "" : "";
+      var upstashToken = upstashDb && upstashDb.tokenEnv ? (process.env[upstashDb.tokenEnv] || "") : "";
 
       var doUpstashSync = !syncTarget || syncTarget === "all" || syncTarget === "upstash";
       if (doUpstashSync && upstashUrl) {
@@ -1855,8 +1841,8 @@ module.exports = async (req, res) => {
           upstashStats.orphan_error = e.message;
         }
 
-        results.targets.push("Upstash KV");
-        results.stats["Upstash KV"] = upstashStats;
+        results.targets.push(upstashDb ? upstashDb.name : "Upstash KV");
+        results.stats[upstashDb ? upstashDb.name : "Upstash KV"] = upstashStats;
       }
 
       if (sourcePg) await sourcePg.end();
