@@ -8181,7 +8181,7 @@
       if (syncBtn) syncBtn.style.display = 'none';
       body.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto 12px"></div><p style="color:#6b7280">Switching primary database to ' + target.dbName + '...</p></div>';
 
-      fetch('/api/admin/switch-db', {
+      fetch('/api/admin/health?section=switch-db', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

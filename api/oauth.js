@@ -1,9 +1,11 @@
+var crypto = require("crypto");
 var https = require("https");
-var { sign, parseCookies } = require("../../lib/auth");
+var { sign, parseCookies } = require("../lib/auth");
 
 var VERCEL_OAUTH_CLIENT_ID = process.env.VERCEL_OAUTH_CLIENT_ID || "";
 var VERCEL_OAUTH_CLIENT_SECRET = process.env.VERCEL_OAUTH_CLIENT_SECRET || "";
 var ADMIN_EMAIL = process.env.ADMIN_EMAIL || "guomengtao@gmail.com";
+var REDIRECT_URI = "https://app-auth.gudq.com/api/oauth/callback";
 
 function postForm(url, body) {
   return new Promise(function (resolve, reject) {
@@ -65,9 +67,7 @@ function getJson(url, token) {
   });
 }
 
-var REDIRECT_URI = "https://app-auth.gudq.com/api/oauth/callback";
-
-module.exports = async function (req, res) {
+async function handleCallback(req, res) {
   var code = req.query && req.query.code;
   var error = req.query && req.query.error;
 
@@ -142,4 +142,47 @@ module.exports = async function (req, res) {
     res.writeHead(302, { Location: "/login_aXs12.html?error=oauth_error" });
     res.end();
   }
+}
+
+function handleLogin(req, res) {
+  var clientId = VERCEL_OAUTH_CLIENT_ID;
+
+  if (!clientId) {
+    res.writeHead(302, { Location: "/login_aXs12.html?error=oauth_not_configured" });
+    return res.end();
+  }
+
+  var state = crypto.randomBytes(16).toString("hex");
+
+  var codeVerifier = crypto.randomBytes(32).toString("base64url");
+  var codeChallenge = crypto.createHash("sha256").update(codeVerifier).digest("base64url");
+
+  var params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: REDIRECT_URI,
+    response_type: "code",
+    scope: "openid email profile",
+    state: state,
+    code_challenge: codeChallenge,
+    code_challenge_method: "S256"
+  });
+
+  var authorizeUrl = "https://vercel.com/oauth/authorize?" + params.toString();
+
+  res.writeHead(302, {
+    Location: authorizeUrl,
+    "Set-Cookie": "oauth_code_verifier=" + codeVerifier + "; Path=/api/oauth; HttpOnly; Secure; SameSite=Lax; Max-Age=600"
+  });
+  res.end();
+}
+
+module.exports = async function (req, res) {
+  var code = req.query && req.query.code;
+  var error = req.query && req.query.error;
+
+  if (code || error) {
+    return handleCallback(req, res);
+  }
+
+  return handleLogin(req, res);
 };

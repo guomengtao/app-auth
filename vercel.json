@@ -2,6 +2,10 @@
   "rewrites": [
     { "source": "/", "destination": "/index.html" }
   ],
+  "redirects": [
+    { "source": "/api/oauth/login", "destination": "/api/oauth", "permanent": false },
+    { "source": "/api/oauth/callback", "destination": "/api/oauth", "permanent": false }
+  ],
   "crons": [
     {
       "path": "/api/afdian/query-orders",
