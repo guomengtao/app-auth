@@ -1293,7 +1293,7 @@ module.exports = async (req, res) => {
         }
         otherDbName = "Supabase";
       }
-      if (otherDbUrl && otherDbUrl !== (process.env.POSTGRES_URL || "")) {
+      if (otherDbUrl && otherDbUrl !== (process.env.Ev_POSTGRES_URL || process.env.Ev_POSTGRES_URL_NON_POOLING || "")) {
         if (!pgSync) {
           otherDbError = "pg module not available";
         } else {
@@ -1475,17 +1475,29 @@ module.exports = async (req, res) => {
 
       var Pool = pgSync.Pool;
 
-      var sourceUrl = process.env.POSTGRES_URL ||
-        process.env.POSTGRES_PRISMA_URL ||
-        process.env.DATABASE_URL;
+      var dbProvider2 = String(process.env.DB_PROVIDER || "auto").trim();
 
-      var targetUrl = process.env.Ev_POSTGRES_URL ||
+      var neonUrl = process.env.POSTGRES_URL ||
+        process.env.POSTGRES_PRISMA_URL ||
+        process.env.DATABASE_URL || "";
+
+      var supabaseUrl = process.env.Ev_POSTGRES_URL ||
         process.env.Ev_POSTGRES_URL_NON_POOLING ||
         process.env.SUPABASE_POSTGRES_URL ||
-        process.env.Ev_POSTGRES_PRISMA_URL;
+        process.env.Ev_POSTGRES_PRISMA_URL || "";
 
-      if (targetUrl) {
-        targetUrl = targetUrl.replace(/&supa=base-pooler\.x/, "").replace(/\?sslmode=require/, "?sslmode=verify-full");
+      if (supabaseUrl) {
+        supabaseUrl = supabaseUrl.replace(/&supa=base-pooler\.x/, "").replace(/\?sslmode=require/, "?sslmode=verify-full");
+      }
+
+      var sourceUrl = "";
+      var targetPgUrl = "";
+      if (dbProvider2 === "supabase") {
+        sourceUrl = supabaseUrl;
+        targetPgUrl = neonUrl;
+      } else {
+        sourceUrl = neonUrl;
+        targetPgUrl = supabaseUrl;
       }
 
       var sourcePg = null;
@@ -1496,8 +1508,8 @@ module.exports = async (req, res) => {
         sourcePg = new Pool({ connectionString: sourceUrl, max: 3, connectionTimeoutMillis: 10000, ssl: { rejectUnauthorized: false } });
       }
 
-      if (targetUrl && targetUrl !== sourceUrl) {
-        targetPg = new Pool({ connectionString: targetUrl, max: 3, connectionTimeoutMillis: 10000, ssl: { rejectUnauthorized: false } });
+      if (targetPgUrl && targetPgUrl !== sourceUrl) {
+        targetPg = new Pool({ connectionString: targetPgUrl, max: 3, connectionTimeoutMillis: 10000, ssl: { rejectUnauthorized: false } });
 
         await targetPg.query(`
           CREATE TABLE IF NOT EXISTS kv_strings (
