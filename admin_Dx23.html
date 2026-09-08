@@ -4163,6 +4163,7 @@
       </div>
       <div class="actions" id="verifySwitchActions" style="display:none;margin-top:16px">
         <button class="btn btn-outline" onclick="closeVerifySwitchModal()">Cancel</button>
+        <button class="btn btn-primary" id="btnSyncNow" onclick="syncFromVerifyModal()" style="display:none">🔄 Sync Now</button>
         <button class="btn btn-danger" id="btnConfirmSwitch" onclick="confirmDbSwitch()" style="display:none">Confirm Switch</button>
       </div>
     </div>
@@ -8023,10 +8024,12 @@
     }
 
     var pendingSwitchTarget = null;
+    var pendingSyncTarget = null;
 
     function closeVerifySwitchModal() {
       document.getElementById('verifySwitchModal').classList.remove('show');
       pendingSwitchTarget = null;
+      pendingSyncTarget = null;
     }
 
     async function verifyDbSwitch(dbKey, dbName) {
@@ -8035,12 +8038,14 @@
       var actions = document.getElementById('verifySwitchActions');
       var title = document.getElementById('verifySwitchTitle');
       var confirmBtn = document.getElementById('btnConfirmSwitch');
+      var syncBtn = document.getElementById('btnSyncNow');
 
       modal.classList.add('show');
       title.textContent = 'Database Verification: Switch to ' + dbName;
-      body.innerHTML = '<div style="text-align:center;padding:20px"><div class="modal-spinner" style="margin:0 auto 12px"></div><p style="color:#6b7280">Comparing ' + dbName + ' with current primary database...</p></div>';
+      body.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto 12px"></div><p style="color:#6b7280">Comparing ' + dbName + ' with current primary database...</p></div>';
       actions.style.display = 'none';
       confirmBtn.style.display = 'none';
+      syncBtn.style.display = 'none';
 
       try {
         var res = await fetch('/api/admin/health?section=verify-switch&target=' + encodeURIComponent(dbKey), {
@@ -8109,11 +8114,16 @@
 
         if (data.canSwitch) {
           confirmBtn.style.display = '';
+          syncBtn.style.display = 'none';
           pendingSwitchTarget = { dbKey: dbKey, dbName: dbName };
+          pendingSyncTarget = null;
           confirmBtn.textContent = 'Switch to ' + dbName + ' as Primary';
         } else {
           confirmBtn.style.display = 'none';
+          syncBtn.style.display = '';
           pendingSwitchTarget = null;
+          pendingSyncTarget = { dbKey: dbKey, dbName: dbName };
+          syncBtn.textContent = '🔄 Sync from ' + (data.primary && data.primary.name ? data.primary.name : 'primary') + ' to ' + dbName;
         }
         actions.style.display = 'flex';
 
@@ -8127,6 +8137,50 @@
       if (!pendingSwitchTarget) return;
       showToast('Primary database switch is not yet implemented (Phase 3). Data verification passed for ' + pendingSwitchTarget.dbName + '.', 'info');
       closeVerifySwitchModal();
+    }
+
+    async function syncFromVerifyModal() {
+      if (!pendingSyncTarget) return;
+
+      var target = pendingSyncTarget;
+      var body = document.getElementById('verifySwitchBody');
+      var actions = document.getElementById('verifySwitchActions');
+      var syncBtn = document.getElementById('btnSyncNow');
+      var confirmBtn = document.getElementById('btnConfirmSwitch');
+      var cancelBtn = actions ? actions.querySelector('.btn-outline') : null;
+
+      if (syncBtn) syncBtn.disabled = true;
+      if (cancelBtn) cancelBtn.disabled = true;
+      if (actions) actions.style.display = 'flex';
+
+      body.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto 12px"></div><p style="color:#6b7280">Syncing from ' + (target.dbKey === 'neon' ? 'current primary' : 'current primary') + ' to ' + target.dbName + '...</p><p style="font-size:0.75rem;color:#9ca3af;margin-top:4px">This may take a moment</p></div>';
+
+      try {
+        var syncUrl = '/api/admin/health?section=sync';
+        if (target.dbKey !== 'all') {
+          syncUrl += '&target=' + encodeURIComponent(target.dbKey);
+        }
+
+        var res = await fetch(syncUrl, { credentials: 'include' });
+        var data = await res.json();
+
+        if (data && data.success) {
+          showToast('Sync to ' + target.dbName + ' completed successfully', 'success');
+          body.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto 12px"></div><p style="color:#6b7280">Sync complete. Re-verifying...</p></div>';
+          if (actions) actions.style.display = 'none';
+          setTimeout(function() {
+            verifyDbSwitch(target.dbKey, target.dbName);
+          }, 500);
+        } else {
+          throw new Error(data && data.error ? data.error : 'Sync failed');
+        }
+      } catch (e) {
+        body.innerHTML = '<div style="text-align:center;padding:20px"><p style="color:#dc2626;font-size:1.1rem">Sync Failed</p><p style="color:#6b7280">' + escapeHtml(e.message || 'Network error') + '</p></div>';
+        if (syncBtn) { syncBtn.disabled = false; syncBtn.style.display = ''; }
+        if (cancelBtn) cancelBtn.disabled = false;
+        if (confirmBtn) confirmBtn.style.display = 'none';
+        if (actions) actions.style.display = 'flex';
+      }
     }
 
     // ========== Direct Activate ==========
