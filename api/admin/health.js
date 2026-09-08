@@ -1813,6 +1813,45 @@ module.exports = async (req, res) => {
           }
         } catch (e) { upstashStats.errors++; }
 
+        try {
+          var allUpstashKeys = [];
+          var cursor = 0;
+          var rounds = 0;
+          do {
+            var scanUrl = baseUrl + "/scan/" + cursor;
+            var scanResp = await fetch(scanUrl, fetchOpts);
+            var scanData = await scanResp.json();
+            cursor = scanData.result[0];
+            var batch = scanData.result[1] || [];
+            for (var bi = 0; bi < batch.length; bi++) {
+              allUpstashKeys.push(batch[bi]);
+            }
+            rounds++;
+          } while (cursor !== 0 && rounds < 100);
+
+          var pgKeys = new Set();
+          var allPgRows = await sourcePg.query("SELECT key FROM kv_strings UNION SELECT key FROM kv_hashes UNION SELECT key FROM kv_sets UNION SELECT key FROM kv_zsets");
+          for (var pi = 0; pi < allPgRows.rows.length; pi++) {
+            pgKeys.add(allPgRows.rows[pi].key);
+          }
+
+          var orphanCount = 0;
+          for (var uki = 0; uki < allUpstashKeys.length; uki++) {
+            var uk = allUpstashKeys[uki];
+            if (uk.indexOf("auth:db:") === 0 || uk.indexOf("auth:cron:") === 0) continue;
+            if (!pgKeys.has(uk)) {
+              try {
+                var delUrl = baseUrl + "/del/" + encodeURIComponent(uk);
+                await fetch(delUrl, fetchOpts);
+                orphanCount++;
+              } catch (e) {}
+            }
+          }
+          upstashStats.orphans_cleaned = orphanCount;
+        } catch (e) {
+          upstashStats.orphan_error = e.message;
+        }
+
         results.targets.push("Upstash KV");
         results.stats["Upstash KV"] = upstashStats;
       }
