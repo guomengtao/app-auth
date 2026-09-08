@@ -1264,6 +1264,31 @@
       justify-content: flex-end;
       margin-top: 22px;
     }
+    .modal-spinner {
+      display: inline-block;
+      width: 24px;
+      height: 24px;
+      border: 3px solid rgba(0,0,0,0.1);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+    .verify-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 0;
+    }
+    .verify-row .icon { font-size: 1.1rem; }
+    .verify-pass { color: #059669; }
+    .verify-fail { color: #dc2626; }
+    .verify-card {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 12px;
+      margin: 8px 0;
+    }
     .export-cols {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -4123,6 +4148,22 @@
       <div class="actions">
         <button class="btn btn-outline" onclick="closeExportModal()">取消</button>
         <button class="btn btn-primary" onclick="confirmExportCsv()">确认导出</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="verifySwitchModal">
+    <div class="modal" style="max-width:520px">
+      <h3 id="verifySwitchTitle">🔍 Database Verification</h3>
+      <div id="verifySwitchBody" style="font-size:0.85rem;line-height:1.6">
+        <div style="text-align:center;padding:20px">
+          <div class="spinner" style="margin:0 auto 12px"></div>
+          <p style="color:#6b7280">Comparing databases...</p>
+        </div>
+      </div>
+      <div class="actions" id="verifySwitchActions" style="display:none;margin-top:16px">
+        <button class="btn btn-outline" onclick="closeVerifySwitchModal()">Cancel</button>
+        <button class="btn btn-danger" id="btnConfirmSwitch" onclick="confirmDbSwitch()" style="display:none">Confirm Switch</button>
       </div>
     </div>
   </div>
@@ -7852,6 +7893,13 @@
               '<span class="toggle-slider" style="border-radius:20px"></span>' +
               '</label>' +
               '</div>';
+            if (db.role !== 'primary') {
+              html += '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">' +
+                '<button class="btn btn-outline" style="width:100%;font-size:0.8rem;padding:6px 12px" onclick="verifyDbSwitch(\'' + dbSwitchKey + '\', \'' + escapeHtml(db.name) + '\')">' +
+                '🔄 Switch to Primary' +
+                '</button>' +
+                '</div>';
+            }
             html += '</div>';
           });
           compareEl.innerHTML = html;
@@ -7972,6 +8020,113 @@
         showToast('操作失败: ' + (e.message || '网络错误'), 'error');
         loadDatabaseStatus();
       }
+    }
+
+    var pendingSwitchTarget = null;
+
+    function closeVerifySwitchModal() {
+      document.getElementById('verifySwitchModal').classList.remove('show');
+      pendingSwitchTarget = null;
+    }
+
+    async function verifyDbSwitch(dbKey, dbName) {
+      var modal = document.getElementById('verifySwitchModal');
+      var body = document.getElementById('verifySwitchBody');
+      var actions = document.getElementById('verifySwitchActions');
+      var title = document.getElementById('verifySwitchTitle');
+      var confirmBtn = document.getElementById('btnConfirmSwitch');
+
+      modal.classList.add('show');
+      title.textContent = 'Database Verification: Switch to ' + dbName;
+      body.innerHTML = '<div style="text-align:center;padding:20px"><div class="modal-spinner" style="margin:0 auto 12px"></div><p style="color:#6b7280">Comparing ' + dbName + ' with current primary database...</p></div>';
+      actions.style.display = 'none';
+      confirmBtn.style.display = 'none';
+
+      try {
+        var res = await fetch('/api/admin/health?section=verify-switch&target=' + encodeURIComponent(dbKey), {
+          credentials: 'include'
+        });
+        var data = await res.json();
+
+        if (!data.success) {
+          body.innerHTML = '<div style="text-align:center;padding:20px"><p style="color:#dc2626;font-size:1.1rem">Verification Failed</p><p style="color:#6b7280">' + escapeHtml(data.error || 'Unknown error') + '</p></div>';
+          actions.style.display = 'flex';
+          return;
+        }
+
+        var primary = data.primary || {};
+        var target = data.target || {};
+        var comp = data.comparison || {};
+        var sync = data.sync || {};
+        var primaryStats = primary.stats || {};
+        var targetStats = target.stats || {};
+
+        var html = '';
+
+        if (data.canSwitch) {
+          html += '<div style="text-align:center;padding:8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;margin-bottom:12px">';
+          html += '<span style="font-size:1.1rem;font-weight:700;color:#059669">Data is consistent</span>';
+          html += '<p style="font-size:0.8rem;color:#6b7280;margin-top:4px">' + escapeHtml(data.suggestion) + '</p>';
+          html += '</div>';
+        } else {
+          html += '<div style="text-align:center;padding:8px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;margin-bottom:12px">';
+          html += '<span style="font-size:1.1rem;font-weight:700;color:#dc2626">Data Mismatch</span>';
+          html += '<p style="font-size:0.8rem;color:#6b7280;margin-top:4px">' + escapeHtml(data.reason) + '</p>';
+          html += '<p style="font-size:0.8rem;color:#6b7280;margin-top:2px"><strong>Suggestion:</strong> ' + escapeHtml(data.suggestion) + '</p>';
+          html += '</div>';
+        }
+
+        html += '<div class="verify-card">';
+        html += '<div style="font-weight:600;margin-bottom:6px">Primary: ' + escapeHtml(primary.name) + '</div>';
+        html += '<div class="verify-row"><span class="icon">' + (primary.hasError ? '❌' : '✅') + '</span> Keys: <strong>' + Number(primaryStats.keys || 0).toLocaleString() + '</strong> | Records: <strong>' + Number(primaryStats.totalRecords || 0).toLocaleString() + '</strong></div>';
+        if (primaryStats.strings > 0) {
+          html += '<div style="font-size:0.78rem;color:#6b7280;margin-left:28px">strings: ' + primaryStats.strings + ' | hashes: ' + primaryStats.hashes + ' | sets: ' + primaryStats.sets + ' | zsets: ' + primaryStats.zsets + '</div>';
+        }
+        if (primary.hasError) {
+          html += '<div class="verify-row"><span class="icon verify-fail">⚠️</span> <span style="color:#dc2626;font-size:0.78rem">' + escapeHtml(primaryStats.error) + '</span></div>';
+        }
+        html += '</div>';
+
+        html += '<div class="verify-card">';
+        html += '<div style="font-weight:600;margin-bottom:6px">Target: ' + escapeHtml(target.name) + '</div>';
+        html += '<div class="verify-row"><span class="icon">' + (target.hasError ? '❌' : '✅') + '</span> Keys: <strong>' + Number(targetStats.keys || 0).toLocaleString() + '</strong> | Records: <strong>' + Number(targetStats.totalRecords || 0).toLocaleString() + '</strong></div>';
+        if (targetStats.strings > 0) {
+          html += '<div style="font-size:0.78rem;color:#6b7280;margin-left:28px">strings: ' + targetStats.strings + ' | hashes: ' + targetStats.hashes + ' | sets: ' + targetStats.sets + ' | zsets: ' + targetStats.zsets + '</div>';
+        }
+        if (target.hasError) {
+          html += '<div class="verify-row"><span class="icon verify-fail">⚠️</span> <span style="color:#dc2626;font-size:0.78rem">' + escapeHtml(targetStats.error) + '</span></div>';
+        }
+        html += '</div>';
+
+        html += '<div class="verify-card" style="background:#fff">';
+        html += '<div style="font-weight:600;margin-bottom:6px">Comparison Results</div>';
+        html += '<div class="verify-row"><span class="icon ' + (comp.keyCountMatch ? 'verify-pass' : 'verify-fail') + '">' + (comp.keyCountMatch ? '✅' : '❌') + '</span> Key Count: ' + comp.primaryKeys + ' vs ' + comp.targetKeys + ' (diff: ' + (comp.keyDiff > 0 ? '+' : '') + comp.keyDiff + ')</div>';
+        html += '<div class="verify-row"><span class="icon ' + (comp.fingerprintMatch ? 'verify-pass' : 'verify-fail') + '">' + (comp.fingerprintMatch ? '✅' : '❌') + '</span> Fingerprint: ' + (comp.fingerprintMatch ? 'Match' : 'Mismatch') + '</div>';
+        html += '<div class="verify-row"><span class="icon ' + (sync.recentlySynced ? 'verify-pass' : 'verify-fail') + '">' + (sync.recentlySynced ? '✅' : '⚠️') + '</span> Last Sync: ' + (sync.lastSyncAt ? escapeHtml(sync.lastSyncAt) : 'Never') + (sync.recentlySynced ? ' (recent)' : '') + '</div>';
+        html += '</div>';
+
+        body.innerHTML = html;
+
+        if (data.canSwitch) {
+          confirmBtn.style.display = '';
+          pendingSwitchTarget = { dbKey: dbKey, dbName: dbName };
+          confirmBtn.textContent = 'Switch to ' + dbName + ' as Primary';
+        } else {
+          confirmBtn.style.display = 'none';
+          pendingSwitchTarget = null;
+        }
+        actions.style.display = 'flex';
+
+      } catch (e) {
+        body.innerHTML = '<div style="text-align:center;padding:20px"><p style="color:#dc2626;font-size:1.1rem">Verification Error</p><p style="color:#6b7280">' + escapeHtml(e.message || 'Network error') + '</p></div>';
+        actions.style.display = 'flex';
+      }
+    }
+
+    function confirmDbSwitch() {
+      if (!pendingSwitchTarget) return;
+      showToast('Primary database switch is not yet implemented (Phase 3). Data verification passed for ' + pendingSwitchTarget.dbName + '.', 'info');
+      closeVerifySwitchModal();
     }
 
     // ========== Direct Activate ==========
