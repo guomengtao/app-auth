@@ -888,12 +888,26 @@ module.exports = async (req, res) => {
         activations_total: await redis.scard("auth:activation_codes"),
       };
 
+      var syncLogs = [];
+      try {
+        var rawSyncLogs = await redis.lrange("db:sync_logs", 0, 19);
+        for (var sl = 0; sl < rawSyncLogs.length; sl++) {
+          try {
+            var entry = JSON.parse(rawSyncLogs[sl]);
+            syncLogs.push(entry);
+          } catch (_) {}
+        }
+      } catch (e) {
+        console.warn("health logs: syncLogs fetch failed:", e.message);
+      }
+
       return res.json({
         success: true,
         generatedAt: new Date().toISOString(),
         activations: activations,
         redeemCodes: codes,
         messages: pgMessages,
+        syncLogs: syncLogs,
         counters: counters,
         env: {
           node: process.version,
@@ -1212,6 +1226,14 @@ module.exports = async (req, res) => {
         syncStatus = null;
       }
 
+      var syncLogsList = [];
+      try {
+        var rawSyncLogs = await redis.lrange("db:sync_logs", 0, 4);
+        for (var sli = 0; sli < rawSyncLogs.length; sli++) {
+          try { syncLogsList.push(JSON.parse(rawSyncLogs[sli])); } catch (_) {}
+        }
+      } catch (e) { console.warn("dbstatus: syncLogs fetch failed:", e.message); }
+
       var lastDbActivity = null;
       var daysSinceLastActivity = null;
       var pausedInDays = null;
@@ -1436,6 +1458,7 @@ module.exports = async (req, res) => {
           updateCount: 0,
           lastSyncType: null,
         },
+        syncLogs: syncLogsList,
         databases: databases,
       });
     } catch (e) {
@@ -1559,41 +1582,81 @@ module.exports = async (req, res) => {
           }
         }
 
-        results.targets.push("Supabase");
-        results.stats.Supabase = syncStats;
+        results.targets.push(dbProvider2 === "supabase" ? "Neon" : "Supabase");
+        results.stats[dbProvider2 === "supabase" ? "Neon" : "Supabase"] = syncStats;
         await targetPg.end();
       }
 
-      var upstashUrl = process.env.UPSTASH_REDIS_URL ||
-        process.env.UPSTASH_REDIS_REST_URL ||
-        process.env.REDIS_URL;
-      var upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.REDIS_TOKEN || "";
+      var upstashUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "";
+      var upstashToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || process.env.REDIS_TOKEN || "";
+      if (!upstashUrl) {
+        upstashUrl = process.env.UPSTASH_REDIS_URL || process.env.REDIS_URL || "";
+      }
 
       if (upstashUrl) {
-        var upstashStats = { keys: 0, errors: 0 };
+        var upstashStats = { strings: 0, hashes: 0, sets: 0, zsets: 0, errors: 0 };
+        var baseUrl = upstashUrl.replace(/\/$/, "");
+        var fetchOpts = { method: "GET" };
+        if (upstashToken) { fetchOpts.headers = { Authorization: "Bearer " + upstashToken }; }
+
         try {
-          var kvRows = await sourcePg.query("SELECT key, value FROM kv_strings");
-          for (var ui = 0; ui < kvRows.rows.length; ui++) {
-            var kr = kvRows.rows[ui];
+          var strRows = await sourcePg.query("SELECT key, value FROM kv_strings");
+          for (var ui = 0; ui < strRows.rows.length; ui++) {
+            var kr = strRows.rows[ui];
             try {
-              var fetchUrl = upstashUrl.replace(/\/$/, "") + "/set/" + encodeURIComponent(kr.key) + "/" + encodeURIComponent(kr.value || "");
-              var fetchOpts = { method: "GET" };
-              if (upstashToken) {
-                fetchOpts.headers = { Authorization: "Bearer " + upstashToken };
-              }
-              var fetchResp = await fetch(fetchUrl, fetchOpts);
-              if (fetchResp.ok) {
-                upstashStats.keys++;
-              } else {
-                upstashStats.errors++;
-              }
-            } catch (e) {
-              upstashStats.errors++;
+              var setUrl = baseUrl + "/set/" + encodeURIComponent(kr.key) + "/" + encodeURIComponent(kr.value || "");
+              var setResp = await fetch(setUrl, fetchOpts);
+              if (setResp.ok) { upstashStats.strings++; } else { upstashStats.errors++; }
+            } catch (e) { upstashStats.errors++; }
+          }
+        } catch (e) { upstashStats.errors++; }
+
+        try {
+          var hashRows = await sourcePg.query("SELECT key, field, value FROM kv_hashes");
+          var hashBatches = {};
+          for (var hi = 0; hi < hashRows.rows.length; hi++) {
+            var hr = hashRows.rows[hi];
+            if (!hashBatches[hr.key]) hashBatches[hr.key] = [];
+            hashBatches[hr.key].push(hr);
+          }
+          var hashKeys = Object.keys(hashBatches);
+          for (var hk = 0; hk < hashKeys.length; hk++) {
+            var hkey = hashKeys[hk];
+            var fields = hashBatches[hkey];
+            for (var hf = 0; hf < fields.length; hf++) {
+              try {
+                var hsetUrl = baseUrl + "/hset/" + encodeURIComponent(hkey) + "/" + encodeURIComponent(fields[hf].field) + "/" + encodeURIComponent(fields[hf].value || "");
+                var hsetResp = await fetch(hsetUrl, fetchOpts);
+                if (hsetResp.ok) { upstashStats.hashes++; } else { upstashStats.errors++; }
+              } catch (e) { upstashStats.errors++; }
             }
           }
-        } catch (e) {
-          upstashStats.errors++;
-        }
+        } catch (e) { upstashStats.errors++; }
+
+        try {
+          var setRows = await sourcePg.query("SELECT key, member FROM kv_sets");
+          for (var si2 = 0; si2 < setRows.rows.length; si2++) {
+            var sr = setRows.rows[si2];
+            try {
+              var saddUrl = baseUrl + "/sadd/" + encodeURIComponent(sr.key) + "/" + encodeURIComponent(sr.member || "");
+              var saddResp = await fetch(saddUrl, fetchOpts);
+              if (saddResp.ok) { upstashStats.sets++; } else { upstashStats.errors++; }
+            } catch (e) { upstashStats.errors++; }
+          }
+        } catch (e) { upstashStats.errors++; }
+
+        try {
+          var zsetRows = await sourcePg.query("SELECT key, member, score FROM kv_zsets");
+          for (var zi = 0; zi < zsetRows.rows.length; zi++) {
+            var zr = zsetRows.rows[zi];
+            try {
+              var zaddUrl = baseUrl + "/zadd/" + encodeURIComponent(zr.key) + "/" + encodeURIComponent(String(zr.score || 0)) + "/" + encodeURIComponent(zr.member || "");
+              var zaddResp = await fetch(zaddUrl, fetchOpts);
+              if (zaddResp.ok) { upstashStats.zsets++; } else { upstashStats.errors++; }
+            } catch (e) { upstashStats.errors++; }
+          }
+        } catch (e) { upstashStats.errors++; }
+
         results.targets.push("Upstash KV");
         results.stats["Upstash KV"] = upstashStats;
       }
@@ -1603,12 +1666,13 @@ module.exports = async (req, res) => {
       var now = new Date().toISOString();
       var existingStatus = null;
       try {
-        var mainPg = require("../../lib/postgres");
-        var statusRes = await mainPg.query("SELECT value FROM kv_strings WHERE key = $1", ["auth:db:sync_status"]);
-        if (statusRes && statusRes.rows && statusRes.rows.length > 0) {
-          existingStatus = JSON.parse(statusRes.rows[0].value);
+        var raw = await redis.get("auth:db:sync_status");
+        if (raw && typeof raw === "string") {
+          existingStatus = JSON.parse(raw);
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error("sync: read existing status error:", e.message);
+      }
 
       var updateCount = (existingStatus && existingStatus.updateCount ? existingStatus.updateCount : 0) + 1;
       var status = {
@@ -1621,12 +1685,25 @@ module.exports = async (req, res) => {
       };
 
       try {
-        var mainPg2 = require("../../lib/postgres");
-        await mainPg2.query(
-          "INSERT INTO kv_strings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
-          ["auth:db:sync_status", JSON.stringify(status)]
-        );
-      } catch (e) {}
+        await redis.set("auth:db:sync_status", JSON.stringify(status));
+      } catch (e) {
+        console.error("sync: write status error:", e.message);
+      }
+
+      try {
+        var logEntry = {
+          time: now,
+          updateCount: updateCount,
+          targets: results.targets,
+          stats: results.stats,
+          duration: Date.now() - syncStart,
+          trigger: isSyncCron ? "cron" : "manual",
+        };
+        await redis.lpush("db:sync_logs", JSON.stringify(logEntry));
+        await redis.ltrim("db:sync_logs", 0, 99);
+      } catch (e) {
+        console.error("sync: write log error:", e.message);
+      }
 
       if (isSyncCron) {
         await recordCronRun("db-sync-backup", {

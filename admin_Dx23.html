@@ -3336,6 +3336,7 @@
               <button class="logs-tab" onclick="switchLogsTab('email')" id="logsTabEmail" style="padding:8px 20px;border:none;background:none;font-size:0.84rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">📧 邮件日志</button>
               <button class="logs-tab" onclick="switchLogsTab('resend')" id="logsTabResend" style="padding:8px 20px;border:none;background:none;font-size:0.84rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">📬 Resend平台</button>
               <button class="logs-tab" onclick="switchLogsTab('afdian-dm')" id="logsTabAfdianDm" style="padding:8px 20px;border:none;background:none;font-size:0.84rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">💬 爱发电私信日志</button>
+              <button class="logs-tab" onclick="switchLogsTab('db-sync')" id="logsTabDbSync" style="padding:8px 20px;border:none;background:none;font-size:0.84rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">🔄 数据库同步日志</button>
             </div>
 
             <div id="logsSectionSystem">
@@ -3383,6 +3384,18 @@
                   <button class="btn btn-outline" onclick="loadAfdianDmLogs()" style="margin-left:6px">🔄 刷新</button>
                 </div>
                 <div id="afdianDmLogsList" class="health-log-list"></div>
+              </div>
+            </div>
+
+            <div id="logsSectionDbSync" style="display:none;">
+              <div class="setting-block">
+                <h3 class="setting-title">🔄 数据库同步日志</h3>
+                <p class="setting-desc">记录每次 Neon → Supabase / Upstash KV 数据同步的详细结果，包括同步目标、数据量、耗时。</p>
+                <div style="margin-bottom:10px">
+                  <button class="btn btn-primary" onclick="loadDbSyncLogs()">🔄 拉取同步日志</button>
+                  <button class="btn btn-outline" onclick="loadDbSyncLogs()" style="margin-left:6px">🔄 刷新</button>
+                </div>
+                <div id="dbSyncLogsList" class="health-log-list"></div>
               </div>
             </div>
           </div>
@@ -6236,6 +6249,80 @@
       }
     }
 
+    async function loadDbSyncLogs() {
+      var listEl = document.getElementById('dbSyncLogsList');
+      var timeEl = document.getElementById('logsTimeHint');
+      if (!listEl) return;
+      listEl.innerHTML = '<div class="empty">Loading...</div>';
+
+      try {
+        var data = await api('/api/admin/health?section=logs');
+        if (!data.success) {
+          listEl.innerHTML = '<div class="empty" style="text-align:left;color:#f59e0b;">⚠️ ' + escapeHtml(data.error || 'Sync logs unavailable') + '</div>';
+          showToast('Sync logs load failed', 'error');
+          return;
+        }
+
+        if (timeEl) timeEl.textContent = '🕐 ' + new Date().toLocaleString('zh-CN');
+
+        var logs = data.syncLogs || [];
+        if (!logs.length) {
+          listEl.innerHTML = '<div class="empty">No sync records yet. Click manual sync button in database settings to generate logs.</div>';
+          return;
+        }
+
+        var html = '';
+        for (var i = 0; i < logs.length; i++) {
+          var l = logs[i];
+          var timeStr = '';
+          if (l.time) {
+            try { timeStr = new Date(l.time).toLocaleString('zh-CN'); } catch (_) { timeStr = l.time; }
+          }
+          var triggerLabel = l.trigger === 'cron' ? '⏰ Cron' : '👆 Manual';
+          var triggerCls = l.trigger === 'cron' ? 'el-type-test' : 'el-type-activation';
+          var detailId = 'syncDetail' + i;
+          var duration = l.duration ? (l.duration / 1000).toFixed(1) + 's' : '?';
+
+          html += '<div class="el-row" onclick="toggleElDetail(\'' + detailId + '\', this)" style="cursor:pointer;user-select:none;">' +
+            '<span class="el-expand">▶</span>' +
+            '<span class="el-time">' + escapeHtml(timeStr) + '</span>' +
+            '<span class="el-type ' + triggerCls + '">' + triggerLabel + '</span>' +
+            '<span class="el-to">#' + (l.updateCount || 0) + '</span>' +
+            '<span class="el-subject">⏱ ' + duration + '</span>' +
+            '</div>';
+
+          html += '<div class="el-detail" id="' + detailId + '" style="display:none;">';
+          html += '<div class="el-detail-row"><span class="el-detail-key">Time</span><span class="el-detail-val">' + escapeHtml(timeStr) + '</span></div>';
+          html += '<div class="el-detail-row"><span class="el-detail-key">Trigger</span><span class="el-detail-val">' + triggerLabel + '</span></div>';
+          html += '<div class="el-detail-row"><span class="el-detail-key">Update #</span><span class="el-detail-val">' + (l.updateCount || 0) + '</span></div>';
+          html += '<div class="el-detail-row"><span class="el-detail-key">Duration</span><span class="el-detail-val">' + duration + '</span></div>';
+          html += '<div class="el-detail-row"><span class="el-detail-key">Targets</span><span class="el-detail-val">' + escapeHtml((l.targets || []).join(', ')) + '</span></div>';
+
+          if (l.stats) {
+            var targets = Object.keys(l.stats);
+            for (var ti = 0; ti < targets.length; ti++) {
+              var t = targets[ti];
+              var s = l.stats[t];
+              html += '<div class="el-detail-divider">' + escapeHtml(t) + '</div>';
+              var statKeys = Object.keys(s);
+              for (var sk = 0; sk < statKeys.length; sk++) {
+                var skey = statKeys[sk];
+                var sv = s[skey];
+                var icon = skey === 'errors' ? (sv > 0 ? '❌' : '✅') : '';
+                html += '<div class="el-detail-row"><span class="el-detail-key">' + escapeHtml(skey) + '</span><span class="el-detail-val">' + icon + ' ' + sv + '</span></div>';
+              }
+            }
+          }
+          html += '</div>';
+        }
+        listEl.innerHTML = html;
+        showToast('Sync logs loaded - ' + logs.length + ' records', 'success');
+      } catch (e) {
+        console.error('loadDbSyncLogs failed:', e);
+        listEl.innerHTML = '<div class="empty" style="color:#ef4444;">Load failed: ' + escapeHtml(e.message || '') + '</div>';
+      }
+    }
+
     function toggleElDetail(id, rowEl) {
       var detail = document.getElementById(id);
       if (!detail) return;
@@ -7090,13 +7177,15 @@
       var emailSection = document.getElementById('logsSectionEmail');
       var resendSection = document.getElementById('logsSectionResend');
       var dmSection = document.getElementById('logsSectionAfdianDm');
+      var syncSection = document.getElementById('logsSectionDbSync');
       var systemTab = document.getElementById('logsTabSystem');
       var emailTab = document.getElementById('logsTabEmail');
       var resendTab = document.getElementById('logsTabResend');
       var dmTab = document.getElementById('logsTabAfdianDm');
+      var syncTab = document.getElementById('logsTabDbSync');
 
-      var tabs = [systemTab, emailTab, resendTab, dmTab];
-      var sections = [systemSection, emailSection, resendSection, dmSection];
+      var tabs = [systemTab, emailTab, resendTab, dmTab, syncTab];
+      var sections = [systemSection, emailSection, resendSection, dmSection, syncSection];
       tabs.forEach(function(t) { if (t) { t.style.color = 'var(--muted)'; t.style.borderBottomColor = 'transparent'; t.classList.remove('active'); } });
       sections.forEach(function(s) { if (s) s.style.display = 'none'; });
 
@@ -7116,6 +7205,10 @@
         if (dmSection) dmSection.style.display = '';
         if (dmTab) { dmTab.style.color = 'var(--accent)'; dmTab.style.borderBottomColor = 'var(--accent)'; dmTab.classList.add('active'); }
         loadAfdianDmLogs();
+      } else if (tab === 'db-sync') {
+        if (syncSection) syncSection.style.display = '';
+        if (syncTab) { syncTab.style.color = 'var(--accent)'; syncTab.style.borderBottomColor = 'var(--accent)'; syncTab.classList.add('active'); }
+        loadDbSyncLogs();
       }
     }
 
@@ -7736,6 +7829,23 @@
               '<div><strong>同步类型：</strong><br>' + escapeHtml(ss.lastSyncType || '-') + (ss.targets ? ' (' + escapeHtml(ss.targets.join(', ')) + ')' : '') + '</div>' +
               '<div><strong>状态：</strong><br>' + escapeHtml(ss.message || '正常') + '</div>' +
               '</div>';
+
+            if (d.syncLogs && d.syncLogs.length > 0) {
+              syncEl.innerHTML += '<div style="margin-top:10px;border-top:1px solid #fde68a;padding-top:10px"><strong style="font-size:0.8rem">📋 最近同步日志：</strong></div>';
+              for (var sli = 0; sli < Math.min(d.syncLogs.length, 5); sli++) {
+                var sl = d.syncLogs[sli];
+                var slTime = '';
+                if (sl.time) { try { slTime = new Date(sl.time).toLocaleString('zh-CN'); } catch (_) { slTime = sl.time; } }
+                var slTrigger = sl.trigger === 'cron' ? '⏰' : '👆';
+                var slDuration = sl.duration ? (sl.duration / 1000).toFixed(1) + 's' : '?';
+                syncEl.innerHTML += '<div style="font-size:0.75rem;color:#6b7280;margin-top:4px;display:flex;gap:8px;flex-wrap:wrap">' +
+                  '<span>' + escapeHtml(slTime) + '</span>' +
+                  '<span>' + slTrigger + ' #' + (sl.updateCount || 0) + '</span>' +
+                  '<span>⏱ ' + slDuration + '</span>' +
+                  '<span>' + escapeHtml((sl.targets || []).join(', ')) + '</span>' +
+                  '</div>';
+              }
+            }
           } else {
             syncEl.innerHTML = '<div style="color:#9ca3af">尚未进行过数据同步。运行 <code>node scripts/setup-supabase.js</code> 执行 Neon → Supabase 数据同步。</div>';
           }
