@@ -1582,6 +1582,7 @@ module.exports = async (req, res) => {
   if (req.query && req.query.section === "sync") {
     var syncStart = Date.now();
     var isSyncCron = req.query.cron === "1";
+    var syncTarget = (req.query.target || "").toLowerCase();
 
     try {
       if (!pgSync) {
@@ -1640,7 +1641,8 @@ module.exports = async (req, res) => {
         sourcePg = new Pool({ connectionString: sourceUrl, max: 3, connectionTimeoutMillis: 10000, ssl: { rejectUnauthorized: false } });
       }
 
-      if (targetPgUrl && targetPgUrl !== sourceUrl) {
+      var doPgSync = !syncTarget || syncTarget === "all" || syncTarget === "neon" || syncTarget === "supabase";
+      if (doPgSync && targetPgUrl && targetPgUrl !== sourceUrl) {
         targetPg = new Pool({ connectionString: targetPgUrl, max: 3, connectionTimeoutMillis: 10000, ssl: { rejectUnauthorized: false } });
 
         await targetPg.query(`
@@ -1702,7 +1704,8 @@ module.exports = async (req, res) => {
         upstashUrl = process.env.UPSTASH_REDIS_URL || process.env.REDIS_URL || "";
       }
 
-      if (upstashUrl) {
+      var doUpstashSync = !syncTarget || syncTarget === "all" || syncTarget === "upstash";
+      if (doUpstashSync && upstashUrl) {
         var upstashStats = { strings: 0, hashes: 0, sets: 0, zsets: 0, errors: 0 };
         var baseUrl = upstashUrl.replace(/\/$/, "");
         var fetchOpts = { method: "GET" };

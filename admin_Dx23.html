@@ -3785,7 +3785,9 @@
                 <h3 class="setting-title">🔄 数据同步状态</h3>
                 <p class="setting-desc">Neon → Supabase / Upstash KV 数据同步的最后日期和更新次数</p>
                 <div style="margin-bottom:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-                  <button class="btn btn-primary" onclick="triggerSync()" id="btnTriggerSync" style="font-size:0.82rem;padding:6px 14px">🔄 手动同步到备用数据库</button>
+                  <button class="btn btn-primary" onclick="triggerSyncTo('all')" id="btnTriggerSyncAll" style="font-size:0.82rem;padding:6px 14px">🔄 同步全部</button>
+                  <button class="btn btn-outline" onclick="triggerSyncTo('neon')" id="btnTriggerSyncNeon" style="font-size:0.82rem;padding:6px 14px">🔄 同步到 Neon</button>
+                  <button class="btn btn-outline" onclick="triggerSyncTo('upstash')" id="btnTriggerSyncUpstash" style="font-size:0.82rem;padding:6px 14px">🔄 同步到 Upstash KV</button>
                   <span id="syncStatusMsg" style="font-size:0.78rem;color:#6b7280"></span>
                 </div>
                 <div id="dbSyncStatus" style="padding:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;">
@@ -7906,27 +7908,36 @@
       });
     }
 
-    function triggerSync() {
-      var btn = document.getElementById('btnTriggerSync');
+    function triggerSyncTo(target) {
+      var btnId = target === 'all' ? 'btnTriggerSyncAll' : (target === 'neon' ? 'btnTriggerSyncNeon' : 'btnTriggerSyncUpstash');
+      var btn = document.getElementById(btnId);
+      var allBtns = document.querySelectorAll('#btnTriggerSyncAll, #btnTriggerSyncNeon, #btnTriggerSyncUpstash');
       var msgEl = document.getElementById('syncStatusMsg');
-      if (btn) btn.disabled = true;
-      if (btn) btn.textContent = '⏳ 同步中...';
-      if (msgEl) msgEl.textContent = '正在同步数据到备用数据库...';
+      var targetLabel = target === 'all' ? '全部备用数据库' : (target === 'neon' ? 'Neon' : 'Upstash KV');
 
-      api('/api/admin/health?section=sync').then(function(d) {
+      allBtns.forEach(function(b) { b.disabled = true; });
+      if (btn) btn.textContent = '⏳ 同步中...';
+      if (msgEl) msgEl.textContent = '正在同步数据到 ' + targetLabel + '...';
+
+      var url = '/api/admin/health?section=sync';
+      if (target !== 'all') {
+        url += '&target=' + target;
+      }
+
+      api(url).then(function(d) {
         if (d && d.success) {
-          if (msgEl) msgEl.textContent = '✅ 同步成功！目标: ' + (d.syncStatus && d.syncStatus.targets ? d.syncStatus.targets.join(', ') : '');
-          showToast('数据同步成功', 'success');
+          if (msgEl) msgEl.textContent = '✅ 同步成功！目标: ' + (d.syncStatus && d.syncStatus.targets ? d.syncStatus.targets.join(', ') : targetLabel);
+          showToast('数据同步到 ' + targetLabel + ' 成功', 'success');
           loadDatabaseStatus();
         } else {
           throw new Error(d && d.error ? d.error : '同步失败');
         }
       }).catch(function(e) {
         if (msgEl) msgEl.textContent = '❌ 同步失败: ' + (e.message || '未知错误');
-        showToast('数据同步失败: ' + (e.message || '未知错误'), 'error');
+        showToast('数据同步到 ' + targetLabel + ' 失败: ' + (e.message || '未知错误'), 'error');
       }).finally(function() {
-        if (btn) btn.disabled = false;
-        if (btn) btn.textContent = '🔄 手动同步到备用数据库';
+        allBtns.forEach(function(b) { b.disabled = false; });
+        if (btn) btn.textContent = '🔄 ' + (target === 'all' ? '同步全部' : ('同步到 ' + targetLabel));
       });
     }
 
