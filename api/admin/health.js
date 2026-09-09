@@ -2282,7 +2282,7 @@ module.exports = async (req, res) => {
     await runCheck("env", "Environment Variables", async function () {
       var missing = [];
       if (!cfg.url) missing.push("POSTGRES_URL / DATABASE_URL");
-      var jwtSet = !!(process.env.JWT_SECRET && process.env.JWT_SECRET !== "jwt-secret-change-me");
+      var jwtSet = !!process.env.JWT_SECRET;
       if (missing.length) {
         return {
           status: "fail",
@@ -2295,7 +2295,7 @@ module.exports = async (req, res) => {
         status: jwtSet ? "pass" : "warn",
         detail: jwtSet
           ? "Postgres and JWT environment variables configured"
-          : "Postgres configured, but JWT_SECRET uses default value (insecure)",
+          : "Postgres configured, but JWT_SECRET not set (using random secret, tokens will not survive cold starts)",
         hint: jwtSet ? "" : "Set a strong random JWT_SECRET",
         data: { jwtConfigured: jwtSet, pgUrl: maskUrl(cfg.url) },
       };
