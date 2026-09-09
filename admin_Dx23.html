@@ -3128,6 +3128,7 @@
         <li class="menu-separator"><hr></li>
         <li><a href="javascript:void(0)" onclick="switchTab('afdian-orders')" data-tab="afdian-orders"><i data-lucide="heart" class="menu-icon"></i><span class="menu-text">爱发电订单</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('quota')" data-tab="quota"><i data-lucide="coins" class="menu-icon"></i><span class="menu-text">额度</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('visitors')" data-tab="visitors"><i data-lucide="users" class="menu-icon"></i><span class="menu-text">访客统计</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('logs')" data-tab="logs"><i data-lucide="scroll-text" class="menu-icon"></i><span class="menu-text">日志</span></a></li>
         <li class="menu-separator"><hr></li>
         <li><a href="javascript:void(0)" onclick="switchTab('settings')" data-tab="settings"><i data-lucide="settings" class="menu-icon"></i><span class="menu-text">设置</span></a></li>
@@ -3525,6 +3526,36 @@
                 </div>
                 <div id="cronLogsList" class="health-log-list"></div>
               </div>
+            </div>
+          </div>
+
+          <div class="panel" id="panel-visitors">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap">
+              <span style="font-weight:700;font-size:0.95rem">访客统计</span>
+              <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+                <select id="visitorDays" style="padding:6px 10px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:0.8rem">
+                  <option value="3">近3天</option>
+                  <option value="7" selected>近7天</option>
+                  <option value="14">近14天</option>
+                  <option value="30">近30天</option>
+                </select>
+                <button class="btn btn-outline" onclick="loadVisitors()">🔄 刷新</button>
+              </div>
+            </div>
+            <div id="visitorOverview" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:18px"></div>
+            <div style="display:grid;grid-template-columns:2fr 1fr;gap:18px;margin-bottom:18px">
+              <div style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px">
+                <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">UV / PV 趋势</div>
+                <canvas id="visitorChart" height="180" style="width:100%;display:block"></canvas>
+              </div>
+              <div style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px">
+                <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">热门页面 Top 5</div>
+                <div id="visitorTopPages" style="font-size:0.82rem"></div>
+              </div>
+            </div>
+            <div style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px">
+              <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">最近访客</div>
+              <div id="visitorRecent"></div>
             </div>
           </div>
 
@@ -4751,6 +4782,7 @@
       'direct-activate': { title: '快捷激活', sub: '跳过兑换码流程，直接为设备生成激活码' },
       'afdian-orders': { title: '爱发电订单', sub: '管理爱发电赞助订单，手动同步并查看激活码' },
       quota: { title: '额度', sub: 'Neon / Supabase 免费资源消耗与剩余额度估算' },
+      visitors: { title: '访客统计', sub: 'UV / PV / 热门页面 / 最近访客' },
       health: { title: '服务器状态', sub: '检测 Postgres / 鉴权 / 激活链路是否正常' },
       'vercel-logs': { title: 'Vercel日志', sub: '部署事件与函数运行日志（Vercel API）' },
       'logs': { title: '系统日志', sub: 'Vercel部署事件 · 邮件发送记录 · 爱发电私信日志' },
@@ -4801,6 +4833,7 @@
       if (tab === 'settings') initSettingsPanel();
       if (tab === 'direct-activate') initDirectActivate();
       if (tab === 'afdian-orders') loadAfdianOrders();
+      if (tab === 'visitors') loadVisitors();
       
       lucide.createIcons();
     }
@@ -9309,6 +9342,202 @@
         btn.textContent = '📨 Send';
       }
     }
+
+    var _visitorChart = null;
+    function loadVisitors() {
+      var overviewEl = document.getElementById('visitorOverview');
+      var pagesEl = document.getElementById('visitorTopPages');
+      var recentEl = document.getElementById('visitorRecent');
+      var daysSel = document.getElementById('visitorDays');
+      var days = daysSel ? parseInt(daysSel.value, 10) || 7 : 7;
+
+      if (overviewEl) overviewEl.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:20px">加载中...</div>';
+      if (pagesEl) pagesEl.innerHTML = '<div style="color:var(--muted);font-size:0.85rem">加载中...</div>';
+      if (recentEl) recentEl.innerHTML = '<div style="color:var(--muted);font-size:0.85rem">加载中...</div>';
+
+      Promise.all([
+        api('/api/admin/stats?section=visitor-overview').catch(function() { return null; }),
+        api('/api/admin/stats?section=visitor-trend&days=' + days).catch(function() { return null; }),
+        api('/api/admin/stats?section=visitor-recent').catch(function() { return null; }),
+      ]).then(function(results) {
+        var ov = results[0];
+        var tr = results[1];
+        var rc = results[2];
+
+        if (ov && ov.success) {
+          var t = ov.today || {};
+          var y = ov.yesterday || {};
+          var pctUv = y.uv ? Math.round((t.uv - y.uv) / y.uv * 100) : (t.uv > 0 ? 100 : 0);
+          var pctPv = y.pv ? Math.round((t.pv - y.pv) / y.pv * 100) : (t.pv > 0 ? 100 : 0);
+
+          var cards = [
+            { label: '今日 UV', val: t.uv || 0, sub: '昨日 ' + (y.uv || 0), trend: pctUv },
+            { label: '今日 PV', val: t.pv || 0, sub: '昨日 ' + (y.pv || 0), trend: pctPv },
+            { label: '昨日 UV', val: y.uv || 0, sub: '对比前一日' },
+            { label: '昨日 PV', val: y.pv || 0, sub: '对比前一日' },
+          ];
+          overviewEl.innerHTML = cards.map(function(c) {
+            var trendHtml = typeof c.trend === 'number'
+              ? '<span style="color:' + (c.trend >= 0 ? '#16a34a' : '#dc2626') + ';font-size:0.72rem;margin-left:6px">' + (c.trend >= 0 ? '▲' : '▼') + Math.abs(c.trend) + '%</span>'
+              : '';
+            return '<div style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px">' +
+              '<div style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">' + c.label + '</div>' +
+              '<div style="font-size:1.6rem;font-weight:800;color:var(--ink);margin-top:4px">' + c.val + trendHtml + '</div>' +
+              '<div style="font-size:0.72rem;color:var(--muted);margin-top:4px">' + c.sub + '</div>' +
+              '</div>';
+          }).join('');
+
+          var pages = ov.topPages || [];
+          if (pages.length === 0) {
+            pagesEl.innerHTML = '<div style="color:var(--muted);font-size:0.8rem">暂无数据（访客系统刚启用）</div>';
+          } else {
+            pagesEl.innerHTML = pages.map(function(p, i) {
+              var max = pages[0].hits || 1;
+              var w = Math.round(p.hits / max * 100);
+              return '<div style="margin-bottom:10px">' +
+                '<div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px">' + (i + 1) + '. ' + escapeHtml(p.path) + '</span><span style="color:var(--muted)">' + p.hits + '</span></div>' +
+                '<div style="height:6px;background:var(--line);border-radius:3px;overflow:hidden"><div style="height:100%;width:' + w + '%;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:3px"></div></div>' +
+                '</div>';
+            }).join('');
+          }
+        } else {
+          overviewEl.innerHTML = '<div style="grid-column:1/-1;color:#dc2626;font-size:0.85rem;padding:20px">加载失败：访客 API 不可用</div>';
+        }
+
+        if (tr && tr.success) {
+          drawVisitorChart(tr);
+        } else {
+          var cc = document.getElementById('visitorChart');
+          if (cc) { cc.getContext('2d').clearRect(0, 0, cc.width, cc.height); }
+        }
+
+        if (rc && rc.success) {
+          var list = rc.visitors || [];
+          if (list.length === 0) {
+            recentEl.innerHTML = '<div style="color:var(--muted);font-size:0.8rem">暂无访客记录</div>';
+          } else {
+            recentEl.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:0.82rem">' +
+              '<thead><tr style="color:var(--muted);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.5px">' +
+              '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">Hash</th>' +
+              '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">Page</th>' +
+              '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">Time</th>' +
+              '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">UA</th>' +
+              '</tr></thead><tbody>' +
+              list.slice(0, 30).map(function(v) {
+                var t = v.time ? new Date(v.time).toLocaleString() : '-';
+                var uaShort = (v.ua || '').replace(/\(.*?\)/g, '').trim().slice(0, 50);
+                return '<tr><td style="padding:6px 8px;border-bottom:1px solid var(--line);font-family:monospace;color:#6366f1;font-size:0.75rem">' + escapeHtml(v.hash || '-') + '</td>' +
+                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(v.path || '/') + '</td>' +
+                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:0.75rem">' + t + '</td>' +
+                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:0.72rem;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(v.ua || '') + '">' + escapeHtml(uaShort) + '</td></tr>';
+              }).join('') +
+              '</tbody></table>';
+          }
+        }
+      }).catch(function(e) {
+        overviewEl.innerHTML = '<div style="color:#dc2626">Error: ' + escapeHtml(e.message) + '</div>';
+      });
+    }
+
+    function drawVisitorChart(tr) {
+      var canvas = document.getElementById('visitorChart');
+      if (!canvas) return;
+      var ctx = canvas.getContext('2d');
+      var dpr = window.devicePixelRatio || 1;
+      var rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = 180 * dpr;
+      ctx.scale(dpr, dpr);
+      var W = rect.width;
+      var H = 180;
+      ctx.clearRect(0, 0, W, H);
+
+      var labels = tr.labels || [];
+      var uv = tr.uv || [];
+      var pv = tr.pv || [];
+      var max = 1;
+      for (var i = 0; i < uv.length; i++) {
+        if (uv[i] > max) max = uv[i];
+        if (pv[i] > max) max = pv[i];
+      }
+
+      var padL = 36, padR = 10, padT = 10, padB = 28;
+      var chartW = W - padL - padR;
+      var chartH = H - padT - padB;
+
+      ctx.strokeStyle = 'rgba(148,163,184,0.15)';
+      ctx.lineWidth = 1;
+      for (var g = 0; g <= 4; g++) {
+        var gy = padT + chartH * g / 4;
+        ctx.beginPath(); ctx.moveTo(padL, gy); ctx.lineTo(W - padR, gy); ctx.stroke();
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(Math.round(max * (1 - g / 4)), padL - 4, gy + 3);
+      }
+
+      function drawLine(data, color) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (var j = 0; j < data.length; j++) {
+          var x = padL + chartW * j / Math.max(data.length - 1, 1);
+          var y = padT + chartH - (data[j] / max * chartH);
+          if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.fillStyle = color;
+        for (var k = 0; k < data.length; k++) {
+          var cx = padL + chartW * k / Math.max(data.length - 1, 1);
+          var cy = padT + chartH - (data[k] / max * chartH);
+          ctx.beginPath(); ctx.arc(cx, cy, 2.5, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+
+      drawLine(uv, '#6366f1');
+      drawLine(pv, '#10b981');
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center';
+      for (var l = 0; l < labels.length; l++) {
+        var lx = padL + chartW * l / Math.max(labels.length - 1, 1);
+        ctx.fillText(labels[l], lx, H - 10);
+      }
+
+      var legX = padL;
+      ctx.font = '11px sans-serif';
+      ctx.fillStyle = '#6366f1';
+      ctx.fillRect(legX, padT - 6, 10, 10);
+      ctx.fillStyle = '#334155';
+      ctx.textAlign = 'left';
+      ctx.fillText('UV', legX + 14, padT + 3);
+      ctx.fillStyle = '#10b981';
+      ctx.fillRect(legX + 44, padT - 6, 10, 10);
+      ctx.fillStyle = '#334155';
+      ctx.fillText('PV', legX + 58, padT + 3);
+    }
+
+    (function autoTrackAdmin() {
+      try {
+        var sent = false;
+        var send = function() {
+          if (sent) return;
+          sent = true;
+          fetch('/api/visitor/track', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: window.location.pathname }),
+            keepalive: true,
+          }).catch(function() {});
+        };
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+          setTimeout(send, 500);
+        } else {
+          window.addEventListener('load', function() { setTimeout(send, 500); });
+        }
+      } catch (e) {}
+    })();
   </script>
 
 </body>

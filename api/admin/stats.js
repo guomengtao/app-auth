@@ -179,6 +179,90 @@ async function handleTrends(days) {
   };
 }
 
+var visitorTTL = 7 * 24 * 60 * 60;
+
+function todayKey(ts) {
+  var d = new Date(ts || Date.now());
+  var y = d.getUTCFullYear();
+  var m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  var day = String(d.getUTCDate()).padStart(2, "0");
+  return y + "-" + m + "-" + day;
+}
+
+async function handleVisitorOverview() {
+  var today = todayKey();
+  var yesterday = todayKey(Date.now() - 24 * 60 * 60 * 1000);
+
+  var result = await Promise.all([
+    redis.scard("stats:uv:" + today).catch(function () { return 0; }),
+    redis.get("stats:pv:" + today).catch(function () { return null; }),
+    redis.scard("stats:uv:" + yesterday).catch(function () { return 0; }),
+    redis.get("stats:pv:" + yesterday).catch(function () { return null; }),
+    redis.zrevrange("stats:pages:" + today, 0, 4, { withScores: true }).catch(function () { return []; }),
+  ]);
+
+  var todayUv = result[0] || 0;
+  var todayPv = parseInt(result[1], 10) || 0;
+  var ydUv = result[2] || 0;
+  var ydPv = parseInt(result[3], 10) || 0;
+  var pagesRaw = result[4] || [];
+
+  var topPages = [];
+  for (var i = 0; i < pagesRaw.length; i += 2) {
+    topPages.push({ path: pagesRaw[i], hits: parseInt(pagesRaw[i + 1], 10) || 0 });
+  }
+
+  return {
+    success: true,
+    today: { uv: todayUv, pv: todayPv },
+    yesterday: { uv: ydUv, pv: ydPv },
+    topPages: topPages,
+  };
+}
+
+async function handleVisitorTrend(days) {
+  days = Math.max(1, Math.min(days, 30));
+  var labels = [];
+  var uvData = [];
+  var pvData = [];
+
+  for (var i = days - 1; i >= 0; i--) {
+    var d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+    var dk = todayKey(d.getTime());
+    labels.push(dk.slice(5));
+    var uv = await redis.scard("stats:uv:" + dk).catch(function () { return 0; });
+    var pvRaw = await redis.get("stats:pv:" + dk).catch(function () { return null; });
+    uvData.push(uv || 0);
+    pvData.push(parseInt(pvRaw, 10) || 0);
+  }
+
+  return {
+    success: true,
+    days: days,
+    labels: labels,
+    uv: uvData,
+    pv: pvData,
+  };
+}
+
+async function handleVisitorRecent() {
+  var records = await redis.lrange("stats:recent", 0, 49).catch(function () { return []; });
+  var list = [];
+  for (var i = 0; i < records.length; i++) {
+    try {
+      var obj = typeof records[i] === "string" ? JSON.parse(records[i]) : records[i];
+      list.push({
+        hash: obj.h || "",
+        path: obj.p || "/",
+        ua: obj.u || "",
+        ref: obj.r || "",
+        time: obj.t || 0,
+      });
+    } catch (e) {}
+  }
+  return { success: true, visitors: list };
+}
+
 module.exports = async (req, res) => {
   var auth = requireAuth(req);
   if (!auth.authorized) {
@@ -191,6 +275,19 @@ module.exports = async (req, res) => {
 
   try {
     var section = req.query && req.query.section;
+
+    if (section === "visitor-overview") {
+      return res.json(await handleVisitorOverview());
+    }
+    if (section === "visitor-trend") {
+      var vdays = parseInt(req.query && req.query.days, 10) || 7;
+      if (vdays < 1) vdays = 1;
+      if (vdays > 30) vdays = 30;
+      return res.json(await handleVisitorTrend(vdays));
+    }
+    if (section === "visitor-recent") {
+      return res.json(await handleVisitorRecent());
+    }
 
     if (section === "trends") {
       var days = parseInt(req.query && req.query.days, 10) || 7;
