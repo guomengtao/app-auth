@@ -1244,6 +1244,13 @@ module.exports = async (req, res) => {
         if (!db || !value || allDbIds2.indexOf(db) === -1 || ["on", "off"].indexOf(value) === -1) {
           return res.status(400).json({ success: false, error: "Invalid db or value. db: " + allDbIds2.join("/") + ", value: on/off" });
         }
+        var currentPrimary = dbSwitches.getPrimary() || String(process.env.DB_PROVIDER || "auto").trim();
+        if (value === "off" && db === currentPrimary) {
+          return res.status(400).json({
+            success: false,
+            error: "Cannot disable the primary database. Switch to another primary first, then disable " + db + ".",
+          });
+        }
         await redis.set("db:switch:" + db, value);
         var allSwitches2 = {};
         for (var sdi2 = 0; sdi2 < allDbIds2.length; sdi2++) {
@@ -1590,15 +1597,21 @@ module.exports = async (req, res) => {
         });
       }
       var currentPrimary = dbSwitches.getPrimary() || String(process.env.DB_PROVIDER || "auto").trim();
-      if (targetDb === currentPrimary) {
-        return res.json({
-          success: true,
-          message: "Already the primary database",
-          switched: false,
-          from: currentPrimary,
-          to: targetDb,
-        });
-      }
+        if (targetDb === currentPrimary) {
+          return res.json({
+            success: true,
+            message: "Already the primary database",
+            switched: false,
+            from: currentPrimary,
+            to: targetDb,
+          });
+        }
+        if (!dbSwitches.isEnabled(targetDb)) {
+          return res.status(400).json({
+            success: false,
+            error: "Cannot switch to a disabled database. Please enable " + targetDb + " first.",
+          });
+        }
       await dbSwitches.savePrimary(targetDb);
       return res.json({
         success: true,

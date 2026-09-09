@@ -7928,7 +7928,7 @@
                 '<span class="toggle-slider" style="border-radius:20px"></span>' +
                 '</label>' +
                 '</div>';
-              if (db.role !== 'primary') {
+              if (db.role !== 'primary' && isOn) {
                 dataHtml += '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">' +
                   '<button class="btn btn-outline" style="width:100%;font-size:0.8rem;padding:6px 12px" onclick="verifyDbSwitch(\'' + dbSwitchKey + '\', \'' + escapeHtml(db.name) + '\')">' +
                   '🔄 Switch to Primary' +
