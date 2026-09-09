@@ -4902,7 +4902,7 @@
       if (ADMIN_MODE === 'local-first') return;
 
       try {
-        var res = await fetch('/api/admin/trends?days=' + days, { credentials: 'include' });
+        var res = await fetch('/api/admin/stats?section=trends&days=' + days, { credentials: 'include' });
         var data = await res.json();
         if (!data.success) return;
 
