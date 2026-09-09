@@ -75,5 +75,17 @@
       <a class="demo-link" href="/activate.html?deviceId=TeSt">设备 TeSt</a>
     </div>
   </div>
+  <script>
+  (function(){
+    try {
+      fetch('/api/activate?section=visitor-track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: window.location.pathname + window.location.search }),
+        keepalive: true,
+      }).catch(function(){});
+    } catch(e){}
+  })();
+  </script>
 </body>
 </html>
