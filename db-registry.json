@@ -6,8 +6,8 @@
       "name": "Upstash KV",
       "type": "redis",
       "role": "coordinator",
-      "urlEnv": "UPSTASH_REDIS_REST_URL",
-      "tokenEnv": "UPSTASH_REDIS_REST_TOKEN",
+      "urlEnv": "KV_REST_API_URL",
+      "tokenEnv": "KV_REST_API_TOKEN",
       "freeLimit": "10K commands/day, 256MB storage",
       "host": "upstash.io"
     },
