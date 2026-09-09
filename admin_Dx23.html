@@ -6826,7 +6826,12 @@
       var s = readSettings();
       function setCheck(id, v) {
         var el = document.getElementById(id);
-        if (el) el.checked = !!v;
+        if (el) {
+          var prev = el.onchange;
+          el.onchange = null;
+          el.checked = !!v;
+          el.onchange = prev;
+        }
       }
       function setInput(id, v) {
         var el = document.getElementById(id);
@@ -6855,10 +6860,30 @@
       }
       switchEmailProvider(provider);
       renderEmailConfigList();
+      fetchActivationSystemState();
       switchSettingsTab('appearance');
     }
 
     function warnBeforeDeleteEnabled() { return !!readSettings().warnBeforeDelete; }
+
+    function fetchActivationSystemState() {
+      if (typeof api !== 'function') return;
+      api('/api/admin/health?section=activation-system', { method: 'GET' })
+        .then(function(data) {
+          if (data && typeof data.enabled === 'boolean') {
+            var el = document.getElementById('settingActivationSystemEnabled');
+            if (el) el.checked = data.enabled;
+            var s = readSettings();
+            if (s.activationSystemEnabled !== data.enabled) {
+              s.activationSystemEnabled = data.enabled;
+              try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch (_) {}
+            }
+          }
+        })
+        .catch(function(e) {
+          console.error('[settings] Failed to fetch activation system state:', e.message);
+        });
+    }
 
     var EMAIL_PRESETS = {
       'qq': { host: 'smtp.qq.com', port: 465, user: 'rinuo@qq.com' },

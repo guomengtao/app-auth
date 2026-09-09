@@ -23,5 +23,10 @@ fi
 NEW_PATCH=$((PATCH + 1))
 NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
 
-echo "{\"version\": \"$NEW_VERSION\"}" > "$VERSION_FILE"
-echo "Bump: v$CURRENT → v$NEW_VERSION"
+node -e "
+var v = require('./version.json');
+v.version = '$NEW_VERSION';
+v.patch = (v.patch || 0) + 1;
+require('fs').writeFileSync('$VERSION_FILE', JSON.stringify(v, null, 2) + '\n');
+"
+echo "Bump: v$CURRENT → v$NEW_VERSION (build patch: $(node -e "console.log(require('./version.json').patch)"))"
