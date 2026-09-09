@@ -4794,6 +4794,7 @@
       try {
         var url = new URL(window.location.href);
         url.searchParams.set('tab', tab);
+        if (tab !== 'logs') url.searchParams.delete('logs');
         window.history.replaceState({}, '', url.toString());
       } catch (e) {}
       document.querySelectorAll('.sidebar-menu li a').forEach(function(a) { a.classList.remove('active'); });
@@ -4834,7 +4835,15 @@
         }
       }
       if (tab === 'vercel-logs') loadVercelLogs();
-      if (tab === 'logs') { switchLogsTab('system'); }
+      if (tab === 'logs') {
+        var sub = 'system';
+        try {
+          var s = new URLSearchParams(window.location.search).get('logs');
+          var allowed = ['system','email','resend','afdian-dm','db-sync','cron'];
+          if (s && allowed.indexOf(s) !== -1) sub = s;
+        } catch (_) {}
+        switchLogsTab(sub);
+      }
       if (tab === 'settings') initSettingsPanel();
       if (tab === 'direct-activate') initDirectActivate();
       if (tab === 'afdian-orders') loadAfdianOrders();
@@ -7729,6 +7738,11 @@
     }
 
     function switchLogsTab(tab) {
+      try {
+        var url = new URL(window.location.href);
+        url.searchParams.set('logs', tab);
+        window.history.replaceState({}, '', url.toString());
+      } catch (e) {}
       var systemSection = document.getElementById('logsSectionSystem');
       var emailSection = document.getElementById('logsSectionEmail');
       var resendSection = document.getElementById('logsSectionResend');
