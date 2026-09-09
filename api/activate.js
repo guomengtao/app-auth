@@ -44,14 +44,21 @@ async function handleVisitorTrack(req, res) {
     var recentKey = "stats:recent";
     var trimmedPath = path.length > 120 ? path.slice(0, 120) : path;
     var isNew = await redis.sadd(uvKey, vHash);
-    if (isNew === 1) { await redis.expire(uvKey, VISITOR_TTL).catch(function () {}); }
+    if (isNew === 1) { await redis.pexpire(uvKey, VISITOR_TTL * 1000).catch(function () {}); }
     await redis.incr(pvKey);
-    await redis.expire(pvKey, VISITOR_TTL).catch(function () {});
-    await redis.zincrby(pagesKey, 1, trimmedPath);
-    await redis.expire(pagesKey, VISITOR_TTL).catch(function () {});
+    await redis.pexpire(pvKey, VISITOR_TTL * 1000).catch(function () {});
+    var curScore = 0;
+    try {
+      var zr = await redis.zrange(pagesKey, 0, -1, { withScores: true });
+      for (var zi = 0; zi < zr.length; zi += 2) {
+        if (zr[zi] === trimmedPath) { curScore = parseFloat(zr[zi + 1]) || 0; break; }
+      }
+    } catch (e) {}
+    await redis.zadd(pagesKey, curScore + 1, trimmedPath);
+    await redis.pexpire(pagesKey, VISITOR_TTL * 1000).catch(function () {});
     await redis.lpush(recentKey, JSON.stringify({ h: vHash.slice(0, 8), p: trimmedPath, u: ua.slice(0, 80), r: ref.slice(0, 80), t: ts }));
     await redis.ltrim(recentKey, 0, 99);
-    await redis.expire(recentKey, VISITOR_TTL).catch(function () {});
+    await redis.pexpire(recentKey, VISITOR_TTL * 1000).catch(function () {});
     return res.json({ success: true, isNewVisitor: isNew === 1 });
   } catch (e) {
     console.error("[visitor/track]", e);

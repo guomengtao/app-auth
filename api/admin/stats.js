@@ -198,7 +198,7 @@ async function handleVisitorOverview() {
     redis.get("stats:pv:" + today).catch(function () { return null; }),
     redis.scard("stats:uv:" + yesterday).catch(function () { return 0; }),
     redis.get("stats:pv:" + yesterday).catch(function () { return null; }),
-    redis.zrevrange("stats:pages:" + today, 0, 4, { withScores: true }).catch(function () { return []; }),
+    redis.zrange("stats:pages:" + today, 0, -1, { withScores: true }).catch(function () { return []; }),
   ]);
 
   var todayUv = result[0] || 0;
@@ -211,6 +211,8 @@ async function handleVisitorOverview() {
   for (var i = 0; i < pagesRaw.length; i += 2) {
     topPages.push({ path: pagesRaw[i], hits: parseInt(pagesRaw[i + 1], 10) || 0 });
   }
+  topPages.sort(function (a, b) { return b.hits - a.hits; });
+  topPages = topPages.slice(0, 5);
 
   return {
     success: true,
