@@ -9421,15 +9421,22 @@
               '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">Hash</th>' +
               '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">Page</th>' +
               '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">Time</th>' +
+              '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">Location</th>' +
               '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">UA</th>' +
               '</tr></thead><tbody>' +
               list.slice(0, 30).map(function(v) {
                 var t = v.time ? new Date(v.time).toLocaleString() : '-';
                 var uaShort = (v.ua || '').replace(/\(.*?\)/g, '').trim().slice(0, 50);
+                var loc = [];
+                if (v.country) loc.push(v.country);
+                if (v.city) loc.push(v.city);
+                if (v.region && v.city) loc.push(v.region);
+                var locStr = loc.length ? loc.join(' · ') : '-';
                 return '<tr><td style="padding:6px 8px;border-bottom:1px solid var(--line);font-family:monospace;color:#6366f1;font-size:0.75rem">' + escapeHtml(v.hash || '-') + '</td>' +
-                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(v.path || '/') + '</td>' +
+                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(v.path || '/') + '</td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:0.75rem">' + t + '</td>' +
-                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:0.72rem;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(v.ua || '') + '">' + escapeHtml(uaShort) + '</td></tr>';
+                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-size:0.75rem">' + escapeHtml(locStr) + '</td>' +
+                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:0.72rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(v.ua || '') + '">' + escapeHtml(uaShort) + '</td></tr>';
               }).join('') +
               '</tbody></table>';
           }

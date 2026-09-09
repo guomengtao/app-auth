@@ -56,7 +56,17 @@ async function handleVisitorTrack(req, res) {
     } catch (e) {}
     await redis.zadd(pagesKey, curScore + 1, trimmedPath);
     await redis.pexpire(pagesKey, VISITOR_TTL * 1000).catch(function () {});
-    await redis.lpush(recentKey, JSON.stringify({ h: vHash.slice(0, 8), p: trimmedPath, u: ua.slice(0, 80), r: ref.slice(0, 80), t: ts }));
+    await redis.lpush(recentKey, JSON.stringify({
+      h: vHash.slice(0, 8),
+      p: trimmedPath,
+      u: ua.slice(0, 80),
+      r: ref.slice(0, 80),
+      t: ts,
+      c: String(req.headers["x-vercel-ip-country"] || "").slice(0, 8),
+      rg: String(req.headers["x-vercel-ip-country-region"] || "").slice(0, 16),
+      ci: String(req.headers["x-vercel-ip-city"] || "").slice(0, 40),
+      tz: String(req.headers["x-vercel-ip-timezone"] || "").slice(0, 40),
+    }));
     await redis.ltrim(recentKey, 0, 99);
     await redis.pexpire(recentKey, VISITOR_TTL * 1000).catch(function () {});
     return res.json({ success: true, isNewVisitor: isNew === 1 });

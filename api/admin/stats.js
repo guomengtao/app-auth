@@ -259,6 +259,10 @@ async function handleVisitorRecent() {
         ua: obj.u || "",
         ref: obj.r || "",
         time: obj.t || 0,
+        country: obj.c || "",
+        region: obj.rg || "",
+        city: obj.ci || "",
+        timezone: obj.tz || "",
       });
     } catch (e) {}
   }
