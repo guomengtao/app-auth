@@ -8149,6 +8149,8 @@
 
         if (data.canSwitch) {
           confirmBtn.style.display = '';
+          confirmBtn.disabled = false;
+          confirmBtn.className = 'btn btn-primary';
           syncBtn.style.display = 'none';
           pendingSwitchTarget = { dbKey: dbKey, dbName: dbName };
           pendingSyncTarget = null;
@@ -8157,6 +8159,7 @@
           confirmBtn.style.display = 'none';
           syncBtn.style.display = '';
           syncBtn.disabled = false;
+          syncBtn.className = 'btn btn-primary';
           pendingSwitchTarget = null;
           pendingSyncTarget = { dbKey: dbKey, dbName: dbName };
           syncBtn.textContent = '🔄 Sync from ' + (data.primary && data.primary.name ? data.primary.name : 'primary') + ' to ' + dbName;
