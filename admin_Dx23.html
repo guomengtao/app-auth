@@ -4808,7 +4808,16 @@
     function toggleSidebar() {
       var sidebar = document.getElementById('sidebar');
       sidebar.classList.toggle('collapsed');
+      try { localStorage.setItem('admin_sidebar_collapsed', sidebar.classList.contains('collapsed') ? '1' : '0'); } catch (_) {}
     }
+    (function() {
+      try {
+        if (localStorage.getItem('admin_sidebar_collapsed') === '1') {
+          var sidebar = document.getElementById('sidebar');
+          if (sidebar) sidebar.classList.add('collapsed');
+        }
+      } catch (_) {}
+    })();
 
     function toggleUserMenu() {
       var dropdown = document.getElementById('sidebarUserDropdown');
