@@ -522,7 +522,7 @@ module.exports = async (req, res) => {
   }
 
   var auth = requireAuth(req);
-  if (!auth.authorized) {
+  if (!auth.authorized && !isCron) {
     return res.status(auth.status).json({ success: false, error: auth.error });
   }
 
@@ -2190,12 +2190,6 @@ module.exports = async (req, res) => {
           resultText = "HTTP " + fetchRes.status;
         }
 
-        await recordCronRun(runTaskId, {
-          duration: runDuration,
-          status: fetchRes.ok ? "success" : "error",
-          summary: resultText,
-        });
-
         return res.json({
           success: fetchRes.ok,
           taskId: runTaskId,
@@ -2522,3 +2516,5 @@ module.exports = async (req, res) => {
     warnCount: warn,
   });
 };
+
+module.exports.recordCronRun = recordCronRun;
