@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>管理后台 - 激活码系统</title>
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <style>
     /* ============================================================
    后台专用配色体系（保留品牌色，背景/卡片全浅色化）
@@ -764,6 +765,67 @@
       border-color: var(--accent);
       box-shadow: 0 4px 12px rgba(99,102,241,0.12);
       transform: translateY(-2px);
+    }
+
+    .trends-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .trend-card {
+      background: var(--card-bg, #fff);
+      border: 1px solid var(--line, #d1d9e6);
+      border-radius: 12px;
+      padding: 16px 20px;
+    }
+    .trend-card h3 {
+      margin: 0 0 4px 0;
+      font-size: 0.92rem;
+      color: #1e293b;
+      font-weight: 600;
+    }
+    .trend-card .trend-subtitle {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      margin-bottom: 12px;
+    }
+    .trend-card canvas {
+      width: 100%;
+      max-height: 240px;
+    }
+    .trend-days-selector {
+      display: inline-flex;
+      gap: 4px;
+      margin-left: 12px;
+    }
+    .trend-days-selector button {
+      padding: 2px 10px;
+      font-size: 0.75rem;
+      border: 1px solid var(--line, #d1d9e6);
+      background: var(--surface, #fff);
+      border-radius: 6px;
+      cursor: pointer;
+      color: #64748b;
+      transition: all 0.15s;
+    }
+    .trend-days-selector button.active {
+      background: var(--accent, #4F46E5);
+      color: #fff;
+      border-color: var(--accent, #4F46E5);
+    }
+    .trend-summary {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .trend-summary-item {
+      font-size: 0.82rem;
+      color: #475569;
+    }
+    .trend-summary-item strong {
+      color: #1e293b;
     }
 
     /* —— Panels —— */
@@ -3164,6 +3226,28 @@
                 <div style="font-size:0.75rem;color:#64748b;margin-top:4px">数据模式 · 安全配置</div>
               </div>
             </div>
+
+            <div style="display:flex;align-items:center;margin-top:24px;flex-wrap:wrap;gap:8px">
+              <span style="font-weight:600;font-size:1rem;color:#1e293b">数据走势</span>
+              <div class="trend-days-selector" id="trendDaysSelector">
+                <button data-days="7" class="active">7天</button>
+                <button data-days="14">14天</button>
+                <button data-days="30">30天</button>
+              </div>
+            </div>
+            <div id="trendSummary" class="trend-summary" style="margin-top:8px"></div>
+            <div class="trends-grid">
+              <div class="trend-card">
+                <h3>订单走势</h3>
+                <div class="trend-subtitle">每日订单数 & 收入</div>
+                <canvas id="chartOrders"></canvas>
+              </div>
+              <div class="trend-card">
+                <h3>激活走势</h3>
+                <div class="trend-subtitle">每日激活次数</div>
+                <canvas id="chartActivations"></canvas>
+              </div>
+            </div>
           </div>
 
           <div class="panel" id="panel-products">
@@ -4809,6 +4893,153 @@
       } catch (e) {
         console.error('loadStats failed:', e);
       }
+    }
+
+    var trendsCharts = {};
+
+    async function loadTrends(days) {
+      if (!days) days = 7;
+      if (ADMIN_MODE === 'local-first') return;
+
+      try {
+        var res = await fetch('/api/admin/trends?days=' + days, { credentials: 'include' });
+        var data = await res.json();
+        if (!data.success) return;
+
+        var labels = data.labels;
+        var orderData = data.orders;
+        var activationData = data.activations;
+        var summary = data.summary;
+
+        var summaryEl = document.getElementById('trendSummary');
+        if (summaryEl && summary) {
+          var totalRevenue = (summary.totalRevenue || 0).toFixed(2);
+          summaryEl.innerHTML =
+            '<span class="trend-summary-item">订单: <strong>' + summary.totalOrders + '</strong></span>' +
+            '<span class="trend-summary-item">收入: <strong>¥' + totalRevenue + '</strong></span>' +
+            '<span class="trend-summary-item">激活: <strong>' + summary.totalActivations + '</strong></span>' +
+            '<span class="trend-summary-item">总数据: <strong>' + (summary.currentDbKeys || 0) + '</strong> 条</span>';
+        }
+
+        var textColor = getComputedStyle(document.documentElement).getPropertyValue('--muted') || '#64748b';
+        var gridColor = getComputedStyle(document.documentElement).getPropertyValue('--line') || '#e2e8f0';
+        var accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#4F46E5';
+        var accent2Color = '#10b981';
+
+        if (trendsCharts.orders) trendsCharts.orders.destroy();
+        var orderCtx = document.getElementById('chartOrders');
+        if (orderCtx) {
+          trendsCharts.orders = new Chart(orderCtx, {
+            type: 'bar',
+            data: {
+              labels: labels,
+              datasets: [
+                {
+                  label: '订单数',
+                  data: orderData.map(function(o) { return o.count; }),
+                  backgroundColor: accentColor + '99',
+                  borderColor: accentColor,
+                  borderWidth: 1,
+                  borderRadius: 4,
+                  yAxisID: 'y',
+                },
+                {
+                  label: '收入 (¥)',
+                  data: orderData.map(function(o) { return parseFloat(o.revenue.toFixed(2)); }),
+                  type: 'line',
+                  borderColor: accent2Color,
+                  backgroundColor: accent2Color + '22',
+                  borderWidth: 2,
+                  pointRadius: 3,
+                  pointBackgroundColor: accent2Color,
+                  tension: 0.3,
+                  fill: true,
+                  yAxisID: 'y1',
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              interaction: { mode: 'index', intersect: false },
+              plugins: {
+                legend: { labels: { usePointStyle: true, boxWidth: 8, padding: 16, color: textColor } },
+              },
+              scales: {
+                x: { grid: { color: gridColor }, ticks: { color: textColor, font: { size: 11 } } },
+                y: {
+                  type: 'linear',
+                  position: 'left',
+                  beginAtZero: true,
+                  grid: { color: gridColor },
+                  ticks: { color: textColor, font: { size: 11 }, stepSize: 1 },
+                  title: { display: true, text: '订单数', color: textColor },
+                },
+                y1: {
+                  type: 'linear',
+                  position: 'right',
+                  beginAtZero: true,
+                  grid: { drawOnChartArea: false },
+                  ticks: { color: accent2Color, font: { size: 11 }, callback: function(v) { return '¥' + v; } },
+                  title: { display: true, text: '收入', color: accent2Color },
+                },
+              },
+            },
+          });
+        }
+
+        if (trendsCharts.activations) trendsCharts.activations.destroy();
+        var actCtx = document.getElementById('chartActivations');
+        if (actCtx) {
+          trendsCharts.activations = new Chart(actCtx, {
+            type: 'bar',
+            data: {
+              labels: labels,
+              datasets: [
+                {
+                  label: '激活次数',
+                  data: activationData.map(function(a) { return a.count; }),
+                  backgroundColor: accentColor + '44',
+                  borderColor: accentColor,
+                  borderWidth: 1,
+                  borderRadius: 4,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { labels: { usePointStyle: true, boxWidth: 8, padding: 16, color: textColor } },
+              },
+              scales: {
+                x: { grid: { color: gridColor }, ticks: { color: textColor, font: { size: 11 } } },
+                y: {
+                  beginAtZero: true,
+                  grid: { color: gridColor },
+                  ticks: { color: textColor, font: { size: 11 }, stepSize: 1 },
+                },
+              },
+            },
+          });
+        }
+      } catch (e) {
+        console.error('loadTrends failed:', e);
+      }
+    }
+
+    function initTrends() {
+      var selector = document.getElementById('trendDaysSelector');
+      if (!selector) return;
+      selector.querySelectorAll('button').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          selector.querySelectorAll('button').forEach(function(b) { b.classList.remove('active'); });
+          btn.classList.add('active');
+          var days = parseInt(btn.getAttribute('data-days'), 10) || 7;
+          loadTrends(days);
+        });
+      });
+      loadTrends(7);
     }
 
     function renderProductsFromLocal() {
@@ -7548,6 +7779,7 @@
 
     initLocalData().then(function() {
       loadStats();
+      initTrends();
       lucide.createIcons();
     });
     setInterval(loadStats, 30000);
