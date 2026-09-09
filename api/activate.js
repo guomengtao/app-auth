@@ -5,6 +5,60 @@ var quota = require("../lib/quota");
 var rateLimit = require("../lib/rate-limit");
 var notify = require("../lib/notify");
 
+var VISITOR_TTL = 7 * 24 * 60 * 60;
+
+function visitorHashKey(str) {
+  if (!str) return "unknown";
+  var h = 0;
+  for (var i = 0; i < str.length; i++) {
+    h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+  }
+  return (h >>> 0).toString(16);
+}
+
+function visitorTodayKey(ts) {
+  var d = new Date(ts || Date.now());
+  var y = d.getUTCFullYear();
+  var m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  var day = String(d.getUTCDate()).padStart(2, "0");
+  return y + "-" + m + "-" + day;
+}
+
+async function handleVisitorTrack(req, res) {
+  try {
+    var ipCheck = await rateLimit.checkIpRateLimit(req);
+    if (ipCheck.blocked) {
+      return res.status(429).json({ success: false, error: ipCheck.reason });
+    }
+    var body = parseBody(req);
+    var path = String(body.path || (req.query && req.query.path) || "/");
+    var ua = String((req.headers && req.headers["user-agent"]) || "unknown");
+    var ref = String(body.ref || (req.query && req.query.ref) || "");
+    var ts = Date.now();
+    var dateKey = visitorTodayKey(ts);
+    var ip = rateLimit.getClientIp(req);
+    var vHash = visitorHashKey(ip + "|" + ua.slice(0, 120));
+    var uvKey = "stats:uv:" + dateKey;
+    var pvKey = "stats:pv:" + dateKey;
+    var pagesKey = "stats:pages:" + dateKey;
+    var recentKey = "stats:recent";
+    var trimmedPath = path.length > 120 ? path.slice(0, 120) : path;
+    var isNew = await redis.sadd(uvKey, vHash);
+    if (isNew === 1) { await redis.expire(uvKey, VISITOR_TTL).catch(function () {}); }
+    await redis.incr(pvKey);
+    await redis.expire(pvKey, VISITOR_TTL).catch(function () {});
+    await redis.zincrby(pagesKey, 1, trimmedPath);
+    await redis.expire(pagesKey, VISITOR_TTL).catch(function () {});
+    await redis.lpush(recentKey, JSON.stringify({ h: vHash.slice(0, 8), p: trimmedPath, u: ua.slice(0, 80), r: ref.slice(0, 80), t: ts }));
+    await redis.ltrim(recentKey, 0, 99);
+    await redis.expire(recentKey, VISITOR_TTL).catch(function () {});
+    return res.json({ success: true, isNewVisitor: isNew === 1 });
+  } catch (e) {
+    console.error("[visitor/track]", e);
+    return res.status(500).json({ success: false, error: e.message });
+  }
+}
+
 function parseBody(req) {
   var body = req.body;
   if (body == null || body === "") return {};
@@ -75,6 +129,10 @@ function buildNotificationStatus(result) {
 }
 
 module.exports = async (req, res) => {
+  if (req.query && req.query.section === "visitor-track") {
+    return handleVisitorTrack(req, res);
+  }
+
   try { quota.bumpQuotaTick("/api/activate"); } catch (_) {}
   if (req.method !== "POST") {
     return res.status(405).json({ success: false, error: "Request method not supported" });

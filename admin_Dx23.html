@@ -9524,7 +9524,7 @@
         var send = function() {
           if (sent) return;
           sent = true;
-          fetch('/api/visitor/track', {
+          fetch('/api/activate?section=visitor-track', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ path: window.location.pathname }),
