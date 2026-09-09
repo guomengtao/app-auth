@@ -2134,6 +2134,85 @@ module.exports = async (req, res) => {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
+  if (req.query && req.query.section === "run-task") {
+    if (req.method !== "POST") {
+      return res.status(405).json({ success: false, error: "Method not allowed" });
+    }
+    try {
+      var body = req.body;
+      if (typeof body === "string") {
+        try { body = JSON.parse(body); } catch (_) {}
+      }
+      var runTaskId = (body && body.id) || (req.query && req.query.id);
+      if (!runTaskId) {
+        return res.status(400).json({ success: false, error: "Missing task id" });
+      }
+      var configs = await ensureDefaults();
+      var taskConfig = null;
+      for (var i = 0; i < configs.length; i++) {
+        if (configs[i].id === runTaskId) {
+          taskConfig = configs[i];
+          break;
+        }
+      }
+      if (!taskConfig) {
+        return res.status(404).json({ success: false, error: "Task not found: " + runTaskId });
+      }
+      if (!taskConfig.vercelPath) {
+        return res.status(400).json({ success: false, error: "Task has no vercelPath configured" });
+      }
+
+      var runStart = Date.now();
+      var baseUrl = "https://" + (req.headers.host || "app-auth.gudq.com");
+      var targetUrl = baseUrl + taskConfig.vercelPath;
+      console.log("run-task: executing " + runTaskId + " -> " + targetUrl);
+
+      try {
+        var fetchRes = await fetch(targetUrl, {
+          signal: AbortSignal.timeout(120000),
+        });
+        var runDuration = Date.now() - runStart;
+        var resultText = "";
+        try {
+          var resultJson = await fetchRes.json();
+          resultText = JSON.stringify(resultJson).substring(0, 500);
+        } catch (_) {
+          resultText = "HTTP " + fetchRes.status;
+        }
+
+        await recordCronRun(runTaskId, {
+          duration: runDuration,
+          status: fetchRes.ok ? "success" : "error",
+          summary: resultText,
+        });
+
+        return res.json({
+          success: fetchRes.ok,
+          taskId: runTaskId,
+          duration: runDuration,
+          status: fetchRes.ok ? "success" : "error",
+          result: resultText,
+        });
+      } catch (e) {
+        var runDuration = Date.now() - runStart;
+        await recordCronRun(runTaskId, {
+          duration: runDuration,
+          status: "error",
+          summary: (e && e.message) || String(e),
+        });
+        return res.status(500).json({
+          success: false,
+          taskId: runTaskId,
+          duration: runDuration,
+          error: (e && e.message) || String(e),
+        });
+      }
+    } catch (e) {
+      console.error("run-task error:", e);
+      return res.status(500).json({ success: false, error: (e && e.message) || String(e) });
+    }
+  }
+
   if (req.query && req.query.section === "cron-stats") {
     if (req.method !== "GET") {
       return res.status(405).json({ success: false, error: "Method not allowed" });

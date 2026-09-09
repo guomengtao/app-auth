@@ -6943,6 +6943,7 @@
           html += '<input type="checkbox" ' + (task.enabled ? 'checked' : '') + ' onchange="toggleTask(\'' + escapeHtml(task.id) + '\', this.checked)">';
           html += '<span class="toggle-slider"></span>';
           html += '</label>';
+          html += '<button class="btn-icon" onclick="runTaskNow(\'' + escapeHtml(task.id) + '\', \'' + escapeHtml(task.name) + '\')" title="立即执行">▶️</button>';
           html += '<button class="btn-icon" onclick="showEditTaskModal(\'' + escapeHtml(task.id) + '\')" title="编辑">✏️</button>';
           html += '</div>';
           html += '</div>';
@@ -6982,6 +6983,37 @@
         console.error('toggleTask error:', e);
         alert('操作失败：' + e.message);
         loadCronTasks();
+      }
+    }
+
+    async function runTaskNow(taskId, taskName) {
+      var btn = event && event.target;
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳';
+      }
+      try {
+        var res = await fetch('/api/admin/health?section=run-task', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: taskId }),
+        });
+        var data = await res.json();
+        if (data.success) {
+          showToast(taskName + ' 执行成功 (' + (data.duration > 1000 ? (data.duration / 1000).toFixed(1) + 's' : data.duration + 'ms') + ')', 'success');
+        } else {
+          showToast(taskName + ' 执行失败: ' + (data.error || data.result || '未知错误'), 'error');
+        }
+        loadCronTasks();
+      } catch (e) {
+        console.error('runTaskNow error:', e);
+        showToast(taskName + ' 执行失败: ' + e.message, 'error');
+        loadCronTasks();
+      }
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '▶️';
       }
     }
 
