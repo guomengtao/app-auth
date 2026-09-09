@@ -14,6 +14,7 @@ try { verifySwitch = require("../../lib/verify-switch"); } catch(e) { console.wa
 var CRON_STATS_KEY = "auth:cron:stats";
 var CRON_LIST_KEY = "auth:cron:list";
 var CRON_CONFIG_KEY = "auth:cron:config";
+var CRON_RUN_LOG_KEY = "auth:cron:run_logs";
 var DEFAULT_TASKS = [
   {
     id: "afdian-query-orders",
@@ -143,7 +144,16 @@ async function recordCronRun(cronId, result) {
   var pip = redis.pipeline();
   pip.sadd(CRON_LIST_KEY, cronId);
   pip.set(CRON_STATS_KEY + ":last_update", String(now));
+  pip.lpush(CRON_RUN_LOG_KEY, JSON.stringify({
+    taskId: cronId,
+    time: new Date(now).toISOString(),
+    duration: result.duration || 0,
+    status: result.status || "unknown",
+    summary: result.summary || "",
+    count: stats.count,
+  }));
   await pip.exec();
+  try { await redis.ltrim(CRON_RUN_LOG_KEY, 0, 99); } catch (_) {}
   return stats;
 }
 
@@ -2229,6 +2239,33 @@ module.exports = async (req, res) => {
       });
     } catch (e) {
       console.error("cron-stats error:", e);
+      return res.status(500).json({ success: false, error: (e && e.message) || String(e) });
+    }
+  }
+
+  if (req.query && req.query.section === "cron-logs") {
+    if (req.method !== "GET") {
+      return res.status(405).json({ success: false, error: "Method not allowed" });
+    }
+    try {
+      var rawLogs = await redis.lrange(CRON_RUN_LOG_KEY, 0, 99);
+      var logs = [];
+      if (rawLogs && rawLogs.length) {
+        for (var li = 0; li < rawLogs.length; li++) {
+          try {
+            var entry = JSON.parse(rawLogs[li]);
+            logs.push(entry);
+          } catch (_) {}
+        }
+      }
+      return res.json({
+        success: true,
+        generatedAt: new Date().toISOString(),
+        logs: logs,
+        total: logs.length,
+      });
+    } catch (e) {
+      console.error("cron-logs error:", e);
       return res.status(500).json({ success: false, error: (e && e.message) || String(e) });
     }
   }

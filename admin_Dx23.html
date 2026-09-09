@@ -3363,6 +3363,7 @@
               <button class="logs-tab" onclick="switchLogsTab('resend')" id="logsTabResend" style="padding:8px 20px;border:none;background:none;font-size:0.84rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">📬 Resend平台</button>
               <button class="logs-tab" onclick="switchLogsTab('afdian-dm')" id="logsTabAfdianDm" style="padding:8px 20px;border:none;background:none;font-size:0.84rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">💬 爱发电私信日志</button>
               <button class="logs-tab" onclick="switchLogsTab('db-sync')" id="logsTabDbSync" style="padding:8px 20px;border:none;background:none;font-size:0.84rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">🔄 数据库同步日志</button>
+              <button class="logs-tab" onclick="switchLogsTab('cron')" id="logsTabCron" style="padding:8px 20px;border:none;background:none;font-size:0.84rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">⏰ 定时任务日志</button>
             </div>
 
             <div id="logsSectionSystem">
@@ -3422,6 +3423,18 @@
                   <button class="btn btn-outline" onclick="loadDbSyncLogs()" style="margin-left:6px">🔄 刷新</button>
                 </div>
                 <div id="dbSyncLogsList" class="health-log-list"></div>
+              </div>
+            </div>
+
+            <div id="logsSectionCron" style="display:none;">
+              <div class="setting-block">
+                <h3 class="setting-title">⏰ 定时任务执行日志</h3>
+                <p class="setting-desc">Record of each cron job execution including task name, status, duration, and summary.</p>
+                <div style="margin-bottom:10px">
+                  <button class="btn btn-primary" onclick="loadCronLogs()">⏰ 拉取任务日志</button>
+                  <button class="btn btn-outline" onclick="loadCronLogs()" style="margin-left:6px">🔄 刷新</button>
+                </div>
+                <div id="cronLogsList" class="health-log-list"></div>
               </div>
             </div>
           </div>
@@ -6409,6 +6422,80 @@
       }
     }
 
+    async function loadCronLogs() {
+      var listEl = document.getElementById('cronLogsList');
+      var timeEl = document.getElementById('logsTimeHint');
+      if (!listEl) return;
+      listEl.innerHTML = '<div class="empty">Loading...</div>';
+
+      try {
+        var data = await api('/api/admin/health?section=cron-logs');
+        if (!data.success) {
+          listEl.innerHTML = '<div class="empty" style="text-align:left;color:#f59e0b;">⚠️ ' + escapeHtml(data.error || 'Cron logs unavailable') + '</div>';
+          showToast('Cron logs load failed', 'error');
+          return;
+        }
+
+        if (timeEl) timeEl.textContent = '🕐 ' + new Date().toLocaleString('zh-CN');
+
+        var logs = data.logs || [];
+        if (!logs.length) {
+          listEl.innerHTML = '<div class="empty">No cron execution records yet. Run a task manually or wait for the scheduled cron to execute.</div>';
+          return;
+        }
+
+        var statusClsMap = {
+          'success': 'el-status-success',
+          'error': 'el-status-failed',
+          'skipped': 'el-status-skipped',
+          'partial': 'el-status-skipped',
+        };
+        var statusLabelMap = {
+          'success': '✅ Success',
+          'error': '❌ Error',
+          'skipped': '⏭️ Skipped',
+          'partial': '⚠️ Partial',
+        };
+
+        var html = '';
+        for (var i = 0; i < logs.length; i++) {
+          var l = logs[i];
+          var timeStr = '';
+          if (l.time) {
+            try { timeStr = new Date(l.time).toLocaleString('zh-CN'); } catch (_) { timeStr = l.time; }
+          }
+          var statusCls = statusClsMap[l.status] || 'el-status-skipped';
+          var statusLabel = statusLabelMap[l.status] || ('⚠️ ' + escapeHtml(l.status || 'unknown'));
+          var detailId = 'cronDetail' + i;
+          var duration = l.duration ? (l.duration > 1000 ? (l.duration / 1000).toFixed(1) + 's' : l.duration + 'ms') : '?';
+          var taskName = l.taskId || 'unknown';
+
+          html += '<div class="el-row" onclick="toggleElDetail(\'' + detailId + '\', this)" style="cursor:pointer;user-select:none;">' +
+            '<span class="el-expand">▶</span>' +
+            '<span class="el-time">' + escapeHtml(timeStr) + '</span>' +
+            '<span class="el-type el-type-test">⏰ ' + escapeHtml(taskName) + '</span>' +
+            '<span class="el-to">#' + (l.count || 0) + '</span>' +
+            '<span class="el-subject">⏱ ' + duration + '</span>' +
+            '<span class="el-type ' + statusCls + '">' + statusLabel + '</span>' +
+            '</div>';
+
+          html += '<div class="el-detail" id="' + detailId + '" style="display:none;">';
+          html += '<div class="el-detail-row"><span class="el-detail-key">Time</span><span class="el-detail-val">' + escapeHtml(timeStr) + '</span></div>';
+          html += '<div class="el-detail-row"><span class="el-detail-key">Task</span><span class="el-detail-val">' + escapeHtml(taskName) + '</span></div>';
+          html += '<div class="el-detail-row"><span class="el-detail-key">Status</span><span class="el-detail-val">' + statusLabel + '</span></div>';
+          html += '<div class="el-detail-row"><span class="el-detail-key">Run #</span><span class="el-detail-val">' + (l.count || 0) + '</span></div>';
+          html += '<div class="el-detail-row"><span class="el-detail-key">Duration</span><span class="el-detail-val">' + duration + '</span></div>';
+          html += '<div class="el-detail-row"><span class="el-detail-key">Summary</span><span class="el-detail-val">' + escapeHtml(l.summary || '-') + '</span></div>';
+          html += '</div>';
+        }
+        listEl.innerHTML = html;
+        showToast('Cron logs loaded - ' + logs.length + ' records', 'success');
+      } catch (e) {
+        console.error('loadCronLogs failed:', e);
+        listEl.innerHTML = '<div class="empty" style="color:#ef4444;">Load failed: ' + escapeHtml(e.message || '') + '</div>';
+      }
+    }
+
     // ==================== Settings ====================
     var SETTINGS_KEY = 'admin_settings_v1';
     var DEFAULT_SETTINGS = {
@@ -7300,14 +7387,16 @@
       var resendSection = document.getElementById('logsSectionResend');
       var dmSection = document.getElementById('logsSectionAfdianDm');
       var syncSection = document.getElementById('logsSectionDbSync');
+      var cronSection = document.getElementById('logsSectionCron');
       var systemTab = document.getElementById('logsTabSystem');
       var emailTab = document.getElementById('logsTabEmail');
       var resendTab = document.getElementById('logsTabResend');
       var dmTab = document.getElementById('logsTabAfdianDm');
       var syncTab = document.getElementById('logsTabDbSync');
+      var cronTab = document.getElementById('logsTabCron');
 
-      var tabs = [systemTab, emailTab, resendTab, dmTab, syncTab];
-      var sections = [systemSection, emailSection, resendSection, dmSection, syncSection];
+      var tabs = [systemTab, emailTab, resendTab, dmTab, syncTab, cronTab];
+      var sections = [systemSection, emailSection, resendSection, dmSection, syncSection, cronSection];
       tabs.forEach(function(t) { if (t) { t.style.color = 'var(--muted)'; t.style.borderBottomColor = 'transparent'; t.classList.remove('active'); } });
       sections.forEach(function(s) { if (s) s.style.display = 'none'; });
 
@@ -7331,6 +7420,10 @@
         if (syncSection) syncSection.style.display = '';
         if (syncTab) { syncTab.style.color = 'var(--accent)'; syncTab.style.borderBottomColor = 'var(--accent)'; syncTab.classList.add('active'); }
         loadDbSyncLogs();
+      } else if (tab === 'cron') {
+        if (cronSection) cronSection.style.display = '';
+        if (cronTab) { cronTab.style.color = 'var(--accent)'; cronTab.style.borderBottomColor = 'var(--accent)'; cronTab.classList.add('active'); }
+        loadCronLogs();
       }
     }
 
