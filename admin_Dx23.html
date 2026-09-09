@@ -1200,6 +1200,11 @@
       padding: 2px 4px;
       border-radius: 4px;
       transition: background 0.15s, color 0.15s;
+      max-width: 60px;
+      overflow: hidden;
+      display: inline-block;
+      white-space: nowrap;
+      text-overflow: ellipsis;
     }
     .device-link:hover {
       background: rgba(37,99,235,0.1);
@@ -5750,7 +5755,7 @@
         }
       }
       allRecords = allRecords || [];
-      var tableHtml = '<table><thead><tr><th>Status</th><th>Activation Code</th><th>Redeem Code</th><th>Device ID</th><th>Product</th><th>Duration</th><th>Activated At</th><th>Expires At</th><th style="width:60px">Detail</th></tr></thead><tbody>';
+      var tableHtml = '<table><thead><tr><th>Status</th><th>Activation Code</th><th>Redeem Code</th><th style="max-width:80px">Device ID</th><th>Product</th><th>Duration</th><th>Activated At</th><th>Expires At</th><th style="width:60px">Detail</th></tr></thead><tbody>';
       if (allRecords.length === 0) {
         var emptyReason = rc
           ? 'No records found for redeem code "' + rc + '".'
@@ -5783,14 +5788,16 @@
           var rawDeviceId = r.device_id || '';
           var hashDeviceId = r.device_id_hash || r.used_device_id || '';
           var displayDeviceId = rawDeviceId;
-          if (displayDeviceId && displayDeviceId.length > 4) {
-            displayDeviceId = '...' + displayDeviceId.slice(-4);
+          if (displayDeviceId && displayDeviceId.length > 5) {
+            displayDeviceId = displayDeviceId.slice(0, 5) + '…';
           }
           var deviceCell;
           if (rawDeviceId) {
             deviceCell = '<a href="javascript:void(0)" class="device-link" onclick="toggleRecordDetailByIdx(' + idx + ')" title="' + escapeHtml(rawDeviceId) + '">' + escapeHtml(displayDeviceId) + '</a>';
           } else if (hashDeviceId) {
-            deviceCell = '<span class="mono" style="font-size:0.7rem;letter-spacing:0;opacity:0.65">' + escapeHtml(hashDeviceId) + '</span>';
+            var hDisplay = hashDeviceId;
+            if (hDisplay.length > 5) hDisplay = hDisplay.slice(0, 5) + '…';
+            deviceCell = '<span class="mono" style="font-size:0.7rem;letter-spacing:0;opacity:0.65" title="' + escapeHtml(hashDeviceId) + '">' + escapeHtml(hDisplay) + '</span>';
           } else {
             deviceCell = '<span style="color:#aaa">-</span>';
           }
