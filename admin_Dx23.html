@@ -6810,6 +6810,10 @@
       setAdminMode(mode);
       initSettingsPanel();
       showToast('已切换到 ' + (mode === 'api-always' ? '☁️ 线上模式（可读写）' : '📴 本地缓存（只读）'), 'success');
+      if (currentTab === 'direct-activate') initDirectActivate();
+      if (currentTab === 'products') loadProducts();
+      if (currentTab === 'codes') loadCodes();
+      if (currentTab === 'records') loadRecords();
     }
 
     function initSettingsPanel() {
@@ -8697,6 +8701,22 @@
     }
 
     function daLoadProducts() {
+      if (ADMIN_MODE === 'api-always') {
+        fetch('/api/admin/products', { credentials: 'include' })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data.success && data.products) {
+              daProductsCache = data.products;
+            }
+            daRenderProductDropdown();
+          })
+          .catch(function() {
+            showToast('Product list loading failed', 'error');
+            daRenderProductDropdown();
+          });
+        return;
+      }
+
       var raw = getLocalData(STORAGE_KEY_PRODUCTS);
       if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
         daProductsCache = Object.keys(raw).map(function(id) {
@@ -8707,20 +8727,7 @@
       } else {
         daProductsCache = [];
       }
-
-      if (daProductsCache.length === 0 && ADMIN_MODE === 'api-always') {
-        fetch('/api/admin/products', { credentials: 'include' })
-          .then(function(r) { return r.json(); })
-          .then(function(data) {
-            if (data.success && data.products) {
-              daProductsCache = data.products;
-              daRenderProductDropdown();
-            }
-          })
-          .catch(function() {});
-      } else {
-        daRenderProductDropdown();
-      }
+      daRenderProductDropdown();
     }
 
     function daRenderProductDropdown() {
