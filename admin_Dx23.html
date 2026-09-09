@@ -4791,6 +4791,11 @@
 
     function switchTab(tab) {
       currentTab = tab;
+      try {
+        var url = new URL(window.location.href);
+        url.searchParams.set('tab', tab);
+        window.history.replaceState({}, '', url.toString());
+      } catch (e) {}
       document.querySelectorAll('.sidebar-menu li a').forEach(function(a) { a.classList.remove('active'); });
       document.querySelectorAll('.panel').forEach(function(p) { p.classList.remove('active'); });
       var activeLink = document.querySelector('.sidebar-menu li a[data-tab="' + tab + '"]');
@@ -7892,6 +7897,12 @@
       loadStats();
       initTrends();
       lucide.createIcons();
+      try {
+        var pre = new URLSearchParams(window.location.search).get('tab');
+        if (pre && TAB_META[pre]) {
+          switchTab(pre);
+        }
+      } catch (e) {}
     });
     setInterval(loadStats, 30000);
 
@@ -9534,7 +9545,7 @@
           fetch('/api/activate?section=visitor-track', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ path: window.location.pathname }),
+            body: JSON.stringify({ path: window.location.pathname + window.location.search }),
             keepalive: true,
           }).catch(function() {});
         };
