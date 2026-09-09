@@ -3682,7 +3682,7 @@
               <p class="setting-desc">全局开关，关闭后所有激活请求（包括用户激活和快捷激活）将被拒绝。不影响已激活的设备。</p>
               <div class="setting-row">
                 <label class="setting-switch">
-                  <input type="checkbox" id="settingActivationSystemEnabled" onchange="saveSettings()">
+                  <input type="checkbox" id="settingActivationSystemEnabled" onchange="toggleActivationSystem()">
                   <span class="switch-slider"></span>
                 </label>
                 <div class="setting-row-info">
@@ -6757,6 +6757,19 @@
       } catch (_) {}
       return Object.assign({}, DEFAULT_SETTINGS);
     }
+
+    function toggleActivationSystem() {
+      var el = document.getElementById('settingActivationSystemEnabled');
+      var enabled = !!el.checked;
+      if (!enabled) {
+        if (!confirm('确定要关闭激活码系统吗？\n\n关闭后，所有激活请求（包括用户激活和快捷激活）将被拒绝。\n\n建议保持开启状态。')) {
+          el.checked = true;
+          return;
+        }
+      }
+      saveSettings();
+    }
+
     function saveSettings() {
       var pageSizeEl = document.getElementById('settingPageSize');
       var pageSize = pageSizeEl ? parseInt(pageSizeEl.value, 10) || 10 : 10;
@@ -6872,7 +6885,12 @@
         .then(function(data) {
           if (data && typeof data.enabled === 'boolean') {
             var el = document.getElementById('settingActivationSystemEnabled');
-            if (el) el.checked = data.enabled;
+            if (el) {
+              var prev = el.onchange;
+              el.onchange = null;
+              el.checked = data.enabled;
+              el.onchange = prev;
+            }
             var s = readSettings();
             if (s.activationSystemEnabled !== data.enabled) {
               s.activationSystemEnabled = data.enabled;
