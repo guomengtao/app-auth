@@ -10,6 +10,7 @@ var dbSwitches = require("../../lib/db-switches");
 var dbRegistry = require("../../lib/db-registry");
 var verifySwitch = null;
 try { verifySwitch = require("../../lib/verify-switch"); } catch(e) { console.warn("verify-switch module not available:", e.message); }
+var pushNotify = require("../../lib/push-notify");
 
 var CRON_STATS_KEY = "auth:cron:stats";
 var CRON_LIST_KEY = "auth:cron:list";
@@ -2247,6 +2248,65 @@ module.exports = async (req, res) => {
       return res.status(500).json({ success: false, error: "verify-switch module not available" });
     }
     return verifySwitch(req, res);
+  }
+
+  if (req.query && req.query.section === "push-test") {
+    try {
+      if (req.method === "POST") {
+        var body = req.body || {};
+        var type = body.type || "new_order";
+        var mockPayloads = {
+          new_order: {
+            out_trade_no: "MOCK" + Date.now(),
+            amount: 2990,
+            plan_id: "年度赞助",
+            plan_amount: 2990,
+            user_id: "mock_user_01",
+            time: Date.now()
+          },
+          new_activation: {
+            activation_code: "MOCK" + Math.random().toString(36).slice(2, 10).toUpperCase(),
+            redeem_code: "ABCD",
+            device_id: "Aa09",
+            product_id: "PROD-001",
+            product_name: "专业版 Pro",
+            months: 12,
+            source: "mock",
+            time: Date.now()
+          },
+          new_visit: {
+            path: "/activate.html",
+            device_id: "Aa09",
+            ip: "114.85.xx.xx",
+            country: "CN",
+            region: "Shanghai",
+            city: "Shanghai",
+            ts: Date.now()
+          }
+        };
+        var payload = mockPayloads[type] || body.payload || {};
+        var ok = await pushNotify.pushNotification(type, payload);
+        return res.json({
+          success: !!ok,
+          type: type,
+          payload: payload,
+          upstashConfigured: !!(pushNotify.getUpstashUrl() && pushNotify.getUpstashToken()),
+          message: ok ? "Pushed successfully, SSE clients should receive within 1 second" : "Failed (check Upstash env vars)"
+        });
+      }
+      if (req.method === "GET") {
+        var msgs = await pushNotify.fetchNotifications(parseInt(req.query.count || "20", 10));
+        return res.json({
+          success: true,
+          count: msgs.length,
+          upstashConfigured: !!(pushNotify.getUpstashUrl() && pushNotify.getUpstashToken()),
+          notifications: msgs
+        });
+      }
+      return res.status(405).json({ success: false, error: "Method not allowed" });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
   }
 
   if (req.method !== "GET") {
