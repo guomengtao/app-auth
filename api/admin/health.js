@@ -1226,7 +1226,7 @@ module.exports = async (req, res) => {
       if (req.method === "POST") {
         var body = req.body || {};
         var enabled = body.enabled !== false;
-        await redis.set("auth:activation_system_enabled", enabled ? "enabled" : "disabled");
+        await redis.set("auth:activation_system_enabled", enabled ? "enabled" : "disabled", { ex: 31536000 });
         return res.json({ success: true, enabled: enabled });
       }
       return res.status(405).json({ success: false, error: "Method not allowed" });

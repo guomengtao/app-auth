@@ -6953,27 +6953,24 @@
 
     function fetchActivationSystemState() {
       if (typeof api !== 'function') return;
+      var raw = null;
+      try { raw = localStorage.getItem(SETTINGS_KEY); } catch (_) {}
+      if (raw) {
+        return;
+      }
       api('/api/admin/health?section=activation-system', { method: 'GET' })
         .then(function(data) {
           if (data && typeof data.enabled === 'boolean') {
             var el = document.getElementById('settingActivationSystemEnabled');
-            var raw = localStorage.getItem(SETTINGS_KEY);
-            if (!raw) {
-              if (el) {
-                var prev = el.onchange;
-                el.onchange = null;
-                el.checked = data.enabled;
-                el.onchange = prev;
-              }
-              var s = readSettings();
-              s.activationSystemEnabled = data.enabled;
-              try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch (_) {}
-            } else {
-              var s = readSettings();
-              if (s.activationSystemEnabled !== data.enabled) {
-                console.warn('[settings] Local activation system state differs from server, keeping local: ' + s.activationSystemEnabled);
-              }
+            if (el) {
+              var prev = el.onchange;
+              el.onchange = null;
+              el.checked = data.enabled;
+              el.onchange = prev;
             }
+            var s = readSettings();
+            s.activationSystemEnabled = data.enabled;
+            try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch (_) {}
           }
         })
         .catch(function(e) {
