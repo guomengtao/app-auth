@@ -1,19 +1,17 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ev Schedule - Smart Course Management App</title>
+<title>Ev课程表 - 小米手表原生课程表应用</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  
+
   :root {
     --deep-green: #1a4d2e;
     --deep-green-dark: #0f2e1c;
     --deep-green-light: #2d7a47;
     --vibrant-green: #3cb371;
-    --gradient-start: #1a4d2e;
-    --gradient-end: #2d7a47;
     --beige: #f5f0e8;
     --cream: #faf7f2;
     --text-dark: #1a1a2e;
@@ -24,7 +22,7 @@
   html { scroll-behavior: smooth; }
 
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Helvetica Neue', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
     line-height: 1.6;
     color: var(--text-dark);
     overflow-x: hidden;
@@ -197,9 +195,9 @@
   }
 
   .hero h1 {
-    font-size: 3.2rem;
+    font-size: 3rem;
     font-weight: 800;
-    line-height: 1.15;
+    line-height: 1.2;
     color: white;
     margin-bottom: 20px;
     letter-spacing: -0.5px;
@@ -213,7 +211,7 @@
   }
 
   .hero-subtitle {
-    font-size: 1.15rem;
+    font-size: 1.1rem;
     color: rgba(255,255,255,0.8);
     margin-bottom: 36px;
     line-height: 1.7;
@@ -356,13 +354,12 @@
     color: var(--deep-green);
     font-size: 0.82rem;
     font-weight: 700;
-    text-transform: uppercase;
     letter-spacing: 2px;
     margin-bottom: 16px;
   }
 
   .section-title {
-    font-size: 2.4rem;
+    font-size: 2.2rem;
     font-weight: 800;
     color: var(--text-dark);
     margin-bottom: 16px;
@@ -370,7 +367,7 @@
   }
 
   .section-desc {
-    font-size: 1.05rem;
+    font-size: 1rem;
     color: var(--text-muted);
     max-width: 600px;
     margin: 0 auto;
@@ -379,13 +376,13 @@
   .features-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 32px;
+    gap: 28px;
   }
 
   .feature-card {
     background: white;
     border-radius: 20px;
-    padding: 40px 32px;
+    padding: 36px 28px;
     transition: all 0.4s ease;
     border: 1px solid rgba(0,0,0,0.04);
   }
@@ -397,14 +394,14 @@
   }
 
   .feature-icon {
-    width: 56px;
-    height: 56px;
+    width: 52px;
+    height: 52px;
     border-radius: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.6rem;
-    margin-bottom: 20px;
+    font-size: 1.5rem;
+    margin-bottom: 18px;
   }
 
   .feature-icon.green {
@@ -423,14 +420,14 @@
   }
 
   .feature-card h3 {
-    font-size: 1.2rem;
+    font-size: 1.1rem;
     font-weight: 700;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     color: var(--text-dark);
   }
 
   .feature-card p {
-    font-size: 0.92rem;
+    font-size: 0.88rem;
     color: var(--text-muted);
     line-height: 1.65;
   }
@@ -484,14 +481,14 @@
   }
 
   .showcase-content h3 {
-    font-size: 2rem;
+    font-size: 1.8rem;
     font-weight: 800;
     margin-bottom: 16px;
     color: var(--text-dark);
   }
 
   .showcase-content p {
-    font-size: 1.02rem;
+    font-size: 1rem;
     color: var(--text-muted);
     margin-bottom: 24px;
     line-height: 1.75;
@@ -506,7 +503,7 @@
     align-items: center;
     gap: 12px;
     padding: 10px 0;
-    font-size: 0.95rem;
+    font-size: 0.92rem;
     color: var(--text-dark);
   }
 
@@ -551,7 +548,7 @@
 
   .gallery-item img {
     width: 100%;
-    height: 280px;
+    height: 260px;
     object-fit: cover;
     transition: transform 0.5s ease;
   }
@@ -565,13 +562,13 @@
     bottom: 0;
     left: 0;
     right: 0;
-    padding: 24px;
+    padding: 22px;
     background: linear-gradient(transparent, rgba(0,0,0,0.8));
     color: white;
   }
 
   .gallery-overlay h4 {
-    font-size: 1.1rem;
+    font-size: 1.05rem;
     font-weight: 700;
     margin-bottom: 4px;
   }
@@ -579,6 +576,45 @@
   .gallery-overlay p {
     font-size: 0.85rem;
     color: rgba(255,255,255,0.8);
+  }
+
+  .tech-section {
+    padding: 100px 0;
+    background: var(--cream);
+  }
+
+  .tech-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+    margin-top: 48px;
+  }
+
+  .tech-card {
+    background: white;
+    border-radius: 16px;
+    padding: 28px 24px;
+    text-align: center;
+    border: 1px solid rgba(0,0,0,0.04);
+    transition: all 0.3s;
+  }
+
+  .tech-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+  }
+
+  .tech-number {
+    font-size: 2.4rem;
+    font-weight: 800;
+    color: var(--deep-green);
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  .tech-label {
+    font-size: 0.88rem;
+    color: var(--text-muted);
   }
 
   .cta-section {
@@ -607,17 +643,17 @@
   }
 
   .cta-section h2 {
-    font-size: 2.8rem;
+    font-size: 2.4rem;
     font-weight: 800;
     color: white;
     margin-bottom: 16px;
   }
 
   .cta-section p {
-    font-size: 1.1rem;
+    font-size: 1.05rem;
     color: rgba(255,255,255,0.8);
     margin-bottom: 40px;
-    max-width: 500px;
+    max-width: 520px;
     margin-left: auto;
     margin-right: auto;
   }
@@ -660,7 +696,7 @@
   }
 
   .footer-brand p {
-    font-size: 0.9rem;
+    font-size: 0.88rem;
     line-height: 1.7;
   }
 
@@ -675,7 +711,7 @@
     display: block;
     color: rgba(255,255,255,0.6);
     text-decoration: none;
-    font-size: 0.9rem;
+    font-size: 0.88rem;
     padding: 6px 0;
     transition: color 0.2s;
   }
@@ -688,18 +724,19 @@
     border-top: 1px solid rgba(255,255,255,0.1);
     padding-top: 24px;
     text-align: center;
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     color: rgba(255,255,255,0.4);
   }
 
   @media (max-width: 1024px) {
-    .hero h1 { font-size: 2.6rem; }
+    .hero h1 { font-size: 2.4rem; }
     .hero-content { grid-template-columns: 1fr; gap: 40px; }
     .hero-visual { order: -1; max-width: 500px; margin: 0 auto; }
     .features-grid { grid-template-columns: repeat(2, 1fr); }
     .showcase-item { grid-template-columns: 1fr; gap: 40px; }
     .showcase-item.reverse { direction: ltr; }
     .gallery-grid { grid-template-columns: repeat(2, 1fr); }
+    .tech-grid { grid-template-columns: repeat(2, 1fr); }
     .footer-grid { grid-template-columns: 1fr 1fr; }
   }
 
@@ -713,14 +750,16 @@
     .features-grid { grid-template-columns: 1fr; }
     .showcase { padding: 80px 0; }
     .showcase-item { margin-bottom: 80px; }
-    .showcase-content h3 { font-size: 1.5rem; }
+    .showcase-content h3 { font-size: 1.4rem; }
     .gallery { padding: 80px 0; }
     .gallery-grid { grid-template-columns: 1fr; }
     .gallery-item img { height: 220px; }
+    .tech-section { padding: 80px 0; }
+    .tech-grid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
     .cta-section { padding: 80px 0; }
-    .cta-section h2 { font-size: 2rem; }
+    .cta-section h2 { font-size: 1.8rem; }
     .footer-grid { grid-template-columns: 1fr; gap: 32px; }
-    .section-title { font-size: 1.8rem; }
+    .section-title { font-size: 1.6rem; }
   }
 
   .fade-in {
@@ -740,14 +779,15 @@
 <nav id="navbar">
   <div class="nav-inner">
     <a href="#" class="nav-logo">
-      <img src="images/ev-schedule/logo-ev-gradient.png" alt="Ev Schedule Logo">
-      <span>Ev Schedule</span>
+      <img src="images/ev-schedule/logo-ev-gradient.png" alt="Ev课程表 Logo">
+      <span>Ev课程表</span>
     </a>
     <div class="nav-links">
-      <a href="#features">Features</a>
-      <a href="#showcase">Showcase</a>
-      <a href="#gallery">Gallery</a>
-      <a href="#download" class="nav-cta">Download</a>
+      <a href="#features">核心功能</a>
+      <a href="#showcase">功能展示</a>
+      <a href="#gallery">界面预览</a>
+      <a href="#tech">技术亮点</a>
+      <a href="#download" class="nav-cta">获取应用</a>
     </div>
     <button class="nav-toggle" onclick="toggleMenu()">☰</button>
   </div>
@@ -759,46 +799,50 @@
       <div>
         <div class="hero-badge">
           <span class="dot"></span>
-          Now Available on App Store
+          小米手表原生应用 | v1.3.0
         </div>
-        <h1>Smart Course<br><span class="highlight">Management</span><br>Made Simple</h1>
+        <h1>专为手表设计的<br><span class="highlight">智能课程表</span></h1>
         <p class="hero-subtitle">
-          Ev Schedule helps students and professionals organize their daily courses, 
-          track schedules effortlessly, and never miss a class again. Beautiful design 
-          meets powerful functionality.
+          Ev课程表是一款为小米智能手表打造的原生课程管理应用。<br>
+          秒级掌握当前课程状态，6种震动模式贴心提醒，<br>
+          9套精美主题随心切换，让学习生活井然有序。
         </p>
         <div class="hero-cta">
           <a href="#download" class="btn-primary">
-            📱 Download App
+            ⌚ 安装到手表
           </a>
-          <a href="#showcase" class="btn-secondary">
-            ▶ Watch Demo
+          <a href="https://github.com/guomengtao/class-schedule" target="_blank" rel="noopener" class="btn-secondary">
+            ⭐ GitHub 开源
           </a>
         </div>
         <div class="hero-stats">
           <div class="stat-item">
-            <span class="stat-number">10K+</span>
-            <span class="stat-label">Active Users</span>
+            <span class="stat-number">16+</span>
+            <span class="stat-label">功能页面</span>
           </div>
           <div class="stat-item">
-            <span class="stat-number">4.9★</span>
-            <span class="stat-label">App Rating</span>
+            <span class="stat-number">9</span>
+            <span class="stat-label">主题配色</span>
           </div>
           <div class="stat-item">
-            <span class="stat-number">50K+</span>
-            <span class="stat-label">Downloads</span>
+            <span class="stat-number">6</span>
+            <span class="stat-label">震动模式</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-number">SQLite</span>
+            <span class="stat-label">本地存储</span>
           </div>
         </div>
       </div>
       <div class="hero-visual">
-        <img src="images/ev-schedule/hero-light-theme.png" alt="Ev Schedule Main View" class="hero-main-image">
+        <img src="images/ev-schedule/hero-light-theme.png" alt="Ev课程表主界面" class="hero-main-image">
         <div class="hero-float-card card-1">
           <div class="float-icon">📚</div>
-          <div class="float-text">6 Classes Today</div>
+          <div class="float-text">今日6节课</div>
         </div>
         <div class="hero-float-card card-2">
-          <div class="float-icon">✅</div>
-          <div class="float-text">All Done!</div>
+          <div class="float-icon">🔔</div>
+          <div class="float-text">5分钟后震动提醒</div>
         </div>
       </div>
     </div>
@@ -808,40 +852,55 @@
 <section class="features" id="features">
   <div class="container">
     <div class="section-header fade-in">
-      <div class="section-tag">Why Ev Schedule</div>
-      <h2 class="section-title">Everything You Need<br>For Perfect Organization</h2>
-      <p class="section-desc">Powerful features designed to make scheduling effortless and enjoyable.</p>
+      <div class="section-tag">核心功能</div>
+      <h2 class="section-title">每一项功能都经过<br>精心打磨</h2>
+      <p class="section-desc">从智能状态感知到手表深度适配，每一个细节都为学习场景量身定制</p>
     </div>
     <div class="features-grid">
       <div class="feature-card fade-in">
-        <div class="feature-icon green">🎨</div>
-        <h3>Beautiful Themes</h3>
-        <p>Choose from elegant light and deep green themes that are easy on the eyes and match your style perfectly.</p>
+        <div class="feature-icon green">🧠</div>
+        <h3>智能状态感知</h3>
+        <p>精确到分钟计算课程状态，自动判断"正在上课"、"即将上课"或"今日已结束"，每分钟实时刷新。</p>
       </div>
       <div class="feature-card fade-in">
-        <div class="feature-icon beige">📅</div>
-        <h3>Week View</h3>
-        <p>Get a complete overview of your entire week at a glance. Drag, drop, and reorganize with intuitive gestures.</p>
+        <div class="feature-icon beige">📳</div>
+        <h3>6种震动提醒</h3>
+        <p>短震、长震、双短震、短+长、长+短+长、三连震，安静环境到嘈杂场景都能精准提醒。</p>
       </div>
       <div class="feature-card fade-in">
-        <div class="feature-icon vibrant">⚡</div>
-        <h3>Quick Add</h3>
-        <p>Add new courses in seconds with smart suggestions and time-saving templates.</p>
+        <div class="feature-icon vibrant">🗂️</div>
+        <h3>多课程表管理</h3>
+        <p>支持创建多张独立课程表，数据完全隔离。一键复制整张课程表，新学期微调更便捷。</p>
       </div>
       <div class="feature-card fade-in">
-        <div class="feature-icon green">🔔</div>
-        <h3>Smart Reminders</h3>
-        <p>Never miss a class with intelligent notifications that adapt to your schedule and preferences.</p>
+        <div class="feature-icon green">📱</div>
+        <h3>手表深度适配</h3>
+        <p>5档字体缩放（28px-76px）全局响应，手势滑动切换日期，左滑卡片快速删除。</p>
       </div>
       <div class="feature-card fade-in">
-        <div class="feature-icon beige">📊</div>
-        <h3>Statistics</h3>
-        <p>Track your study habits and course distribution with beautiful visualizations and insights.</p>
+        <div class="feature-icon beige">🎨</div>
+        <h3>9套主题配色</h3>
+        <p>深空蓝、翡翠绿、珊瑚红、暗夜黑、晨光白、暖阳米、墨绿护眼、琥珀金……总有一款适合你。</p>
       </div>
       <div class="feature-card fade-in">
-        <div class="feature-icon vibrant">☁️</div>
-        <h3>Cloud Sync</h3>
-        <p>Your schedule automatically syncs across all your devices. Start on your phone, continue on your tablet.</p>
+        <div class="feature-icon vibrant">💾</div>
+        <h3>双存储引擎</h3>
+        <p>SQLite 优先性能更优，不可用时自动降级 Storage 键值存储。默认预置示例课程，开箱即用。</p>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feature-icon green">📅</div>
+        <h3>周视图总览</h3>
+        <p>矩阵表格形式展示整周课程分布，点击课程单元可快速跳转详情页，一目了然。</p>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feature-icon beige">📦</div>
+        <h3>数据备份恢复</h3>
+        <p>一键备份所有课程表为 JSON 文件，带时间戳和课程数量摘要，换手表无缝迁移。</p>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feature-icon vibrant">🔐</div>
+        <h3>激活码系统</h3>
+        <p>支持 16 位激活码解锁全部高级功能，设备绑定防篡改，永久激活码一次激活终身可用。</p>
       </div>
     </div>
   </div>
@@ -851,48 +910,48 @@
   <div class="container">
     <div class="showcase-item fade-in">
       <div class="showcase-image">
-        <img src="images/ev-schedule/week-view-overview.png" alt="Week View Overview">
+        <img src="images/ev-schedule/week-view-overview.png" alt="周视图总览">
       </div>
       <div class="showcase-content">
-        <h3>Week View That Changes Everything</h3>
-        <p>See your entire week laid out beautifully at a glance. Color-coded courses make it instantly clear what's next.</p>
+        <h3>周视图总览 — 全局掌控</h3>
+        <p>矩阵表格形式呈现一整周课程，周一至周日列头清晰，时间段行头按序排列。空白时段显示 "."，有课程区域点击即可进入详情。</p>
         <ul class="showcase-list">
-          <li>Intuitive 7-day layout</li>
-          <li>Color-coded course blocks</li>
-          <li>Quick navigation between weeks</li>
-          <li>Zoom in for time details</li>
+          <li>周一至周日七列完整展示</li>
+          <li>按时间自动排序的时间段行</li>
+          <li>点击有课程单元格跳转详情</li>
+          <li>底部课程总数统计一目了然</li>
         </ul>
       </div>
     </div>
 
     <div class="showcase-item reverse fade-in">
       <div class="showcase-image">
-        <img src="images/ev-schedule/features-overview.png" alt="Features Overview">
+        <img src="images/ev-schedule/features-overview.png" alt="功能总览">
       </div>
       <div class="showcase-content">
-        <h3>Powerful Features, Intuitive Design</h3>
-        <p>Every feature is carefully crafted to be both powerful and simple. No learning curve, just pure productivity.</p>
+        <h3>分步添加课程 — 适合手表操作</h3>
+        <p>专为手表屏幕设计的 5 步独立页面流程：输入名称 → 设置时间 → 教师姓名 → 上课地点 → 备注保存。每步独立清晰，配步骤指示器，手表上也能轻松添加完整课程信息。</p>
         <ul class="showcase-list">
-          <li>Drag-and-drop editing</li>
-          <li>Smart recurring schedules</li>
-          <li>Location and room tracking</li>
-          <li>Teacher contact info</li>
+          <li>5 步独立页面，每步只做一件事</li>
+          <li>上/下箭头选择时间，适配手表操作</li>
+          <li>全局数据传递，自动保存进度</li>
+          <li>步骤指示器清晰展示当前进度</li>
         </ul>
       </div>
     </div>
 
     <div class="showcase-item fade-in">
       <div class="showcase-image">
-        <img src="images/ev-schedule/hero-deep-green-theme.png" alt="Deep Green Theme">
+        <img src="images/ev-schedule/hero-deep-green-theme.png" alt="深绿主题">
       </div>
       <div class="showcase-content">
-        <h3>Themes That Adapt To You</h3>
-        <p>Whether you prefer the clean warmth of light mode or the sophisticated comfort of deep green, Ev Schedule delivers.</p>
+        <h3>智能状态 — 每分钟自动刷新</h3>
+        <p>主页状态栏实时计算当前时间与课程的匹配关系。精确到分钟判断"正在上课"、"即将上课"、"今日课程已结束"等状态。当日无课时自动查找未来最近的一节课，显示日期和课程名。</p>
         <ul class="showcase-list">
-          <li>Elegant light theme</li>
-          <li>Rich deep green theme</li>
-          <li>Automatic day/night switching</li>
-          <li>Custom accent colors</li>
+          <li>60 秒定时器每分钟自动刷新</li>
+          <li>精确到分钟的课程状态判断</li>
+          <li>无课时自动显示下一节课信息</li>
+          <li>走马灯滚动提醒上课信息</li>
         </ul>
       </div>
     </div>
@@ -902,31 +961,59 @@
 <section class="gallery" id="gallery">
   <div class="container">
     <div class="section-header fade-in">
-      <div class="section-tag">Gallery</div>
-      <h2 class="section-title">Take A Closer Look</h2>
-      <p class="section-desc">Explore the beautiful interface and thoughtful details that make Ev Schedule special.</p>
+      <div class="section-tag">界面预览</div>
+      <h2 class="section-title">精美界面 多主题随心换</h2>
+      <p class="section-desc">9 套精心设计的主题配色，深色主题省电护眼，浅色主题清新自然</p>
     </div>
     <div class="gallery-grid">
       <div class="gallery-item fade-in">
-        <img src="images/ev-schedule/light-square-view.png" alt="Light Square View">
+        <img src="images/ev-schedule/light-square-view.png" alt="浅色方屏视图">
         <div class="gallery-overlay">
-          <h4>Light Square View</h4>
-          <p>Clean and organized daily layout</p>
+          <h4>浅色方屏视图</h4>
+          <p>晨光白主题，清新明快</p>
         </div>
       </div>
       <div class="gallery-item fade-in">
-        <img src="images/ev-schedule/deep-green-square-view.png" alt="Deep Green Square View">
+        <img src="images/ev-schedule/deep-green-square-view.png" alt="深绿方屏视图">
         <div class="gallery-overlay">
-          <h4>Deep Green Square View</h4>
-          <p>Rich colors for focused studying</p>
+          <h4>深绿方屏视图</h4>
+          <p>墨绿护眼主题，长时间阅读不疲劳</p>
         </div>
       </div>
       <div class="gallery-item fade-in">
-        <img src="images/ev-schedule/hero-light-theme.png" alt="Main View">
+        <img src="images/ev-schedule/hero-light-theme.png" alt="主界面课程视图">
         <div class="gallery-overlay">
-          <h4>Main Schedule View</h4>
-          <p>Your courses at a glance</p>
+          <h4>主界面课程视图</h4>
+          <p>深空蓝主题，默认经典配色</p>
         </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="tech-section" id="tech">
+  <div class="container">
+    <div class="section-header fade-in">
+      <div class="section-tag">技术亮点</div>
+      <h2 class="section-title">扎实的技术底座<br>流畅稳定的使用体验</h2>
+      <p class="section-desc">基于小米 Quick App 框架开发，原生性能，SQLite 数据库存储，双引擎自动降级保障数据安全</p>
+    </div>
+    <div class="tech-grid">
+      <div class="tech-card fade-in">
+        <span class="tech-number">16+</span>
+        <div class="tech-label">功能页面</div>
+      </div>
+      <div class="tech-card fade-in">
+        <span class="tech-number">9</span>
+        <div class="tech-label">主题配色方案</div>
+      </div>
+      <div class="tech-card fade-in">
+        <span class="tech-number">6</span>
+        <div class="tech-label">震动提醒样式</div>
+      </div>
+      <div class="tech-card fade-in">
+        <span class="tech-number">2</span>
+        <div class="tech-label">存储引擎自动降级</div>
       </div>
     </div>
   </div>
@@ -935,10 +1022,10 @@
 <section class="cta-section" id="download">
   <div class="container">
     <div class="cta-content fade-in">
-      <h2>Ready To Get Organized?</h2>
-      <p>Download Ev Schedule today and transform how you manage your courses.</p>
-      <a href="#" class="btn-primary" style="margin-right: 16px;">📱 App Store</a>
-      <a href="#" class="btn-secondary">🤖 Google Play</a>
+      <h2>让学习生活井然有序</h2>
+      <p>Ev课程表，专为小米手表打造。立刻安装，开启智能课程管理新体验。</p>
+      <a href="#" class="btn-primary" style="margin-right: 16px;">⌚ 小米应用商店</a>
+      <a href="https://github.com/guomengtao/class-schedule" target="_blank" rel="noopener" class="btn-secondary">⭐ GitHub 源码</a>
     </div>
   </div>
 </section>
@@ -949,33 +1036,33 @@
       <div class="footer-brand">
         <div class="footer-logo">
           <img src="images/ev-schedule/logo-ev-gradient.png" alt="Logo">
-          <span>Ev Schedule</span>
+          <span>Ev课程表</span>
         </div>
-        <p>The smartest way to manage your courses and schedule. Designed for students who value beautiful design and powerful functionality.</p>
+        <p>专为小米智能手表打造的原生课程管理应用。智能状态感知、6种震动提醒、9套精美主题，让每一节课都不会错过。开源项目，免费使用。</p>
       </div>
       <div class="footer-col">
-        <h4>Product</h4>
-        <a href="#features">Features</a>
-        <a href="#showcase">Showcase</a>
-        <a href="#gallery">Gallery</a>
-        <a href="#download">Download</a>
+        <h4>产品</h4>
+        <a href="#features">核心功能</a>
+        <a href="#showcase">功能展示</a>
+        <a href="#gallery">界面预览</a>
+        <a href="#tech">技术亮点</a>
       </div>
       <div class="footer-col">
-        <h4>Support</h4>
-        <a href="#">Help Center</a>
-        <a href="#">FAQ</a>
-        <a href="#">Contact</a>
-        <a href="#">Feedback</a>
+        <h4>资源</h4>
+        <a href="https://github.com/guomengtao/class-schedule" target="_blank" rel="noopener">GitHub 仓库</a>
+        <a href="https://github.com/guomengtao/class-schedule/blob/main/README.md" target="_blank" rel="noopener">开发文档</a>
+        <a href="#" target="_blank" rel="noopener">爱发电支持</a>
+        <a href="#" target="_blank" rel="noopener">反馈建议</a>
       </div>
       <div class="footer-col">
-        <h4>Legal</h4>
-        <a href="#">Privacy Policy</a>
-        <a href="#">Terms of Service</a>
-        <a href="#">License</a>
+        <h4>技术</h4>
+        <a href="https://github.com/guomengtao/class-schedule" target="_blank" rel="noopener">Quick App 框架</a>
+        <a href="#" target="_blank" rel="noopener">SQLite 存储</a>
+        <a href="#" target="_blank" rel="noopener">版本历史</a>
       </div>
     </div>
     <div class="footer-bottom">
-      2024 Ev Schedule. All rights reserved.
+      2024 Ev课程表 | 开源项目 GitHub.com/guomengtao/class-schedule | 本站仅展示用
     </div>
   </div>
 </footer>
