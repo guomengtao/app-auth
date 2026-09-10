@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ev课程表 - 小米手表原生课程表应用</title>
+<title>Ev课程表 - 小米手环手表原生智能课程管理</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -217,6 +217,24 @@
     line-height: 1.7;
   }
 
+  .hero-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 36px;
+  }
+
+  .hero-tag {
+    background: rgba(255,255,255,0.12);
+    backdrop-filter: blur(10px);
+    padding: 7px 16px;
+    border-radius: 999px;
+    color: rgba(255,255,255,0.9);
+    font-size: 0.85rem;
+    font-weight: 600;
+    border: 1px solid rgba(255,255,255,0.15);
+  }
+
   .hero-cta {
     display: flex;
     gap: 16px;
@@ -242,27 +260,6 @@
   .btn-primary:hover {
     transform: translateY(-3px);
     box-shadow: 0 20px 40px rgba(0,0,0,0.2);
-  }
-
-  .btn-secondary {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    background: rgba(255,255,255,0.15);
-    backdrop-filter: blur(10px);
-    color: white;
-    padding: 16px 32px;
-    border-radius: 14px;
-    font-size: 1rem;
-    font-weight: 600;
-    text-decoration: none;
-    transition: all 0.3s;
-    border: 1px solid rgba(255,255,255,0.3);
-  }
-
-  .btn-secondary:hover {
-    background: rgba(255,255,255,0.25);
-    transform: translateY(-3px);
   }
 
   .hero-stats {
@@ -417,6 +414,16 @@
   .feature-icon.vibrant {
     background: linear-gradient(135deg, #e0f7fa, #b2ebf2);
     color: #006064;
+  }
+
+  .feature-icon.purple {
+    background: linear-gradient(135deg, #f3e5f5, #e1bee7);
+    color: #6a1b9a;
+  }
+
+  .feature-icon.orange {
+    background: linear-gradient(135deg, #fff3e0, #ffe0b2);
+    color: #e65100;
   }
 
   .feature-card h3 {
@@ -783,11 +790,11 @@
       <span>Ev课程表</span>
     </a>
     <div class="nav-links">
-      <a href="#features">核心功能</a>
+      <a href="#features">核心亮点</a>
       <a href="#showcase">功能展示</a>
       <a href="#gallery">界面预览</a>
-      <a href="#tech">技术亮点</a>
-      <a href="#download" class="nav-cta">获取应用</a>
+      <a href="#tech">技术底座</a>
+      <a href="#download" class="nav-cta">免费下载</a>
     </div>
     <button class="nav-toggle" onclick="toggleMenu()">☰</button>
   </div>
@@ -799,25 +806,29 @@
       <div>
         <div class="hero-badge">
           <span class="dot"></span>
-          小米手表原生应用 | v1.3.0
+          小米快应用 · 手环手表原生 · 免费
         </div>
-        <h1>专为手表设计的<br><span class="highlight">智能课程表</span></h1>
+        <h1>抬腕之间<br><span class="highlight">课表尽在掌握</span></h1>
         <p class="hero-subtitle">
-          Ev课程表是一款为小米智能手表打造的原生课程管理应用。<br>
-          秒级掌握当前课程状态，6种震动模式贴心提醒，<br>
-          9套精美主题随心切换，让学习生活井然有序。
+          专为智能手表与手环打造的课程管理应用。环端直接添加、编辑、删除课程，<br>
+          模块化首页自由组合，9 套主题 + 5 种周视图模板，<br>
+          一块手环管好整个学期。
         </p>
+        <div class="hero-tags">
+          <span class="hero-tag">环端直接改课</span>
+          <span class="hero-tag">模块化首页</span>
+          <span class="hero-tag">多课程表管理</span>
+          <span class="hero-tag">钉首页</span>
+          <span class="hero-tag">5种周视图</span>
+        </div>
         <div class="hero-cta">
-          <a href="#download" class="btn-primary">
-            ⌚ 安装到手表
-          </a>
-          <a href="https://github.com/guomengtao/class-schedule" target="_blank" rel="noopener" class="btn-secondary">
-            ⭐ GitHub 开源
+          <a href="https://www.bandbbs.cn/resources/7778" target="_blank" rel="noopener" class="btn-primary">
+            ⌚ 前往米坛免费下载
           </a>
         </div>
         <div class="hero-stats">
           <div class="stat-item">
-            <span class="stat-number">16+</span>
+            <span class="stat-number">22+</span>
             <span class="stat-label">功能页面</span>
           </div>
           <div class="stat-item">
@@ -825,12 +836,12 @@
             <span class="stat-label">主题配色</span>
           </div>
           <div class="stat-item">
-            <span class="stat-number">6</span>
-            <span class="stat-label">震动模式</span>
+            <span class="stat-number">5</span>
+            <span class="stat-label">周视图模板</span>
           </div>
           <div class="stat-item">
-            <span class="stat-number">SQLite</span>
-            <span class="stat-label">本地存储</span>
+            <span class="stat-number">6档</span>
+            <span class="stat-label">全局字体缩放</span>
           </div>
         </div>
       </div>
@@ -838,11 +849,11 @@
         <img src="images/ev-schedule/hero-light-theme.png" alt="Ev课程表主界面" class="hero-main-image">
         <div class="hero-float-card card-1">
           <div class="float-icon">📚</div>
-          <div class="float-text">今日6节课</div>
+          <div class="float-text">正在上课 · 数学</div>
         </div>
         <div class="hero-float-card card-2">
-          <div class="float-icon">🔔</div>
-          <div class="float-text">5分钟后震动提醒</div>
+          <div class="float-icon">📌</div>
+          <div class="float-text">钉首页 3 项</div>
         </div>
       </div>
     </div>
@@ -852,55 +863,70 @@
 <section class="features" id="features">
   <div class="container">
     <div class="section-header fade-in">
-      <div class="section-tag">核心功能</div>
-      <h2 class="section-title">每一项功能都经过<br>精心打磨</h2>
-      <p class="section-desc">从智能状态感知到手表深度适配，每一个细节都为学习场景量身定制</p>
+      <div class="section-tag">核心亮点</div>
+      <h2 class="section-title">为小屏而生的课程管家</h2>
+      <p class="section-desc">所有功能都在手环上完成，无需手机同步，无需额外工具</p>
     </div>
     <div class="features-grid">
       <div class="feature-card fade-in">
-        <div class="feature-icon green">🧠</div>
-        <h3>智能状态感知</h3>
-        <p>精确到分钟计算课程状态，自动判断"正在上课"、"即将上课"或"今日已结束"，每分钟实时刷新。</p>
+        <div class="feature-icon green">🎯</div>
+        <h3>实时上课状态感知</h3>
+        <p>精确到分钟计算当前课程状态，自动判断"正在上课"、"即将上课"、"今日已结束"，60秒定时器每分钟自动刷新。</p>
       </div>
       <div class="feature-card fade-in">
-        <div class="feature-icon beige">📳</div>
-        <h3>6种震动提醒</h3>
-        <p>短震、长震、双短震、短+长、长+短+长、三连震，安静环境到嘈杂场景都能精准提醒。</p>
-      </div>
-      <div class="feature-card fade-in">
-        <div class="feature-icon vibrant">🗂️</div>
+        <div class="feature-icon beige">🗂️</div>
         <h3>多课程表管理</h3>
-        <p>支持创建多张独立课程表，数据完全隔离。一键复制整张课程表，新学期微调更便捷。</p>
+        <p>支持创建多张独立课程表，数据完全隔离。一键复制整张课表，新学期微调更便捷。支持切换、重命名、删除。</p>
       </div>
       <div class="feature-card fade-in">
-        <div class="feature-icon green">📱</div>
-        <h3>手表深度适配</h3>
-        <p>5档字体缩放（28px-76px）全局响应，手势滑动切换日期，左滑卡片快速删除。</p>
+        <div class="feature-icon vibrant">🧩</div>
+        <h3>模块化首页架构</h3>
+        <p>8 个独立功能模块自由组合：时钟、快速添加、日期导航、状态栏、自定义内容、钉首页、底部按钮、周指示器。</p>
       </div>
       <div class="feature-card fade-in">
-        <div class="feature-icon beige">🎨</div>
-        <h3>9套主题配色</h3>
-        <p>深空蓝、翡翠绿、珊瑚红、暗夜黑、晨光白、暖阳米、墨绿护眼、琥珀金……总有一款适合你。</p>
+        <div class="feature-icon green">📌</div>
+        <h3>钉首页快捷访问</h3>
+        <p>将任意功能页面固定到首页一键直达。横向滚动标签形式，完全可自定义，随时添加或移除。</p>
       </div>
       <div class="feature-card fade-in">
-        <div class="feature-icon vibrant">💾</div>
+        <div class="feature-icon beige">📱</div>
+        <h3>手表屏幕深度适配</h3>
+        <p>6 档全局字体缩放（20px–76px），手势滑动切换日期，左滑卡片快速删除。圆屏/胶囊屏/方屏三种形态自适应。</p>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feature-icon vibrant">🎨</div>
+        <h3>9 套主题配色系统</h3>
+        <p>深空蓝、翡翠绿、珊瑚红、暗夜黑、暗紫魅影、晨光白、暖阳米、墨绿护眼、琥珀金。全局即时切换，OLED 省电护眼。</p>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feature-icon purple">🗓️</div>
+        <h3>周视图 + 5 种模板</h3>
+        <p>矩阵表格展示整周课程分布，5 种视觉模板可选：极简单字、极简英文、标准方块、紧凑网格、彩色粉彩。</p>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feature-icon orange">🔄</div>
         <h3>双存储引擎</h3>
-        <p>SQLite 优先性能更优，不可用时自动降级 Storage 键值存储。默认预置示例课程，开箱即用。</p>
+        <p>优先 SQLite 数据库性能更优，不可用时自动降级为 Storage 键值存储。旧版单课表数据自动迁移到新版结构。</p>
       </div>
       <div class="feature-card fade-in">
-        <div class="feature-icon green">📅</div>
-        <h3>周视图总览</h3>
-        <p>矩阵表格形式展示整周课程分布，点击课程单元可快速跳转详情页，一目了然。</p>
+        <div class="feature-icon green">💾</div>
+        <h3>数据备份与恢复</h3>
+        <p>一键备份所有课表为 JSON 文件，多版本管理带时间戳和课程数量摘要，恢复前可预览，跨设备无缝迁移。</p>
       </div>
       <div class="feature-card fade-in">
-        <div class="feature-icon beige">📦</div>
-        <h3>数据备份恢复</h3>
-        <p>一键备份所有课程表为 JSON 文件，带时间戳和课程数量摘要，换手表无缝迁移。</p>
+        <div class="feature-icon beige">🏠</div>
+        <h3>首页自定义内容</h3>
+        <p>自定义文字显示在首页顶部，适合放座右铭、提醒语或鼓励话，通过设置页一键开关。</p>
       </div>
       <div class="feature-card fade-in">
-        <div class="feature-icon vibrant">🔐</div>
-        <h3>激活码系统</h3>
-        <p>支持 16 位激活码解锁全部高级功能，设备绑定防篡改，永久激活码一次激活终身可用。</p>
+        <div class="feature-icon vibrant">✏️</div>
+        <h3>4 步向导添加课程</h3>
+        <p>Step 1 选课程 → Step 2 设时间 → Step 3 填地点 → Step 4 确认保存。支持前进/后退导航，随时返回修改。</p>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feature-icon purple">🔐</div>
+        <h3>高级版功能体系</h3>
+        <p>16 位激活码解锁全部 9 套主题、数据备份恢复、课程表管理、功能实验室等高级功能，持久化存储，重装可重激活。</p>
       </div>
     </div>
   </div>
@@ -913,12 +939,12 @@
         <img src="images/ev-schedule/week-view-overview.png" alt="周视图总览">
       </div>
       <div class="showcase-content">
-        <h3>周视图总览 — 全局掌控</h3>
-        <p>矩阵表格形式呈现一整周课程，周一至周日列头清晰，时间段行头按序排列。空白时段显示 "."，有课程区域点击即可进入详情。</p>
+        <h3>周视图总览 — 5 种视觉模板</h3>
+        <p>矩阵表格形式呈现一整周课程，周一至周日列头清晰，时间段行头按序排列。空白时段显示 "."，有课程区域点击即可进入详情。更有 5 种模板自由切换，每种都调整了单元格圆角、内边距、字号和密度。</p>
         <ul class="showcase-list">
-          <li>周一至周日七列完整展示</li>
-          <li>按时间自动排序的时间段行</li>
-          <li>点击有课程单元格跳转详情</li>
+          <li>周一至周日七列完整展示，支持隐藏周末</li>
+          <li>5 种模板：极简单字 / 极简英文 / 标准方块 / 紧凑网格 / 彩色粉彩</li>
+          <li>点击有课程单元格直接跳转课程详情</li>
           <li>底部课程总数统计一目了然</li>
         </ul>
       </div>
@@ -929,13 +955,13 @@
         <img src="images/ev-schedule/features-overview.png" alt="功能总览">
       </div>
       <div class="showcase-content">
-        <h3>分步添加课程 — 适合手表操作</h3>
-        <p>专为手表屏幕设计的 5 步独立页面流程：输入名称 → 设置时间 → 教师姓名 → 上课地点 → 备注保存。每步独立清晰，配步骤指示器，手表上也能轻松添加完整课程信息。</p>
+        <h3>模块化首页 — 8 个模块自由组合</h3>
+        <p>首页由 8 个独立功能模块组成：时钟、快速添加、日期导航、状态栏、自定义内容、钉首页、底部按钮、周指示器。每个模块独立加载，单个故障不影响其他模块，可在设置页单独开关。</p>
         <ul class="showcase-list">
-          <li>5 步独立页面，每步只做一件事</li>
-          <li>上/下箭头选择时间，适配手表操作</li>
-          <li>全局数据传递，自动保存进度</li>
-          <li>步骤指示器清晰展示当前进度</li>
+          <li>8 个模块独立加载，互不影响</li>
+          <li>每个模块可单独通过设置开关控制显示</li>
+          <li>钉首页横向滚动标签，随时添加移除</li>
+          <li>自定义文字，支持座右铭 / 提醒语 / 鼓励语</li>
         </ul>
       </div>
     </div>
@@ -945,13 +971,13 @@
         <img src="images/ev-schedule/hero-deep-green-theme.png" alt="深绿主题">
       </div>
       <div class="showcase-content">
-        <h3>智能状态 — 每分钟自动刷新</h3>
-        <p>主页状态栏实时计算当前时间与课程的匹配关系。精确到分钟判断"正在上课"、"即将上课"、"今日课程已结束"等状态。当日无课时自动查找未来最近的一节课，显示日期和课程名。</p>
+        <h3>实时状态 — 每分钟自动刷新</h3>
+        <p>主页状态栏实时计算当前时间与课程的匹配关系。精确到分钟判断"正在上课"、"即将上课"、"今日课程已结束"等状态。当日无课时自动查找未来最近的一节课，显示日期和课程名。60 秒定时器每分钟自动刷新。</p>
         <ul class="showcase-list">
-          <li>60 秒定时器每分钟自动刷新</li>
-          <li>精确到分钟的课程状态判断</li>
-          <li>无课时自动显示下一节课信息</li>
-          <li>走马灯滚动提醒上课信息</li>
+          <li>60 秒定时器每分钟自动刷新状态</li>
+          <li>精确到分钟的课程状态匹配</li>
+          <li>无课时自动显示下一节课的日期和课程名</li>
+          <li>状态栏支持走马灯滚动提醒</li>
         </ul>
       </div>
     </div>
@@ -974,9 +1000,9 @@
         </div>
       </div>
       <div class="gallery-item fade-in">
-        <img src="images/ev-schedule/deep-green-square-view.png" alt="深绿方屏视图">
+        <img src="images/ev-schedule/deep-green-square-view.png" alt="墨绿方屏视图">
         <div class="gallery-overlay">
-          <h4>深绿方屏视图</h4>
+          <h4>墨绿护眼视图</h4>
           <p>墨绿护眼主题，长时间阅读不疲劳</p>
         </div>
       </div>
@@ -994,13 +1020,13 @@
 <section class="tech-section" id="tech">
   <div class="container">
     <div class="section-header fade-in">
-      <div class="section-tag">技术亮点</div>
-      <h2 class="section-title">扎实的技术底座<br>流畅稳定的使用体验</h2>
-      <p class="section-desc">基于小米 Quick App 框架开发，原生性能，SQLite 数据库存储，双引擎自动降级保障数据安全</p>
+      <div class="section-tag">技术底座</div>
+      <h2 class="section-title">扎实的技术支撑<br>流畅稳定的使用体验</h2>
+      <p class="section-desc">基于小米 Quick App 框架开发，原生性能。SQLite + Storage 双引擎自动降级保障数据安全</p>
     </div>
     <div class="tech-grid">
       <div class="tech-card fade-in">
-        <span class="tech-number">16+</span>
+        <span class="tech-number">22+</span>
         <div class="tech-label">功能页面</div>
       </div>
       <div class="tech-card fade-in">
@@ -1008,8 +1034,8 @@
         <div class="tech-label">主题配色方案</div>
       </div>
       <div class="tech-card fade-in">
-        <span class="tech-number">6</span>
-        <div class="tech-label">震动提醒样式</div>
+        <span class="tech-number">5</span>
+        <div class="tech-label">周视图模板</div>
       </div>
       <div class="tech-card fade-in">
         <span class="tech-number">2</span>
@@ -1022,10 +1048,9 @@
 <section class="cta-section" id="download">
   <div class="container">
     <div class="cta-content fade-in">
-      <h2>让学习生活井然有序</h2>
-      <p>Ev课程表，专为小米手表打造。立刻安装，开启智能课程管理新体验。</p>
-      <a href="#" class="btn-primary" style="margin-right: 16px;">⌚ 小米应用商店</a>
-      <a href="https://github.com/guomengtao/class-schedule" target="_blank" rel="noopener" class="btn-secondary">⭐ GitHub 源码</a>
+      <h2>现在就把课表装进口袋</h2>
+      <p>前往米坛社区免费下载，环端直接改课，一块手环管好整个学期。</p>
+      <a href="https://www.bandbbs.cn/resources/7778" target="_blank" rel="noopener" class="btn-primary">⌚ 前往米坛免费下载</a>
     </div>
   </div>
 </section>
@@ -1038,31 +1063,27 @@
           <img src="images/ev-schedule/logo-ev-gradient.png" alt="Logo">
           <span>Ev课程表</span>
         </div>
-        <p>专为小米智能手表打造的原生课程管理应用。智能状态感知、6种震动提醒、9套精美主题，让每一节课都不会错过。开源项目，免费使用。</p>
+        <p>专为小米手环与手表打造的原生课程管理应用。实时上课状态感知、模块化首页、9 套精美主题、5 种周视图模板，让每一节课都不会错过。</p>
       </div>
       <div class="footer-col">
         <h4>产品</h4>
-        <a href="#features">核心功能</a>
+        <a href="#features">核心亮点</a>
         <a href="#showcase">功能展示</a>
         <a href="#gallery">界面预览</a>
-        <a href="#tech">技术亮点</a>
+        <a href="#tech">技术底座</a>
       </div>
       <div class="footer-col">
-        <h4>资源</h4>
-        <a href="https://github.com/guomengtao/class-schedule" target="_blank" rel="noopener">GitHub 仓库</a>
-        <a href="https://github.com/guomengtao/class-schedule/blob/main/README.md" target="_blank" rel="noopener">开发文档</a>
-        <a href="#" target="_blank" rel="noopener">爱发电支持</a>
-        <a href="#" target="_blank" rel="noopener">反馈建议</a>
+        <h4>下载</h4>
+        <a href="https://www.bandbbs.cn/resources/7778" target="_blank" rel="noopener">米坛社区</a>
       </div>
       <div class="footer-col">
-        <h4>技术</h4>
-        <a href="https://github.com/guomengtao/class-schedule" target="_blank" rel="noopener">Quick App 框架</a>
-        <a href="#" target="_blank" rel="noopener">SQLite 存储</a>
-        <a href="#" target="_blank" rel="noopener">版本历史</a>
+        <h4>支持设备</h4>
+        <a href="#">小米手环系列</a>
+        <a href="#">小米手表系列</a>
       </div>
     </div>
     <div class="footer-bottom">
-      2024 Ev课程表 | 开源项目 GitHub.com/guomengtao/class-schedule | 本站仅展示用
+      Ev课程表 · 手环手表原生智能课程管理 · 本站仅展示用
     </div>
   </div>
 </footer>
@@ -1107,6 +1128,5 @@
     observer.observe(el);
   });
 </script>
-
 </body>
 </html>
