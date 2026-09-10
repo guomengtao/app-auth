@@ -4814,32 +4814,41 @@
         console.log('[push] ❓ unknown type:', data.type, data);
       }
     }
+    var _speechQueue = [];
+    var _speechBusy = false;
+    function _drainSpeech() {
+      if (_speechBusy) return;
+      if (_speechQueue.length === 0) return;
+      _speechBusy = true;
+      var text = _speechQueue.shift();
+      var synth = window.speechSynthesis;
+      var voices = synth.getVoices();
+      if (!voices || voices.length === 0) {
+        console.warn('[push] ⚠️ voices not ready, retry in 1s');
+        _speechBusy = false;
+        setTimeout(_drainSpeech, 1000);
+        return;
+      }
+      var u = new SpeechSynthesisUtterance(text);
+      u.lang = 'zh-CN';
+      u.rate = 1.0;
+      u.pitch = 1;
+      u.volume = 1;
+      var zhVoice = voices.find(function(v) { return v.lang && v.lang.toLowerCase().indexOf('zh') === 0; });
+      if (zhVoice) { u.voice = zhVoice; }
+      u.onstart = function() { console.log('[push] 🔊 ▶', text); };
+      u.onend = function() { console.log('[push] 🔊 □ done'); _speechBusy = false; setTimeout(_drainSpeech, 100); };
+      u.onerror = function(ev) { console.error('[push] 🔊 ERROR:', ev.error, text); _speechBusy = false; setTimeout(_drainSpeech, 100); };
+      synth.speak(u);
+    }
     function doSpeech(text) {
       if (!('speechSynthesis' in window)) { console.warn('[push] ❌ speechSynthesis NOT supported'); return; }
-      try {
-        var synth = window.speechSynthesis;
-        var voices = synth.getVoices();
-        if (!voices || voices.length === 0) {
-          console.warn('[push] ⚠️ voices not loaded yet (count=0), speak may be silent. Waiting 1s...');
-          setTimeout(function() { doSpeech(text); }, 1000);
-          return;
-        }
-        synth.cancel();
-        setTimeout(function() {
-          var u = new SpeechSynthesisUtterance(text);
-          u.lang = 'zh-CN';
-          u.rate = 1.0;
-          u.pitch = 1;
-          u.volume = 1;
-          var zhVoice = voices.find(function(v) { return v.lang && v.lang.toLowerCase().indexOf('zh') === 0; });
-          if (zhVoice) { u.voice = zhVoice; console.log('[push] 🎙️ using voice:', zhVoice.name, zhVoice.lang); }
-          u.onstart = function() { console.log('[push] 🔊 speech STARTED:', text); };
-          u.onend = function() { console.log('[push] 🔊 speech ENDED'); };
-          u.onerror = function(ev) { console.error('[push] 🔊 speech ERROR:', ev.error); };
-          synth.speak(u);
-          console.log('[push] 🗣️ speak queued:', text);
-        }, 50);
-      } catch (e) { console.error('[push] speech error:', e.message); }
+      _speechQueue.push(text);
+      if (_speechQueue.length > 5) {
+        var dropped = _speechQueue.splice(0, _speechQueue.length - 3);
+        console.warn('[push] ⚠️ speech queue overflow, dropped', dropped.length, 'old:', dropped);
+      }
+      _drainSpeech();
     }
     function ensureNotificationPermission() {
       if (!('Notification' in window)) { console.warn('[push] ❌ Notification API NOT available'); return Promise.resolve('unsupported'); }
