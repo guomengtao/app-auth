@@ -4908,6 +4908,7 @@
     }
     function togglePushNotification() {
       pushNotificationEnabled = !pushNotificationEnabled;
+      console.log('[push] toggleVoice →', pushNotificationEnabled ? 'ON' : 'OFF');
       try {
         localStorage.setItem('admin_push_notify', pushNotificationEnabled ? '1' : '0');
       } catch (_) {}
