@@ -78,36 +78,53 @@ def redis_array(*parts):
     return f"*{len(parts)}\r\n".encode() + body
 
 
-def parse_redis_reply(data):
-    data = data.decode(errors="replace")
-    lines = data.split("\r\n")
-    i = 0
+class RedisProtocol:
+    def __init__(self):
+        self._buf = b""
 
-    def parse_one():
-        nonlocal i
+    def feed(self, data):
+        self._buf += data
+
+    def _parse_one(self, lines, i):
         if i >= len(lines):
-            return None
+            return None, i
         t = lines[i]
         i += 1
         if t.startswith("+"):
-            return t[1:]
+            return t[1:], i
         if t.startswith("-"):
-            return ("error", t[1:])
+            return ("error", t[1:]), i
         if t.startswith(":"):
-            return int(t[1:])
+            return int(t[1:]), i
         if t.startswith("$"):
             v = lines[i] if i < len(lines) else ""
             i += 1
-            return v
+            return v, i
         if t.startswith("*"):
             count = int(t[1:])
             r = []
             for _ in range(count):
-                r.append(parse_one())
-            return r
-        return None
+                item, i = self._parse_one(lines, i)
+                r.append(item)
+            return r, i
+        return None, i
 
-    return parse_one()
+    def parse_all(self):
+        if not self._buf:
+            return []
+        text = self._buf.decode(errors="replace")
+        lines = text.split("\r\n")
+        results = []
+        i = 0
+        while i < len(lines):
+            reply, next_i = self._parse_one(lines, i)
+            if reply is None and next_i == i:
+                break
+            results.append(reply)
+            i = next_i
+        consumed = "\r\n".join(lines[:i]).encode() + b"\r\n" * (len(lines[:i]) - 1)
+        self._buf = self._buf[len(consumed):]
+        return results
 
 
 _seen_ids = set()
@@ -292,13 +309,14 @@ async def redis_loop():
             )
 
             _status = "authenticating"
+            proto = RedisProtocol()
             writer.write(redis_array("AUTH", UPSTASH_TOKEN))
             await writer.drain()
             auth_raw = await asyncio.wait_for(reader.read(4096), timeout=5)
-            auth_reply = parse_redis_reply(auth_raw)
-
-            if isinstance(auth_reply, tuple) and auth_reply[0] == "error":
-                print(f"AUTH failed: {auth_reply}")
+            proto.feed(auth_raw)
+            auth_replies = proto.parse_all()
+            if not auth_replies or (isinstance(auth_replies[0], tuple) and auth_replies[0][0] == "error"):
+                print(f"AUTH failed: {auth_replies}")
                 writer.close()
                 await writer.wait_closed()
                 await asyncio.sleep(reconnect_delay)
@@ -308,7 +326,8 @@ async def redis_loop():
             writer.write(redis_array("SUBSCRIBE", PUSH_CHANNEL))
             await writer.drain()
             sub_raw = await asyncio.wait_for(reader.read(4096), timeout=5)
-            sub_reply = parse_redis_reply(sub_raw)
+            proto.feed(sub_raw)
+            proto.parse_all()
 
             _status = "connected"
             reconnect_delay = 1
@@ -323,17 +342,18 @@ async def redis_loop():
                     raw = await asyncio.wait_for(reader.read(8192), timeout=30)
                     if not raw:
                         raise ConnectionError("connection closed")
-                    reply = parse_redis_reply(raw)
-                    if isinstance(reply, list) and len(reply) >= 3 and reply[0] == "message":
-                        channel = reply[1]
-                        payload_raw = reply[2]
-                        if channel != PUSH_CHANNEL:
-                            continue
-                        try:
-                            msg = json.loads(payload_raw)
-                        except Exception:
-                            continue
-                        handle_message(msg)
+                    proto.feed(raw)
+                    for reply in proto.parse_all():
+                        if isinstance(reply, list) and len(reply) >= 3 and reply[0] == "message":
+                            channel = reply[1]
+                            payload_raw = reply[2]
+                            if channel != PUSH_CHANNEL:
+                                continue
+                            try:
+                                msg = json.loads(payload_raw)
+                            except Exception:
+                                continue
+                            handle_message(msg)
                 except asyncio.TimeoutError:
                     heartbeat_counter += 1
                     if heartbeat_counter >= 3:
