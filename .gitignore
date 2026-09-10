@@ -4,3 +4,7 @@ node_modules
 .env.*
 !.env.example
 .env*
+__pycache__/
+
+ev_notifier.log
+ev_notifier.err.log
