@@ -4770,10 +4770,19 @@
     }
     var pushEventSource = null;
     var pushNotificationEnabled = true;
+    var sseConnectedAt = 0;
     function handlePushMessage(data) {
       if (!data || !data.type) { console.warn('[push] empty message:', data); return; }
-      console.log('[push] ◀ incoming:', data.type, data.payload || '');
-      if (data.type === 'connected') { console.log('[push] ✅ SSE connected, ts=' + data.ts); return; }
+      if (data.type === 'connected') {
+        sseConnectedAt = data.ts || Date.now();
+        console.log('[push] ✅ SSE connected at', new Date(sseConnectedAt).toLocaleTimeString());
+        return;
+      }
+      if (sseConnectedAt > 0 && data.ts && data.ts <= sseConnectedAt) {
+        console.log('[push] ⏩ skip stale msg (ts=' + data.ts + ' <= connectedAt=' + sseConnectedAt + ')', data.type);
+        return;
+      }
+      console.log('[push] ◀', data.type, new Date(data.ts || Date.now()).toLocaleTimeString());
       if (data.type === 'new_order') {
         var amount = (data.payload && data.payload.amount) || 0;
         var amountYuan = (typeof amount === 'number') ? (amount / 100).toFixed(2) : amount;
