@@ -131,6 +131,59 @@ def notify_macos(title, subtitle, message, sound=True):
         pass
 
 
+def _fmt_source(src):
+    m = {
+        "admin-direct": "后台直接激活",
+        "user": "用户自助兑换",
+        "admin": "后台生成",
+        "afdian": "爱发电同步",
+    }
+    return m.get(src, src or "")
+
+
+def _months_label(m):
+    if not m:
+        return ""
+    try:
+        m = int(m)
+    except (ValueError, TypeError):
+        return str(m)
+    if m >= 12 and m % 12 == 0:
+        return f"{m // 12}年"
+    if m == 1:
+        return "1个月"
+    return f"{m}个月"
+
+
+def _money_fen(fen):
+    try:
+        v = int(fen)
+    except (ValueError, TypeError):
+        return ""
+    if v >= 10000:
+        return f"¥{v / 100:.1f}"
+    return f"¥{v / 100:.2f}"
+
+
+def notify_macos(title, subtitle, message, sound=True):
+    def esc(s):
+        return str(s).replace('\\', '\\\\').replace('"', '\\"')
+    sound_part = 'sound name "Glass"' if sound else ''
+    script = (
+        f'display notification "{esc(message)}" '
+        f'with title "{esc(title)}" subtitle "{esc(subtitle)}" '
+        f'{sound_part}'
+    )
+    try:
+        subprocess.Popen(
+            ["osascript", "-e", script],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception:
+        pass
+
+
 def handle_message(msg):
     global _last_msg_ts, _new_msg_count
     global _paused
@@ -138,7 +191,7 @@ def handle_message(msg):
         return
     ts = msg.get("ts", 0)
     mtype = msg.get("type", "unknown")
-    payload = msg.get("payload", {})
+    p = msg.get("payload", {}) or {}
 
     mid = f"{ts}_{mtype}"
     if mid in _seen_ids:
@@ -150,29 +203,73 @@ def handle_message(msg):
     _last_msg_ts = ts
     _new_msg_count += 1
 
-    title_map = {
-        "new_activation": "兑换码已激活",
-        "activation_failure": "兑换失败",
-        "new_order": "新订单",
-        "test_push": "测试推送",
-    }
-    title = title_map.get(mtype, mtype)
-
-    code = payload.get("code", "")
-    plan = payload.get("plan", payload.get("plan_name", ""))
-    reason = payload.get("reason", "")
+    ts_label = time.strftime("%H:%M:%S", time.localtime(ts)) if ts else ""
 
     if mtype == "new_activation":
-        msg_text = f"{plan} · {code}"
-    elif mtype == "activation_failure":
-        msg_text = f"{code} {reason}"
-    elif mtype == "new_order":
-        msg_text = f"{plan} · 爱发电"
-    else:
-        msg_text = json.dumps(payload, ensure_ascii=False)[:100]
+        product = p.get("product_name", "") or f"Product #{p.get('product_id', '')}"
+        months = _months_label(p.get("months"))
+        src = _fmt_source(p.get("source"))
+        act_code = p.get("activation_code", "")
+        redeem_code = p.get("redeem_code", "")
+        device = p.get("device_id", "")
 
-    print(f"[{time.strftime('%H:%M:%S')}] {title}: {msg_text}")
-    notify_macos(title, plan or "", msg_text)
+        title = "🎫 兑换码已激活"
+        subtitle = f"{product} {months}".strip()
+        lines = []
+        if act_code:
+            lines.append(f"激活码: {act_code}")
+        if redeem_code:
+            lines.append(f"兑换码: {redeem_code}")
+        if device:
+            lines.append(f"设备: {device}")
+        if src:
+            lines.append(f"来源: {src}")
+        lines.append(f"⏱ {ts_label}")
+        body = "\n".join(lines)
+
+    elif mtype == "new_order":
+        plan = p.get("plan_id", "") or p.get("plan_name", "")
+        amount_raw = p.get("amount", p.get("plan_amount"))
+        amount = _money_fen(amount_raw)
+        has_money_in_plan = bool(re.search(r'[¥$¥]', plan))
+        subtitle_parts = [plan]
+        if amount and not has_money_in_plan:
+            subtitle_parts.append(amount)
+        subtitle = " ".join(filter(None, subtitle_parts))
+        act_code = p.get("activation_code", "")
+        month = _months_label(p.get("month", p.get("months")))
+        trade = p.get("out_trade_no", "")
+        user = p.get("user_id", "")
+
+        title = "💰 新爱发电订单"
+        lines = []
+        if act_code:
+            lines.append(f"激活码: {act_code}")
+        if month:
+            lines.append(f"时长: {month}")
+        if amount and has_money_in_plan:
+            lines.append(f"金额: {amount}")
+        if user:
+            lines.append(f"用户: {user}")
+        if trade:
+            lines.append(f"订单: {trade[-12:]}")
+        lines.append(f"⏱ {ts_label}")
+        body = "\n".join(lines)
+
+    elif mtype == "activation_failure":
+        title = "❌ 兑换失败"
+        subtitle = p.get("reason", "") or p.get("error", "")
+        body = json.dumps(p, ensure_ascii=False, indent=2)[:300]
+
+    else:
+        title = f"📨 {mtype}"
+        subtitle = ts_label
+        body = json.dumps(p, ensure_ascii=False, indent=2)[:300]
+
+    print(f"[{ts_label}] {title} | {subtitle}")
+    for line in body.split("\n"):
+        print(f"  {line}")
+    notify_macos(title, subtitle, body)
 
     if _app_ref:
         _app_ref.title = f"📦 Ev({_new_msg_count})"
