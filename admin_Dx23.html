@@ -4771,29 +4771,42 @@
     var pushEventSource = null;
     var pushNotificationEnabled = true;
     function handlePushMessage(data) {
-      if (!data || !data.type) return;
-      if (data.type === 'connected') return;
+      if (!data || !data.type) { console.warn('[push] empty message:', data); return; }
+      console.log('[push] ◀ incoming:', data.type, data.payload || '');
+      if (data.type === 'connected') { console.log('[push] ✅ SSE connected, ts=' + data.ts); return; }
       if (data.type === 'new_order') {
         var amount = (data.payload && data.payload.amount) || 0;
         var amountYuan = (typeof amount === 'number') ? (amount / 100).toFixed(2) : amount;
-        var planName = (data.payload && data.payload.plan_id) || '';
+        var planName = (data.payload && data.payload.plan_id) || (data.payload && data.payload.plan_amount) || '';
         var text = '新订单 ¥' + amountYuan + (planName ? ' · ' + planName : '');
+        console.log('[push] 💰 new_order →', text);
         showToast('💰 ' + text, 'success');
         if (pushNotificationEnabled) doSpeech('叮！收到新订单，金额 ' + amountYuan + ' 元');
-        try { new Notification('app-auth', { body: text, tag: 'order_' + (data.payload && data.payload.out_trade_no || '') }); } catch (_) {}
+        try { new Notification('app-auth', { body: text, tag: 'order_' + (data.payload && data.payload.out_trade_no || data.ts) }); } catch (ne) { console.warn('[push] Notification failed:', ne.message); }
       } else if (data.type === 'new_activation') {
         var productName = (data.payload && data.payload.product_name) || (data.payload && data.payload.product_id) || '';
         var deviceId = (data.payload && data.payload.device_id) || '';
         var src = (data.payload && data.payload.source) || '';
         var srcLabel = src === 'admin-direct' ? '快捷激活' : (src === 'user' ? '用户激活' : '激活');
         var actText = srcLabel + ' · ' + (deviceId || '') + (productName ? ' · ' + productName : '');
+        console.log('[push] 🔑 new_activation →', actText);
         showToast('🔑 ' + actText, 'success');
         if (pushNotificationEnabled) doSpeech('新激活，设备 ' + (deviceId || '未知'));
-        try { new Notification('app-auth', { body: actText, tag: 'act_' + (data.payload && data.payload.activation_code || '') }); } catch (_) {}
+        try { new Notification('app-auth', { body: actText, tag: 'act_' + (data.payload && data.payload.activation_code || data.ts) }); } catch (ne) { console.warn('[push] Notification failed:', ne.message); }
+      } else if (data.type === 'new_visit') {
+        var vPath = (data.payload && data.payload.path) || '';
+        var vDevice = (data.payload && data.payload.device_id) || '';
+        var vCity = (data.payload && data.payload.city) || '';
+        var visitText = '新访客 ' + (vDevice || '') + (vCity ? ' · ' + vCity : '') + (vPath ? ' · ' + vPath : '');
+        console.log('[push] 👤 new_visit →', visitText);
+        showToast('👤 ' + visitText, 'success');
+        try { new Notification('app-auth', { body: visitText, tag: 'visit_' + data.ts }); } catch (ne) { console.warn('[push] Notification failed:', ne.message); }
+      } else {
+        console.log('[push] ❓ unknown type:', data.type, data);
       }
     }
     function doSpeech(text) {
-      if (!('speechSynthesis' in window)) return;
+      if (!('speechSynthesis' in window)) { console.warn('[push] speechSynthesis NOT supported'); return; }
       try {
         window.speechSynthesis.cancel();
         var u = new SpeechSynthesisUtterance(text);
@@ -4801,30 +4814,42 @@
         u.rate = 1.1;
         u.pitch = 1;
         window.speechSynthesis.speak(u);
-      } catch (_) {}
+        console.log('[push] 🔊 speak:', text);
+      } catch (e) { console.error('[push] speech error:', e.message); }
     }
     function initPushNotifications() {
-      if (pushEventSource) return;
+      if (pushEventSource) { console.log('[push] already connected'); return; }
       try {
+        console.log('[push] 🔌 opening EventSource /api/sse ...');
         pushEventSource = new EventSource('/api/sse');
+        pushEventSource.onopen = function() { console.log('[push] ✅ onopen, readyState=' + pushEventSource.readyState); };
         pushEventSource.onmessage = function(ev) {
           try {
             var data = JSON.parse(ev.data);
             handlePushMessage(data);
-          } catch (_) {}
+          } catch (pe) { console.error('[push] parse error:', pe.message, ev.data.slice(0, 100)); }
         };
-        pushEventSource.onerror = function() {
+        pushEventSource.onerror = function(ev) {
+          console.warn('[push] ⚠️ onerror readyState=' + pushEventSource.readyState, ev);
           try { pushEventSource.close(); } catch (_) {}
           pushEventSource = null;
+          console.log('[push] 🔄 reconnect in 3s...');
           setTimeout(initPushNotifications, 3000);
         };
         try {
-          if ('Notification' in window && Notification.permission === 'default') {
-            Notification.requestPermission();
+          if ('Notification' in window) {
+            console.log('[push] Notification.permission =', Notification.permission);
+            if (Notification.permission === 'default') {
+              Notification.requestPermission().then(function(p) {
+                console.log('[push] user chose Notification permission:', p);
+              });
+            }
+          } else {
+            console.warn('[push] Notification API NOT available');
           }
         } catch (_) {}
       } catch (e) {
-        console.warn('[push] init failed:', e.message);
+        console.error('[push] ❌ init failed:', e.message);
       }
     }
     function togglePushNotification() {
