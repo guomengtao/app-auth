@@ -271,7 +271,7 @@
       --status-bar-border: #d1c9c1;
     }
     /* ---- 耐看增强补丁 ---- */
-    .card, .stat-card, .dash-card, .table-wrap, .setting-block, .help-banner, .filter-panel, .decrypt-box, .health-summary, .health-card, .da-card, .quota-card, .info-card, .breakdown-card, .mode-card {
+    .card, .stat-card, .dash-card, .table-wrap, .setting-block, .help-banner, .filter-panel, .decrypt-box, .health-summary, .health-card, .da-card, .quota-card, .info-card, .breakdown-card,
       box-shadow: 0 1px 3px rgba(0,0,0,0.06);
     }
     .sidebar-menu li a { color: rgba(255,255,255,0.78); }
@@ -1727,59 +1727,6 @@
       color: #6b7280;
       line-height: 1.55;
     }
-    .mode-cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 12px;
-    }
-    .mode-card {
-      border: 2px solid var(--border, #e5e7eb);
-      border-radius: 10px;
-      padding: 16px;
-      cursor: pointer;
-      transition: all 0.18s ease;
-      position: relative;
-      text-align: left;
-      background: #fff;
-    }
-    .mode-card:hover {
-      border-color: #3b82f6;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(59,130,246,0.15);
-    }
-    .mode-card.active {
-      border-color: #10b981;
-      background: #ecfdf5;
-    }
-    .mode-icon {
-      font-size: 1.8rem;
-      line-height: 1;
-      margin-bottom: 8px;
-    }
-    .mode-name {
-      font-weight: 700;
-      font-size: 0.95rem;
-      color: var(--ink, #111827);
-      margin-bottom: 4px;
-    }
-    .mode-desc {
-      font-size: 0.76rem;
-      color: #6b7280;
-      line-height: 1.5;
-    }
-    .mode-badge {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      background: #10b981;
-      color: #fff;
-      font-size: 0.65rem;
-      font-weight: 700;
-      padding: 2px 8px;
-      border-radius: 999px;
-      display: none;
-    }
-    .mode-card.active .mode-badge { display: block; }
 
     /* —— Theme Selector —— */
     .theme-grid {
@@ -2481,7 +2428,6 @@
         padding: 4px 8px !important;
         font-size: 0.73rem !important;
       }
-      .sync-status #syncModeLabel,
       .sync-status #syncDirtyBadge {
         font-size: 0.7rem !important;
         padding: 2px 8px !important;
@@ -3162,19 +3108,6 @@
         </div>
       </header>
 
-      <div id="syncStatusBar" style="margin:10px 16px 0;padding:10px 14px;background:var(--status-bar-bg);border:1px solid var(--status-bar-border);border-radius:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;box-shadow:0 1px 3px rgba(99,102,241,.08)">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-right:auto">
-          <span id="syncModeLabel2" style="font-size:0.78rem;font-weight:800;background:#065f46;color:#fff;padding:4px 12px;border-radius:999px;letter-spacing:0.02em">📴 本地缓存模式</span>
-          <span id="syncMetaText" style="font-size:0.74rem;color:#475569"></span>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-          <button class="btn btn-outline" onclick="switchAdminMode(ADMIN_MODE === 'local-first' ? 'api-always' : 'local-first')" style="padding:7px 12px;font-size:0.78rem" id="modeToggleBtn">切换为线上模式</button>
-        </div>
-      </div>
-
-      <div id="syncBanner" class="sync-banner" style="display:none;margin:8px 16px 0;border:1px solid #ddd6fe;background:#f5f3ff;border-radius:10px;padding:8px 12px;font-size:0.8rem;color:#3730a3;line-height:1.6">
-        <span id="syncBannerMsg">-</span>
-      </div>
 
       <main class="main-content">
         <div class="main-content-inner">
@@ -3688,27 +3621,6 @@
               </div>
             </div>
             </div>
-
-            <!-- 数据子面板 -->
-            <div class="settings-sub-panel" id="settings-sub-data">
-            <div class="setting-block">
-              <h3 class="setting-title">🔀 数据优先模式</h3>
-              <p class="setting-desc">选择默认从哪里读取数据。切换不影响已有数据，只是改变后续读数据的默认来源。</p>
-              <div class="mode-cards">
-                <div class="mode-card" id="modeCardLocal" onclick="switchAdminMode('local-first')">
-                  <div class="mode-icon">📴</div>
-                  <div class="mode-name">本地优先</div>
-                  <div class="mode-desc">数据先存在浏览器，手动同步才写入服务器。适合开发/离线使用。</div>
-                  <div class="mode-badge" id="modeBadgeLocal">当前</div>
-                </div>
-                <div class="mode-card" id="modeCardApi" onclick="switchAdminMode('api-always')">
-                  <div class="mode-icon">☁️</div>
-                  <div class="mode-name">API 直达</div>
-                  <div class="mode-desc">每次都从服务器实时读取。需要 Postgres 连接正常，适合生产环境。</div>
-                  <div class="mode-badge" id="modeBadgeApi">当前</div>
-                </div>
-              </div>
-            </div>
             </div>
 
             <!-- 安全子面板 -->
@@ -3760,19 +3672,6 @@
                   <div class="setting-row-desc">默认 10 条，范围 5-100。超过显示条数会自动分页。</div>
                 </div>
               </div>
-            </div>
-
-            <!-- 数据管理 -->
-            <div class="setting-block">
-              <h3 class="setting-title">💾 数据管理</h3>
-              <div class="setting-row">
-                <button class="btn btn-outline" onclick="exportLocalData()" title="导出浏览器里的全部本地数据为 JSON 文件">📤 导出本地数据 (JSON)</button>
-                <button class="btn btn-outline" onclick="document.getElementById('importFileInput').click()" title="从 JSON 文件导入数据到本地">📥 导入本地数据</button>
-                <input type="file" id="importFileInput" accept="application/json" style="display:none" onchange="importLocalData(event)">
-                <button class="btn btn-danger" onclick="clearAllLocalData()" title="清空浏览器里的全部本地数据（服务器不受影响）">🗑️ 清空本地数据</button>
-              </div>
-              <p class="setting-desc">导出/导入方便备份、迁移或在多台设备之间手动同步。清空本地数据只影响当前浏览器，服务器 Postgres 数据完全不受影响。</p>
-            </div>
             </div>
 
             <!-- 邮件子面板 -->
@@ -4260,7 +4159,7 @@
       </div>
       <div class="actions">
         <button class="btn btn-outline" onclick="closeCodeModal()">取消</button>
-        <button class="btn btn-primary" onclick="generateCodesLocal()">生成</button>
+        <button class="btn btn-primary" onclick="generateCodes()">生成</button>
       </div>
     </div>
   </div>
@@ -4338,192 +4237,6 @@
 
   <script>
     var currentTab = 'products';
-    var STORAGE_KEY_CODES = 'admin_redeem_codes';
-    var STORAGE_KEY_RECORDS = 'admin_activation_records';
-    var STORAGE_KEY_INIT = 'admin_data_initialized';
-    var STORAGE_KEY_PRODUCTS = 'admin_products_v2';
-    var STORAGE_KEY_COUNTERS = 'admin_counters_v2';
-    var STORAGE_KEY_DELETES = 'admin_deletes_v2';
-    function syncMeta() {
-      return {
-        dirty: false,
-        lastSyncAt: null,
-        lastSyncMode: 'pull'
-      };
-    }
-
-    var ADMIN_MODE = 'local-first'; // local-first: default; api-always: opposite (legacy direct connect)
-
-    function readAdminMode() {
-      try {
-        var v = String(localStorage.getItem('admin_mode') || ADMIN_MODE);
-        if (v === 'api-always') return 'api-always';
-      } catch (e) {}
-      return 'local-first';
-    }
-    function setAdminMode(m) {
-      try { localStorage.setItem('admin_mode', String(m || 'local-first')); } catch (e) {}
-      ADMIN_MODE = (m === 'api-always') ? 'api-always' : 'local-first';
-      renderSyncStatusChip();
-    }
-
-    function renderSyncStatusChip() {
-      var labelEl = document.getElementById('syncModeLabel2');
-      var metaEl = document.getElementById('syncMetaText');
-      var toggleBtn = document.getElementById('modeToggleBtn');
-      if (labelEl) {
-        if (ADMIN_MODE === 'api-always') {
-          labelEl.style.background = '#1d4ed8';
-          labelEl.textContent = '☁️ 线上模式（可读写）';
-        } else {
-          labelEl.style.background = '#065f46';
-          labelEl.textContent = '📴 本地缓存（只读）';
-        }
-      }
-      if (toggleBtn) {
-        toggleBtn.textContent = ADMIN_MODE === 'local-first' ? '切换为线上模式' : '切换为本地缓存';
-      }
-      if (metaEl) {
-        if (ADMIN_MODE === 'local-first') {
-          metaEl.textContent = '只读模式，禁止增删改。访问线上页面时自动缓存数据。';
-        } else {
-          metaEl.textContent = '线上模式，可直接增删改，数据实时同步到服务器。';
-        }
-      }
-    }
-
-    function requireOnlineMode(actionName) {
-      if (ADMIN_MODE !== 'api-always') {
-        showToast('❌ 当前为本地缓存只读模式，请先切换为「线上模式」再进行' + (actionName || '操作'), 'error');
-        return false;
-      }
-      return true;
-    }
-
-    function getLocalProducts() {
-      return getLocalData(STORAGE_KEY_PRODUCTS, {});
-    }
-    function getLocalCounters() {
-      return getLocalData(STORAGE_KEY_COUNTERS, { product_counter: 0 });
-    }
-    function getLocalDeletes() {
-      return getLocalData(STORAGE_KEY_DELETES, { deletedProductIds: [], deletedRedeemCodes: [] });
-    }
-    function saveLocalProducts(obj) { saveLocalData(STORAGE_KEY_PRODUCTS, obj || {}); }
-    function saveLocalCounters(obj) { saveLocalData(STORAGE_KEY_COUNTERS, obj || {}); }
-    function saveLocalDeletes(obj) { saveLocalData(STORAGE_KEY_DELETES, obj || {}); }
-    function saveLocalCodesFlat(arr) { // 保持旧接口 (数组) 可用
-      saveLocalData(STORAGE_KEY_CODES, Array.isArray(arr) ? arr : []);
-    }
-    function codesMapToArray(mp) {
-      var out = [];
-      if (mp && typeof mp === 'object') {
-        Object.keys(mp).forEach(function(k) { out.push(Object.assign({ code: k }, mp[k])); });
-      }
-      return out;
-    }
-    function codesArrayToMap(arr) {
-      var mp = {};
-      (arr || []).forEach(function(c) {
-        if (!c || !c.code) return;
-        var k = String(c.code).toUpperCase();
-        mp[k] = Object.assign({}, c, { code: k });
-      });
-      return mp;
-    }
-    function recordsLocalNormalize(recordsArr) {
-      return (recordsArr || []).map(function(r) {
-        if (!r || typeof r !== 'object') return r;
-        var o = Object.assign({}, r);
-        if (o.activation_code) o.activation_code = String(o.activation_code);
-        if (o.redeem_code) o.redeem_code = String(o.redeem_code).toUpperCase();
-        return o;
-      });
-    }
-    function getLocalCodesMap() {
-      var raw = localStorage.getItem(STORAGE_KEY_CODES);
-      var arr = null;
-      try { if (raw) arr = JSON.parse(raw); } catch (e) { arr = null; }
-      if (Array.isArray(arr)) return codesArrayToMap(arr);
-      if (raw && typeof raw === 'string') return {};
-      return {};
-    }
-    function saveLocalCodesMap(mp) { saveLocalCodesFlat(codesMapToArray(mp)); }
-
-    var _uiRefreshTimer = null;
-    function queueRefreshPanels(andStats) {
-      if (andStats !== false) { if (typeof loadStats === 'function') loadStats(); }
-      clearTimeout(_uiRefreshTimer);
-      _uiRefreshTimer = setTimeout(function() {
-        try { if (typeof loadProducts === 'function' && currentTab === 'products') loadProducts(); } catch (_) {}
-        try { if (typeof loadCodes === 'function' && currentTab === 'codes') loadCodes(); } catch (_) {}
-        try { if (typeof loadRecords === 'function' && currentTab === 'records') loadRecords(); } catch (_) {}
-        try { fillProductFiltersFromLocal(); } catch (_) {}
-      }, 30);
-    }
-    function fillProductFiltersFromLocal() {
-      var ps = getLocalProducts();
-      var arr = Object.keys(ps).sort().map(function(id) {
-        return Object.assign({ id: id }, ps[id] || {});
-      });
-      fillProductFilters(arr);
-    }
-
-    function getLocalData(key, fallback) {
-      try {
-        var raw = localStorage.getItem(key);
-        if (raw) return JSON.parse(raw);
-      } catch (e) {
-        console.error('getLocalData error:', key, e);
-      }
-      try {
-        var raw2 = sessionStorage.getItem('backup:' + key);
-        if (raw2) return JSON.parse(raw2);
-      } catch (e2) {}
-      return fallback;
-    }
-
-    var _storageErrorShown = {};
-    function saveLocalData(key, data) {
-      var serialized;
-      try {
-        serialized = JSON.stringify(data);
-      } catch (e) {
-        console.error('saveLocalData: JSON serialize failed', key, e);
-        return false;
-      }
-      try {
-        localStorage.setItem(key, serialized);
-        try { sessionStorage.setItem('backup:' + key, serialized); } catch (_) {}
-        return true;
-      } catch (e) {
-        var quota = e && (e.name === 'QuotaExceededError' || e.code === 22 || String(e.message || '').toLowerCase().indexOf('quota') !== -1);
-        if (quota) {
-          if (!_storageErrorShown[key]) {
-            _storageErrorShown[key] = true;
-            console.warn('⚠️ localStorage 容量不足，尝试压缩存储:', key, serialized.length, 'bytes');
-            showToast('⚠️ 本地存储空间不足！部分数据可能丢失，请及时同步或清除旧数据', 'warn');
-          }
-        } else {
-          console.error('saveLocalData error:', key, e);
-          showToast('⚠️ 本地存储写入失败: ' + (e && e.message ? e.message : String(e)), 'warn');
-        }
-        try { sessionStorage.setItem('backup:' + key, serialized); } catch (_) {}
-        return false;
-      }
-    }
-
-    async function loadJsonFile(path) {
-      try {
-        var res = await fetch(path);
-        if (!res.ok) return null;
-        return await res.json();
-      } catch (e) {
-        console.error('loadJsonFile error:', path, e);
-        return null;
-      }
-    }
-
     function setTheme(name) {
       document.documentElement.setAttribute('data-theme', name);
       localStorage.setItem('admin-theme', name);
@@ -4548,69 +4261,7 @@
         .catch(function() {});
     }
 
-    async function initLocalData() {
-      loadTheme();
-      loadVersion();
-      ADMIN_MODE = readAdminMode();
-      renderSyncStatusChip();
-
-      // 老版本只初始化了 codes/records 数组
-      if (!localStorage.getItem(STORAGE_KEY_INIT)) {
-        var codes = await loadJsonFile('/data/redeem-codes.json');
-        if (codes && Array.isArray(codes)) {
-          saveLocalData(STORAGE_KEY_CODES, codes);
-        } else {
-          saveLocalData(STORAGE_KEY_CODES, []);
-        }
-        var records = await loadJsonFile('/data/activation-records.json');
-        if (records && Array.isArray(records)) {
-          saveLocalData(STORAGE_KEY_RECORDS, recordsLocalNormalize(records));
-        } else {
-          saveLocalData(STORAGE_KEY_RECORDS, []);
-        }
-        localStorage.setItem(STORAGE_KEY_INIT, '1');
-      }
-
-      // 若本地还是完全空的 products（刚加的），尽量填默认数据
-      try {
-        var pRaw = localStorage.getItem(STORAGE_KEY_PRODUCTS);
-        if (!pRaw) {
-          var defaults = {
-            '01': { name: 'Ev课程表', description: '手环', created_at: Date.now() - 86400000, updated_at: Date.now() - 86400000 },
-            '02': { name: 'VIP Pro', description: 'VIP Professional Edition', created_at: Date.now() - 30 * 86400000, updated_at: Date.now() - 30 * 86400000 },
-          };
-          saveLocalProducts(defaults);
-          saveLocalCounters({ product_counter: 2 });
-        }
-      } catch (e) {}
-
-      // 旧版 codes 存储的字段可能不规范，统一补齐 code/product_id/duration_months
-      try {
-        var codesArr = getLocalData(STORAGE_KEY_CODES, []);
-        if (Array.isArray(codesArr) && codesArr.length) {
-          var normalized = codesArr.map(function(c) {
-            if (!c || typeof c !== 'object') return c;
-            var o = Object.assign({}, c);
-            if (o.code) o.code = String(o.code).toUpperCase();
-            if (o.product_id) o.product_id = String(o.product_id).padStart(2, '0');
-            if (o.duration_months) o.duration_months = Number(o.duration_months) || 1;
-            return o;
-          });
-          saveLocalData(STORAGE_KEY_CODES, normalized);
-        }
-      } catch (e) {}
-    }
-
-    function generateRedeemCodeLocal() {
-      var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-      var code = '';
-      for (var i = 0; i < 4; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-      return code;
-    }
-
-    function matchCodeLocal(data, filterProductId, filterUsed, filterDuration) {
+    function matchCodeFilter(data, filterProductId, filterUsed, filterDuration) {
       if (filterProductId && filterProductId !== '0000' && data.product_id !== filterProductId) return false;
       if (filterUsed === '1' && !data.used) return false;
       if (filterUsed === '0' && data.used) return false;
@@ -5078,24 +4729,6 @@
     }
 
     async function loadStats() {
-      if (ADMIN_MODE === 'local-first') {
-        try {
-          var ps = getLocalProducts();
-          var productCount = Object.keys(ps || {}).length;
-          var codes = getLocalData(STORAGE_KEY_CODES, []);
-          var records = getLocalData(STORAGE_KEY_RECORDS, []);
-          var codeCount = codes.length;
-          var usedCount = codes.filter(function(c) { return c && c.used; }).length;
-          var activationCount = records.length;
-          document.getElementById('statProducts').textContent = productCount;
-          document.getElementById('statCodes').textContent = codeCount;
-          document.getElementById('statUsed').textContent = usedCount;
-          document.getElementById('statActivations').textContent = activationCount;
-          return;
-        } catch (e) {
-          console.error('loadStats local failed:', e);
-        }
-      }
       try {
         var productCount = 0;
         var codeCount = 0;
@@ -5107,7 +4740,7 @@
             productCount = productData.products.length;
           }
         } catch (e) {
-          productCount = 2;
+          productCount = 0;
         }
         try {
           var statsData = await api('/api/admin/stats');
@@ -5118,13 +4751,7 @@
             if (typeof s.usedRedeemCodes === 'number') usedCount = s.usedRedeemCodes;
             if (typeof s.totalActivations === 'number') activationCount = s.totalActivations;
           }
-        } catch (e) {
-          var codes = getLocalData(STORAGE_KEY_CODES, []);
-          var records = getLocalData(STORAGE_KEY_RECORDS, []);
-          codeCount = codes.length;
-          usedCount = codes.filter(function(c) { return c.used; }).length;
-          activationCount = records.length;
-        }
+        } catch (e) {}
         document.getElementById('statProducts').textContent = productCount;
         document.getElementById('statCodes').textContent = codeCount;
         document.getElementById('statUsed').textContent = usedCount;
@@ -5138,7 +4765,6 @@
 
     async function loadTrends(days) {
       if (!days) days = 7;
-      if (ADMIN_MODE === 'local-first') return;
 
       try {
         var res = await fetch('/api/admin/stats?section=trends&days=' + days, { credentials: 'include' });
@@ -5281,34 +4907,14 @@
       loadTrends(7);
     }
 
-    function renderProductsFromLocal() {
+    async function loadProducts() {
       try {
-        var mp = getLocalProducts();
-        var items = Object.keys(mp || {}).map(function(id) {
-          return Object.assign({ id: id }, mp[id] || {});
-        }).sort(function(a, b) { return a.id < b.id ? -1 : 1; });
-        var html = '<table><thead><tr><th>ID</th><th>名称 (Name)</th><th>描述 (Description)</th><th>创建时间 (Created)</th><th style="width:170px">操作</th></tr></thead><tbody>';
-        if (!items.length) {
-          html += '<tr><td colspan="5" class="empty">暂无产品缓存，正在从服务器加载...</td></tr>';
-        } else {
-          items.forEach(function(p) {
-            html += '<tr>';
-            html += '<td class="mono" style="letter-spacing:0">' + escapeHtml(p.id) + '</td>';
-            html += '<td><strong>' + escapeHtml(p.name || '') + '</strong></td>';
-            html += '<td>' + escapeHtml(p.description || '-') + '</td>';
-            html += '<td>' + new Date(Number(p.created_at) || 0).toLocaleDateString('zh-CN') + '</td>';
-            html += '<td style="white-space:nowrap">';
-            html += '<button class="btn btn-outline" style="padding:4px 10px;font-size:0.8rem;margin-right:6px" onclick="openProductModal(\'' + escapeJs(p.id) + '\')">编辑</button>';
-            html += '<button class="btn btn-outline" style="padding:4px 10px;font-size:0.8rem;color:#c0392b;border-color:#e6b3b3" onclick="deleteProduct(\'' + escapeJs(p.id) + '\', \'' + escapeJs(p.name || '') + '\')">删除</button>';
-            html += '</td>';
-            html += '</tr>';
-          });
-        }
-        html += '</tbody></table>';
-        document.getElementById('productsTable').innerHTML = html;
-        fillProductFilters(items);
+        var data = await api('/api/admin/products');
+        if (!data.success) throw new Error(data.error || 'API error');
+        renderProductsFromApi(data.products || []);
       } catch (e) {
-        console.error('renderProductsFromLocal failed:', e);
+        console.error('loadProducts failed:', e);
+        showToast('产品列表加载失败', 'error');
       }
     }
 
@@ -5333,53 +4939,6 @@
       html += '</tbody></table>';
       document.getElementById('productsTable').innerHTML = html;
       fillProductFilters(products);
-    }
-
-    async function fetchAndCacheProducts() {
-      try {
-        var data = await api('/api/admin/products');
-        if (!data.success) return;
-        var mp = {};
-        (data.products || []).forEach(function(p) {
-          mp[String(p.id).padStart(2, '0')] = {
-            name: p.name || '',
-            description: p.description || '',
-            created_at: p.created_at || Date.now(),
-            updated_at: p.updated_at || p.created_at || Date.now()
-          };
-        });
-        saveLocalProducts(mp);
-        renderProductsFromApi(data.products);
-      } catch (e) {
-        console.error('fetchAndCacheProducts failed:', e);
-      }
-    }
-
-    async function loadProducts() {
-      if (ADMIN_MODE === 'local-first') {
-        renderProductsFromLocal();
-        fetchAndCacheProducts();
-        return;
-      }
-      try {
-        var data = await api('/api/admin/products');
-        if (!data.success) throw new Error(data.error || 'API error');
-        var mp = {};
-        (data.products || []).forEach(function(p) {
-          mp[String(p.id).padStart(2, '0')] = {
-            name: p.name || '',
-            description: p.description || '',
-            created_at: p.created_at || Date.now(),
-            updated_at: p.updated_at || p.created_at || Date.now()
-          };
-        });
-        saveLocalProducts(mp);
-        renderProductsFromApi(data.products);
-      } catch (e) {
-        console.error('loadProducts failed:', e);
-        renderProductsFromLocal();
-        showToast('产品列表加载失败，使用本地缓存', 'error');
-      }
     }
 
     function fillProductFilters(products) {
@@ -5419,24 +4978,7 @@
       loadCodes();
     }
 
-    function renderCodesFromLocal() {
-      codesPage = 1;
-      try {
-        var pid0 = document.getElementById('filterProduct').value;
-        var used0 = document.getElementById('filterUsed').value;
-        var dur0 = document.getElementById('filterDuration').value;
-        var allCodes = getLocalData(STORAGE_KEY_CODES, []);
-        var filteredCodes = allCodes.filter(function(c) {
-          return matchCodeLocal(c, pid0, used0, dur0);
-        });
-        filteredCodes.sort(function(a, b) {
-          return (Number(b.created_at) || 0) - (Number(a.created_at) || 0);
-        });
-        renderCodesTable(filteredCodes, '暂无兑换码缓存，正在从服务器加载...');
-      } catch (e) {
-        console.error('renderCodesFromLocal failed:', e);
-      }
-    }
+    var _codesCache = [];
 
     function renderCodesTable(codes, emptyMsg) {
       var totalCount = codes.length;
@@ -5505,11 +5047,10 @@
     }
 
     function goCodesPage(dir) {
-      var saved = getLocalData(STORAGE_KEY_CODES, []);
       var pid = document.getElementById('filterProduct').value;
       var used = document.getElementById('filterUsed').value;
       var dur = document.getElementById('filterDuration').value;
-      var filtered = saved.filter(function(c) { return matchCodeLocal(c, pid, used, dur); });
+      var filtered = _codesCache.filter(function(c) { return matchCodeFilter(c, pid, used, dur); });
       filtered.sort(function(a, b) { return (Number(b.created_at) || 0) - (Number(a.created_at) || 0); });
 
       var perPage = parseInt(document.getElementById('codesPerPage').value) || 50;
@@ -5528,38 +5069,8 @@
       goCodesPage(0);
     }
 
-    async function fetchAndCacheCodes() {
-      try {
-        var pid = document.getElementById('filterProduct').value;
-        var used = document.getElementById('filterUsed').value;
-        var dur = document.getElementById('filterDuration').value;
-        var params = new URLSearchParams();
-        if (pid) params.set('product_id', pid);
-        if (used) params.set('used', used);
-        if (dur) params.set('duration_months', dur);
-        params.set('limit', '500');
-        var data = await api('/api/admin/redeem-codes?' + params.toString());
-        if (!data.success) return;
-        saveLocalData(STORAGE_KEY_CODES, data.codes || []);
-        var filteredCodes = (data.codes || []).filter(function(c) {
-          return matchCodeLocal(c, pid, used, dur);
-        });
-        filteredCodes.sort(function(a, b) {
-          return (Number(b.created_at) || 0) - (Number(a.created_at) || 0);
-        });
-        renderCodesTable(filteredCodes, '暂无兑换码');
-      } catch (e) {
-        console.error('fetchAndCacheCodes failed:', e);
-      }
-    }
-
     async function loadCodes() {
       codesPage = 1;
-      if (ADMIN_MODE === 'local-first') {
-        renderCodesFromLocal();
-        fetchAndCacheCodes();
-        return;
-      }
       try {
         var pid = document.getElementById('filterProduct').value;
         var used = document.getElementById('filterUsed').value;
@@ -5571,9 +5082,9 @@
         params.set('limit', '500');
         var data = await api('/api/admin/redeem-codes?' + params.toString());
         if (!data.success) throw new Error(data.error || 'API error');
-        saveLocalData(STORAGE_KEY_CODES, data.codes || []);
-        var filteredCodes = (data.codes || []).filter(function(c) {
-          return matchCodeLocal(c, pid, used, dur);
+        _codesCache = data.codes || [];
+        var filteredCodes = _codesCache.filter(function(c) {
+          return matchCodeFilter(c, pid, used, dur);
         });
         filteredCodes.sort(function(a, b) {
           return (Number(b.created_at) || 0) - (Number(a.created_at) || 0);
@@ -5581,8 +5092,7 @@
         renderCodesTable(filteredCodes, '暂无兑换码');
       } catch (e) {
         console.error('loadCodes failed:', e);
-        renderCodesFromLocal();
-        showToast('兑换码列表加载失败，使用本地缓存', 'error');
+        showToast('兑换码列表加载失败', 'error');
       }
     }
 
@@ -5681,33 +5191,20 @@
         var used = document.getElementById('filterUsed').value;
         var dur = document.getElementById('filterDuration').value;
 
-        var filteredCodes = [];
-        var fromApi = false;
-        try {
-          var params = new URLSearchParams();
-          params.set('export', '1');
-          if (pid) params.set('product_id', pid);
-          if (used) params.set('used', used);
-          if (dur) params.set('duration_months', dur);
+        var params = new URLSearchParams();
+        params.set('export', '1');
+        if (pid) params.set('product_id', pid);
+        if (used) params.set('used', used);
+        if (dur) params.set('duration_months', dur);
 
-          var data = await api('/api/admin/redeem-codes?' + params.toString());
-          if (data && data.success && Array.isArray(data.codes)) {
-            filteredCodes = data.codes;
-            fromApi = true;
-          }
-        } catch (apiErr) {
-          console.error('export API failed, try local:', apiErr);
+        var data = await api('/api/admin/redeem-codes?' + params.toString());
+        if (!data || !data.success || !Array.isArray(data.codes)) {
+          throw new Error((data && data.error) ? data.error : 'Export API failed');
         }
+        var filteredCodes = data.codes;
 
         if (!filteredCodes.length) {
-          var allCodes = getLocalData(STORAGE_KEY_CODES, []);
-          filteredCodes = allCodes.filter(function(c) {
-            return matchCodeLocal(c, pid, used, dur);
-          });
-        }
-
-        if (!filteredCodes || filteredCodes.length === 0) {
-          showToast(fromApi ? '没有可导出的兑换码' : '导出失败：服务端异常且本地无数据', 'error');
+          showToast('没有可导出的兑换码', 'error');
           return;
         }
 
@@ -5730,7 +5227,7 @@
         URL.revokeObjectURL(url);
 
         closeExportModal();
-        showToast('已导出 ' + filteredCodes.length + ' 条（' + keys.length + ' 列）' + (fromApi ? '' : ' · 本地数据'), 'success');
+        showToast('已导出 ' + filteredCodes.length + ' 条（' + keys.length + ' 列）', 'success');
       } catch (e) {
         showToast('导出失败: ' + (e.message || '未知错误'), 'error');
       }
@@ -5815,29 +5312,6 @@
       switchTab('decrypt');
     }
 
-    async function fetchAndCacheRecords(pid, rc, status, deviceId, ip) {
-      try {
-        var params = new URLSearchParams();
-        if (pid && pid !== '0000') params.set('product_id', pid);
-        if (rc) params.set('redeem_code', rc);
-        if (status && status !== 'all') params.set('status', status);
-        if (deviceId) params.set('device_id', deviceId);
-        if (ip) params.set('ip', ip);
-        params.set('count', '500');
-        var data = await api('/api/admin/records?' + params.toString());
-        if (data && data.success && Array.isArray(data.records)) {
-          saveLocalData(STORAGE_KEY_RECORDS, data.records);
-          var filtered = data.records;
-          if (pid && pid !== '0000') filtered = filtered.filter(function(r) { return String(r.product_id) === pid; });
-          if (rc) filtered = filtered.filter(function(r) { return String(r.redeem_code || '').toUpperCase() === rc; });
-          filtered.sort(function(a, b) { return (Number(b.generated_at) || 0) - (Number(a.generated_at) || 0); });
-          renderRecordsTable(filtered, null, null, true, null, rc);
-        }
-      } catch (e) {
-        console.error('fetchAndCacheRecords failed:', e);
-      }
-    }
-
     async function loadRecords() {
       var highlightRc = null;
       var highlightAc = null;
@@ -5865,26 +5339,6 @@
         }
 
         var allRecords = [];
-        var fromApi = false;
-        var apiErrMsg = null;
-
-        if (ADMIN_MODE === 'local-first') {
-          var localRecs = getLocalData(STORAGE_KEY_RECORDS, []);
-          if (pid && pid !== '0000') localRecs = localRecs.filter(function(r) { return String(r.product_id) === pid; });
-          if (rc) localRecs = localRecs.filter(function(r) { return String(r.redeem_code || '').toUpperCase() === rc; });
-          if (status && status !== 'all') localRecs = localRecs.filter(function(r) { return (r.status || 'success') === status; });
-          if (deviceId) localRecs = localRecs.filter(function(r) { return String(r.device_id || r.device_id_full || '').toLowerCase().includes(deviceId.toLowerCase()); });
-          if (ip) localRecs = localRecs.filter(function(r) { var vi = r.visitor_info; return vi && String(vi.ip || '').toLowerCase().includes(ip.toLowerCase()); });
-          localRecs.sort(function(a, b) { return (Number(b.generated_at) || 0) - (Number(a.generated_at) || 0); });
-          renderRecordsTable(localRecs, highlightRc, highlightAc, true, null, rc);
-          fetchAndCacheRecords(pid, rc, status, deviceId, ip);
-          if (hint) {
-            hint.style.display = 'block';
-            hint.innerHTML = '📴 本地缓存模式，后台正在从服务器更新...';
-          }
-          return;
-        }
-
         try {
           var params = new URLSearchParams();
           if (pid && pid !== '0000') params.set('product_id', pid);
@@ -5896,27 +5350,11 @@
           var data = await api('/api/admin/records?' + params.toString());
           if (data && data.success && Array.isArray(data.records)) {
             allRecords = data.records;
-            saveLocalData(STORAGE_KEY_RECORDS, data.records);
-            fromApi = true;
           } else {
-            apiErrMsg = (data && data.error) ? data.error : 'API returned empty';
+            throw new Error((data && data.error) ? data.error : 'API returned empty');
           }
         } catch (e) {
-          apiErrMsg = e && e.message ? e.message : String(e);
-        }
-
-        if (!fromApi) {
-          allRecords = getLocalData(STORAGE_KEY_RECORDS, []);
-          var filtered = allRecords;
-          if (pid && pid !== '0000') {
-            filtered = filtered.filter(function(r) { return r.product_id === pid; });
-          }
-          if (rc) {
-            filtered = filtered.filter(function(r) {
-              return String(r.redeem_code || '').toUpperCase() === rc;
-            });
-          }
-          allRecords = filtered;
+          throw e;
         }
 
         allRecords.sort(function(a, b) {
@@ -5932,20 +5370,15 @@
             if (deviceId) parts.push('Device: <span class="mono" style="font-weight:700;color:#4c51bf">' + escapeHtml(deviceId) + '</span>');
             if (ip) parts.push('IP: <span class="mono" style="font-weight:700;color:#4c51bf">' + escapeHtml(ip) + '</span>');
             if (status && status !== 'all') parts.push('Status: <b>' + (status === 'failure' ? 'Failed' : 'Success') + '</b>');
-            var msg = 'Filter: ' + parts.join(', ') + ' — <b>' + foundCount + '</b> results.';
-            if (!fromApi) msg += ' <span style="color:#e65100">(API unavailable: ' + escapeHtml(apiErrMsg || 'fallback to local cache') + ')</span>';
             hint.style.display = 'block';
-            hint.innerHTML = msg;
-          } else if (!fromApi) {
-            hint.style.display = 'block';
-            hint.innerHTML = 'Fallback to local cache (' + escapeHtml(apiErrMsg || 'API unavailable') + ')';
+            hint.innerHTML = 'Filter: ' + parts.join(', ') + ' — <b>' + foundCount + '</b> results.';
           } else {
             hint.style.display = 'none';
             hint.innerHTML = '';
           }
         }
 
-        var html = renderRecordsTable(allRecords, highlightRc, highlightAc, fromApi, apiErrMsg, rc);
+        var html = renderRecordsTable(allRecords, highlightRc, highlightAc, rc);
         document.getElementById('recordsTable').innerHTML = html;
 
         if (highlightRc || highlightAc) {
@@ -5962,38 +5395,13 @@
       }
     }
 
-    function renderRecordsTable(allRecords, highlightRc, highlightAc, fromApi, apiErrMsg, rc) {
-      var hint = document.getElementById('recordFilterHint');
-      if (hint) {
-        if (ADMIN_MODE === 'local-first') {
-          var localMsg = '💾 本地优先模式：默认显示本浏览器缓存。点击顶部「⬇ 同步线上数据」按钮可从服务端拉取最新激活记录。';
-          if (rc) {
-            var fnd = (allRecords || []).length;
-            localMsg = '🔎 当前筛选：兑换码 <span class="mono" style="font-weight:700;color:#4c51bf">' + escapeHtml(rc) + '</span>，命中 <b>' + fnd + '</b> 条。' + localMsg;
-          }
-          hint.style.display = 'block';
-          hint.innerHTML = localMsg;
-        } else if (rc) {
-          var foundCount = (allRecords || []).length;
-          var msg = '🔎 当前筛选：兑换码 <span class="mono" style="font-weight:700;color:#4c51bf">' + escapeHtml(rc) + '</span>，命中 <b>' + foundCount + '</b> 条。';
-          if (!fromApi) msg += ' <span style="color:#e65100">(API 不可用：' + escapeHtml(apiErrMsg || 'fallback 本地缓存') + ')</span>';
-          msg += ' 可点击「清除筛选」返回全量列表。';
-          hint.style.display = 'block';
-          hint.innerHTML = msg;
-        } else if (!fromApi) {
-          hint.style.display = 'block';
-          hint.innerHTML = '⚠️ 已回退到本地缓存（' + escapeHtml(apiErrMsg || 'API 不可用') + '），数据可能是旧的。';
-        } else {
-          hint.style.display = 'none';
-          hint.innerHTML = '';
-        }
-      }
+    function renderRecordsTable(allRecords, highlightRc, highlightAc, rc) {
       allRecords = allRecords || [];
       var tableHtml = '<table><thead><tr><th>Status</th><th>Activation Code</th><th>Redeem Code</th><th style="max-width:80px">Device ID</th><th>Product</th><th>Duration</th><th>Activated At</th><th>Expires At</th><th style="width:60px">Detail</th></tr></thead><tbody>';
       if (allRecords.length === 0) {
         var emptyReason = rc
           ? 'No records found for redeem code "' + rc + '".'
-          : (ADMIN_MODE === 'local-first' ? 'No activation records (offline mode).' : (fromApi ? 'No activation records' : 'No records (API failed, local cache empty).'));
+          : 'No activation records.';
         tableHtml += '<tr><td colspan="9" class="empty">' + escapeHtml(emptyReason) + '</td></tr>';
       } else {
         allRecords.forEach(function(r, idx) {
@@ -6092,55 +5500,17 @@
 
       idInput.value = editingId;
       if (editingId) {
-        // 编辑模式：回填数据
-        var existing = null;
-        // local-first：直接从 localStorage 取（权威）
-        if (ADMIN_MODE === 'local-first') {
-          try {
-            var mp = getLocalProducts();
-            if (mp && mp[editingId]) existing = Object.assign({ id: editingId }, mp[editingId]);
-          } catch (_) { existing = null; }
-        }
-        // DOM 兜底
-        if (!existing) {
-          try {
-            var tds = document.querySelectorAll('#productsTable table tbody tr td:first-child');
-            for (var i = 0; i < tds.length; i++) {
-              var idTd = tds[i];
-              if (idTd && idTd.textContent && idTd.textContent.trim() === editingId) {
-                var tr = idTd.parentNode;
-                var tcells = tr.querySelectorAll('td');
-                if (tcells && tcells.length >= 4) {
-                  existing = {
-                    id: editingId,
-                    name: (tcells[1].querySelector('strong') ? tcells[1].querySelector('strong').innerText : tcells[1].innerText) || '',
-                    description: (tcells[2] && tcells[2].innerText && tcells[2].innerText !== '-' ? tcells[2].innerText : '') || ''
-                  };
-                }
-                break;
-              }
-            }
-          } catch (e) { existing = null; }
-        }
         var modal = document.getElementById('productModal');
         modal.classList.add('show');
         titleEl.textContent = '编辑产品 #' + editingId;
         submitBtn.textContent = '保存';
         idFieldEl.style.display = 'block';
         idDisplay.value = editingId;
-        nameInput.value = existing ? existing.name : '';
-        descInput.value = existing ? existing.description : '';
-        if (ADMIN_MODE === 'local-first') {
-          nameInput.disabled = false;
-          descInput.disabled = false;
-          submitBtn.disabled = false;
-          setTimeout(function() { nameInput.focus(); }, 0);
-          return;
-        }
+        nameInput.value = '';
+        descInput.value = '';
         nameInput.disabled = true;
         descInput.disabled = true;
         submitBtn.disabled = true;
-        // 异步回填真实值
         api('/api/admin/products').then(function(res) {
           if (res && res.success && Array.isArray(res.products)) {
             var real = res.products.find(function(p) { return p.id === editingId; });
@@ -6192,10 +5562,6 @@
 
       if (!name) { showToast('请输入产品名称', 'error'); return; }
 
-      if (ADMIN_MODE === 'local-first') {
-        if (!requireOnlineMode(editingId ? '编辑产品' : '添加产品')) return;
-      }
-
       try {
         var data;
         if (editingId) {
@@ -6242,9 +5608,6 @@
         if (!ok) return;
       }
 
-      if (ADMIN_MODE === 'local-first') {
-        if (!requireOnlineMode('删除产品')) return;
-      }
 
       try {
         var data = await api('/api/admin/products', {
@@ -6266,7 +5629,6 @@
     }
 
     function openCodeModal() {
-      fillProductFiltersFromLocal();
       document.getElementById('codeModal').classList.add('show');
     }
 
@@ -6276,22 +5638,8 @@
       document.getElementById('codeCount').value = '10';
     }
 
-    function generateCodesLocal() {
-      var productId = document.getElementById('codeProduct').value;
-      var duration = parseInt(document.getElementById('codeDuration').value);
-      var count = parseInt(document.getElementById('codeCount').value);
-
-      if (!productId) { showToast('请选择产品', 'error'); return; }
-      if (!count || count < 1 || count > 1000) { showToast('数量需为 1-1000', 'error'); return; }
-      if (!duration || duration < 1 || duration > 99) { showToast('有效期需为 1-99 个月', 'error'); return; }
-
-      generateCodes(productId, duration, count);
-    }
 
     async function generateCodes(productId, duration, count) {
-      if (ADMIN_MODE === 'local-first') {
-        if (!requireOnlineMode('生成兑换码')) return;
-      }
       try {
         var data = await api('/api/admin/redeem-codes', {
           method: 'POST',
@@ -6321,9 +5669,6 @@
       if (!k) { showToast('兑换码为空', 'error'); return; }
       var ok = confirm('确认删除兑换码「' + k + '」？\n此操作仅删除兑换码本身，已生成的激活记录会保留。');
       if (!ok) return;
-      if (ADMIN_MODE === 'local-first') {
-        if (!requireOnlineMode('删除兑换码')) return;
-      }
       try {
         var data = await api('/api/admin/redeem-codes/' + encodeURIComponent(k), { method: 'DELETE' });
         if (data && data.success) {
@@ -6342,9 +5687,6 @@
     async function deleteCodesUsed() {
       var pid = document.getElementById('filterProduct') ? document.getElementById('filterProduct').value : '';
       if (!confirm('确认删除【已使用】的兑换码？\n' + (pid ? '（当前筛选产品=' + pid + '）' : '（当前不限制产品）'))) return;
-      if (ADMIN_MODE === 'local-first') {
-        if (!requireOnlineMode('批量删除已使用兑换码')) return;
-      }
       try {
         var params = new URLSearchParams();
         params.set('scope', 'used');
@@ -6358,9 +5700,6 @@
     async function deleteCodesUnused() {
       var pid = document.getElementById('filterProduct') ? document.getElementById('filterProduct').value : '';
       if (!confirm('确认删除【未使用】的兑换码？\n⚠️ 未使用的兑换码发放给用户后将全部失效！\n' + (pid ? '（当前筛选产品=' + pid + '）' : '（当前不限制产品）'))) return;
-      if (ADMIN_MODE === 'local-first') {
-        if (!requireOnlineMode('批量删除未使用兑换码')) return;
-      }
       try {
         var params = new URLSearchParams();
         params.set('scope', 'unused');
@@ -6372,37 +5711,39 @@
       } catch (e) { showToast('批量删除失败: ' + (e.message || '未知错误'), 'error'); }
     }
 
-    function batchImportCodes(text) {
+    async function batchImportCodes(text) {
       if (!text || !String(text).trim()) { showToast('粘贴内容为空', 'error'); return; }
       var productId = document.getElementById('codeProduct').value;
       var duration = parseInt(document.getElementById('codeDuration').value) || 1;
       if (!productId) { showToast('请先选择产品', 'error'); return; }
-      if (ADMIN_MODE === 'local-first') {
-        if (!requireOnlineMode('批量导入兑换码')) return;
-      }
       try {
         var lines = String(text).split(/[\r\n,;\s\t]+/).filter(function(s) { return !!s; });
-        var codes = getLocalData(STORAGE_KEY_CODES, []);
-        var existingCodes = {};
-        codes.forEach(function(c) { if (c && c.code) existingCodes[String(c.code).toUpperCase()] = true; });
-        var now = Date.now();
+        var codes = [];
         productId = String(productId).padStart(2, '0');
-        var added = 0, skipped = 0;
         for (var i = 0; i < lines.length; i++) {
           var raw = String(lines[i]).toUpperCase().replace(/[^A-Z0-9]/g, '');
-          if (!raw || raw.length < 3 || raw.length > 8) { skipped++; continue; }
-          if (existingCodes[raw]) { skipped++; continue; }
-          codes.push({ code: raw, product_id: productId, duration_months: Number(duration), used: false, used_device_id: null, generated_activation_code: null, created_at: now, used_at: null });
-          existingCodes[raw] = true;
-          added++;
+          if (raw && raw.length >= 3 && raw.length <= 8) {
+            codes.push(raw);
+          }
         }
-        saveLocalData(STORAGE_KEY_CODES, codes);
-        showToast('导入完成：新增 ' + added + ' 个，跳过 ' + skipped + ' 个', 'success');
+        if (!codes.length) { showToast('没有有效的兑换码', 'error'); return; }
+        var data = await api('/api/admin/redeem-codes/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            codes: codes,
+            product_id: productId,
+            duration_months: duration
+          }),
+        });
+        if (!data.success) throw new Error(data.error || 'Import failed');
+        showToast('导入完成：新增 ' + (data.added || 0) + ' 个，跳过 ' + (data.skipped || 0) + ' 个', 'success');
         try { closeBatchImportModal(); } catch (_) {}
         try { closeCodeModal(); } catch (_) {}
-        queueRefreshPanels(true);
+        loadCodes();
+        loadStats();
       } catch (e) {
-        console.error('batchImportCodes local failed:', e);
+        console.error('batchImportCodes failed:', e);
         showToast('导入失败: ' + (e.message || '未知错误'), 'error');
       }
     }
@@ -7030,23 +6371,8 @@
       }
     }
 
-    function switchAdminMode(mode) {
-      setAdminMode(mode);
-      initSettingsPanel();
-      showToast('已切换到 ' + (mode === 'api-always' ? '☁️ 线上模式（可读写）' : '📴 本地缓存（只读）'), 'success');
-      if (currentTab === 'direct-activate') initDirectActivate();
-      if (currentTab === 'products') loadProducts();
-      if (currentTab === 'codes') loadCodes();
-      if (currentTab === 'records') loadRecords();
-    }
 
     function initSettingsPanel() {
-      var m = readAdminMode();
-      var lCard = document.getElementById('modeCardLocal');
-      var aCard = document.getElementById('modeCardApi');
-      if (lCard) lCard.classList.toggle('active', m === 'local-first');
-      if (aCard) aCard.classList.toggle('active', m === 'api-always');
-
       var s = readSettings();
       function setCheck(id, v) {
         var el = document.getElementById(id);
@@ -7895,73 +7221,8 @@
       }
     }
 
-    async function exportLocalData() {
-      try {
-        var data = {
-          exportFrom: 'admin_Dx23.html',
-          exportAt: new Date().toISOString(),
-          admin_mode: readAdminMode(),
-          products: getLocalProducts(),
-          codes: getLocalData(STORAGE_KEY_CODES, []),
-          records: getLocalData(STORAGE_KEY_RECORDS, []),
-          counters: getLocalCounters(),
-          deletes: getLocalDeletes(),
-          meta: syncMeta(),
-          settings: readSettings(),
-        };
-        var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        var url = URL.createObjectURL(blob);
-        var a = document.createElement('a');
-        var ts = new Date().toISOString().replace(/[:.]/g, '-');
-        a.href = url;
-        a.download = 'admin-backup-' + ts + '.json';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        showToast('导出成功 ✅ 已下载 JSON 文件', 'success');
-      } catch (e) {
-        showToast('导出失败: ' + (e.message || ''), 'error');
-      }
-    }
 
-    function importLocalData(event) {
-      var file = event.target.files && event.target.files[0];
-      if (!file) return;
-      var reader = new FileReader();
-      reader.onload = function(e) {
-        try {
-          var obj = JSON.parse(String(e.target.result || ''));
-          if (!obj || typeof obj !== 'object') throw new Error('文件格式错误');
-          if (obj.products && typeof obj.products === 'object') saveLocalProducts(obj.products);
-          if (Array.isArray(obj.codes)) saveLocalData(STORAGE_KEY_CODES, obj.codes);
-          if (Array.isArray(obj.records)) saveLocalData(STORAGE_KEY_RECORDS, obj.records);
-          if (obj.counters && typeof obj.counters === 'object') saveLocalCounters(obj.counters);
-          if (obj.deletes && typeof obj.deletes === 'object') saveLocalDeletes(obj.deletes);
-          if (obj.settings && typeof obj.settings === 'object') {
-            try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(obj.settings)); } catch (_) {}
-          }
-          if (obj.admin_mode) {
-            setAdminMode(obj.admin_mode);
-          }
-          showToast('导入成功 ✅ 已合并到本地', 'success');
-          queueRefreshPanels(true);
-          initSettingsPanel();
-        } catch (err) {
-          showToast('导入失败: ' + (err.message || '文件解析错误'), 'error');
-        } finally {
-          event.target.value = '';
-        }
-      };
-      reader.readAsText(file);
-    }
 
-    function clearAllLocalData() {
-      if (!confirm('⚠️ 确认清空本地数据？\n\n浏览器里所有产品/兑换码/激活记录/设置都会被清除。\n服务器 Postgres 数据完全不受影响。\n\n此操作不可撤销！')) return;
-      try { localStorage.clear(); } catch (_) {}
-      try { sessionStorage.clear(); } catch (_) {}
-      location.reload();
-    }
 
     function doDecrypt() {
       var input = document.getElementById('decryptInput').value.trim();
@@ -8014,17 +7275,17 @@
       if (e.key === 'Enter') doDecrypt();
     });
 
-    initLocalData().then(function() {
-      loadStats();
-      initTrends();
-      lucide.createIcons();
-      try {
-        var pre = new URLSearchParams(window.location.search).get('tab');
-        if (pre && TAB_META[pre]) {
-          switchTab(pre);
-        }
-      } catch (e) {}
-    });
+    loadTheme();
+    loadVersion();
+    loadStats();
+    initTrends();
+    lucide.createIcons();
+    try {
+      var pre = new URLSearchParams(window.location.search).get('tab');
+      if (pre && TAB_META[pre]) {
+        switchTab(pre);
+      }
+    } catch (e) {}
     setInterval(loadStats, 30000);
 
     function displayUserInfo() {
@@ -8868,7 +8129,6 @@
     var daCurrentMonth = 12;
 
     function initDirectActivate() {
-      if (!requireOnlineMode()) return;
       daLoadProducts();
       daUpdateRedeemPreview();
 
@@ -8940,33 +8200,18 @@
     }
 
     function daLoadProducts() {
-      if (ADMIN_MODE === 'api-always') {
-        fetch('/api/admin/products', { credentials: 'include' })
-          .then(function(r) { return r.json(); })
-          .then(function(data) {
-            if (data.success && data.products) {
-              daProductsCache = data.products;
-            }
-            daRenderProductDropdown();
-          })
-          .catch(function() {
-            showToast('Product list loading failed', 'error');
-            daRenderProductDropdown();
-          });
-        return;
-      }
-
-      var raw = getLocalData(STORAGE_KEY_PRODUCTS);
-      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-        daProductsCache = Object.keys(raw).map(function(id) {
-          return Object.assign({ id: id }, raw[id] || {});
+      fetch('/api/admin/products', { credentials: 'include' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.success && data.products) {
+            daProductsCache = data.products;
+          }
+          daRenderProductDropdown();
+        })
+        .catch(function() {
+          showToast('Product list loading failed', 'error');
+          daRenderProductDropdown();
         });
-      } else if (Array.isArray(raw)) {
-        daProductsCache = raw;
-      } else {
-        daProductsCache = [];
-      }
-      daRenderProductDropdown();
     }
 
     function daRenderProductDropdown() {
