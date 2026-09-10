@@ -233,6 +233,28 @@ module.exports = async (req, res) => {
       });
     }
 
+    if (req.method === "DELETE") {
+      var delCode = String(req.query.code || "").trim().toUpperCase();
+      if (!delCode) {
+        var delBody = req.body || {};
+        if (typeof delBody === "string") {
+          try { delBody = JSON.parse(delBody); } catch (e) { delBody = {}; }
+        }
+        delCode = String(delBody.code || "").trim().toUpperCase();
+      }
+      if (!delCode) {
+        return res.status(400).json({ success: false, error: "Code is required" });
+      }
+      var existing = await redis.get("auth:redeem:" + delCode);
+      if (!existing) {
+        return res.status(404).json({ success: false, error: "Redeem code not found" });
+      }
+      await redis.del("auth:redeem:" + delCode);
+      try { await redis.srem("auth:redeem_codes", delCode); } catch (e) {}
+      try { await redis.del("auth:counter:used_redeem_codes"); } catch (e) {}
+      return res.json({ success: true, code: delCode, removed: true });
+    }
+
     return res.status(405).json({ success: false, error: "Method not allowed" });
   } catch (error) {
     console.error("Redeem codes error:", error && error.message ? error.message : error, error);

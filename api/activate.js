@@ -321,15 +321,14 @@ module.exports = async (req, res) => {
         info.product_id = productId;
         info.duration_months = months;
         info.used_at = reuseNow;
-        var tasks = [
-          redis.set("auth:redeem:" + code, JSON.stringify(info)),
-          redis.set("auth:device:" + deviceHash, activationCodeReuse),
-        ];
+        var reusePipeline = redis.pipeline();
+        reusePipeline.set("auth:redeem:" + code, JSON.stringify(info));
+        reusePipeline.set("auth:device:" + deviceHash, activationCodeReuse);
         if (mergedRecord) {
-          tasks.push(redis.set("auth:activation:" + activationCodeReuse, JSON.stringify(mergedRecord)));
-          tasks.push(redis.sadd("auth:activation_codes", activationCodeReuse).catch(function () {}));
+          reusePipeline.set("auth:activation:" + activationCodeReuse, JSON.stringify(mergedRecord));
+          reusePipeline.sadd("auth:activation_codes", activationCodeReuse);
         }
-        await Promise.all(tasks);
+        await reusePipeline.exec();
 
         notify.sendActivationNotification(req, {
           redeemCode: code,
@@ -402,13 +401,17 @@ module.exports = async (req, res) => {
     };
 
     var USED_COUNTER_KEY = "auth:counter:used_redeem_codes";
-    await Promise.all([
-      redis.set("auth:redeem:" + code, JSON.stringify(updated)),
-      redis.set("auth:activation:" + activationCode, JSON.stringify(record)),
-      redis.sadd("auth:activation_codes", activationCode),
-      redis.set("auth:device:" + deviceHash, activationCode),
-      redis.incr(USED_COUNTER_KEY).catch(function () {}),
-    ]);
+    var writePipeline = redis.pipeline();
+    writePipeline.set("auth:redeem:" + code, JSON.stringify(updated));
+    writePipeline.set("auth:activation:" + activationCode, JSON.stringify(record));
+    writePipeline.sadd("auth:activation_codes", activationCode);
+    writePipeline.set("auth:device:" + deviceHash, activationCode);
+    writePipeline.incr(USED_COUNTER_KEY);
+    var writeResults = await writePipeline.exec();
+    var writeFailed = writeResults.some(function (r) { return r === null; });
+    if (writeFailed) {
+      console.error("activate.js pipeline had failures:", writeResults);
+    }
     console.log("✅ Activate success:", {
       redeemCode: code,
       activationCode: activationCode,

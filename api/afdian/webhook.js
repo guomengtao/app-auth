@@ -38,19 +38,19 @@ module.exports = async (req, res) => {
 
     console.log("[afdian:webhook] order: out_trade_no=" + order.out_trade_no + " status=" + order.status + " plan_id=" + (order.plan_id || "N/A") + " month=" + (order.month || "N/A"));
 
-    if (sign) {
-      var signStr = (order.out_trade_no || "") +
-        (order.user_id || "") +
-        (order.plan_id || "") +
-        (order.total_amount || "0.00");
-      var valid = afdianSign.verifyWebhookSignSimple(signStr, sign);
-      console.log("[afdian:webhook] sign verification: " + (valid ? "PASSED" : "FAILED"));
-      if (!valid) {
-        console.log("[afdian:webhook] sign verify failed, signStr=" + signStr);
-        return res.status(200).json({ ec: 200, em: "sign_verify_failed" });
-      }
-    } else {
-      console.log("[afdian:webhook] no sign provided, skipping verification");
+    if (!sign) {
+      console.log("[afdian:webhook] REJECTED: no sign provided, rejecting request");
+      return res.status(400).json({ ec: 400, em: "sign_required" });
+    }
+    var signStr = (order.out_trade_no || "") +
+      (order.user_id || "") +
+      (order.plan_id || "") +
+      (order.total_amount || "0.00");
+    var valid = afdianSign.verifyWebhookSignSimple(signStr, sign);
+    console.log("[afdian:webhook] sign verification: " + (valid ? "PASSED" : "FAILED"));
+    if (!valid) {
+      console.log("[afdian:webhook] REJECTED: sign verify failed, signStr=" + signStr);
+      return res.status(400).json({ ec: 400, em: "sign_verify_failed" });
     }
 
     console.log("[afdian:webhook] calling afdianProcessor.processOrder...");
@@ -60,6 +60,6 @@ module.exports = async (req, res) => {
     return res.status(200).json({ ec: 200, em: "" });
   } catch (e) {
     console.error("[afdian:webhook] EXCEPTION:", e.message, e.stack);
-    return res.status(200).json({ ec: 200, em: "" });
+    return res.status(500).json({ ec: 500, em: "internal_error" });
   }
 };
