@@ -156,11 +156,6 @@ module.exports = async (req, res) => {
     return res.status(405).json({ success: false, error: "Request method not supported" });
   }
 
-  var activationSystemEnabled = await redis.get("auth:activation_system_enabled");
-  if (activationSystemEnabled === "disabled") {
-    return res.status(503).json({ success: false, error: "Activation system is currently disabled" });
-  }
-
   var body = parseBody(req);
   var rawDeviceId = body.deviceId;
   var rawRedeemCode = body.redeemCode;

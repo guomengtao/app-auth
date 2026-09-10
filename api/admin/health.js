@@ -1214,28 +1214,6 @@ module.exports = async (req, res) => {
     }
   }
 
-  if (req.query && req.query.section === "activation-system") {
-    try {
-      if (req.method === "GET") {
-        var rawEnabled = await redis.get("auth:activation_system_enabled");
-        return res.json({
-          success: true,
-          enabled: rawEnabled !== "disabled",
-        });
-      }
-      if (req.method === "POST") {
-        var body = req.body || {};
-        var enabled = body.enabled !== false;
-        await redis.set("auth:activation_system_enabled", enabled ? "enabled" : "disabled", { ex: 31536000 });
-        return res.json({ success: true, enabled: enabled });
-      }
-      return res.status(405).json({ success: false, error: "Method not allowed" });
-    } catch (e) {
-      console.error("activation-system error:", e);
-      return res.status(500).json({ success: false, error: (e && e.message) || String(e) });
-    }
-  }
-
   if (req.query && req.query.section === "dbswitches") {
     try {
       var allDbIds2 = dbRegistry.getAllDatabases().map(function(db) { return db.id; });
