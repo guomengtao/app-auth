@@ -34,7 +34,8 @@ async function fetchMessages() {
 }
 
 export default async function handler(req) {
-  const url = new URL(req.url);
+  const rawUrl = req.url || '/';
+  const url = rawUrl.startsWith('http') ? new URL(rawUrl) : new URL(rawUrl, 'http://localhost');
   const searchParams = url.searchParams;
   const heartbeatMs = parseInt(searchParams.get('heartbeat') || '30000', 10);
   const pollMs = parseInt(searchParams.get('poll') || String(POLL_INTERVAL), 10);
