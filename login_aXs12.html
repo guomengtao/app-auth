@@ -116,26 +116,26 @@
       'oauth_error': 'OAuth 认证过程出错'
     };
 
-    async function checkAuth() {
+    function checkAuth() {
       document.getElementById('authStatus').textContent = '正在验证身份...';
 
-      try {
-        var res = await fetch('/api/admin/me');
+      fetch('/api/admin/me').then(function(res) {
         if (res.ok) {
-          var data = await res.json();
-          if (data.success) {
-            document.getElementById('authStatus').textContent = '已通过 Vercel 认证 (' + (data.email || '') + ')，自动跳转中...';
-            document.getElementById('loginBtn').style.pointerEvents = 'none';
-            document.getElementById('loginBtn').style.opacity = '0.5';
-            setTimeout(function() {
-              window.location.href = '/admin_Dx23.html';
-            }, 500);
-            return;
-          }
+          return res.json().then(function(data) {
+            if (data.success) {
+              document.getElementById('authStatus').textContent = '已通过 Vercel 认证 (' + (data.email || '') + ')，自动跳转中...';
+              document.getElementById('loginBtn').style.pointerEvents = 'none';
+              document.getElementById('loginBtn').style.opacity = '0.5';
+              setTimeout(function() {
+                window.location.href = '/admin_Dx23.html';
+              }, 500);
+              return;
+            }
+          });
         }
-      } catch (e) {}
-
-      document.getElementById('authStatus').textContent = '请通过 Vercel 账户认证登录';
+      }).catch(function(e) {}).then(function() {
+        document.getElementById('authStatus').textContent = '请通过 Vercel 账户认证登录';
+      });
     }
 
     if (isLogout()) {

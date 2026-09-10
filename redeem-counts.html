@@ -100,29 +100,29 @@ function showLocalCount() {
   document.getElementById('localCount').textContent = count;
 }
 
-async function loadRemoteCount() {
+function loadRemoteCount() {
   var el = document.getElementById('remoteCount');
   var errEl = document.getElementById('error');
-  try {
-    var res = await fetch('/api/admin/redeem-codes?limit=1');
+  fetch('/api/admin/redeem-codes?limit=1').then(function(res) {
     if (res.status === 401) {
       el.textContent = '-';
       el.className = 'count-value';
-      return;
+      return null;
     }
-    var data = await res.json();
-    if (data && data.success) {
-      el.textContent = data.total;
-      el.className = 'count-value';
-    } else {
-      throw new Error(data.error || 'unknown');
-    }
-  } catch (e) {
+    return res.json().then(function(data) {
+      if (data && data.success) {
+        el.textContent = data.total;
+        el.className = 'count-value';
+      } else {
+        throw new Error(data.error || 'unknown');
+      }
+    });
+  }).catch(function(e) {
     el.textContent = '?';
     el.className = 'count-value';
     errEl.textContent = '获取线上数据失败: ' + (e.message || '');
     errEl.style.display = 'block';
-  }
+  });
 }
 
 showLocalCount();
