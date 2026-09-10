@@ -25,6 +25,25 @@ function loadEnv(filePath) {
 loadEnv(path.join(__dirname, '..', '.env'));
 loadEnv(path.join(__dirname, '..', '.env.local'));
 
+function hasFlag(flag) {
+  return process.argv.indexOf(flag) !== -1;
+}
+
+if (process.env.NODE_ENV === "production") {
+  console.error("REFUSING to run in production.");
+  process.exit(1);
+}
+
+if (!hasFlag("--confirm")) {
+  console.error("REFUSING: this will DELETE all data from target Neon, then copy from Supabase.");
+  console.error("Usage: node scripts/force-sync.js --confirm");
+  process.exit(1);
+}
+
+var DRY_RUN = hasFlag("--dry-run");
+console.log("=== force-sync.js (GUARDRAILS) ===");
+console.log("Dry-run: " + (DRY_RUN ? "YES (no actual DELETE/INSERT)" : "NO (REAL DATA LOSS)"));
+
 var Pool = require('pg').Pool;
 
 var supabaseUrl = process.env.Ev_POSTGRES_URL || '';
@@ -38,10 +57,10 @@ async function main() {
 
   // Step 1: Clear all tables in Neon
   console.log('Step 1: Clearing all tables in Neon...');
-  await tgt.query('DELETE FROM kv_strings');
-  await tgt.query('DELETE FROM kv_hashes');
-  await tgt.query('DELETE FROM kv_sets');
-  await tgt.query('DELETE FROM kv_zsets');
+  if (DRY_RUN) { console.log('  [DRY-RUN] Would: DELETE FROM kv_strings'); } else { await tgt.query('DELETE FROM kv_strings'); }
+  if (DRY_RUN) { console.log('  [DRY-RUN] Would: DELETE FROM kv_hashes'); } else { await tgt.query('DELETE FROM kv_hashes'); }
+  if (DRY_RUN) { console.log('  [DRY-RUN] Would: DELETE FROM kv_sets'); } else { await tgt.query('DELETE FROM kv_sets'); }
+  if (DRY_RUN) { console.log('  [DRY-RUN] Would: DELETE FROM kv_zsets'); } else { await tgt.query('DELETE FROM kv_zsets'); }
   console.log('  All tables cleared.\n');
 
   // Step 2: Copy all data from Supabase to Neon
@@ -51,6 +70,7 @@ async function main() {
   var strRows = await src.query('SELECT key, value, expires_at FROM kv_strings');
   console.log('  kv_strings: ' + strRows.rows.length + ' rows');
   for (var i = 0; i < strRows.rows.length; i++) {
+    if (DRY_RUN) continue;
     var r = strRows.rows[i];
     await tgt.query(
       'INSERT INTO kv_strings (key, value, expires_at) VALUES ($1, $2, $3)',
@@ -63,6 +83,7 @@ async function main() {
   var hashRows = await src.query('SELECT key, field, value FROM kv_hashes');
   console.log('  kv_hashes: ' + hashRows.rows.length + ' rows');
   for (var j = 0; j < hashRows.rows.length; j++) {
+    if (DRY_RUN) continue;
     var h = hashRows.rows[j];
     await tgt.query(
       'INSERT INTO kv_hashes (key, field, value) VALUES ($1, $2, $3)',
@@ -75,6 +96,7 @@ async function main() {
   var setRows = await src.query('SELECT key, member FROM kv_sets');
   console.log('  kv_sets: ' + setRows.rows.length + ' rows');
   for (var k = 0; k < setRows.rows.length; k++) {
+    if (DRY_RUN) continue;
     var s = setRows.rows[k];
     await tgt.query(
       'INSERT INTO kv_sets (key, member) VALUES ($1, $2)',
@@ -87,6 +109,7 @@ async function main() {
   var zsetRows = await src.query('SELECT key, member, score FROM kv_zsets');
   console.log('  kv_zsets: ' + zsetRows.rows.length + ' rows');
   for (var z = 0; z < zsetRows.rows.length; z++) {
+    if (DRY_RUN) continue;
     var zr = zsetRows.rows[z];
     await tgt.query(
       'INSERT INTO kv_zsets (key, member, score) VALUES ($1, $2, $3)',
