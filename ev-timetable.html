@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ev课程表 · 手环上的免费智能课程管理</title>
+<style>
+  :root{
+    --cream:#F6F0E4; --cream-soft:#FBF8F0; --ink:#22332B; --ink-soft:#5A635C;
+    --green:#2FBF7B; --green-bright:#3ED58F; --deep:#0E2B1F; --deep-2:#123626;
+    --muted:#8A8F86; --card:#FFFFFF;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",sans-serif;
+    background:var(--cream); color:var(--ink); line-height:1.6;
+  }
+  img{display:block;max-width:100%;}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 32px;}
+
+  nav{
+    position:sticky;top:0;z-index:50;
+    background:rgba(246,240,228,.82);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    border-bottom:1px solid rgba(34,51,43,.07);
+  }
+  .nav-inner{display:flex;align-items:center;justify-content:space-between;height:68px;}
+  .brand{display:flex;align-items:center;gap:12px;font-weight:800;font-size:19px;}
+  .brand img{width:34px;height:34px;border-radius:9px;}
+  .nav-links{display:flex;gap:28px;font-size:15px;}
+  .nav-links a{color:var(--ink-soft);text-decoration:none;transition:color .2s;}
+  .nav-links a:hover{color:var(--green);}
+  .nav-cta{
+    background:var(--green);color:#fff;text-decoration:none;font-weight:700;font-size:15px;
+    padding:9px 20px;border-radius:999px;transition:transform .2s, box-shadow .2s;
+    box-shadow:0 4px 14px rgba(47,191,123,.35);
+  }
+  .nav-cta:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(47,191,123,.45);}
+  @media(max-width:760px){.nav-links{display:none;}}
+
+  .hero{padding:88px 0 72px;position:relative;overflow:hidden;}
+  .hero::before{
+    content:"";position:absolute;right:-180px;top:-120px;width:560px;height:560px;border-radius:50%;
+    background:radial-gradient(circle,rgba(47,191,123,.16),transparent 70%);
+  }
+  .hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center;position:relative;}
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:700;letter-spacing:.12em;
+    color:var(--green);text-transform:uppercase;margin-bottom:20px;
+  }
+  .eyebrow::before{content:"";width:26px;height:3px;border-radius:2px;background:var(--green);}
+  h1{font-size:64px;line-height:1.12;font-weight:900;letter-spacing:-.01em;}
+  h1 em{font-style:normal;color:var(--green);}
+  .hero-sub{margin-top:20px;font-size:20px;color:var(--ink-soft);max-width:460px;}
+  .hero-tags{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px;}
+  .tag{
+    background:#fff;border-radius:999px;padding:8px 18px;font-size:14px;font-weight:600;
+    box-shadow:0 2px 10px rgba(34,51,43,.08);
+  }
+  .hero-cta{display:flex;gap:14px;margin-top:34px;flex-wrap:wrap;}
+  .btn-primary{
+    background:var(--deep);color:#F3EEE2;text-decoration:none;font-weight:700;font-size:16px;
+    padding:14px 30px;border-radius:14px;transition:transform .2s, box-shadow .2s;
+    box-shadow:0 10px 26px rgba(14,43,31,.3);
+  }
+  .btn-primary:hover{transform:translateY(-2px);}
+  .btn-ghost{
+    background:transparent;color:var(--ink);text-decoration:none;font-weight:700;font-size:16px;
+    padding:14px 30px;border-radius:14px;border:2px solid rgba(34,51,43,.18);transition:border-color .2s;
+  }
+  .btn-ghost:hover{border-color:var(--green);color:var(--green);}
+  .hero-shot{border-radius:24px;overflow:hidden;box-shadow:0 30px 60px rgba(14,43,31,.22);transform:rotate(1.2deg);transition:transform .4s;}
+  .hero-shot:hover{transform:rotate(0) scale(1.01);}
+  @media(max-width:900px){.hero-grid{grid-template-columns:1fr;} h1{font-size:44px;}}
+
+  .strip{background:var(--deep);color:#DCE8DF;padding:34px 0;}
+  .strip-inner{display:flex;justify-content:space-around;flex-wrap:wrap;gap:24px;text-align:center;}
+  .stat b{display:block;font-size:32px;font-weight:900;color:var(--green-bright);}
+  .stat span{font-size:14px;color:#9DB5A8;}
+
+  section{padding:88px 0;}
+  .sec-head{text-align:center;max-width:640px;margin:0 auto 52px;}
+  .sec-head .eyebrow{justify-content:center;}
+  .sec-head .eyebrow::before{display:none;}
+  h2{font-size:40px;font-weight:900;letter-spacing:-.01em;}
+  .sec-head p{margin-top:14px;color:var(--ink-soft);font-size:17px;}
+
+  .feat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;}
+  .feat{
+    background:var(--card);border-radius:20px;padding:26px 22px;
+    box-shadow:0 4px 18px rgba(34,51,43,.06);transition:transform .25s, box-shadow .25s;
+  }
+  .feat:hover{transform:translateY(-4px);box-shadow:0 14px 30px rgba(34,51,43,.12);}
+  .feat .ic{
+    width:46px;height:46px;border-radius:13px;display:flex;align-items:center;justify-content:center;
+    background:rgba(47,191,123,.12);margin-bottom:16px;
+  }
+  .feat .ic svg{width:24px;height:24px;stroke:var(--green);fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;}
+  .feat h3{font-size:17px;font-weight:800;margin-bottom:6px;}
+  .feat p{font-size:14px;color:var(--ink-soft);line-height:1.55;}
+  @media(max-width:900px){.feat-grid{grid-template-columns:repeat(2,1fr);}}
+  @media(max-width:520px){.feat-grid{grid-template-columns:1fr;}}
+
+  .dark-sec{background:var(--deep);color:#DCE8DF;position:relative;overflow:hidden;}
+  .dark-sec::before{
+    content:"";position:absolute;left:-160px;bottom:-200px;width:520px;height:520px;border-radius:50%;
+    background:radial-gradient(circle,rgba(62,213,143,.18),transparent 70%);
+  }
+  .dark-sec h2{color:#F3EEE2;}
+  .dark-sec .sec-head p{color:#9DB5A8;}
+  .dark-sec .eyebrow{color:var(--green-bright);}
+  .duo{display:grid;grid-template-columns:1fr 1fr;gap:24px;position:relative;}
+  .duo figure{border-radius:22px;overflow:hidden;box-shadow:0 24px 50px rgba(0,0,0,.4);}
+  @media(max-width:760px){.duo{grid-template-columns:1fr;}}
+
+  .gal-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:22px;}
+  .gal-grid figure{
+    border-radius:20px;overflow:hidden;background:#fff;
+    box-shadow:0 6px 22px rgba(34,51,43,.08);transition:transform .3s;
+  }
+  .gal-grid figure:hover{transform:scale(1.015);}
+  .gal-grid figcaption{padding:14px 20px;font-size:14px;font-weight:700;color:var(--ink-soft);}
+  @media(max-width:700px){.gal-grid{grid-template-columns:1fr;}}
+
+  .logo-wall{display:flex;justify-content:center;gap:26px;flex-wrap:wrap;}
+  .logo-item{text-align:center;}
+  .logo-item img{
+    width:132px;height:132px;border-radius:32px;
+    box-shadow:0 12px 30px rgba(14,43,31,.16);transition:transform .25s;
+  }
+  .logo-item img:hover{transform:translateY(-6px) rotate(-2deg);}
+  .logo-item span{display:block;margin-top:12px;font-size:13px;color:var(--muted);font-weight:600;}
+
+  .log{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:16px;}
+  .log-item{
+    background:#fff;border-radius:18px;padding:24px 28px;display:flex;gap:22px;align-items:flex-start;
+    box-shadow:0 4px 16px rgba(34,51,43,.06);
+  }
+  .log-ver{
+    flex-shrink:0;background:rgba(47,191,123,.12);color:var(--green);font-weight:800;font-size:14px;
+    border-radius:10px;padding:6px 14px;white-space:nowrap;
+  }
+  .log-item h4{font-size:16px;font-weight:800;margin-bottom:4px;}
+  .log-item p{font-size:14px;color:var(--ink-soft);}
+
+  .dl{background:var(--deep);color:#DCE8DF;text-align:center;position:relative;overflow:hidden;}
+  .dl::before{
+    content:"";position:absolute;right:-140px;top:-180px;width:480px;height:480px;border-radius:50%;
+    background:radial-gradient(circle,rgba(62,213,143,.2),transparent 70%);
+  }
+  .dl h2{color:#F3EEE2;}
+  .dl-cards{display:grid;grid-template-columns:1fr 1fr;gap:22px;max-width:820px;margin:44px auto 0;position:relative;}
+  .dl-card{border-radius:22px;padding:34px 30px;text-align:left;}
+  .dl-card.free{background:var(--deep-2);border:1px solid rgba(62,213,143,.25);}
+  .dl-card.pro{
+    background:linear-gradient(135deg,#2FBF7B,#1FA3A0);color:#fff;
+    box-shadow:0 20px 44px rgba(47,191,123,.4);
+  }
+  .dl-card h3{font-size:22px;font-weight:900;}
+  .dl-card .price{font-size:34px;font-weight:900;margin:10px 0 16px;color:var(--green-bright);}
+  .dl-card.pro .price{color:#fff;}
+  .dl-card ul{list-style:none;font-size:14.5px;display:flex;flex-direction:column;gap:9px;}
+  .dl-card li{display:flex;gap:10px;align-items:baseline;}
+  .dl-card li::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--green-bright);flex-shrink:0;transform:translateY(-1px);}
+  .dl-card.pro li::before{background:#fff;}
+  .dl-card .go{
+    display:inline-block;margin-top:24px;text-decoration:none;font-weight:800;font-size:15px;
+    padding:12px 26px;border-radius:12px;transition:transform .2s;
+  }
+  .dl-card .go:hover{transform:translateY(-2px);}
+  .dl-card.free .go{background:var(--green-bright);color:var(--deep);}
+  .dl-card.pro .go{background:#fff;color:#1B8F66;}
+  .qq{margin-top:36px;font-size:15px;color:#9DB5A8;position:relative;}
+  .qq b{color:var(--green-bright);}
+  .qq a{color:var(--green-bright);text-decoration:none;border-bottom:1px dashed rgba(62,213,143,.5);}
+  @media(max-width:700px){.dl-cards{grid-template-columns:1fr;}}
+
+  footer{background:#0A2018;color:#7E9488;padding:40px 0;font-size:14px;}
+  .foot-inner{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;}
+  footer a{color:#9DB5A8;text-decoration:none;}
+  footer a:hover{color:var(--green-bright);}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap nav-inner">
+    <div class="brand"><img alt="Ev课程表 Logo" src="images/ev-schedule/logo-beige-light.png">Ev课程表</div>
+    <div class="nav-links">
+      <a href="#features">功能</a>
+      <a href="#themes">主题</a>
+      <a href="#gallery">效果图</a>
+      <a href="#logos">Logo</a>
+      <a href="#changelog">更新日志</a>
+    </div>
+    <a class="nav-cta" href="#download">免费下载</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="eyebrow">EV TIMETABLE · 手环课表</span>
+      <h1>抬腕之间<br>课表尽在 <em>掌握</em></h1>
+      <p class="hero-sub">手环上的免费智能课程管理应用。环端直接改课，无需下载同步器，一块手环管好整个学期的课。</p>
+      <div class="hero-tags">
+        <span class="tag">环端编辑</span>
+        <span class="tag">多周切换</span>
+        <span class="tag">课前提醒</span>
+        <span class="tag">十种主题</span>
+      </div>
+      <div class="hero-cta">
+        <a class="btn-primary" href="#download">立即免费下载</a>
+        <a class="btn-ghost" href="#gallery">查看效果图</a>
+      </div>
+    </div>
+    <figure class="hero-shot">
+      <img alt="Ev课程表 浅色主视觉" src="images/ev-schedule/hero-light-theme.png">
+    </figure>
+  </div>
+</header>
+
+<div class="strip">
+  <div class="wrap strip-inner">
+    <div class="stat"><b>12+</b><span>默认课程一键添加</span></div>
+    <div class="stat"><b>10 种</b><span>主题配色随心换</span></div>
+    <div class="stat"><b>< 1 MB</b><span>极致压缩的体积</span></div>
+    <div class="stat"><b>5 款</b><span>手环手表设备适配</span></div>
+  </div>
+</div>
+
+<section id="features">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">FEATURES</span>
+      <h2>为小屏而生的课程管家</h2>
+      <p>所有功能都在手环上完成，不需要手机，不需要同步器。</p>
+    </div>
+    <div class="feat-grid">
+      <div class="feat">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="6"/></svg></div>
+        <h3>无需同步器</h3><p>安装即用，环端直接更改课程，摆脱手机依赖。</p>
+      </div>
+      <div class="feat">
+        <div class="ic"><svg viewBox="0 0 24 24"><rect width="8" height="8" rx="2" x="3" y="4"/><rect width="8" height="8" rx="2" x="13" y="4"/><rect width="8" height="6" rx="2" x="3" y="14"/><rect width="8" height="6" rx="2" x="13" y="14"/></svg></div>
+        <h3>课程表总览</h3><p>首页顶部快速总览，整周课程一眼看全。</p>
+      </div>
+      <div class="feat">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M8 7h13M8 12h13M8 17h13M3.5 7h.01M3.5 12h.01M3.5 17h.01"/></svg></div>
+        <h3>主副周切换</h3><p>支持多周课表，单双周课程轻松管理。</p>
+      </div>
+      <div class="feat">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M10 21a2 2 0 0 0 4 0"/></svg></div>
+        <h3>课前震动提醒</h3><p>多模式震动提醒，上课再也不怕迟到。</p>
+      </div>
+      <div class="feat">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></div>
+        <h3>快速添加</h3><p>默认 12 节课一键添加，可收缩面板更高效。</p>
+      </div>
+      <div class="feat">
+        <div class="ic"><svg viewBox="0 0 24 24"><rect width="12" height="12" rx="2" x="9" y="9"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></div>
+        <h3>一键复制课表</h3><p>整周课表一键复制，排课效率翻倍。</p>
+      </div>
+      <div class="feat">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div>
+        <h3>课表统计</h3><p>课程分布一目了然，学习节奏心中有数。</p>
+      </div>
+      <div class="feat">
+        <div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18 3 3 0 0 0 0-6 3 3 0 0 1 0-6 3 3 0 0 0 0-6z"/></svg></div>
+        <h3>十种主题配色</h3><p>从奶油米白到深绿暗夜，总有一款合你心意。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="dark-sec" id="themes">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">DARK MODE</span>
+      <h2>深色主题 · 夜间自习也清晰</h2>
+      <p>胶囊屏、方形屏，深色界面同样细腻耐看。</p>
+    </div>
+    <div class="duo">
+      <figure><img alt="深绿主题 胶囊屏" src="images/ev-schedule/hero-deep-green-theme.png"></figure>
+      <figure><img alt="深绿主题 方形屏" src="images/ev-schedule/deep-green-square-view.png"></figure>
+    </div>
+  </div>
+</section>
+
+<section id="gallery">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">GALLERY</span>
+      <h2>效果展示</h2>
+      <p>胶囊版与方屏版，日视图与周视图，一应俱全。</p>
+    </div>
+    <div class="gal-grid">
+      <figure><img alt="浅色方屏版" src="images/ev-schedule/light-square-view.png"><figcaption>方屏版 · 方形大屏课程一览无余</figcaption></figure>
+      <figure><img alt="周视图总览" src="images/ev-schedule/week-view-overview.png"><figcaption>周视图 · 整周课程一目了然</figcaption></figure>
+      <figure><img alt="浅色胶囊版" src="images/ev-schedule/hero-light-theme.png"><figcaption>胶囊版 · 环端改课无需同步器</figcaption></figure>
+      <figure><img alt="功能总览" src="images/ev-schedule/features-overview.png"><figcaption>功能总览 · 一块手环管好整学期</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section id="logos" style="background:var(--cream-soft)">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">BRAND</span>
+      <h2>品牌标识</h2>
+      <p>课程块网格与时钟的设计语言，六种变体适配不同场景。</p>
+    </div>
+    <div class="logo-wall">
+      <div class="logo-item"><img alt="浅色米色款" src="images/ev-schedule/logo-beige-light.png"><span>浅色米色款</span></div>
+      <div class="logo-item"><img alt="深绿款" src="images/ev-schedule/logo-deep-green.png"><span>深绿款</span></div>
+      <div class="logo-item"><img alt="渐变活力款" src="images/ev-schedule/logo-gradient-vibrant.png"><span>渐变活力款</span></div>
+      <div class="logo-item"><img alt="Ev字母款" src="images/ev-schedule/logo-ev-deep-green.png"><span>Ev 字母款</span></div>
+      <div class="logo-item"><img alt="课程块E款" src="images/ev-schedule/logo-course-block-e.png"><span>课程块 E 款</span></div>
+      <div class="logo-item"><img alt="Ev渐变款" src="images/ev-schedule/logo-ev-gradient.png"><span>Ev 渐变款</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="changelog">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">CHANGELOG</span>
+      <h2>持续迭代中</h2>
+      <p>每一次更新，都来自用户的真实反馈。</p>
+    </div>
+    <div class="log">
+      <div class="log-item">
+        <span class="log-ver">v1.2.33</span>
+        <div><h4>更轻、更好用</h4><p>体积压缩到 1MB 以下 · 新增一键重置 · 编辑时间按钮放大 · 主题色增加到十种 · 全新图标</p></div>
+      </div>
+      <div class="log-item">
+        <span class="log-ver">v1.2.20</span>
+        <div><h4>总览与统计上线</h4><p>新增首页顶部快速总览 · 新增课程表统计功能 · 优化时间选择与快速添加 · 优化中文输入法 · 体积从 6M 压到 2.5M</p></div>
+      </div>
+      <div class="log-item">
+        <span class="log-ver">v1.1</span>
+        <div><h4>提醒与个性化</h4><p>默认课程从 4 个增加到 12 个 · 可更改课程时间 · 课前提醒（多模式震动）· 快速切换星期 · 八种主题配色</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="dl" id="download">
+  <div class="wrap">
+    <div class="sec-head" style="margin-bottom:0">
+      <span class="eyebrow">DOWNLOAD</span>
+      <h2>现在就把课表装进口袋</h2>
+      <p style="color:#9DB5A8">米坛社区 BandBBS · AstroBox 平台均可免费下载</p>
+    </div>
+    <div class="dl-cards">
+      <div class="dl-card free">
+        <h3>标准版</h3>
+        <div class="price">免费</div>
+        <ul>
+          <li>7 项基础功能全部开放</li>
+          <li>1 套默认皮肤</li>
+          <li>环端编辑 · 多周切换</li>
+          <li>课前震动提醒</li>
+        </ul>
+        <a class="go" href="https://www.bandbbs.cn/resources/7877/" rel="noopener" target="_blank">前往米坛社区下载</a>
+      </div>
+      <div class="dl-card pro">
+        <h3>高级版 Pro</h3>
+        <div class="price">¥1 永久</div>
+        <ul>
+          <li>课程统计 · 数据备份</li>
+          <li>多课表 · 首页自定义</li>
+          <li>课表导出 · 文字转二维码</li>
+          <li>全部 10 套皮肤</li>
+        </ul>
+        <a class="go" href="https://ifdian.net/item/54100fe4a1e011f1a3f452540025c377" rel="noopener" target="_blank">激活 Pro</a>
+      </div>
+    </div>
+    <p class="qq">用户交流 QQ 群：<b>936886288</b> · <a href="https://qm.qq.com/q/6lmyuev7VY" rel="noopener" target="_blank">点击一键加群</a><br>问题反馈、版本更新通知、用户交流都在群里</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot-inner">
+    <span>Ev课程表 · 手环上的免费智能课程管理</span>
+    <span>适配 小米手环9 / 9 Pro / 10 / 10 Pro · Watch S3 / S4 · 作者 <a href="https://www.bandbbs.cn/members/4611408/" rel="noopener" target="_blank">peipeijin @ 米坛社区</a></span>
+  </div>
+</footer>
+
+</body>
+</html>
