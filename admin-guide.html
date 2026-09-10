@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width initial-scale=1.0">
-  <title>管理员手册 - 产品管理指引</title>
+  <title>Ev课程表 · 使用教程</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -215,213 +215,294 @@
     <div class="back-home"><a href="/">← 返回首页</a></div>
 
     <div class="header">
-      <div class="icon">⚙️</div>
-      <h1>管理员操作手册</h1>
-      <p>产品管理核心操作指引 · 2 分钟上手</p>
+      <div class="icon">📚</div>
+      <h1>Ev课程表 · 使用教程</h1>
+      <p>手环上直接添加、编辑、管理课程 · 3 分钟上手</p>
     </div>
 
     <div class="toc">
-      <h3>📖 本手册内容</h3>
+      <h3>📖 本教程内容</h3>
       <ol>
-        <li><a href="#login">登录后台</a></li>
-        <li><a href="#add-product">添加新产品</a></li>
-        <li><a href="#edit-product">编辑已有产品</a></li>
-        <li><a href="#gen-codes">生成兑换码</a></li>
-        <li><a href="#key-rules">关键规则说明</a></li>
+        <li><a href="#add-course">添加课程</a></li>
+        <li><a href="#edit-course">编辑课程</a></li>
+        <li><a href="#delete-course">删除课程</a></li>
+        <li><a href="#quick-add">快速添加默认课程</a></li>
+        <li><a href="#multi-schedule">多课程表管理</a></li>
+        <li><a href="#week-view">周视图与首页</a></li>
+        <li><a href="#tips">实用技巧</a></li>
       </ol>
     </div>
 
-    <!-- Section 0: Login -->
-    <div class="section" id="login">
-      <div class="section-title">登录后台</div>
-      <div class="section-subtitle">使用 Vercel 账户授权登录</div>
+    <!-- 添加课程 -->
+    <div class="section" id="add-course">
+      <div class="section-title">
+        添加课程
+        <span class="badge">核心操作</span>
+      </div>
+      <div class="section-subtitle">在手环上逐一手动添加每一门课程</div>
+
       <div class="step-row">
         <div class="num">1</div>
         <div class="content">
-          访问 <strong>登录页</strong>，或者直接打开 <code class="code-inline">/admin_Dx23.html</code>
+          在首页点击 <strong>「添加课程」</strong> 按钮，进入课程添加向导
         </div>
       </div>
       <div class="step-row">
         <div class="num">2</div>
         <div class="content">
-          点击「Sign in with Vercel」，用你的 Vercel 账户完成授权
+          <strong>Step 1 — 选择课程</strong>：从预设课程列表中选择课程名称（如「数学」「语文」「英语」等），也可自定义输入课程名
         </div>
       </div>
       <div class="step-row">
         <div class="num">3</div>
         <div class="content">
-          授权成功后自动跳转后台主页
+          <strong>Step 2 — 设置时间</strong>：选择上课的星期（周一至周日）、开始时间和结束时间。支持精确到分钟
         </div>
       </div>
-      <div class="warn">
-        <strong>注意：</strong>只有被设为管理员的 Vercel 账户才能登录。非管理员会看到「非管理员账户，无权限访问」。
+      <div class="step-row">
+        <div class="num">4</div>
+        <div class="content">
+          <strong>Step 3 — 填写地点</strong>：输入上课地点，如「教学楼A301」「实验室B2」等
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="num">5</div>
+        <div class="content">
+          <strong>Step 4 — 确认保存</strong>：检查所有信息无误后，点击「确认」保存课程
+        </div>
+      </div>
+
+      <div class="tip">
+        <strong>💡 向导支持前进/后退：</strong>添加过程中如果发现前面步骤填错了，可以随时返回修改，不会丢失已填写的内容。
       </div>
     </div>
 
-    <!-- Section 1: Add Product -->
-    <div class="section" id="add-product">
+    <!-- 编辑课程 -->
+    <div class="section" id="edit-course">
       <div class="section-title">
-        添加新产品
-        <span class="badge">核心操作 #1</span>
+        编辑课程
+        <span class="badge">常用操作</span>
       </div>
-      <div class="section-subtitle">创建一个新的产品/套餐，之后可以为它生成兑换码</div>
+      <div class="section-subtitle">修改已有课程的名称、时间或地点</div>
 
       <div class="step-row">
         <div class="num">1</div>
         <div class="content">
-          侧边栏点击 <strong>「产品管理」</strong> tab
+          在首页或周视图中，<strong>点击要修改的课程卡片</strong>，进入课程详情页
         </div>
       </div>
       <div class="step-row">
         <div class="num">2</div>
         <div class="content">
-          点击右上角 <strong>「+ 添加产品」</strong> 按钮
+          点击详情页中的 <strong>「编辑」</strong> 按钮
         </div>
       </div>
       <div class="step-row">
         <div class="num">3</div>
         <div class="content">
-          在弹窗中填写：
+          修改需要变更的内容：
           <ul style="margin-top:6px;padding-left:18px;">
-            <li><strong>产品名称</strong>（必填）：显示给用户看的名字，如「Pro 版 12 个月」</li>
-            <li><strong>产品描述</strong>（可选）：详细说明</li>
+            <li><strong>课程名称</strong>：从预设列表重选或自定义输入</li>
+            <li><strong>上课时间</strong>：调整星期、开始/结束时间</li>
+            <li><strong>上课地点</strong>：更新教室或实验室位置</li>
           </ul>
         </div>
       </div>
       <div class="step-row">
         <div class="num">4</div>
         <div class="content">
-          点击 <strong>「创建」</strong>，系统会自动分配一个两位数字的产品 ID（如 <code class="code-inline">01</code>、<code class="code-inline">02</code>）
+          点击 <strong>「保存」</strong>，修改立即生效
         </div>
       </div>
 
       <div class="info">
-        <strong>💡 系统自动分配 ID，不需要手动填。</strong> 第 1 个产品 = <code class="code-inline">01</code>，第 2 个 = <code class="code-inline">02</code>，以此类推。最多支持 99 个产品。
+        <strong>💡 实时生效：</strong>编辑保存后，首页状态栏、周视图会立即更新，无需刷新或重启应用。
       </div>
     </div>
 
-    <!-- Section 2: Edit Product -->
-    <div class="section" id="edit-product">
+    <!-- 删除课程 -->
+    <div class="section" id="delete-course">
       <div class="section-title">
-        编辑已有产品
-        <span class="badge">核心操作 #2</span>
+        删除课程
+        <span class="badge">快捷操作</span>
       </div>
-      <div class="section-subtitle">修改产品名称或描述</div>
+      <div class="section-subtitle">两种方式快速删除不需要的课程</div>
 
       <div class="step-row">
         <div class="num">1</div>
         <div class="content">
-          <strong>产品管理</strong> tab → 找到要编辑的产品
+          <strong>方式一：左滑删除</strong> — 在课程列表中，将课程卡片向左滑动，点击出现的「删除」按钮即可
         </div>
       </div>
       <div class="step-row">
         <div class="num">2</div>
         <div class="content">
-          点击产品行右侧的 <strong>「编辑」</strong> 按钮（或直接点产品卡片上的编辑图标）
+          <strong>方式二：详情页删除</strong> — 点击课程进入详情页，点击底部的「删除课程」按钮
+        </div>
+      </div>
+
+      <div class="warn">
+        <strong>⚠️ 删除不可恢复：</strong>课程删除后无法撤销，请确认后再操作。建议定期使用数据备份功能。
+      </div>
+    </div>
+
+    <!-- 快速添加 -->
+    <div class="section" id="quick-add">
+      <div class="section-title">
+        快速添加默认课程
+        <span class="badge">效率技巧</span>
+      </div>
+      <div class="section-subtitle">一键批量添加 12 门预设课程，快速填充课表</div>
+
+      <div class="step-row">
+        <div class="num">1</div>
+        <div class="content">
+          在首页找到 <strong>「快速添加」</strong> 模块（可在设置中开启/关闭）
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="num">2</div>
+        <div class="content">
+          展开面板，可以看到 <strong>12 门默认课程</strong>：语文、数学、英语、物理、化学、生物、历史、地理、政治、体育、音乐、美术
         </div>
       </div>
       <div class="step-row">
         <div class="num">3</div>
         <div class="content">
-          修改名称或描述 → 点击 <strong>「保存」</strong>
+          点击任意课程即可一键添加到当前课表，无需手动填写时间地点
         </div>
-      </div>
-
-      <div class="warn">
-        <strong>⚠️ 产品 ID 不能改。</strong>ID 是创建时自动分配的两位数字，一旦创建就固定不变。已发放的兑换码和激活记录都绑定这个 ID。
       </div>
 
       <div class="tip">
-        <strong>💡 删除产品 = 软删除。</strong>删除后产品从列表消失，但已发放的兑换码和激活记录会保留，不会受影响。新兑换码无法再选择这个产品。
+        <strong>💡 默认课程适合快速搭建课表框架。</strong>添加后再逐一编辑调整时间和地点即可。可收缩面板节省屏幕空间。
       </div>
     </div>
 
-    <!-- Section 3: Generate Codes -->
-    <div class="section" id="gen-codes">
-      <div class="section-title">生成兑换码</div>
-      <div class="section-subtitle">为某个产品批量生成 4 位兑换码，然后发放给用户</div>
+    <!-- 多课程表 -->
+    <div class="section" id="multi-schedule">
+      <div class="section-title">
+        多课程表管理
+        <span class="badge">高级功能</span>
+      </div>
+      <div class="section-subtitle">创建多张独立课表，适合双学位、培训班等场景</div>
 
       <div class="step-row">
         <div class="num">1</div>
         <div class="content">
-          侧边栏点击 <strong>「兑换码管理」</strong> tab → 点击 <strong>「+ 生成兑换码」</strong>
+          进入 <strong>「课程表管理」</strong> 页面，查看当前所有课表
         </div>
       </div>
       <div class="step-row">
         <div class="num">2</div>
         <div class="content">
-          填写三个参数：
-          <ul style="margin-top:6px;padding-left:18px;">
-            <li><strong>所属产品</strong>：下拉选择已创建的产品</li>
-            <li><strong>有效期</strong>：1 / 3 / 6 / 12 个月，或 99 = 永久</li>
-            <li><strong>数量</strong>：一次生成多少个兑换码</li>
-          </ul>
+          点击 <strong>「新建课表」</strong>，输入课表名称（如「大二上」「考研复习」），创建一张全新空白课表
         </div>
       </div>
       <div class="step-row">
         <div class="num">3</div>
         <div class="content">
-          点击 <strong>「生成」</strong>，系统会返回所有新生成的 4 位兑换码
+          点击课表名称可 <strong>切换</strong> 到该课表，课程数据完全隔离
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="num">4</div>
+        <div class="content">
+          支持 <strong>重命名</strong>、<strong>一键复制</strong>（新学期微调更方便）、<strong>删除</strong> 整张课表
         </div>
       </div>
 
       <div class="info">
-        <strong>💡 兑换码格式说明：</strong>
-        <table class="table">
-          <tr><th>参数</th><th>说明</th></tr>
-          <tr><td>格式</td><td>4 位大写字母，如 <code class="code-inline">AB3D</code></td></tr>
-          <tr><td>使用次数</td><td>一次兑换后标记为「已使用」，不能再用</td></tr>
-          <tr><td>有效期</td><td>从兑换激活当天开始计算（不是从生成当天）</td></tr>
-          <tr><td>设备绑定</td><td>兑换时绑定设备 ID，同一兑换码不能跨设备使用</td></tr>
-        </table>
+        <strong>💡 一键复制课表：</strong>新学期只需复制上学期课表，微调几门课程即可，不用从头添加。
+      </div>
+
+      <div class="warn">
+        <strong>⚠️ 删除整张课表将同时删除其中所有课程数据，</strong>操作前请确认。
       </div>
     </div>
 
-    <!-- Section 4: Key Rules -->
-    <div class="section" id="key-rules">
-      <div class="section-title">关键规则说明</div>
-      <div class="section-subtitle">这些规则决定了数据怎么存、怎么关联，操作前最好清楚</div>
+    <!-- 周视图与首页 -->
+    <div class="section" id="week-view">
+      <div class="section-title">
+        周视图与首页
+        <span class="badge">界面功能</span>
+      </div>
+      <div class="section-subtitle">查看整周课程分布，首页模块自由组合</div>
 
       <table class="table">
         <tr>
-          <th style="width:30%">项目</th>
-          <th style="width:22%">格式</th>
+          <th style="width:28%">功能</th>
           <th>说明</th>
         </tr>
         <tr>
-          <td>产品 ID</td>
-          <td><code class="code-inline">01</code> ~ <code class="code-inline">99</code></td>
-          <td>两位数字，系统自动分配，创建后不可修改</td>
+          <td>周视图</td>
+          <td>矩阵表格展示周一至周日课程，5 种视觉模板可选：极简单字、极简英文、标准方块、紧凑网格、彩色粉彩</td>
         </tr>
         <tr>
-          <td>兑换码</td>
-          <td><code class="code-inline">ABCD</code></td>
-          <td>4 位大写字母+数字，随机生成，一次性使用</td>
+          <td>实时状态栏</td>
+          <td>自动判断「正在上课」「即将上课」「今日已结束」，精确到分钟，每分钟自动刷新</td>
         </tr>
         <tr>
-          <td>激活码</td>
-          <td><code class="code-inline">012345678901234567</code></td>
-          <td>18 位数字，兑换成功时生成，绑定设备 ID</td>
+          <td>模块化首页</td>
+          <td>8 个模块自由开关：时钟、快速添加、日期导航、状态栏、自定义内容、钉首页、底部按钮、周指示器</td>
         </tr>
         <tr>
-          <td>设备 ID</td>
-          <td><code class="code-inline">Aa09</code> ~ 4-20 位</td>
-          <td>手环 App 自动生成，激活时填入</td>
+          <td>钉首页</td>
+          <td>将常用功能页面固定到首页，横向滚动标签一键直达</td>
         </tr>
         <tr>
-          <td>有效期</td>
-          <td><code class="code-inline">1</code>~<code class="code-inline">99</code></td>
-          <td>单位：月。99 = 永久</td>
+          <td>日期导航</td>
+          <td>手势左右滑动切换日期，查看任意一天的课程安排</td>
         </tr>
       </table>
 
-      <div class="warn">
-        <strong>⚠️ 不要手动修改 Redis 数据！</strong>所有数据操作请通过后台界面完成。直接改 Redis 可能导致索引不同步（如兑换码 set 和 hash 记录不一致）。
+      <div class="tip">
+        <strong>💡 点击周视图中有课程的单元格</strong>，可以直接跳转到该课程的详情页进行编辑或查看。
+      </div>
+    </div>
+
+    <!-- 实用技巧 -->
+    <div class="section" id="tips">
+      <div class="section-title">实用技巧</div>
+      <div class="section-subtitle">让你的课表用起来更顺手</div>
+
+      <table class="table">
+        <tr>
+          <th style="width:30%">技巧</th>
+          <th>说明</th>
+        </tr>
+        <tr>
+          <td>字体缩放</td>
+          <td>6 档全局字体大小（20px–76px），在设置中调整，小屏也能看清</td>
+        </tr>
+        <tr>
+          <td>主题配色</td>
+          <td>9 套主题可选：深空蓝、翡翠绿、珊瑚红、暗夜黑、暗紫魅影、晨光白、暖阳米、墨绿护眼、琥珀金</td>
+        </tr>
+        <tr>
+          <td>主副周切换</td>
+          <td>支持单双周课程，在设置中为课程指定单周/双周/每周</td>
+        </tr>
+        <tr>
+          <td>课前提醒</td>
+          <td>多模式震动提醒，上课前手环会震动通知，再也不怕迟到</td>
+        </tr>
+        <tr>
+          <td>数据备份</td>
+          <td>一键备份所有课表为 JSON 文件，跨设备恢复，多版本管理</td>
+        </tr>
+        <tr>
+          <td>自定义首页文字</td>
+          <td>在首页顶部显示自定义文字，适合放座右铭、提醒语</td>
+        </tr>
+      </table>
+
+      <div class="info">
+        <strong>💡 高级版（Pro）解锁全部功能：</strong>9 套主题、数据备份恢复、课程统计、多课表管理、首页自定义等高级功能，只需 ¥1 永久激活。
       </div>
     </div>
 
     <div class="footer">
-      激活码管理系统 · 管理员手册
+      Ev课程表 · 手环手表原生智能课程管理 · 使用教程
     </div>
   </div>
 </body>
