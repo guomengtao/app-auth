@@ -8,3 +8,14 @@ __pycache__/
 
 ev_notifier.log
 ev_notifier.err.log
+
+# macOS / Windows 系统垃圾文件
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
