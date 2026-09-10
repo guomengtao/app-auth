@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width initial-scale=1.0">
+  <title>管理员手册 - 产品管理指引</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system BlinkMacSystemFont 'Segoe UI' 'PingFang SC' 'Microsoft YaHei' sans-serif;
+      background: linear-gradient(135deg #0f0c29 #302b63 #24243e);
+      min-height: 100vh;
+      padding: 40px 20px;
+      color: #333;
+      line-height: 1.7;
+    }
+    .container {
+      max-width: 760px;
+      margin: 0 auto;
+      background: rgba(2552552550.97);
+      border-radius: 24px;
+      padding: 48px 44px;
+      box-shadow: 0 30px 80px rgba(0000.5);
+      animation: slideUp 0.5s ease-out;
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 36px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid #f0f0ff;
+    }
+    .header .icon { font-size: 56px; margin-bottom: 12px; }
+    .header h1 { font-size: 1.8rem; color: #1a1a2e; margin-bottom: 6px; }
+    .header p { color: #888; font-size: 0.9rem; }
+
+    .toc {
+      background: #f8f8ff;
+      border-radius: 12px;
+      padding: 18px 24px;
+      margin-bottom: 36px;
+    }
+    .toc h3 {
+      font-size: 0.9rem;
+      color: #6c63ff;
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+    .toc ol { padding-left: 20px; }
+    .toc li { margin-bottom: 6px; font-size: 0.88rem; }
+    .toc a { color: #555; text-decoration: none; }
+    .toc a:hover { color: #6c63ff; text-decoration: underline; }
+
+    .section {
+      margin-bottom: 44px;
+      padding-bottom: 32px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .section:last-child { border-bottom: none; margin-bottom: 0; }
+    .section-title {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-title .badge {
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 20px;
+      background: #6c63ff;
+      color: #fff;
+    }
+    .section-subtitle {
+      color: #999;
+      font-size: 0.85rem;
+      margin-bottom: 24px;
+    }
+
+    .step-row {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 18px;
+      padding: 16px 20px;
+      background: #fafbff;
+      border-radius: 10px;
+      border-left: 3px solid #6c63ff;
+    }
+    .step-row .num {
+      min-width: 26px;
+      height: 26px;
+      background: #e8e6ff;
+      color: #6c63ff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.82rem;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .step-row .content { font-size: 0.9rem; color: #555; }
+    .step-row .content strong { color: #1a1a2e; }
+    .step-row .content p { margin-bottom: 6px; }
+
+    .tip {
+      background: #e8f5e9;
+      border: 1px solid #a5d6a7;
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin: 14px 0;
+      font-size: 0.88rem;
+      color: #2e7d32;
+    }
+    .tip strong { color: #1b5e20; }
+
+    .warn {
+      background: #fff3e0;
+      border: 1px solid #ffcc80;
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin: 14px 0;
+      font-size: 0.88rem;
+      color: #e65100;
+    }
+    .warn strong { color: #bf360c; }
+
+    .info {
+      background: #e3f2fd;
+      border: 1px solid #90caf9;
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin: 14px 0;
+      font-size: 0.88rem;
+      color: #1565c0;
+    }
+    .info strong { color: #0d47a1; }
+
+    .code-inline {
+      background: #f0f0f0;
+      color: #d32f2f;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-family: 'SF Mono' 'Fira Code' monospace;
+      font-size: 0.85em;
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0;
+      font-size: 0.88rem;
+    }
+    .table th {
+      background: #6c63ff;
+      color: #fff;
+      padding: 10px 14px;
+      text-align: left;
+      font-weight: 600;
+    }
+    .table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid #eee;
+    }
+    .table tr:hover td { background: #fafbff; }
+
+    .link-btn {
+      display: inline-block;
+      padding: 10px 22px;
+      background: #6c63ff;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin: 6px 4px 6px 0;
+      transition: opacity 0.2s;
+    }
+    .link-btn:hover { opacity: 0.85; }
+
+    .footer {
+      text-align: center;
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #eee;
+      color: #aaa;
+      font-size: 0.8rem;
+    }
+    .back-home {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .back-home a {
+      color: #6c63ff;
+      text-decoration: none;
+      font-size: 0.85rem;
+    }
+    .back-home a:hover { text-decoration: underline; }
+
+    @media (max-width: 600px) {
+      .container { padding: 28px 22px; }
+      .step-row { padding: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="back-home"><a href="/">← 返回首页</a></div>
+
+    <div class="header">
+      <div class="icon">⚙️</div>
+      <h1>管理员操作手册</h1>
+      <p>产品管理核心操作指引 · 2 分钟上手</p>
+    </div>
+
+    <div class="toc">
+      <h3>📖 本手册内容</h3>
+      <ol>
+        <li><a href="#login">登录后台</a></li>
+        <li><a href="#add-product">添加新产品</a></li>
+        <li><a href="#edit-product">编辑已有产品</a></li>
+        <li><a href="#gen-codes">生成兑换码</a></li>
+        <li><a href="#key-rules">关键规则说明</a></li>
+      </ol>
+    </div>
+
+    <!-- Section 0: Login -->
+    <div class="section" id="login">
+      <div class="section-title">登录后台</div>
+      <div class="section-subtitle">使用 Vercel 账户授权登录</div>
+      <div class="step-row">
+        <div class="num">1</div>
+        <div class="content">
+          访问 <strong>登录页</strong>，或者直接打开 <code class="code-inline">/admin_Dx23.html</code>
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="num">2</div>
+        <div class="content">
+          点击「Sign in with Vercel」，用你的 Vercel 账户完成授权
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="num">3</div>
+        <div class="content">
+          授权成功后自动跳转后台主页
+        </div>
+      </div>
+      <div class="warn">
+        <strong>注意：</strong>只有被设为管理员的 Vercel 账户才能登录。非管理员会看到「非管理员账户，无权限访问」。
+      </div>
+    </div>
+
+    <!-- Section 1: Add Product -->
+    <div class="section" id="add-product">
+      <div class="section-title">
+        添加新产品
+        <span class="badge">核心操作 #1</span>
+      </div>
+      <div class="section-subtitle">创建一个新的产品/套餐，之后可以为它生成兑换码</div>
+
+      <div class="step-row">
+        <div class="num">1</div>
+        <div class="content">
+          侧边栏点击 <strong>「产品管理」</strong> tab
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="num">2</div>
+        <div class="content">
+          点击右上角 <strong>「+ 添加产品」</strong> 按钮
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="num">3</div>
+        <div class="content">
+          在弹窗中填写：
+          <ul style="margin-top:6px;padding-left:18px;">
+            <li><strong>产品名称</strong>（必填）：显示给用户看的名字，如「Pro 版 12 个月」</li>
+            <li><strong>产品描述</strong>（可选）：详细说明</li>
+          </ul>
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="num">4</div>
+        <div class="content">
+          点击 <strong>「创建」</strong>，系统会自动分配一个两位数字的产品 ID（如 <code class="code-inline">01</code>、<code class="code-inline">02</code>）
+        </div>
+      </div>
+
+      <div class="info">
+        <strong>💡 系统自动分配 ID，不需要手动填。</strong> 第 1 个产品 = <code class="code-inline">01</code>，第 2 个 = <code class="code-inline">02</code>，以此类推。最多支持 99 个产品。
+      </div>
+    </div>
+
+    <!-- Section 2: Edit Product -->
+    <div class="section" id="edit-product">
+      <div class="section-title">
+        编辑已有产品
+        <span class="badge">核心操作 #2</span>
+      </div>
+      <div class="section-subtitle">修改产品名称或描述</div>
+
+      <div class="step-row">
+        <div class="num">1</div>
+        <div class="content">
+          <strong>产品管理</strong> tab → 找到要编辑的产品
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="num">2</div>
+        <div class="content">
+          点击产品行右侧的 <strong>「编辑」</strong> 按钮（或直接点产品卡片上的编辑图标）
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="num">3</div>
+        <div class="content">
+          修改名称或描述 → 点击 <strong>「保存」</strong>
+        </div>
+      </div>
+
+      <div class="warn">
+        <strong>⚠️ 产品 ID 不能改。</strong>ID 是创建时自动分配的两位数字，一旦创建就固定不变。已发放的兑换码和激活记录都绑定这个 ID。
+      </div>
+
+      <div class="tip">
+        <strong>💡 删除产品 = 软删除。</strong>删除后产品从列表消失，但已发放的兑换码和激活记录会保留，不会受影响。新兑换码无法再选择这个产品。
+      </div>
+    </div>
+
+    <!-- Section 3: Generate Codes -->
+    <div class="section" id="gen-codes">
+      <div class="section-title">生成兑换码</div>
+      <div class="section-subtitle">为某个产品批量生成 4 位兑换码，然后发放给用户</div>
+
+      <div class="step-row">
+        <div class="num">1</div>
+        <div class="content">
+          侧边栏点击 <strong>「兑换码管理」</strong> tab → 点击 <strong>「+ 生成兑换码」</strong>
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="num">2</div>
+        <div class="content">
+          填写三个参数：
+          <ul style="margin-top:6px;padding-left:18px;">
+            <li><strong>所属产品</strong>：下拉选择已创建的产品</li>
+            <li><strong>有效期</strong>：1 / 3 / 6 / 12 个月，或 99 = 永久</li>
+            <li><strong>数量</strong>：一次生成多少个兑换码</li>
+          </ul>
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="num">3</div>
+        <div class="content">
+          点击 <strong>「生成」</strong>，系统会返回所有新生成的 4 位兑换码
+        </div>
+      </div>
+
+      <div class="info">
+        <strong>💡 兑换码格式说明：</strong>
+        <table class="table">
+          <tr><th>参数</th><th>说明</th></tr>
+          <tr><td>格式</td><td>4 位大写字母，如 <code class="code-inline">AB3D</code></td></tr>
+          <tr><td>使用次数</td><td>一次兑换后标记为「已使用」，不能再用</td></tr>
+          <tr><td>有效期</td><td>从兑换激活当天开始计算（不是从生成当天）</td></tr>
+          <tr><td>设备绑定</td><td>兑换时绑定设备 ID，同一兑换码不能跨设备使用</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- Section 4: Key Rules -->
+    <div class="section" id="key-rules">
+      <div class="section-title">关键规则说明</div>
+      <div class="section-subtitle">这些规则决定了数据怎么存、怎么关联，操作前最好清楚</div>
+
+      <table class="table">
+        <tr>
+          <th style="width:30%">项目</th>
+          <th style="width:22%">格式</th>
+          <th>说明</th>
+        </tr>
+        <tr>
+          <td>产品 ID</td>
+          <td><code class="code-inline">01</code> ~ <code class="code-inline">99</code></td>
+          <td>两位数字，系统自动分配，创建后不可修改</td>
+        </tr>
+        <tr>
+          <td>兑换码</td>
+          <td><code class="code-inline">ABCD</code></td>
+          <td>4 位大写字母+数字，随机生成，一次性使用</td>
+        </tr>
+        <tr>
+          <td>激活码</td>
+          <td><code class="code-inline">012345678901234567</code></td>
+          <td>18 位数字，兑换成功时生成，绑定设备 ID</td>
+        </tr>
+        <tr>
+          <td>设备 ID</td>
+          <td><code class="code-inline">Aa09</code> ~ 4-20 位</td>
+          <td>手环 App 自动生成，激活时填入</td>
+        </tr>
+        <tr>
+          <td>有效期</td>
+          <td><code class="code-inline">1</code>~<code class="code-inline">99</code></td>
+          <td>单位：月。99 = 永久</td>
+        </tr>
+      </table>
+
+      <div class="warn">
+        <strong>⚠️ 不要手动修改 Redis 数据！</strong>所有数据操作请通过后台界面完成。直接改 Redis 可能导致索引不同步（如兑换码 set 和 hash 记录不一致）。
+      </div>
+    </div>
+
+    <div class="footer">
+      激活码管理系统 · 管理员手册
+    </div>
+  </div>
+</body>
+</html>

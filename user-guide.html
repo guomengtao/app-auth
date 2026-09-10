@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width initial-scale=1.0">
+  <title>用户手册 - 激活流程指引</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system BlinkMacSystemFont 'Segoe UI' 'PingFang SC' 'Microsoft YaHei' sans-serif;
+      background: linear-gradient(135deg #0f0c29 #302b63 #24243e);
+      min-height: 100vh;
+      padding: 40px 20px;
+      color: #333;
+      line-height: 1.7;
+    }
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      background: rgba(2552552550.97);
+      border-radius: 24px;
+      padding: 48px 44px;
+      box-shadow: 0 30px 80px rgba(0000.5);
+      animation: slideUp 0.5s ease-out;
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+      padding-bottom: 24px;
+      border-bottom: 2px solid #f0f0ff;
+    }
+    .header .icon { font-size: 56px; margin-bottom: 12px; }
+    .header h1 { font-size: 1.8rem; color: #1a1a2e; margin-bottom: 6px; }
+    .header p { color: #888; font-size: 0.9rem; }
+
+    .step {
+      margin-bottom: 36px;
+      padding: 24px;
+      background: #fafbff;
+      border-radius: 14px;
+      border-left: 4px solid #6c63ff;
+    }
+    .step-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .step-num {
+      width: 36px;
+      height: 36px;
+      background: #6c63ff;
+      color: #fff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 1rem;
+      margin-right: 14px;
+      flex-shrink: 0;
+    }
+    .step-title {
+      font-size: 1.12rem;
+      font-weight: 700;
+      color: #1a1a2e;
+    }
+    .step-body {
+      margin-left: 50px;
+      font-size: 0.92rem;
+      color: #555;
+    }
+    .step-body p { margin-bottom: 10px; }
+    .step-body ul { padding-left: 20px; margin-bottom: 10px; }
+    .step-body li { margin-bottom: 6px; }
+
+    .highlight-box {
+      background: #fff9e6;
+      border: 1px solid #ffe08a;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin: 12px 0;
+      font-size: 0.88rem;
+      color: #8a6d00;
+    }
+    .highlight-box strong { color: #c47a00; }
+
+    .code-box {
+      background: #1a1a2e;
+      color: #a5d6a7;
+      font-family: 'SF Mono' 'Fira Code' 'Menlo' monospace;
+      padding: 14px 18px;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      letter-spacing: 1px;
+      margin: 12px 0;
+      overflow-x: auto;
+    }
+
+    .success-box {
+      background: #e8f5e9;
+      border: 1px solid #a5d6a7;
+      border-radius: 10px;
+      padding: 18px 20px;
+      margin: 16px 0;
+      text-align: center;
+    }
+    .success-box .check { font-size: 32px; margin-bottom: 8px; }
+    .success-box .msg { color: #2e7d32; font-weight: 600; font-size: 1rem; }
+
+    .link-btn {
+      display: inline-block;
+      padding: 10px 22px;
+      background: #6c63ff;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin: 6px 4px 6px 0;
+      transition: opacity 0.2s;
+    }
+    .link-btn:hover { opacity: 0.85; }
+    .link-btn.secondary { background: #f0f0ff; color: #6c63ff; border: 1px solid #d0d0ff; }
+
+    .divider {
+      height: 1px;
+      background: #eee;
+      margin: 32px 0;
+    }
+
+    .faq {
+      background: #fff;
+      border-radius: 14px;
+      padding: 20px 24px;
+      margin-bottom: 14px;
+      border: 1px solid #eee;
+    }
+    .faq-q {
+      font-weight: 600;
+      color: #1a1a2e;
+      margin-bottom: 8px;
+      font-size: 0.95rem;
+    }
+    .faq-q::before { content: 'Q: '; color: #6c63ff; }
+    .faq-a {
+      color: #666;
+      font-size: 0.88rem;
+      padding-left: 20px;
+    }
+    .faq-a::before { content: 'A: '; color: #888; font-weight: 600; }
+
+    .footer {
+      text-align: center;
+      margin-top: 40px;
+      padding-top: 24px;
+      border-top: 1px solid #eee;
+      color: #aaa;
+      font-size: 0.8rem;
+    }
+    .back-home {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .back-home a {
+      color: #6c63ff;
+      text-decoration: none;
+      font-size: 0.85rem;
+    }
+    .back-home a:hover { text-decoration: underline; }
+
+    @media (max-width: 600px) {
+      .container { padding: 28px 22px; }
+      .step { padding: 18px; }
+      .step-body { margin-left: 0; margin-top: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="back-home"><a href="/">← 返回首页</a></div>
+
+    <div class="header">
+      <div class="icon">📱</div>
+      <h1>用户激活手册</h1>
+      <p>从下载到手环激活，完整 4 步走</p>
+    </div>
+
+    <!-- Step 1 -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-num">1</div>
+        <div class="step-title">下载并安装手环 App</div>
+      </div>
+      <div class="step-body">
+        <p>在手机应用商店搜索对应 App，下载安装后打开。首次打开会自动生成设备 ID（也叫设备码）。</p>
+        <div class="highlight-box">
+          <strong>💡 提示：</strong>设备 ID 是手环的唯一标识，用于区分不同设备，请妥善保管。
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-num">2</div>
+        <div class="step-title">购买并获取兑换码</div>
+      </div>
+      <div class="step-body">
+        <p>前往爱发电（或官方渠道）购买对应产品的赞助，完成后系统会自动发送一封邮件，里面包含一个 <strong>4 位兑换码</strong>。</p>
+        <div class="code-box">兑换码示例：ABCD</div>
+        <p>如果你已在爱发电完成赞助但没收到兑换码邮件，可以：</p>
+        <ul>
+          <li>检查邮件垃圾箱</li>
+          <li>或在爱发电私信作者手动获取</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-num">3</div>
+        <div class="step-title">在线兑换，获取激活码</div>
+      </div>
+      <div class="step-body">
+        <p>在手机浏览器或电脑上打开激活页面：</p>
+        <p>
+          <a href="/activate.html" class="link-btn">前往激活页面</a>
+        </p>
+        <p>页面会自动填入你的设备 ID（也可以手动输入），然后：</p>
+        <ul>
+          <li>确认<strong>设备 ID</strong> 与手环 App 上显示的一致</li>
+          <li>输入 Step 2 收到的 <strong>4 位兑换码</strong></li>
+          <li>点击「立即激活」</li>
+        </ul>
+        <div class="highlight-box">
+          <strong>⚠️ 注意：</strong>兑换成功后，兑换码作废。如果激活码丢了可以重新输入同一个兑换码再生成一次（但兑换码有效期取决于你的赞助时长）。
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 4 -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-num">4</div>
+        <div class="step-title">输入激活码到手环</div>
+      </div>
+      <div class="step-body">
+        <p>激活页面会显示一个 <strong>18 位激活码</strong>，把它复制下来：</p>
+        <div class="code-box">激活码示例：012345678901234567</div>
+        <p>打开手环 App → 找到「激活」或「授权」入口 → 粘贴或手动输入这 18 位码 → 确认。</p>
+        <div class="success-box">
+          <div class="check">✅</div>
+          <div class="msg">激活成功！手环已解锁完整功能</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <h2 style="margin-bottom:20px;font-size:1.2rem;color:#1a1a2e;">常见问题</h2>
+
+    <div class="faq">
+      <div class="faq-q">兑换码输入后提示「已使用」怎么办？</div>
+      <div class="faq-a">说明这个兑换码已经被兑换过了。如果你是首次兑换，请确认兑换码输入正确（4 位，不含空格）。如果确认无误但仍提示已使用，请通过爱发电私信作者核实。</div>
+    </div>
+
+    <div class="faq">
+      <div class="faq-q">设备 ID 和手环上的不一致会怎样？</div>
+      <div class="faq-a">激活码是绑定设备 ID 的。如果激活时填的设备 ID 和手环 App 上的不一样，手环会解码失败。解决方法：回到激活页面，用正确的设备 ID 重新生成一次激活码。</div>
+    </div>
+
+    <div class="faq">
+      <div class="faq-q">激活码有效期是多久？</div>
+      <div class="faq-a">取决于你购买的产品套餐（1个月 / 3个月 / 6个月 / 12个月 / 永久）。激活成功后，到期前 7 天手环会提醒续期，续期后重新走以上流程即可。</div>
+    </div>
+
+    <div class="faq">
+      <div class="faq-q">换了新手环怎么办？</div>
+      <div class="faq-a">新手环有新的设备 ID，需要用同一个兑换码重新在激活页面生成新的激活码即可。兑换码支持重复兑换（在有效期内）。</div>
+    </div>
+
+    <div class="faq">
+      <div class="faq-q">手环显示激活码无效怎么办？</div>
+      <div class="faq-a">① 检查 18 位码有没有输入错误（不要多/少字符）；② 确认设备 ID 和激活时填的一致；③ 以上都没问题的话，去激活页面重新生成一次试试。</div>
+    </div>
+
+    <div class="footer">
+      激活码管理系统 · 用户手册
+    </div>
+  </div>
+</body>
+</html>

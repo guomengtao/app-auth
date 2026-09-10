@@ -2,13 +2,13 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width initial-scale=1.0">
   <title>App Auth - 激活码管理系统</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      font-family: -apple-system BlinkMacSystemFont 'Segoe UI' 'PingFang SC' 'Microsoft YaHei' sans-serif;
+      background: linear-gradient(135deg #0f0c29 #302b63 #24243e);
       min-height: 100vh;
       display: flex;
       align-items: center;
@@ -16,59 +16,118 @@
       padding: 20px;
     }
     .card {
-      background: rgba(255,255,255,0.97);
+      background: rgba(2552552550.97);
       border-radius: 24px;
-      padding: 48px 40px;
-      max-width: 600px;
+      padding: 40px 44px;
+      max-width: 560px;
       width: 100%;
-      box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+      box-shadow: 0 30px 80px rgba(0000.5);
       animation: slideUp 0.5s ease-out;
     }
     @keyframes slideUp {
       from { opacity: 0; transform: translateY(30px); }
       to { opacity: 1; transform: translateY(0); }
     }
-    .icon { text-align: center; font-size: 56px; margin-bottom: 16px; }
-    h1 { text-align: center; font-size: 1.8rem; color: #1a1a2e; margin-bottom: 6px; }
-    .subtitle { text-align: center; font-size: 0.9rem; color: #888; margin-bottom: 30px; }
+    .icon { text-align: center; font-size: 52px; margin-bottom: 14px; }
+    h1 { text-align: center; font-size: 1.6rem; color: #1a1a2e; margin-bottom: 6px; }
+    .subtitle { text-align: center; font-size: 0.88rem; color: #888; margin-bottom: 28px; }
+
+    .link-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .link-card {
+      display: block;
+      padding: 16px 18px;
+      background: #f8f8ff;
+      border: 1px solid #e8e6ff;
+      border-radius: 12px;
+      text-decoration: none;
+      color: #1a1a2e;
+      transition: all 0.2s;
+    }
+    .link-card:hover {
+      background: #e8e6ff;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(108992550.15);
+    }
+    .link-card .lc-icon { font-size: 22px; margin-bottom: 6px; }
+    .link-card .lc-title { font-weight: 600; font-size: 0.92rem; margin-bottom: 3px; }
+    .link-card .lc-desc { font-size: 0.76rem; color: #888; }
+    .link-card.primary { background: #6c63ff; border-color: #6c63ff; color: #fff; }
+    .link-card.primary:hover { background: #5a52d5; box-shadow: 0 4px 16px rgba(108992550.3); }
+    .link-card.primary .lc-desc { color: rgba(2552552550.8); }
+
+    .section-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #aaa;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin: 20px 0 10px;
+    }
 
     .demo-section {
       background: #fff;
       border-radius: 14px;
-      padding: 16px;
+      padding: 14px 16px;
       border: 2px dashed #e0e0e0;
       text-align: center;
     }
-    .demo-section h4 {
-      font-size: 0.8rem;
-      color: #888;
-      margin-bottom: 10px;
-      font-weight: 600;
-    }
     .demo-link {
       display: inline-block;
-      padding: 8px 16px;
-      margin: 4px;
+      padding: 7px 14px;
+      margin: 3px;
       background: #f0f0ff;
       color: #6c63ff;
       border-radius: 8px;
-      font-size: 0.78rem;
-      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.76rem;
+      font-family: 'SF Mono' 'Fira Code' monospace;
       text-decoration: none;
       border: 1px solid #d0d0ff;
       transition: background 0.2s;
     }
     .demo-link:hover { background: #e0e0ff; }
+
+    @media (max-width: 480px) {
+      .link-grid { grid-template-columns: 1fr; }
+      .card { padding: 28px 22px; }
+    }
   </style>
 </head>
 <body>
   <div class="card">
     <div class="icon">🛡️</div>
     <h1>激活码管理系统</h1>
-    <p class="subtitle">Demo 测试链接</p>
+    <p class="subtitle">设备激活 / 兑换码 / 产品管理</p>
 
+    <div class="link-grid">
+      <a class="link-card primary" href="/activate.html">
+        <div class="lc-icon">🔐</div>
+        <div class="lc-title">设备激活</div>
+        <div class="lc-desc">输入兑换码获取激活码</div>
+      </a>
+      <a class="link-card" href="/login_aXs12.html">
+        <div class="lc-icon">⚙️</div>
+        <div class="lc-title">管理后台</div>
+        <div class="lc-desc">产品 / 兑换码 / 记录管理</div>
+      </a>
+      <a class="link-card" href="/user-guide.html">
+        <div class="lc-icon">📱</div>
+        <div class="lc-title">用户手册</div>
+        <div class="lc-desc">购买兑换码 → 激活流程</div>
+      </a>
+      <a class="link-card" href="/admin-guide.html">
+        <div class="lc-icon">📘</div>
+        <div class="lc-title">管理员手册</div>
+        <div class="lc-desc">添加 / 编辑产品操作</div>
+      </a>
+    </div>
+
+    <div class="section-title">Demo 测试链接</div>
     <div class="demo-section">
-      <h4>Demo 测试链接（带设备ID）</h4>
       <a class="demo-link" href="/activate.html?deviceId=Aa09">设备 Aa09</a>
       <a class="demo-link" href="/activate.html?deviceId=Bb19">设备 Bb19</a>
       <a class="demo-link" href="/activate.html?deviceId=Xy99">设备 Xy99</a>
@@ -78,11 +137,11 @@
   <script>
   (function(){
     try {
-      fetch('/api/activate?section=visitor-track', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: window.location.pathname + window.location.search }),
-        keepalive: true,
+      fetch('/api/activate?section=visitor-track' {
+        method: 'POST'
+        headers: { 'Content-Type': 'application/json' }
+        body: JSON.stringify({ path: window.location.pathname + window.location.search })
+        keepalive: true
       }).catch(function(){});
     } catch(e){}
   })();
