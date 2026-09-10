@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ev Schedule - Smart Course Management App</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  :root {
+    --deep-green: #1a4d2e;
+    --deep-green-dark: #0f2e1c;
+    --deep-green-light: #2d7a47;
+    --vibrant-green: #3cb371;
+    --gradient-start: #1a4d2e;
+    --gradient-end: #2d7a47;
+    --beige: #f5f0e8;
+    --cream: #faf7f2;
+    --text-dark: #1a1a2e;
+    --text-muted: #6b7280;
+    --text-light: #ffffff;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Helvetica Neue', sans-serif;
+    line-height: 1.6;
+    color: var(--text-dark);
+    overflow-x: hidden;
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+    transition: all 0.3s ease;
+  }
+
+  nav.scrolled {
+    box-shadow: 0 4px 30px rgba(0,0,0,0.08);
+  }
+
+  .nav-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+  }
+
+  .nav-logo img {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+  }
+
+  .nav-logo span {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--deep-green);
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 32px;
+    align-items: center;
+  }
+
+  .nav-links a {
+    text-decoration: none;
+    color: var(--text-dark);
+    font-size: 0.92rem;
+    font-weight: 500;
+    transition: color 0.2s;
+  }
+
+  .nav-links a:hover {
+    color: var(--deep-green-light);
+  }
+
+  .nav-cta {
+    background: linear-gradient(135deg, var(--deep-green), var(--deep-green-light));
+    color: white !important;
+    padding: 10px 22px;
+    border-radius: 10px;
+    font-weight: 600 !important;
+    transition: transform 0.2s, box-shadow 0.2s !important;
+  }
+
+  .nav-cta:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(26,77,46,0.3);
+  }
+
+  .nav-toggle {
+    display: none;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+  }
+
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    background: linear-gradient(160deg, var(--deep-green-dark) 0%, var(--deep-green) 50%, var(--deep-green-light) 100%);
+    position: relative;
+    overflow: hidden;
+    padding: 120px 0 80px;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -20%;
+    width: 800px;
+    height: 800px;
+    background: radial-gradient(circle, rgba(60,179,113,0.3) 0%, transparent 70%);
+    border-radius: 50%;
+    animation: float 20s ease-in-out infinite;
+  }
+
+  .hero::after {
+    content: '';
+    position: absolute;
+    bottom: -30%;
+    left: -10%;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(60,179,113,0.2) 0%, transparent 70%);
+    border-radius: 50%;
+    animation: float 25s ease-in-out infinite reverse;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translate(0, 0); }
+    50% { transform: translate(30px, -30px); }
+  }
+
+  .hero-content {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+    align-items: center;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(10px);
+    padding: 8px 16px;
+    border-radius: 50px;
+    color: rgba(255,255,255,0.9);
+    font-size: 0.82rem;
+    margin-bottom: 24px;
+    border: 1px solid rgba(255,255,255,0.2);
+  }
+
+  .hero-badge .dot {
+    width: 8px;
+    height: 8px;
+    background: var(--vibrant-green);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .hero h1 {
+    font-size: 3.2rem;
+    font-weight: 800;
+    line-height: 1.15;
+    color: white;
+    margin-bottom: 20px;
+    letter-spacing: -0.5px;
+  }
+
+  .hero h1 .highlight {
+    background: linear-gradient(135deg, #a8e6cf, #88d8a3);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero-subtitle {
+    font-size: 1.15rem;
+    color: rgba(255,255,255,0.8);
+    margin-bottom: 36px;
+    line-height: 1.7;
+  }
+
+  .hero-cta {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: white;
+    color: var(--deep-green);
+    padding: 16px 32px;
+    border-radius: 14px;
+    font-size: 1rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.3s;
+    border: none;
+    cursor: pointer;
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+  }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(10px);
+    color: white;
+    padding: 16px 32px;
+    border-radius: 14px;
+    font-size: 1rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.3s;
+    border: 1px solid rgba(255,255,255,0.3);
+  }
+
+  .btn-secondary:hover {
+    background: rgba(255,255,255,0.25);
+    transform: translateY(-3px);
+  }
+
+  .hero-stats {
+    display: flex;
+    gap: 40px;
+    margin-top: 48px;
+  }
+
+  .stat-item {
+    color: white;
+  }
+
+  .stat-number {
+    font-size: 1.8rem;
+    font-weight: 800;
+    display: block;
+  }
+
+  .stat-label {
+    font-size: 0.82rem;
+    color: rgba(255,255,255,0.6);
+  }
+
+  .hero-visual {
+    position: relative;
+  }
+
+  .hero-main-image {
+    width: 100%;
+    border-radius: 24px;
+    box-shadow: 0 40px 80px rgba(0,0,0,0.4);
+    transform: perspective(1000px) rotateY(-5deg) rotateX(5deg);
+    transition: transform 0.6s ease;
+  }
+
+  .hero-visual:hover .hero-main-image {
+    transform: perspective(1000px) rotateY(0deg) rotateX(0deg);
+  }
+
+  .hero-float-card {
+    position: absolute;
+    background: white;
+    border-radius: 16px;
+    padding: 16px 20px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+    animation: floatCard 6s ease-in-out infinite;
+  }
+
+  .hero-float-card.card-1 {
+    top: -20px;
+    right: -20px;
+    animation-delay: 0s;
+  }
+
+  .hero-float-card.card-2 {
+    bottom: 40px;
+    left: -30px;
+    animation-delay: 2s;
+  }
+
+  @keyframes floatCard {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-15px); }
+  }
+
+  .float-icon {
+    font-size: 1.5rem;
+    margin-bottom: 4px;
+  }
+
+  .float-text {
+    font-size: 0.78rem;
+    color: var(--text-dark);
+    font-weight: 600;
+  }
+
+  .features {
+    padding: 120px 0;
+    background: var(--cream);
+  }
+
+  .section-header {
+    text-align: center;
+    margin-bottom: 72px;
+  }
+
+  .section-tag {
+    display: inline-block;
+    color: var(--deep-green);
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 16px;
+  }
+
+  .section-title {
+    font-size: 2.4rem;
+    font-weight: 800;
+    color: var(--text-dark);
+    margin-bottom: 16px;
+    letter-spacing: -0.5px;
+  }
+
+  .section-desc {
+    font-size: 1.05rem;
+    color: var(--text-muted);
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 32px;
+  }
+
+  .feature-card {
+    background: white;
+    border-radius: 20px;
+    padding: 40px 32px;
+    transition: all 0.4s ease;
+    border: 1px solid rgba(0,0,0,0.04);
+  }
+
+  .feature-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 30px 60px rgba(26,77,46,0.12);
+    border-color: rgba(26,77,46,0.1);
+  }
+
+  .feature-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    margin-bottom: 20px;
+  }
+
+  .feature-icon.green {
+    background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+    color: var(--deep-green);
+  }
+
+  .feature-icon.beige {
+    background: linear-gradient(135deg, #faf7f2, #f0ebe0);
+    color: #8b7355;
+  }
+
+  .feature-icon.vibrant {
+    background: linear-gradient(135deg, #e0f7fa, #b2ebf2);
+    color: #006064;
+  }
+
+  .feature-card h3 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+    color: var(--text-dark);
+  }
+
+  .feature-card p {
+    font-size: 0.92rem;
+    color: var(--text-muted);
+    line-height: 1.65;
+  }
+
+  .showcase {
+    padding: 120px 0;
+    background: white;
+  }
+
+  .showcase-item {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: center;
+    margin-bottom: 120px;
+  }
+
+  .showcase-item:last-child {
+    margin-bottom: 0;
+  }
+
+  .showcase-item.reverse {
+    direction: rtl;
+  }
+
+  .showcase-item.reverse > * {
+    direction: ltr;
+  }
+
+  .showcase-image {
+    position: relative;
+  }
+
+  .showcase-image img {
+    width: 100%;
+    border-radius: 20px;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.15);
+  }
+
+  .showcase-image::before {
+    content: '';
+    position: absolute;
+    top: -20px;
+    left: -20px;
+    right: 20px;
+    bottom: 20px;
+    border: 3px solid var(--deep-green);
+    border-radius: 24px;
+    z-index: -1;
+    opacity: 0.3;
+  }
+
+  .showcase-content h3 {
+    font-size: 2rem;
+    font-weight: 800;
+    margin-bottom: 16px;
+    color: var(--text-dark);
+  }
+
+  .showcase-content p {
+    font-size: 1.02rem;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+    line-height: 1.75;
+  }
+
+  .showcase-list {
+    list-style: none;
+  }
+
+  .showcase-list li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    font-size: 0.95rem;
+    color: var(--text-dark);
+  }
+
+  .showcase-list li::before {
+    content: '✓';
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: linear-gradient(135deg, var(--deep-green), var(--deep-green-light));
+    color: white;
+    border-radius: 50%;
+    font-size: 0.75rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .gallery {
+    padding: 120px 0;
+    background: linear-gradient(180deg, var(--cream) 0%, white 100%);
+  }
+
+  .gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+
+  .gallery-item {
+    border-radius: 20px;
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.4s ease;
+  }
+
+  .gallery-item:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 30px 60px rgba(0,0,0,0.2);
+  }
+
+  .gallery-item img {
+    width: 100%;
+    height: 280px;
+    object-fit: cover;
+    transition: transform 0.5s ease;
+  }
+
+  .gallery-item:hover img {
+    transform: scale(1.05);
+  }
+
+  .gallery-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 24px;
+    background: linear-gradient(transparent, rgba(0,0,0,0.8));
+    color: white;
+  }
+
+  .gallery-overlay h4 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .gallery-overlay p {
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.8);
+  }
+
+  .cta-section {
+    padding: 120px 0;
+    background: linear-gradient(160deg, var(--deep-green-dark) 0%, var(--deep-green) 100%);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cta-section::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(60,179,113,0.2) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+
+  .cta-content {
+    position: relative;
+    z-index: 2;
+  }
+
+  .cta-section h2 {
+    font-size: 2.8rem;
+    font-weight: 800;
+    color: white;
+    margin-bottom: 16px;
+  }
+
+  .cta-section p {
+    font-size: 1.1rem;
+    color: rgba(255,255,255,0.8);
+    margin-bottom: 40px;
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  footer {
+    background: var(--deep-green-dark);
+    padding: 60px 0 30px;
+    color: rgba(255,255,255,0.7);
+  }
+
+  .footer-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+    gap: 48px;
+    margin-bottom: 48px;
+  }
+
+  .footer-brand {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .footer-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .footer-logo img {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+  }
+
+  .footer-logo span {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: white;
+  }
+
+  .footer-brand p {
+    font-size: 0.9rem;
+    line-height: 1.7;
+  }
+
+  .footer-col h4 {
+    color: white;
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+  }
+
+  .footer-col a {
+    display: block;
+    color: rgba(255,255,255,0.6);
+    text-decoration: none;
+    font-size: 0.9rem;
+    padding: 6px 0;
+    transition: color 0.2s;
+  }
+
+  .footer-col a:hover {
+    color: white;
+  }
+
+  .footer-bottom {
+    border-top: 1px solid rgba(255,255,255,0.1);
+    padding-top: 24px;
+    text-align: center;
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.4);
+  }
+
+  @media (max-width: 1024px) {
+    .hero h1 { font-size: 2.6rem; }
+    .hero-content { grid-template-columns: 1fr; gap: 40px; }
+    .hero-visual { order: -1; max-width: 500px; margin: 0 auto; }
+    .features-grid { grid-template-columns: repeat(2, 1fr); }
+    .showcase-item { grid-template-columns: 1fr; gap: 40px; }
+    .showcase-item.reverse { direction: ltr; }
+    .gallery-grid { grid-template-columns: repeat(2, 1fr); }
+    .footer-grid { grid-template-columns: 1fr 1fr; }
+  }
+
+  @media (max-width: 768px) {
+    .nav-links { display: none; }
+    .nav-toggle { display: block; }
+    .hero { padding: 100px 0 60px; }
+    .hero h1 { font-size: 2rem; }
+    .hero-stats { gap: 24px; }
+    .features { padding: 80px 0; }
+    .features-grid { grid-template-columns: 1fr; }
+    .showcase { padding: 80px 0; }
+    .showcase-item { margin-bottom: 80px; }
+    .showcase-content h3 { font-size: 1.5rem; }
+    .gallery { padding: 80px 0; }
+    .gallery-grid { grid-template-columns: 1fr; }
+    .gallery-item img { height: 220px; }
+    .cta-section { padding: 80px 0; }
+    .cta-section h2 { font-size: 2rem; }
+    .footer-grid { grid-template-columns: 1fr; gap: 32px; }
+    .section-title { font-size: 1.8rem; }
+  }
+
+  .fade-in {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.8s ease, transform 0.8s ease;
+  }
+
+  .fade-in.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+</style>
+</head>
+<body>
+
+<nav id="navbar">
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">
+      <img src="images/ev-schedule/logo-ev-gradient.png" alt="Ev Schedule Logo">
+      <span>Ev Schedule</span>
+    </a>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#showcase">Showcase</a>
+      <a href="#gallery">Gallery</a>
+      <a href="#download" class="nav-cta">Download</a>
+    </div>
+    <button class="nav-toggle" onclick="toggleMenu()">☰</button>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="container">
+    <div class="hero-content">
+      <div>
+        <div class="hero-badge">
+          <span class="dot"></span>
+          Now Available on App Store
+        </div>
+        <h1>Smart Course<br><span class="highlight">Management</span><br>Made Simple</h1>
+        <p class="hero-subtitle">
+          Ev Schedule helps students and professionals organize their daily courses, 
+          track schedules effortlessly, and never miss a class again. Beautiful design 
+          meets powerful functionality.
+        </p>
+        <div class="hero-cta">
+          <a href="#download" class="btn-primary">
+            📱 Download App
+          </a>
+          <a href="#showcase" class="btn-secondary">
+            ▶ Watch Demo
+          </a>
+        </div>
+        <div class="hero-stats">
+          <div class="stat-item">
+            <span class="stat-number">10K+</span>
+            <span class="stat-label">Active Users</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-number">4.9★</span>
+            <span class="stat-label">App Rating</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-number">50K+</span>
+            <span class="stat-label">Downloads</span>
+          </div>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <img src="images/ev-schedule/hero-light-theme.png" alt="Ev Schedule Main View" class="hero-main-image">
+        <div class="hero-float-card card-1">
+          <div class="float-icon">📚</div>
+          <div class="float-text">6 Classes Today</div>
+        </div>
+        <div class="hero-float-card card-2">
+          <div class="float-icon">✅</div>
+          <div class="float-text">All Done!</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="features" id="features">
+  <div class="container">
+    <div class="section-header fade-in">
+      <div class="section-tag">Why Ev Schedule</div>
+      <h2 class="section-title">Everything You Need<br>For Perfect Organization</h2>
+      <p class="section-desc">Powerful features designed to make scheduling effortless and enjoyable.</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card fade-in">
+        <div class="feature-icon green">🎨</div>
+        <h3>Beautiful Themes</h3>
+        <p>Choose from elegant light and deep green themes that are easy on the eyes and match your style perfectly.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feature-icon beige">📅</div>
+        <h3>Week View</h3>
+        <p>Get a complete overview of your entire week at a glance. Drag, drop, and reorganize with intuitive gestures.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feature-icon vibrant">⚡</div>
+        <h3>Quick Add</h3>
+        <p>Add new courses in seconds with smart suggestions and time-saving templates.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feature-icon green">🔔</div>
+        <h3>Smart Reminders</h3>
+        <p>Never miss a class with intelligent notifications that adapt to your schedule and preferences.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feature-icon beige">📊</div>
+        <h3>Statistics</h3>
+        <p>Track your study habits and course distribution with beautiful visualizations and insights.</p>
+      </div>
+      <div class="feature-card fade-in">
+        <div class="feature-icon vibrant">☁️</div>
+        <h3>Cloud Sync</h3>
+        <p>Your schedule automatically syncs across all your devices. Start on your phone, continue on your tablet.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="showcase" id="showcase">
+  <div class="container">
+    <div class="showcase-item fade-in">
+      <div class="showcase-image">
+        <img src="images/ev-schedule/week-view-overview.png" alt="Week View Overview">
+      </div>
+      <div class="showcase-content">
+        <h3>Week View That Changes Everything</h3>
+        <p>See your entire week laid out beautifully at a glance. Color-coded courses make it instantly clear what's next.</p>
+        <ul class="showcase-list">
+          <li>Intuitive 7-day layout</li>
+          <li>Color-coded course blocks</li>
+          <li>Quick navigation between weeks</li>
+          <li>Zoom in for time details</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="showcase-item reverse fade-in">
+      <div class="showcase-image">
+        <img src="images/ev-schedule/features-overview.png" alt="Features Overview">
+      </div>
+      <div class="showcase-content">
+        <h3>Powerful Features, Intuitive Design</h3>
+        <p>Every feature is carefully crafted to be both powerful and simple. No learning curve, just pure productivity.</p>
+        <ul class="showcase-list">
+          <li>Drag-and-drop editing</li>
+          <li>Smart recurring schedules</li>
+          <li>Location and room tracking</li>
+          <li>Teacher contact info</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="showcase-item fade-in">
+      <div class="showcase-image">
+        <img src="images/ev-schedule/hero-deep-green-theme.png" alt="Deep Green Theme">
+      </div>
+      <div class="showcase-content">
+        <h3>Themes That Adapt To You</h3>
+        <p>Whether you prefer the clean warmth of light mode or the sophisticated comfort of deep green, Ev Schedule delivers.</p>
+        <ul class="showcase-list">
+          <li>Elegant light theme</li>
+          <li>Rich deep green theme</li>
+          <li>Automatic day/night switching</li>
+          <li>Custom accent colors</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="gallery" id="gallery">
+  <div class="container">
+    <div class="section-header fade-in">
+      <div class="section-tag">Gallery</div>
+      <h2 class="section-title">Take A Closer Look</h2>
+      <p class="section-desc">Explore the beautiful interface and thoughtful details that make Ev Schedule special.</p>
+    </div>
+    <div class="gallery-grid">
+      <div class="gallery-item fade-in">
+        <img src="images/ev-schedule/light-square-view.png" alt="Light Square View">
+        <div class="gallery-overlay">
+          <h4>Light Square View</h4>
+          <p>Clean and organized daily layout</p>
+        </div>
+      </div>
+      <div class="gallery-item fade-in">
+        <img src="images/ev-schedule/deep-green-square-view.png" alt="Deep Green Square View">
+        <div class="gallery-overlay">
+          <h4>Deep Green Square View</h4>
+          <p>Rich colors for focused studying</p>
+        </div>
+      </div>
+      <div class="gallery-item fade-in">
+        <img src="images/ev-schedule/hero-light-theme.png" alt="Main View">
+        <div class="gallery-overlay">
+          <h4>Main Schedule View</h4>
+          <p>Your courses at a glance</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cta-section" id="download">
+  <div class="container">
+    <div class="cta-content fade-in">
+      <h2>Ready To Get Organized?</h2>
+      <p>Download Ev Schedule today and transform how you manage your courses.</p>
+      <a href="#" class="btn-primary" style="margin-right: 16px;">📱 App Store</a>
+      <a href="#" class="btn-secondary">🤖 Google Play</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <div class="footer-logo">
+          <img src="images/ev-schedule/logo-ev-gradient.png" alt="Logo">
+          <span>Ev Schedule</span>
+        </div>
+        <p>The smartest way to manage your courses and schedule. Designed for students who value beautiful design and powerful functionality.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <a href="#features">Features</a>
+        <a href="#showcase">Showcase</a>
+        <a href="#gallery">Gallery</a>
+        <a href="#download">Download</a>
+      </div>
+      <div class="footer-col">
+        <h4>Support</h4>
+        <a href="#">Help Center</a>
+        <a href="#">FAQ</a>
+        <a href="#">Contact</a>
+        <a href="#">Feedback</a>
+      </div>
+      <div class="footer-col">
+        <h4>Legal</h4>
+        <a href="#">Privacy Policy</a>
+        <a href="#">Terms of Service</a>
+        <a href="#">License</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      2024 Ev Schedule. All rights reserved.
+    </div>
+  </div>
+</footer>
+
+<script>
+  function toggleMenu() {
+    const links = document.querySelector('.nav-links');
+    if (links.style.display === 'flex') {
+      links.style.display = 'none';
+    } else {
+      links.style.display = 'flex';
+      links.style.flexDirection = 'column';
+      links.style.position = 'absolute';
+      links.style.top = '60px';
+      links.style.left = '0';
+      links.style.right = '0';
+      links.style.background = 'white';
+      links.style.padding = '20px';
+      links.style.gap = '16px';
+      links.style.borderBottom = '1px solid #eee';
+    }
+  }
+
+  window.addEventListener('scroll', function() {
+    const navbar = document.getElementById('navbar');
+    if (window.scrollY > 50) {
+      navbar.classList.add('scrolled');
+    } else {
+      navbar.classList.remove('scrolled');
+    }
+  });
+
+  const observer = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.fade-in').forEach(function(el) {
+    observer.observe(el);
+  });
+</script>
+
+</body>
+</html>
