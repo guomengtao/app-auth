@@ -522,6 +522,30 @@ module.exports = async (req, res) => {
     }
   }
 
+  if (req.query && req.query.section === "push-test") {
+    try {
+      if (req.method === "POST") {
+        var ptBody = req.body || {};
+        var ptType = ptBody.type || "new_order";
+        var ptMock = {
+          new_order: { out_trade_no: "MOCK" + Date.now(), amount: 2990, plan_id: "年度赞助", plan_amount: 2990, user_id: "mock_user_01", time: Date.now() },
+          new_activation: { activation_code: "MOCK" + Math.random().toString(36).slice(2, 10).toUpperCase(), redeem_code: "ABCD", device_id: "Aa09", product_id: "PROD-001", product_name: "专业版 Pro", months: 12, source: "mock", time: Date.now() },
+          new_visit: { path: "/activate.html", device_id: "Aa09", ip: "114.85.xx.xx", country: "CN", region: "Shanghai", city: "Shanghai", ts: Date.now() }
+        };
+        var ptPayload = ptMock[ptType] || ptBody.payload || {};
+        var ptOk = await pushNotify.pushNotification(ptType, ptPayload);
+        return res.json({ success: !!ptOk, type: ptType, payload: ptPayload, upstashConfigured: !!(pushNotify.getUpstashUrl() && pushNotify.getUpstashToken()), message: ptOk ? "Pushed successfully" : "Failed" });
+      }
+      if (req.method === "GET") {
+        var ptMsgs = await pushNotify.fetchNotifications(parseInt(req.query.count || "20", 10));
+        return res.json({ success: true, count: ptMsgs.length, upstashConfigured: !!(pushNotify.getUpstashUrl() && pushNotify.getUpstashToken()), notifications: ptMsgs });
+      }
+      return res.status(405).json({ success: false, error: "Method not allowed" });
+    } catch (e) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  }
+
   var auth = requireAuth(req);
   if (!auth.authorized && !isCron) {
     return res.status(auth.status).json({ success: false, error: auth.error });
