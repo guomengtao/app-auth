@@ -4791,7 +4791,7 @@
         console.log('[push] 💰 new_order →', text);
         showToast('💰 ' + text, 'success');
         if (pushNotificationEnabled) doSpeech('叮！收到新订单，金额 ' + amountYuan + ' 元');
-        try { new Notification('app-auth', { body: text, tag: 'order_' + (data.payload && data.payload.out_trade_no || data.ts) }); } catch (ne) { console.warn('[push] Notification failed:', ne.message); }
+        tryNotify('💰 新订单', text, 'order_' + (data.payload && data.payload.out_trade_no || data.ts));
       } else if (data.type === 'new_activation') {
         var productName = (data.payload && data.payload.product_name) || (data.payload && data.payload.product_id) || '';
         var deviceId = (data.payload && data.payload.device_id) || '';
@@ -4801,7 +4801,7 @@
         console.log('[push] 🔑 new_activation →', actText);
         showToast('🔑 ' + actText, 'success');
         if (pushNotificationEnabled) doSpeech('新激活，设备 ' + (deviceId || '未知'));
-        try { new Notification('app-auth', { body: actText, tag: 'act_' + (data.payload && data.payload.activation_code || data.ts) }); } catch (ne) { console.warn('[push] Notification failed:', ne.message); }
+        tryNotify('🔑 新激活', actText, 'act_' + (data.payload && data.payload.activation_code || data.ts));
       } else if (data.type === 'new_visit') {
         var vPath = (data.payload && data.payload.path) || '';
         var vDevice = (data.payload && data.payload.device_id) || '';
@@ -4809,22 +4809,62 @@
         var visitText = '新访客 ' + (vDevice || '') + (vCity ? ' · ' + vCity : '') + (vPath ? ' · ' + vPath : '');
         console.log('[push] 👤 new_visit →', visitText);
         showToast('👤 ' + visitText, 'success');
-        try { new Notification('app-auth', { body: visitText, tag: 'visit_' + data.ts }); } catch (ne) { console.warn('[push] Notification failed:', ne.message); }
+        tryNotify('👤 新访客', visitText, 'visit_' + data.ts);
       } else {
         console.log('[push] ❓ unknown type:', data.type, data);
       }
     }
     function doSpeech(text) {
-      if (!('speechSynthesis' in window)) { console.warn('[push] speechSynthesis NOT supported'); return; }
+      if (!('speechSynthesis' in window)) { console.warn('[push] ❌ speechSynthesis NOT supported'); return; }
       try {
-        window.speechSynthesis.cancel();
-        var u = new SpeechSynthesisUtterance(text);
-        u.lang = 'zh-CN';
-        u.rate = 1.1;
-        u.pitch = 1;
-        window.speechSynthesis.speak(u);
-        console.log('[push] 🔊 speak:', text);
+        var synth = window.speechSynthesis;
+        var voices = synth.getVoices();
+        if (!voices || voices.length === 0) {
+          console.warn('[push] ⚠️ voices not loaded yet (count=0), speak may be silent. Waiting 1s...');
+          setTimeout(function() { doSpeech(text); }, 1000);
+          return;
+        }
+        synth.cancel();
+        setTimeout(function() {
+          var u = new SpeechSynthesisUtterance(text);
+          u.lang = 'zh-CN';
+          u.rate = 1.0;
+          u.pitch = 1;
+          u.volume = 1;
+          var zhVoice = voices.find(function(v) { return v.lang && v.lang.toLowerCase().indexOf('zh') === 0; });
+          if (zhVoice) { u.voice = zhVoice; console.log('[push] 🎙️ using voice:', zhVoice.name, zhVoice.lang); }
+          u.onstart = function() { console.log('[push] 🔊 speech STARTED:', text); };
+          u.onend = function() { console.log('[push] 🔊 speech ENDED'); };
+          u.onerror = function(ev) { console.error('[push] 🔊 speech ERROR:', ev.error); };
+          synth.speak(u);
+          console.log('[push] 🗣️ speak queued:', text);
+        }, 50);
       } catch (e) { console.error('[push] speech error:', e.message); }
+    }
+    function ensureNotificationPermission() {
+      if (!('Notification' in window)) { console.warn('[push] ❌ Notification API NOT available'); return Promise.resolve('unsupported'); }
+      console.log('[push] Notification.permission =', Notification.permission);
+      if (Notification.permission === 'granted') return Promise.resolve('granted');
+      if (Notification.permission === 'denied') {
+        console.warn('[push] ❌ Notification permission is DENIED. Open macOS System Settings → Notifications → allow your browser');
+        return Promise.resolve('denied');
+      }
+      return Notification.requestPermission().then(function(p) {
+        console.log('[push] 🎯 user chose:', p);
+        return p;
+      });
+    }
+    function tryNotify(title, body, tag) {
+      try {
+        if (!('Notification' in window)) { console.warn('[push] ❌ Notification API missing'); return; }
+        if (Notification.permission !== 'granted') {
+          console.warn('[push] ❌ Notification NOT granted (', Notification.permission, '), cannot show:', body);
+          return;
+        }
+        var n = new Notification(title, { body: body, tag: tag || '' });
+        n.onclick = function() { console.log('[push] 🔔 notification clicked'); };
+        console.log('[push] 📣 Notification shown:', body);
+      } catch (ne) { console.error('[push] ❌ Notification error:', ne.message); }
     }
     function initPushNotifications() {
       if (pushEventSource) { console.log('[push] already connected'); return; }
@@ -4845,18 +4885,14 @@
           console.log('[push] 🔄 reconnect in 3s...');
           setTimeout(initPushNotifications, 3000);
         };
-        try {
-          if ('Notification' in window) {
-            console.log('[push] Notification.permission =', Notification.permission);
-            if (Notification.permission === 'default') {
-              Notification.requestPermission().then(function(p) {
-                console.log('[push] user chose Notification permission:', p);
-              });
-            }
-          } else {
-            console.warn('[push] Notification API NOT available');
-          }
-        } catch (_) {}
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.onvoiceschanged = function() {
+            console.log('[push] 🎙️ voices loaded:', window.speechSynthesis.getVoices().length);
+          };
+          var initVoices = window.speechSynthesis.getVoices();
+          console.log('[push] 🎙️ initial voices count:', initVoices.length);
+        }
+        console.log('[push] ⚠️ Notification permission will be requested on your first click');
       } catch (e) {
         console.error('[push] ❌ init failed:', e.message);
       }
@@ -4871,6 +4907,7 @@
       if (lbl) lbl.textContent = pushNotificationEnabled ? 'ON' : 'OFF';
     }
     function pushTest(type) {
+      ensureNotificationPermission();
       var statusEl = document.getElementById('pushTestStatus');
       if (statusEl) { statusEl.textContent = '⏳ Pushing ' + type + '...'; }
       fetch('/api/admin/health?section=push-test', {
