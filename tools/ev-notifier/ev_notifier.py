@@ -285,9 +285,31 @@ def handle_message(msg):
         body = "\n".join(lines)
 
     elif mtype == "activation_failure":
+        reason = p.get("reason", "") or p.get("error", "") or "未知错误"
+        redeem_code = p.get("redeem_code", "")
+        device = p.get("device_id", "")
+        src = _fmt_source(p.get("source"))
+        os_info = p.get("os", "")
+        device_info = p.get("device", "")
+        ip = p.get("ip", "")
+
         title = "❌ 兑换失败"
-        subtitle = p.get("reason", "") or p.get("error", "")
-        body = json.dumps(p, ensure_ascii=False, indent=2)[:300]
+        subtitle = reason
+        lines = []
+        if redeem_code:
+            lines.append(f"兑换码: {redeem_code}")
+        if device:
+            lines.append(f"设备: {device}")
+        if src:
+            lines.append(f"来源: {src}")
+        if os_info or device_info:
+            ua = " ".join(filter(None, [os_info, device_info])).strip()
+            if ua:
+                lines.append(f"用户: {ua}")
+        if ip:
+            lines.append(f"IP: {ip}")
+        lines.append(f"⏱ {ts_label}")
+        body = "\n".join(lines)
 
     else:
         title = f"📨 {mtype}"
