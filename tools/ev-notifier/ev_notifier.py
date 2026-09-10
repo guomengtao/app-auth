@@ -85,46 +85,57 @@ class RedisProtocol:
     def feed(self, data):
         self._buf += data
 
-    def _parse_one(self, lines, i):
-        if i >= len(lines):
-            return None, i
-        t = lines[i]
-        i += 1
-        if t.startswith("+"):
-            return t[1:], i
-        if t.startswith("-"):
-            return ("error", t[1:]), i
-        if t.startswith(":"):
-            return int(t[1:]), i
-        if t.startswith("$"):
-            v = lines[i] if i < len(lines) else ""
-            i += 1
-            return v, i
-        if t.startswith("*"):
-            count = int(t[1:])
-            r = []
-            for _ in range(count):
-                item, i = self._parse_one(lines, i)
-                r.append(item)
-            return r, i
-        return None, i
-
     def parse_all(self):
-        if not self._buf:
-            return []
-        text = self._buf.decode(errors="replace")
-        lines = text.split("\r\n")
         results = []
-        i = 0
-        while i < len(lines):
-            reply, next_i = self._parse_one(lines, i)
-            if reply is None and next_i == i:
+        buf = self._buf
+        while True:
+            msg, remaining = self._parse_one(buf)
+            if msg is None:
                 break
-            results.append(reply)
-            i = next_i
-        consumed = "\r\n".join(lines[:i]).encode() + b"\r\n" * (len(lines[:i]) - 1)
-        self._buf = self._buf[len(consumed):]
+            results.append(msg)
+            buf = remaining
+        self._buf = buf
         return results
+
+    def _parse_one(self, data):
+        if not data:
+            return None, data
+        idx = 0
+
+        nl = data.find(b"\r\n", idx)
+        if nl < 0:
+            return None, data
+        line = data[idx:nl]
+        idx = nl + 2
+
+        if line.startswith(b"+"):
+            return line[1:].decode(errors="replace"), data[idx:]
+        if line.startswith(b"-"):
+            return ("error", line[1:].decode(errors="replace")), data[idx:]
+        if line.startswith(b":"):
+            return int(line[1:]), data[idx:]
+        if line.startswith(b"$"):
+            n = int(line[1:])
+            if n < 0:
+                return None, data[idx:]
+            if idx + n + 2 > len(data):
+                return None, data
+            val = data[idx:idx + n].decode(errors="replace")
+            idx += n + 2
+            return val, data[idx:]
+        if line.startswith(b"*"):
+            count = int(line[1:])
+            arr = []
+            remaining = data
+            for _ in range(count):
+                remaining = data[idx:]
+                item, consumed = self._parse_one(remaining)
+                if item is None:
+                    return None, self._buf
+                arr.append(item)
+                idx = len(data) - len(consumed)
+            return arr, data[idx:]
+        return None, data
 
 
 _seen_ids = set()
