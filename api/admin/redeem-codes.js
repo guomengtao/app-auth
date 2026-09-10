@@ -308,6 +308,34 @@ module.exports = async (req, res) => {
       return res.json({ success: true, results: results });
     }
 
+    if (req.method === "POST" && req.query.action === "unbind") {
+      var unbindBody = parseBody(req);
+      var unbindCode = String(unbindBody.code || req.query.code || "").trim().toUpperCase();
+      if (!unbindCode) {
+        return res.status(400).json({ success: false, error: "Code is required" });
+      }
+      var existingRecord = await redis.get("auth:redeem:" + unbindCode);
+      if (!existingRecord) {
+        return res.status(404).json({ success: false, error: "Redeem code not found" });
+      }
+      var recordData = null;
+      try { recordData = JSON.parse(existingRecord); } catch (e) { recordData = null; }
+      if (!recordData || typeof recordData !== "object") {
+        return res.status(400).json({ success: false, error: "Invalid redeem code record" });
+      }
+      if (!recordData.used) {
+        return res.status(200).json({ success: true, code: unbindCode, message: "Already unbound", wasUsed: false });
+      }
+      var oldDevice = recordData.used_device_id || "unknown";
+      recordData.used = false;
+      delete recordData.used_at;
+      delete recordData.used_device_id;
+      delete recordData.generated_activation_code;
+      await redis.set("auth:redeem:" + unbindCode, JSON.stringify(recordData));
+      try { await redis.del("auth:counter:used_redeem_codes"); } catch (e) {}
+      return res.json({ success: true, code: unbindCode, message: "Unbound from device " + oldDevice });
+    }
+
     if (req.method === "GET") {
       var exportAll = req.query.export;
       var filterProductId = req.query.product_id;

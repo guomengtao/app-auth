@@ -191,6 +191,31 @@
   </div>
 
   <script>
+    function xhrFetch(url, options) {
+      options = options || {};
+      return new Promise(function(resolve, reject) {
+        var xhr = new XMLHttpRequest();
+        xhr.open(options.method || 'GET', url, true);
+        if (options.headers) {
+          for (var k in options.headers) {
+            if (options.headers.hasOwnProperty(k)) {
+              xhr.setRequestHeader(k, options.headers[k]);
+            }
+          }
+        }
+        xhr.onload = function() {
+          resolve({
+            status: xhr.status,
+            ok: xhr.status >= 200 && xhr.status < 300,
+            json: function() { return Promise.resolve(JSON.parse(xhr.responseText)); },
+            text: function() { return Promise.resolve(xhr.responseText); }
+          });
+        };
+        xhr.onerror = function() { reject(new Error('Network error')); };
+        xhr.send(options.body || null);
+      });
+    }
+
     function getDeviceIdFromUrl() {
       var params = new URLSearchParams(window.location.search);
       return params.get('deviceId') || params.get('deviceid') || params.get('id') || '';
@@ -309,7 +334,7 @@
       document.getElementById('result').className = 'result';
 
       var hasDeviceInfo = deviceInfo.model || deviceInfo.product || deviceInfo.deviceType;
-      fetch('/api/activate', {
+      xhrFetch('/api/activate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -370,11 +395,10 @@
 
     (function(){
       try {
-        fetch('/api/activate?section=visitor-track', {
+        xhrFetch('/api/activate?section=visitor-track', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path: window.location.pathname + window.location.search }),
-          keepalive: true,
+          body: JSON.stringify({ path: window.location.pathname + window.location.search })
         }).catch(function(){});
       } catch(e){}
     })();

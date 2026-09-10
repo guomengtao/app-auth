@@ -1090,7 +1090,7 @@
 
 <script>
   function toggleMenu() {
-    const links = document.querySelector('.nav-links');
+    var links = document.querySelector('.nav-links');
     if (links.style.display === 'flex') {
       links.style.display = 'none';
     } else {
@@ -1108,7 +1108,7 @@
   }
 
   window.addEventListener('scroll', function() {
-    const navbar = document.getElementById('navbar');
+    var navbar = document.getElementById('navbar');
     if (window.scrollY > 50) {
       navbar.classList.add('scrolled');
     } else {
@@ -1116,17 +1116,19 @@
     }
   });
 
-  const observer = new IntersectionObserver(function(entries) {
-    entries.forEach(function(entry) {
-      if (entry.isIntersecting) {
-        entry.target.classList.add('visible');
-      }
-    });
-  }, { threshold: 0.1 });
+  if (typeof IntersectionObserver !== 'undefined') {
+    var observer = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+        }
+      });
+    }, { threshold: 0.1 });
 
-  document.querySelectorAll('.fade-in').forEach(function(el) {
-    observer.observe(el);
-  });
+    document.querySelectorAll('.fade-in').forEach(function(el) {
+      observer.observe(el);
+    });
+  }
 </script>
 </body>
 </html>

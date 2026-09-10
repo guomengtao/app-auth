@@ -82,6 +82,31 @@
 </div>
 
 <script>
+function xhrFetch(url, options) {
+  options = options || {};
+  return new Promise(function(resolve, reject) {
+    var xhr = new XMLHttpRequest();
+    xhr.open(options.method || 'GET', url, true);
+    if (options.headers) {
+      for (var k in options.headers) {
+        if (options.headers.hasOwnProperty(k)) {
+          xhr.setRequestHeader(k, options.headers[k]);
+        }
+      }
+    }
+    xhr.onload = function() {
+      resolve({
+        status: xhr.status,
+        ok: xhr.status >= 200 && xhr.status < 300,
+        json: function() { return Promise.resolve(JSON.parse(xhr.responseText)); },
+        text: function() { return Promise.resolve(xhr.responseText); }
+      });
+    };
+    xhr.onerror = function() { reject(new Error('Network error')); };
+    xhr.send(options.body || null);
+  });
+}
+
 var STORAGE_KEY_CODES = 'admin_redeem_codes';
 
 function getLocalCount() {
@@ -103,7 +128,7 @@ function showLocalCount() {
 function loadRemoteCount() {
   var el = document.getElementById('remoteCount');
   var errEl = document.getElementById('error');
-  fetch('/api/admin/redeem-codes?limit=1').then(function(res) {
+  xhrFetch('/api/admin/redeem-codes?limit=1').then(function(res) {
     if (res.status === 401) {
       el.textContent = '-';
       el.className = 'count-value';

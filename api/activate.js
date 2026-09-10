@@ -182,6 +182,7 @@ module.exports = async (req, res) => {
     var redeemCode = rawRedeemCode;
 
     var deviceCheck = validateDeviceId(deviceId);
+    var device = deviceCheck.value;
     if (!deviceCheck.valid) {
       saveFailureRecord(deviceCheck.error, deviceId, redeemCode, "", "", visitorInfo, deviceInfo);
       var deviceNotifyResult = await notify.sendActivationFailure(req, {
@@ -210,7 +211,6 @@ module.exports = async (req, res) => {
     }
 
     var code = codeCheck.value;
-    var device = deviceCheck.value;
 
     var deviceCheck2 = await rateLimit.checkDeviceRateLimit(device);
     if (deviceCheck2.blocked) {
@@ -346,7 +346,7 @@ module.exports = async (req, res) => {
       }
       saveFailureRecord("该兑换码已被其他设备使用过", device, code, productId, months, visitorInfo, deviceInfo);
       var alreadyUsedNotifyResult = await notify.sendActivationFailure(req, {
-        reason: "该兑换码已被其他设备使用过，无法重复激活",
+        reason: "该兑换码已被其他设备使用过，无法重复激活。如需解绑请联系作者（QQ群/微信）",
         redeemCode: code,
         deviceId: device,
         productId: productId,
@@ -355,7 +355,7 @@ module.exports = async (req, res) => {
       }).catch(function () {});
       return res.status(400).json({
         success: false,
-        error: "该兑换码已被其他设备使用过，无法重复激活",
+        error: "该兑换码已被其他设备使用过，无法重复激活。如需解绑请联系作者（QQ群/微信）",
         debug: { visitor: visitorInfo, notification: buildNotificationStatus(alreadyUsedNotifyResult), reason: "该兑换码已被其他设备使用过" },
       });
     }
