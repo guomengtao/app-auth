@@ -256,29 +256,43 @@ def handle_message(msg):
         body = "\n".join(lines)
 
     elif mtype == "new_order":
-        plan = p.get("plan_id", "") or p.get("plan_name", "")
-        amount_raw = p.get("amount", p.get("plan_amount"))
+        plan_title = p.get("plan_title", "")
+        product_name = p.get("product_name", "")
+        plan_id = p.get("plan_id", "")
+        amount_raw = p.get("total_amount") or p.get("amount") or p.get("plan_amount")
         amount = _money_fen(amount_raw)
-        has_money_in_plan = bool(re.search(r'[¥$¥]', plan))
-        subtitle_parts = [plan]
+        has_money_in_plan = bool(re.search(r'[¥$¥]', plan_title))
+        display_plan = plan_title or product_name or plan_id
+        subtitle_parts = []
+        if product_name and product_name != display_plan:
+            subtitle_parts.append(product_name)
         if amount and not has_money_in_plan:
             subtitle_parts.append(amount)
-        subtitle = " ".join(filter(None, subtitle_parts))
-        act_code = p.get("activation_code", "")
-        month = _months_label(p.get("month", p.get("months")))
+        subtitle = " ".join(filter(None, subtitle_parts)) or display_plan
+        redeem_code = p.get("redeem_code", "")
+        month = _months_label(p.get("months"))
         trade = p.get("out_trade_no", "")
-        user = p.get("user_id", "")
+        user_name = p.get("user_name", "")
+        user_id = p.get("user_id", "")
+        dm_sent = p.get("dm_sent", False)
 
         title = "💰 新爱发电订单"
         lines = []
-        if act_code:
-            lines.append(f"激活码: {act_code}")
+        if display_plan:
+            lines.append(f"套餐: {display_plan}")
+        if redeem_code:
+            lines.append(f"兑换码: {redeem_code}")
         if month:
             lines.append(f"时长: {month}")
         if amount and has_money_in_plan:
             lines.append(f"金额: {amount}")
-        if user:
-            lines.append(f"用户: {user}")
+        if user_name or user_id:
+            u = user_name or user_id
+            if user_name and user_id and user_name != user_id:
+                u = f"{user_name} ({user_id})"
+            lines.append(f"用户: {u}")
+        if dm_sent:
+            lines.append("✅ 私信已发送")
         if trade:
             lines.append(f"订单: {trade[-12:]}")
         lines.append(f"⏱ {ts_label}")
