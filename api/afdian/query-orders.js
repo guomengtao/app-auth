@@ -4,6 +4,7 @@ var afdianProcessor = require("../../lib/afdian-processor");
 var { requireAuth } = require("../../lib/auth");
 var quota = require("../../lib/quota");
 var { recordCronRun } = require("../admin/health");
+var pushNotify = require("../../lib/push-notify");
 
 async function processBatchOrders(orders) {
   var newOrders = 0;
@@ -41,6 +42,17 @@ async function processBatchOrders(orders) {
       if (result.success && !result.already_processed && !result.skipped) {
         processedCount++;
         console.log("[afdian:sync]     -> processed OK, activation_code=" + (result.activation_code || "N/A"));
+        try {
+          pushNotify.pushNotification('new_order', {
+            out_trade_no: outTradeNo,
+            amount: order.amount || order.plan_amount || 0,
+            user_id: order.user_id || '',
+            plan_id: order.plan_id || '',
+            month: order.month || 0,
+            activation_code: result.activation_code || '',
+            time: Date.now(),
+          });
+        } catch (_) {}
       } else if (result.already_processed) {
         console.log("[afdian:sync]     -> already_processed, skip counting");
         continue;

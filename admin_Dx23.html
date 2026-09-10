@@ -4772,6 +4772,72 @@
       el.className = 'toast show ' + type;
       setTimeout(function() { el.className = 'toast'; }, 2500);
     }
+    var pushEventSource = null;
+    var pushNotificationEnabled = true;
+    function handlePushMessage(data) {
+      if (!data || !data.type) return;
+      if (data.type === 'connected') return;
+      if (data.type === 'new_order') {
+        var amount = (data.payload && data.payload.amount) || 0;
+        var amountYuan = (typeof amount === 'number') ? (amount / 100).toFixed(2) : amount;
+        var planName = (data.payload && data.payload.plan_id) || '';
+        var text = '新订单 ¥' + amountYuan + (planName ? ' · ' + planName : '');
+        showToast('💰 ' + text, 'success');
+        if (pushNotificationEnabled) doSpeech('叮！收到新订单，金额 ' + amountYuan + ' 元');
+        try { new Notification('app-auth', { body: text, tag: 'order_' + (data.payload && data.payload.out_trade_no || '') }); } catch (_) {}
+      } else if (data.type === 'new_activation') {
+        var productName = (data.payload && data.payload.product_name) || (data.payload && data.payload.product_id) || '';
+        var deviceId = (data.payload && data.payload.device_id) || '';
+        var src = (data.payload && data.payload.source) || '';
+        var srcLabel = src === 'admin-direct' ? '快捷激活' : (src === 'user' ? '用户激活' : '激活');
+        var actText = srcLabel + ' · ' + (deviceId || '') + (productName ? ' · ' + productName : '');
+        showToast('🔑 ' + actText, 'success');
+        if (pushNotificationEnabled) doSpeech('新激活，设备 ' + (deviceId || '未知'));
+        try { new Notification('app-auth', { body: actText, tag: 'act_' + (data.payload && data.payload.activation_code || '') }); } catch (_) {}
+      }
+    }
+    function doSpeech(text) {
+      if (!('speechSynthesis' in window)) return;
+      try {
+        window.speechSynthesis.cancel();
+        var u = new SpeechSynthesisUtterance(text);
+        u.lang = 'zh-CN';
+        u.rate = 1.1;
+        u.pitch = 1;
+        window.speechSynthesis.speak(u);
+      } catch (_) {}
+    }
+    function initPushNotifications() {
+      if (pushEventSource) return;
+      try {
+        pushEventSource = new EventSource('/api/sse');
+        pushEventSource.onmessage = function(ev) {
+          try {
+            var data = JSON.parse(ev.data);
+            handlePushMessage(data);
+          } catch (_) {}
+        };
+        pushEventSource.onerror = function() {
+          try { pushEventSource.close(); } catch (_) {}
+          pushEventSource = null;
+          setTimeout(initPushNotifications, 3000);
+        };
+        try {
+          if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+          }
+        } catch (_) {}
+      } catch (e) {
+        console.warn('[push] init failed:', e.message);
+      }
+    }
+    function togglePushNotification() {
+      pushNotificationEnabled = !pushNotificationEnabled;
+      try {
+        localStorage.setItem('admin_push_notify', pushNotificationEnabled ? '1' : '0');
+      } catch (_) {}
+      showToast(pushNotificationEnabled ? '🔔 已开启语音通知' : '🔕 已关闭语音通知', 'success');
+    }
 
     var TAB_META = {
       dashboard: { title: '后台首页', sub: '系统概览与快捷入口' },
@@ -4863,6 +4929,12 @@
           var sidebar = document.getElementById('sidebar');
           if (sidebar) sidebar.classList.add('collapsed');
         }
+      } catch (_) {}
+      try {
+        if (localStorage.getItem('admin_push_notify') === '0') {
+          pushNotificationEnabled = false;
+        }
+        initPushNotifications();
       } catch (_) {}
     })();
 

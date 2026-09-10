@@ -3,6 +3,7 @@ var crypto = require("../../lib/crypto");
 var { requireAuth } = require("../../lib/auth");
 var { validateDeviceId } = require("../../lib/validate");
 var notify = require("../../lib/notify");
+var pushNotify = require("../../lib/push-notify");
 
 function parseBody(req) {
   var body = req.body;
@@ -268,7 +269,6 @@ module.exports = async (req, res) => {
     }
 
     await Promise.all(saveTasks);
-
     for (var n = 0; n < results.length; n++) {
       var r = results[n];
       try {
@@ -278,13 +278,24 @@ module.exports = async (req, res) => {
           productId: r.productId,
           deviceId: r.deviceId,
           months: r.months,
-          source: "admin-direct",
+          source: "admin-direct"
         });
       } catch (e) {
         console.error("[direct-activate] Notification failed:", e.message);
       }
+      try {
+        pushNotify.pushNotification('new_activation', {
+          activation_code: r.activationCode,
+          redeem_code: r.redeemCode,
+          device_id: r.deviceId,
+          product_id: r.productId,
+          product_name: r.productName || '',
+          months: r.months,
+          source: 'admin-direct',
+          time: Date.now(),
+        });
+      } catch (_) {}
     }
-
     return res.json({ success: true, results: results });
   } catch (error) {
     console.error("Direct-activate error:", error);
