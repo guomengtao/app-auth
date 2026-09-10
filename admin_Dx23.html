@@ -4529,8 +4529,8 @@
     function initPushNotifications() {
       if (pushEventSource) { console.log('[push] already connected'); return; }
       try {
-        console.log('[push] 🔌 opening EventSource /api/sse ...');
-        pushEventSource = new EventSource('/api/sse');
+        console.log('[push] 🔌 opening EventSource /api/admin/health?section=sse ...');
+        pushEventSource = new EventSource('/api/admin/health?section=sse');
         pushEventSource.onopen = function() { console.log('[push] ✅ onopen, readyState=' + pushEventSource.readyState); };
         pushEventSource.onmessage = function(ev) {
           try {
@@ -5691,7 +5691,7 @@
         var params = new URLSearchParams();
         params.set('scope', 'used');
         if (pid) params.set('product_id', pid);
-        var d = await api('/api/admin/redeem-codes/purge?' + params.toString(), { method: 'POST' });
+        var d = await api('/api/admin/redeem-codes?action=purge&' + params.toString(), { method: 'POST' });
         if (d && d.success) { showToast('已删除 ' + (d.deleted || 0) + ' 个已使用兑换码', 'success'); }
         else showToast((d && d.error) || '删除失败', 'error');
         loadCodes(); loadStats();
@@ -5704,7 +5704,7 @@
         var params = new URLSearchParams();
         params.set('scope', 'unused');
         if (pid) params.set('product_id', pid);
-        var d = await api('/api/admin/redeem-codes/purge?' + params.toString(), { method: 'POST' });
+        var d = await api('/api/admin/redeem-codes?action=purge&' + params.toString(), { method: 'POST' });
         if (d && d.success) { showToast('已删除 ' + (d.deleted || 0) + ' 个未使用兑换码', 'success'); }
         else showToast((d && d.error) || '删除失败', 'error');
         loadCodes(); loadStats();
@@ -8297,7 +8297,7 @@
       statusEl.textContent = 'Generating...';
       statusEl.className = 'da-status';
 
-      fetch('/api/admin/direct-activate', {
+      fetch('/api/admin/redeem-codes?action=direct-activate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

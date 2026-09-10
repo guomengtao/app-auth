@@ -14,3 +14,5 @@ else
   echo "用户取消"
 fi
 类似这个提示.方便我及时收到弹窗通知.协助你操纵.
+
+puppeteer + 14 > 12 functions会报错,限制一下, vercel使用functions禁止超过10个.

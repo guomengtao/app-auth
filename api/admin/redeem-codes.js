@@ -1,7 +1,10 @@
 var redis = require("../../lib/redis");
 var { requireAuth } = require("../../lib/auth");
-var { generateRedeemCode } = require("../../lib/crypto");
-var { validateCount, validateDuration } = require("../../lib/validate");
+var crypto = require("../../lib/crypto");
+var { generateRedeemCode } = crypto;
+var { validateCount, validateDuration, validateDeviceId } = require("../../lib/validate");
+var notify = require("../../lib/notify");
+var pushNotify = require("../../lib/push-notify");
 
 function matchCode(data, filterProductId, filterUsed, filterDuration) {
   if (filterProductId && data.product_id !== filterProductId) return false;
@@ -106,6 +109,61 @@ function generateUniqueCodes(count) {
   return Array.from(codes);
 }
 
+function parseBody(req) {
+  var body = req.body;
+  if (body == null || body === "") return {};
+  if (typeof body === "string") {
+    try { return JSON.parse(body); } catch (e) { return {}; }
+  }
+  return body;
+}
+
+function parseRedisValue(val) {
+  if (val == null) return null;
+  if (typeof val === "object") return val;
+  if (typeof val === "string") {
+    try { return JSON.parse(val); } catch (e) { return null; }
+  }
+  return null;
+}
+
+function normalizeProductId2(productId) {
+  var n = parseInt(productId, 10);
+  if (!Number.isFinite(n) || n < 0 || n > 99) return null;
+  return crypto.pad2(n);
+}
+
+function normalizeMonths(months) {
+  var n = parseInt(months, 10);
+  if (!Number.isFinite(n) || n < 1 || n > 99) return null;
+  return n;
+}
+
+function saveFailureRecord(reason, deviceId, productId, months, visitorInfo) {
+  var now = Date.now();
+  var rnd = Math.random().toString(36).slice(2, 6);
+  var key = "auth:activation_failure:" + now + ":" + rnd;
+  var record = {
+    status: "failure",
+    reason: reason,
+    device_id: deviceId || "",
+    device_id_full: deviceId || "",
+    redeem_code: "",
+    product_id: productId || "",
+    duration_months: months || "",
+    generated_at: now,
+    source: "admin-direct",
+    device_info: null,
+    visitor_info: visitorInfo || null,
+  };
+  return Promise.all([
+    redis.set(key, JSON.stringify(record)),
+    redis.sadd("auth:activation_failures", key),
+  ]).catch(function (e) {
+    console.error("[direct-activate] Failed to save failure record:", e.message);
+  });
+}
+
 module.exports = async (req, res) => {
   var auth = requireAuth(req);
   if (!auth.authorized) {
@@ -113,6 +171,143 @@ module.exports = async (req, res) => {
   }
 
   try {
+    if (req.method === "POST" && req.query.action === "direct-activate") {
+      var body = parseBody(req);
+      var deviceId = body.deviceId;
+      var productIds = body.productIds;
+      var months = body.months;
+      var visitorInfo = notify.collectRequestInfo(req);
+
+      var deviceCheck = validateDeviceId(deviceId);
+      if (!deviceCheck.valid) {
+        saveFailureRecord(deviceCheck.error, deviceId, "", months, visitorInfo);
+        notify.sendActivationFailure(req, {
+          reason: deviceCheck.error, redeemCode: "", deviceId: deviceId || "",
+          productId: "", months: months || "", source: "admin-direct",
+        }).catch(function () {});
+        return res.status(400).json({ success: false, error: deviceCheck.error });
+      }
+      var device = deviceCheck.value;
+
+      if (!Array.isArray(productIds) || productIds.length === 0) {
+        saveFailureRecord("Please select at least one product", device, "", months, visitorInfo);
+        return res.status(400).json({ success: false, error: "Please select at least one product" });
+      }
+      if (productIds.length > 20) {
+        saveFailureRecord("Too many products selected (max 20)", device, "", months, visitorInfo);
+        return res.status(400).json({ success: false, error: "Too many products selected (max 20)" });
+      }
+
+      var m = normalizeMonths(months);
+      if (!m) {
+        saveFailureRecord("Months must be 1-99", device, "", months, visitorInfo);
+        return res.status(400).json({ success: false, error: "Months must be 1-99" });
+      }
+
+      var productKeys = [];
+      for (var i = 0; i < productIds.length; i++) {
+        var pid = normalizeProductId2(productIds[i]);
+        if (!pid) {
+          saveFailureRecord("Invalid product ID: " + productIds[i], device, productIds[i] || "", m, visitorInfo);
+          return res.status(400).json({ success: false, error: "Invalid product ID: " + productIds[i] });
+        }
+        productKeys.push(pid);
+      }
+
+      var allRaw = await redis.hgetall("auth:products");
+      var productNames = {};
+      var productLookup = {};
+      for (var j = 0; j < productIds.length; j++) {
+        var pid2 = normalizeProductId2(productIds[j]);
+        var raw = allRaw && allRaw[pid2] ? allRaw[pid2] : null;
+        var data = parseRedisValue(raw);
+        if (!data) {
+          saveFailureRecord("Product not found: " + productIds[j], device, productIds[j] || "", m, visitorInfo);
+          return res.status(400).json({ success: false, error: "Product not found: " + productIds[j] });
+        }
+        productNames[pid2] = data.name || pid2;
+        productLookup[pid2] = data;
+      }
+
+      var deviceHash = crypto.sha256(device);
+      var now = Date.now();
+      var results = [];
+      var saveTasks = [];
+
+      for (var k = 0; k < productIds.length; k++) {
+        var productId = normalizeProductId2(productIds[k]);
+
+        var redeemCode = null;
+        for (var retry = 0; retry < 3; retry++) {
+          var candidate = crypto.generateRedeemCode();
+          var exists = await redis.get("auth:redeem:" + candidate);
+          if (!exists) { redeemCode = candidate; break; }
+        }
+        if (!redeemCode) {
+          saveFailureRecord("Unable to generate unique redeem code", device, productId, m, visitorInfo);
+          return res.status(500).json({ success: false, error: "Unable to generate unique redeem code, please retry" });
+        }
+
+        var activationCode = crypto.generateActivationCode(productId, device, m, redeemCode);
+
+        var expiresAt = null;
+        if (m !== 99) {
+          var d = new Date(now);
+          d.setUTCMonth(d.getUTCMonth() + m);
+          expiresAt = d.getTime();
+        }
+
+        var redeemData = {
+          code: redeemCode, product_id: productId, duration_months: m,
+          used: true, used_device_id: deviceHash,
+          generated_activation_code: activationCode,
+          created_at: now, used_at: now, source: "direct",
+        };
+
+        var recordData = {
+          activation_code: activationCode, device_id_hash: deviceHash,
+          device_id: device, device_id_full: device,
+          product_id: productId, duration_months: m,
+          redeem_code: redeemCode, generated_at: now,
+          expires_at: expiresAt, source: "direct",
+          device_info: null, visitor_info: notify.collectRequestInfo(req),
+        };
+
+        saveTasks.push(redis.set("auth:redeem:" + redeemCode, JSON.stringify(redeemData)));
+        saveTasks.push(redis.set("auth:activation:" + activationCode, JSON.stringify(recordData)));
+        saveTasks.push(redis.sadd("auth:redeem_codes", redeemCode).catch(function () {}));
+        saveTasks.push(redis.sadd("auth:activation_codes", activationCode).catch(function () {}));
+        saveTasks.push(redis.set("auth:device:" + deviceHash, activationCode));
+
+        results.push({
+          productId: productId, productName: productNames[productId],
+          activationCode: activationCode, redeemCode: redeemCode,
+          deviceId: device, months: m, expiresAt: expiresAt,
+        });
+      }
+
+      await Promise.all(saveTasks);
+      for (var n = 0; n < results.length; n++) {
+        var r = results[n];
+        try {
+          await notify.sendActivationNotification(req, {
+            redeemCode: r.redeemCode, activationCode: r.activationCode,
+            productId: r.productId, deviceId: r.deviceId,
+            months: r.months, source: "admin-direct"
+          });
+        } catch (e) { console.error("[direct-activate] Notification failed:", e.message); }
+        try {
+          pushNotify.pushNotification('new_activation', {
+            activation_code: r.activationCode, redeem_code: r.redeemCode,
+            device_id: r.deviceId, product_id: r.productId,
+            product_name: r.productName || '', months: r.months,
+            source: 'admin-direct', time: Date.now(),
+          });
+        } catch (_) {}
+      }
+      return res.json({ success: true, results: results });
+    }
+
     if (req.method === "GET") {
       var exportAll = req.query.export;
       var filterProductId = req.query.product_id;
@@ -150,6 +345,62 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === "POST") {
+      if (req.query.action === "purge") {
+        var scope = String(req.query.scope || "").trim();
+        var productId = String(req.query.product_id || "").trim();
+        if (!scope || (scope !== "used" && scope !== "unused")) {
+          return res.status(400).json({ success: false, error: "scope must be 'used' or 'unused'" });
+        }
+        var allCodes = [];
+        var cursor = "0";
+        var guard = 0;
+        do {
+          var raw = await redis.sscan("auth:redeem_codes", cursor, { count: 500 });
+          var parsed;
+          if (Array.isArray(raw)) {
+            parsed = { cursor: String(raw[0] == null ? "0" : raw[0]), keys: Array.isArray(raw[1]) ? raw[1] : [] };
+          } else if (raw && typeof raw === "object") {
+            parsed = { cursor: String(raw.cursor == null ? "0" : raw.cursor), keys: Array.isArray(raw.keys) ? raw.keys : [] };
+          } else {
+            parsed = { cursor: "0", keys: [] };
+          }
+          cursor = parsed.cursor;
+          if (parsed.keys.length) allCodes = allCodes.concat(parsed.keys);
+          guard++;
+        } while (cursor !== "0" && guard < 500);
+        var toDelete = [];
+        var batchSize = 100;
+        for (var i = 0; i < allCodes.length; i += batchSize) {
+          var batch = allCodes.slice(i, i + batchSize);
+          var pipeline = redis.pipeline();
+          batch.forEach(function (c) { pipeline.get("auth:redeem:" + c); });
+          var values = await pipeline.exec();
+          if (!Array.isArray(values)) values = [];
+          values.forEach(function (val, idx) {
+            var data = val;
+            for (var k = 0; typeof data === "string" && k < 3; k++) {
+              try { data = JSON.parse(data); } catch (e) { data = null; break; }
+            }
+            if (!data || typeof data !== "object") return;
+            if (productId && data.product_id !== productId) return;
+            if (scope === "used" && !data.used) return;
+            if (scope === "unused" && data.used) return;
+            toDelete.push(batch[idx]);
+          });
+        }
+        if (toDelete.length === 0) {
+          return res.json({ success: true, deleted: 0, scope: scope, product_id: productId || null });
+        }
+        var delPipeline = redis.pipeline();
+        toDelete.forEach(function (c) {
+          delPipeline.del("auth:redeem:" + c);
+          delPipeline.srem("auth:redeem_codes", c);
+        });
+        await delPipeline.exec();
+        try { await redis.del("auth:counter:used_redeem_codes"); } catch (e) {}
+        return res.json({ success: true, deleted: toDelete.length, scope: scope, product_id: productId || null });
+      }
+
       var body = req.body || {};
       if (typeof body === "string") {
         try {

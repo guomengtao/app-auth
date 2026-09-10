@@ -546,6 +546,30 @@ module.exports = async (req, res) => {
     }
   }
 
+  if (req.query && req.query.section === "verify-activation") {
+    if (req.method !== "GET" && req.method !== "POST") {
+      return res.status(405).json({ success: false, error: "Method not allowed" });
+    }
+    var vaRaw = String((req.query && req.query.code) || "").replace(/\s/g, "");
+    if (!vaRaw || !/^\d{18}$/.test(vaRaw)) {
+      return res.status(400).json({ success: true, valid: false, reason: "invalid_format", message: "Activation code must be 18 digits" });
+    }
+    var vaRecordRaw = await redis.get("auth:activation:" + vaRaw);
+    if (!vaRecordRaw) {
+      return res.status(200).json({ success: true, valid: false, reason: "not_found", message: "Activation code does not exist" });
+    }
+    var vaRecord;
+    try { vaRecord = typeof vaRecordRaw === "string" ? JSON.parse(vaRecordRaw) : vaRecordRaw; } catch (e) {
+      return res.status(500).json({ success: false, error: "Failed to parse activation record" });
+    }
+    var vaNow = Date.now();
+    var vaExpiresAt = vaRecord.expires_at || null;
+    if (vaExpiresAt && Number(vaExpiresAt) < vaNow) {
+      return res.status(200).json({ success: true, valid: false, reason: "expired", productId: vaRecord.product_id || "", months: vaRecord.duration_months || 0, message: "Activation code has expired" });
+    }
+    return res.status(200).json({ success: true, valid: true, productId: vaRecord.product_id || "", months: vaRecord.duration_months || 0, permanent: (vaRecord.duration_months || 0) === 99, expiresAt: vaExpiresAt, message: "Activation code is valid" });
+  }
+
   var auth = requireAuth(req);
   if (!auth.authorized && !isCron) {
     return res.status(auth.status).json({ success: false, error: auth.error });
@@ -2331,6 +2355,97 @@ module.exports = async (req, res) => {
     } catch (e) {
       return res.status(500).json({ success: false, error: e.message });
     }
+  }
+
+  if (req.query && req.query.section === "sse") {
+    var UPSTASH_URL_SSE = (process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || '').replace(/\/$/, '');
+    var UPSTASH_TOKEN_SSE = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || '';
+    var NOTIFY_KEY_SSE = 'auth:push_notifications';
+    var POLL_INTERVAL_SSE = 500;
+    var BATCH_SIZE_SSE = 30;
+
+    function upstashCmdSse() {
+      var args = Array.prototype.slice.call(arguments);
+      var url = UPSTASH_URL_SSE + '/' + args.map(function(a) { return encodeURIComponent(String(a)); }).join('/');
+      return fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer ' + UPSTASH_TOKEN_SSE,
+          'Content-Type': 'application/json'
+        }
+      }).then(function(r) {
+        if (!r.ok) throw new Error('Upstash ' + r.status);
+        return r.json();
+      }).then(function(j) {
+        return (j && typeof j === 'object' && 'result' in j) ? j.result : j;
+      });
+    }
+
+    async function fetchMessagesSse() {
+      if (!UPSTASH_URL_SSE || !UPSTASH_TOKEN_SSE) return [];
+      try {
+        var raw = await upstashCmdSse('LRANGE', NOTIFY_KEY_SSE, 0, BATCH_SIZE_SSE - 1);
+        if (!Array.isArray(raw)) return [];
+        return raw.map(function(s) {
+          try { return JSON.parse(s); } catch (_) { return null; }
+        }).filter(Boolean);
+      } catch (_) {
+        return [];
+      }
+    }
+
+    var heartbeatMs = parseInt(req.query.heartbeat || '30000', 10);
+    var pollMs = parseInt(req.query.poll || String(POLL_INTERVAL_SSE), 10);
+
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no'
+    });
+
+    var seenSse = new Set();
+    var lastHeartbeat = Date.now();
+    var lastPoll = 0;
+
+    function sendSse(data) {
+      res.write('data: ' + JSON.stringify(data) + '\n\n');
+    }
+
+    sendSse({ type: 'connected', ts: Date.now() });
+
+    var sseInterval = setInterval(async function() {
+      var now = Date.now();
+      if (now - lastHeartbeat > heartbeatMs) {
+        try { res.write(': hb\n\n'); } catch (_) { clearInterval(sseInterval); return; }
+        lastHeartbeat = now;
+      }
+      if (now - lastPoll > pollMs) {
+        lastPoll = now;
+        try {
+          var msgs = await fetchMessagesSse();
+          for (var i = 0; i < msgs.length; i++) {
+            var m = msgs[i];
+            var id = m.ts + '_' + m.type;
+            if (!seenSse.has(id)) {
+              seenSse.add(id);
+              sendSse(m);
+            }
+          }
+          if (seenSse.size > 500) {
+            var arr = Array.from(seenSse);
+            seenSse.clear();
+            arr.slice(-200).forEach(function(x) { seenSse.add(x); });
+          }
+        } catch (_) {}
+      }
+    }, Math.min(pollMs, 1000));
+
+    req.on('close', function() {
+      clearInterval(sseInterval);
+    });
+
+    return;
   }
 
   if (req.method !== "GET") {
