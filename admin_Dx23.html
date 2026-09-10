@@ -5670,7 +5670,7 @@
       var ok = confirm('确认删除兑换码「' + k + '」？\n此操作仅删除兑换码本身，已生成的激活记录会保留。');
       if (!ok) return;
       try {
-        var data = await api('/api/admin/redeem-codes/' + encodeURIComponent(k), { method: 'DELETE' });
+        var data = await api('/api/admin/redeem-codes?code=' + encodeURIComponent(k), { method: 'DELETE' });
         if (data && data.success) {
           showToast('兑换码已删除', 'success');
           loadCodes();
