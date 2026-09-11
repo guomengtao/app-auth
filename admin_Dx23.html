@@ -4407,6 +4407,8 @@
       el.className = 'toast show ' + type;
       setTimeout(function() { el.className = 'toast'; }, 2500);
     }
+
+    var TAB_META = {
       visitors: { title: '访客统计', sub: 'UV / PV / 热门页面 / 最近访客' },
       health: { title: '服务器状态', sub: '检测 Postgres / 鉴权 / 激活链路是否正常' },
       'vercel-logs': { title: 'Vercel日志', sub: '部署事件与函数运行日志（Vercel API）' },
