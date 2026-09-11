@@ -437,6 +437,9 @@ async def redis_loop():
                     replies = proto.parse_all()
 
                     for reply in replies:
+                        # Unwrap top-level *N array that wraps stream results
+                        if isinstance(reply, list) and len(reply) == 1:
+                            reply = reply[0]
                         if isinstance(reply, list) and len(reply) >= 2:
                             stream_name = reply[0]
                             messages = reply[1]
