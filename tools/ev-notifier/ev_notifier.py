@@ -18,6 +18,13 @@ from pathlib import Path
 
 import rumps
 
+# Hide Dock icon (only menu bar)
+try:
+  from AppKit import NSApp, NSApplicationActivationPolicyAccessory
+  NSApp.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
+except Exception:
+  pass
+
 DOTENV_CANDIDATES = [
     os.path.expanduser("~/Documents/guomengtao/app-auth/.env"),
     os.path.expanduser("~/Documents/guomengtao/app-auth/.env.local"),

@@ -8,6 +8,7 @@ __pycache__/
 
 ev_notifier.log
 ev_notifier.err.log
+tools/ev-notifier/EvNotifier.app/
 
 # macOS / Windows 系统垃圾文件
 .DS_Store
