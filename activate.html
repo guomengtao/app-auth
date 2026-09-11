@@ -191,50 +191,70 @@
   </div>
 
   <script>
-    function xhrFetch(url, options) {
-      options = options || {};
-      return new Promise(function(resolve, reject) {
-        var xhr = new XMLHttpRequest();
-        xhr.open(options.method || 'GET', url, true);
-        if (options.headers) {
-          for (var k in options.headers) {
-            if (options.headers.hasOwnProperty(k)) {
-              xhr.setRequestHeader(k, options.headers[k]);
-            }
+    function parseQueryParams(qs) {
+      var params = {};
+      if (qs && qs.charAt(0) === '?') qs = qs.substring(1);
+      if (qs) {
+        var pairs = qs.split('&');
+        for (var i = 0; i < pairs.length; i++) {
+          var eqIdx = pairs[i].indexOf('=');
+          if (eqIdx >= 0) {
+            params[decodeURIComponent(pairs[i].substring(0, eqIdx))] = decodeURIComponent(pairs[i].substring(eqIdx + 1));
           }
         }
-        xhr.onload = function() {
-          resolve({
-            status: xhr.status,
-            ok: xhr.status >= 200 && xhr.status < 300,
-            json: function() { return Promise.resolve(JSON.parse(xhr.responseText)); },
-            text: function() { return Promise.resolve(xhr.responseText); }
-          });
+      }
+      return params;
+    }
+
+    function xhrFetch(url, options) {
+      options = options || {};
+      var result = {};
+      var callbacks = [];
+      result.then = function(cb) { callbacks.push(cb); return result; };
+      var xhr = new XMLHttpRequest();
+      xhr.open(options.method || 'GET', url, true);
+      if (options.headers) {
+        for (var k in options.headers) {
+          if (options.headers.hasOwnProperty(k)) {
+            xhr.setRequestHeader(k, options.headers[k]);
+          }
+        }
+      }
+      xhr.onload = function() {
+        var _text = xhr.responseText;
+        var res = {
+          status: xhr.status,
+          ok: xhr.status >= 200 && xhr.status < 300,
+          _text: _text,
+          json: function() { return { then: function(cb) { cb(JSON.parse(_text)); } }; },
+          text: function() { return { then: function(cb) { cb(_text); } }; }
         };
-        xhr.onerror = function() { reject(new Error('Network error')); };
-        xhr.send(options.body || null);
-      });
+        for (var i = 0; i < callbacks.length; i++) { callbacks[i](res); }
+      };
+      xhr.onerror = function() { };
+      xhr.send(options.body || null);
+      return result;
     }
 
     function getDeviceIdFromUrl() {
-      var params = new URLSearchParams(window.location.search);
-      return params.get('deviceId') || params.get('deviceid') || params.get('id') || '';
+      var params = parseQueryParams(window.location.search);
+      return params['deviceId'] || params['deviceid'] || params['id'] || '';
     }
 
     function getDeviceInfoFromUrl() {
-      var params = new URLSearchParams(window.location.search);
+      var params = parseQueryParams(window.location.search);
       return {
-        model: params.get('m') || '',
-        product: params.get('p') || '',
-        osVersionCode: params.get('o') || '',
-        platformVersionCode: params.get('v') || '',
-        deviceType: params.get('t') || '',
-        screenShape: params.get('s') || '',
-        screenWidth: params.get('w') || '',
-        screenHeight: params.get('h') || '',
-        apiLevel: params.get('a') || '',
-        language: params.get('l') || navigator.language || '',
-        romVersion: params.get('r') || '',
+        model: params['m'] || '',
+        product: params['p'] || '',
+        osVersionCode: params['o'] || '',
+        platformVersionCode: params['v'] || '',
+        deviceType: params['t'] || '',
+        screenShape: params['s'] || '',
+        screenWidth: params['w'] || '',
+        screenHeight: params['h'] || '',
+        apiLevel: params['a'] || '',
+        language: params['l'] || navigator.language || '',
+        romVersion: params['r'] || '',
       };
     }
 

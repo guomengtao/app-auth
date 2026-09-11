@@ -5397,12 +5397,12 @@
 
     function renderRecordsTable(allRecords, highlightRc, highlightAc, rc) {
       allRecords = allRecords || [];
-      var tableHtml = '<table><thead><tr><th>Status</th><th>Activation Code</th><th>Redeem Code</th><th style="max-width:80px">Device ID</th><th>Product</th><th>Duration</th><th>Activated At</th><th>Expires At</th><th style="width:60px">Detail</th></tr></thead><tbody>';
+      var tableHtml = '<table><thead><tr><th>Status</th><th>Activation Code</th><th>Redeem Code</th><th style="max-width:80px">Device ID</th><th>Product</th><th>Duration</th><th>Activated At</th><th>Expires At</th><th style="width:60px">Detail</th><th style="width:60px">Actions</th></tr></thead><tbody>';
       if (allRecords.length === 0) {
         var emptyReason = rc
           ? 'No records found for redeem code "' + rc + '".'
           : 'No activation records.';
-        tableHtml += '<tr><td colspan="9" class="empty">' + escapeHtml(emptyReason) + '</td></tr>';
+        tableHtml += '<tr><td colspan="10" class="empty">' + escapeHtml(emptyReason) + '</td></tr>';
       } else {
         allRecords.forEach(function(r, idx) {
           var isFailure = r.status === 'failure';
@@ -5471,8 +5471,15 @@
           tableHtml += '<td>' + new Date(Number(r.generated_at) || 0).toLocaleString('zh-CN') + '</td>';
           tableHtml += '<td>' + expiresText + '</td>';
           tableHtml += '<td><button class="detail-toggle-btn" onclick="toggleRecordDetail(event, this)" data-idx="' + idx + '">Show</button></td>';
+          var actionCell = '';
+          if (!isFailure && rawDeviceId) {
+            actionCell = '<button class="btn btn-sm" onclick="unbindActivation(\'' + escapeJs(r.activation_code || '') + '\', \'' + escapeJs(rawDeviceId) + '\', \'' + escapeJs(r.redeem_code || '') + '\')" style="font-size:0.72rem;padding:1px 6px;background:#fff5f5;color:#dc2626;border:1px solid #fecaca">Unbind</button>';
+          } else {
+            actionCell = '<span style="color:#aaa;font-size:0.72rem">-</span>';
+          }
+          tableHtml += '<td>' + actionCell + '</td>';
           tableHtml += '</tr>';
-          tableHtml += '<tr class="record-detail-row" id="detailRow' + idx + '"><td colspan="9">' + renderRecordDetail(r) + '</td></tr>';
+          tableHtml += '<tr class="record-detail-row" id="detailRow' + idx + '"><td colspan="10">' + renderRecordDetail(r) + '</td></tr>';
         });
       }
       tableHtml += '</tbody></table>';
@@ -5820,6 +5827,28 @@
 
       html += '</div>';
       return html;
+    }
+
+    async function unbindActivation(activationCode, deviceId, redeemCode) {
+      if (!confirm('Unbind device ' + deviceId + ' from activation ' + activationCode + '?\n\nThe redeem code will be freed for use on a different device.')) return;
+      var btn = event && event.target;
+      if (btn) { btn.disabled = true; btn.textContent = '...'; }
+      try {
+        var res = await api('/api/admin/redeem-codes?action=unbind', {
+          method: 'POST',
+          body: JSON.stringify({ code: redeemCode, activation_code: activationCode, device_id: deviceId })
+        });
+        if (res && res.success) {
+          showToast('Unbound: ' + deviceId, 'success');
+          loadRecords();
+        } else {
+          showToast('Unbind failed: ' + ((res && res.error) || 'Unknown error'), 'error');
+        }
+      } catch (e) {
+        console.error('unbindActivation error:', e);
+        showToast('Unbind error: ' + (e.message || 'Unknown'), 'error');
+      }
+      if (btn) { btn.disabled = false; btn.textContent = 'Unbind'; }
     }
 
     function toggleRecordDetailByIdx(idx) {

@@ -33,7 +33,7 @@ var DEFAULT_TASKS = [
     description: "每天自动备份 Redis 数据（产品、兑换码、激活记录等）",
     schedule: "0 4 * * *",
     enabled: true,
-    vercelPath: "/api/admin/health?section=backup&cron=1",
+    vercelPath: "/api/admin/health?section=backup",
     createdAt: Date.now(),
     updatedAt: Date.now(),
   },
@@ -43,7 +43,7 @@ var DEFAULT_TASKS = [
     description: "每天自动将主数据库数据批量同步到其他 PostgreSQL 备用数据库（不经过 Redis）",
     schedule: "0 5 * * *",
     enabled: true,
-    vercelPath: "/api/admin/health?section=sync&cron=1",
+    vercelPath: "/api/admin/health?section=sync",
     createdAt: Date.now(),
     updatedAt: Date.now(),
   },
@@ -2209,6 +2209,9 @@ module.exports = async (req, res) => {
       try {
         var fetchRes = await fetch(targetUrl, {
           signal: AbortSignal.timeout(120000),
+          headers: {
+            Authorization: "Bearer " + (process.env.CRON_SECRET || ""),
+          },
         });
         var runDuration = Date.now() - runStart;
         var resultText = "";
