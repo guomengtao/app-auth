@@ -568,7 +568,13 @@ if ((isCron || isCronBackup) && isBackup) {
         ip: visitIp,
       };
 
-      notify.pushNotification("page_visit", visitMsg).catch(function () {});
+      console.log("[visit:stream] ========== page_visit push start ==========");
+      console.log("[visit:stream] page:", visitMsg.page, "ip:", visitMsg.ip, "ua:", visitMsg.user_agent.substring(0, 60));
+      notify.pushNotification("page_visit", visitMsg).then(function (ok) {
+        console.log("[visit:stream] pushNotification result:", ok ? "OK" : "FAILED");
+      }).catch(function (err) {
+        console.error("[visit:stream] pushNotification error:", err.message);
+      });
 
       return res.status(200).json({ success: true });
     } catch (e) {
