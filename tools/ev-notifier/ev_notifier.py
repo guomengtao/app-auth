@@ -332,6 +332,30 @@ def handle_message(msg):
         lines.append(f"⏱ {ts_label}")
         body = "\n".join(lines)
 
+    elif mtype == "page_visit":
+        page = p.get("page", "")
+        referrer = p.get("referrer", "")
+        ua = p.get("user_agent", "")
+        ip = p.get("ip", "")
+        page_title = p.get("title", "")
+
+        display_page = page_title or page or "/"
+        title = "🌐 网站访问"
+        subtitle = display_page
+        lines = []
+        if page:
+            lines.append(f"页面: {page}")
+        if referrer:
+            r = referrer[:100]
+            lines.append(f"来源: {r}")
+        if ua:
+            u = ua[:100]
+            lines.append(f"设备: {u}")
+        if ip:
+            lines.append(f"IP: {ip}")
+        lines.append(f"⏱ {ts_label}")
+        body = "\n".join(lines)
+
     else:
         title = f"📨 {mtype}"
         subtitle = ts_label

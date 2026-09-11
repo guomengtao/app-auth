@@ -387,5 +387,15 @@
   </div>
 </footer>
 
+<script>
+(function(){
+  try {
+    var r = new XMLHttpRequest();
+    r.open('POST', '/api/admin/health?section=visit', true);
+    r.setRequestHeader('Content-Type', 'application/json');
+    r.send(JSON.stringify({page:location.pathname,referrer:document.referrer||'',title:document.title||''}));
+  } catch(_) {}
+})();
+</script>
 </body>
 </html>

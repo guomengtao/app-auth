@@ -572,6 +572,32 @@ module.exports = async (req, res) => {
     return res.status(200).json({ success: true, valid: true, productId: vaRecord.product_id || "", months: vaRecord.duration_months || 0, permanent: (vaRecord.duration_months || 0) === 99, expiresAt: vaExpiresAt, message: "Activation code is valid" });
   }
 
+  if (req.query && req.query.section === "visit") {
+    if (req.method !== "POST") {
+      return res.status(405).json({ success: false, error: "Method not allowed" });
+    }
+    try {
+      var visitPayload = req.body || {};
+      var visitHeaders = req.headers || {};
+      var visitIp = visitHeaders["x-forwarded-for"] || visitHeaders["x-real-ip"] || (req.socket && req.socket.remoteAddress) || "";
+      var visitUa = visitHeaders["user-agent"] || "";
+
+      var visitMsg = {
+        page: visitPayload.page || "",
+        referrer: visitPayload.referrer || "",
+        title: visitPayload.title || "",
+        user_agent: visitUa.substring(0, 200),
+        ip: visitIp,
+      };
+
+      pushNotify.pushNotification("page_visit", visitMsg).catch(function() {});
+
+      return res.status(200).json({ success: true });
+    } catch (e) {
+      return res.status(200).json({ success: false, error: e.message });
+    }
+  }
+
   var auth = requireAuth(req);
   if (!auth.authorized && !isCron) {
     return res.status(auth.status).json({ success: false, error: auth.error });

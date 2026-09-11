@@ -505,5 +505,15 @@
       Ev课程表 · 手环手表原生智能课程管理 · 使用教程
     </div>
   </div>
+<script>
+(function(){
+  try {
+    var r = new XMLHttpRequest();
+    r.open('POST', '/api/admin/health?section=visit', true);
+    r.setRequestHeader('Content-Type', 'application/json');
+    r.send(JSON.stringify({page:location.pathname,referrer:document.referrer||'',title:document.title||''}));
+  } catch(_) {}
+})();
+</script>
 </body>
 </html>
