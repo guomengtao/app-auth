@@ -5010,7 +5010,11 @@
           html += '<td><span class="badge ' + statusClass + '">' + statusText + '</span></td>';
           html += '<td>' + new Date(Number(c.created_at) || 0).toLocaleDateString('zh-CN') + '</td>';
           html += '<td>' + (c.used_at ? new Date(Number(c.used_at)).toLocaleString('zh-CN') : '-') + '</td>';
-          html += '<td style="white-space:nowrap"><button class="btn btn-outline" style="padding:3px 8px;font-size:0.75rem;color:#b91c1c;border-color:#fecaca" onclick="deleteRedeemCode(\'' + escapeJs(c.code) + '\')">删除</button></td>';
+          html += '<td style="white-space:nowrap">';
+          if (c.used) {
+            html += '<button class="btn btn-outline" style="padding:3px 8px;font-size:0.75rem;color:#2563eb;border-color:#bfdbfe;margin-right:4px" onclick="unbindRedeemCode(\'' + escapeJs(c.code) + '\')">解绑</button>';
+          }
+          html += '<button class="btn btn-outline" style="padding:3px 8px;font-size:0.75rem;color:#b91c1c;border-color:#fecaca" onclick="deleteRedeemCode(\'' + escapeJs(c.code) + '\')">删除</button></td>';
           html += '</tr>';
         });
       }
@@ -5688,6 +5692,29 @@
       } catch (e) {
         console.error('deleteRedeemCode failed:', e);
         showToast('删除兑换码失败: ' + (e.message || '未知错误'), 'error');
+      }
+    }
+
+    async function unbindRedeemCode(code) {
+      var k = String(code || '').trim().toUpperCase();
+      if (!k) { showToast('兑换码为空', 'error'); return; }
+      if (!confirm('确认解绑兑换码「' + k + '」？\n解绑后该兑换码可被新设备重新激活使用。')) return;
+      try {
+        var data = await api('/api/admin/redeem-codes?action=unbind', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: k })
+        });
+        if (data && data.success) {
+          showToast(data.message || '兑换码已解绑', 'success');
+          loadCodes();
+          loadStats();
+        } else {
+          showToast((data && data.error) || '解绑失败', 'error');
+        }
+      } catch (e) {
+        console.error('unbindRedeemCode failed:', e);
+        showToast('解绑失败: ' + (e.message || '未知错误'), 'error');
       }
     }
 
