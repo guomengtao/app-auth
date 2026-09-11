@@ -8,6 +8,7 @@ var pgSync = null;
 try { pgSync = require("pg"); } catch(e) { console.warn("pg module not available:", e.message); }
 var dbSwitches = require("../../lib/db-switches");
 var dbRegistry = require("../../lib/db-registry");
+var notify = require("../../lib/notify");
 var verifySwitch = null;
 try { verifySwitch = require("../../lib/verify-switch"); } catch(e) { console.warn("verify-switch module not available:", e.message); }
 
@@ -567,6 +568,7 @@ if ((isCron || isCronBackup) && isBackup) {
         ip: visitIp,
       };
 
+      notify.pushNotification("page_visit", visitMsg).catch(function () {});
 
       return res.status(200).json({ success: true });
     } catch (e) {

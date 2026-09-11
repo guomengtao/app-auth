@@ -434,7 +434,18 @@ module.exports = async (req, res) => {
       console.error("[activate] Notification failed:", e.message);
       notifyResult = { sent: false, error: e.message };
     }
-    
+
+    notify.pushNotification("new_activation", {
+      redeem_code: code,
+      activation_code: activationCode,
+      product_id: productId,
+      device_id: device,
+      months: months,
+      source: "user",
+      ip: visitorInfo ? visitorInfo.ip : "",
+      user_agent: visitorInfo ? visitorInfo.userAgent : "",
+    }).catch(function () {});
+
     return res.json({ success: true, activationCode: activationCode, debug: { visitor: visitorInfo, notification: (notifyResult && notifyResult.sent) ? "sent" : "failed", productId: productId, months: months } });
   } catch (error) {
     console.error("Activate error:", error && error.message ? error.message : error, error);
@@ -453,6 +464,16 @@ module.exports = async (req, res) => {
       months: "",
       source: "user",
     }).catch(function () {});
+
+    notify.pushNotification("activation_failure", {
+      reason: msg,
+      redeem_code: rawRedeemCode || "",
+      device_id: rawDeviceId || "",
+      source: "user",
+      ip: visitorInfo ? visitorInfo.ip : "",
+      user_agent: visitorInfo ? visitorInfo.userAgent : "",
+    }).catch(function () {});
+
     return res.status(500).json({ success: false, error: msg, debug: { visitor: visitorInfo, notification: buildNotificationStatus(catchNotifyResult), reason: msg } });
   }
 };

@@ -1,13 +1,14 @@
 """
 Ev课程表 Mac原生通知器
-Upstash Redis Pub/Sub (原生 TLS TCP, 零轮询零带宽浪费)
-菜单栏常驻,系统通知到达
+Upstash Redis Stream (原生 TLS TCP, XREADGROUP 消费)
+菜单栏常驻,系统通知到达,断线不丢消息
 
 依赖: pip install rumps --break-system-packages
 """
 import asyncio
 import json
 import os
+import platform
 import re
 import ssl
 import subprocess
@@ -34,7 +35,9 @@ DOTENV_CANDIDATES = [
 UPSTASH_HOST = None
 UPSTASH_PORT = 6379
 UPSTASH_TOKEN = None
-PUSH_CHANNEL = "auth:push_channel"
+STREAM_KEY = "auth:notifications:stream"
+GROUP_NAME = "ev-notifiers"
+CONSUMER_NAME = "mac-" + platform.node().replace(".", "-")
 
 
 def _parse_env_line(line):
@@ -401,37 +404,69 @@ async def redis_loop():
                 reconnect_delay = min(reconnect_delay * 2, 30)
                 continue
 
-            writer.write(redis_array("SUBSCRIBE", PUSH_CHANNEL))
+            writer.write(redis_array("XGROUP", "CREATE", STREAM_KEY, GROUP_NAME, "$", "MKSTREAM"))
             await writer.drain()
-            sub_raw = await asyncio.wait_for(reader.read(4096), timeout=5)
-            proto.feed(sub_raw)
-            proto.parse_all()
+            xgroup_raw = await asyncio.wait_for(reader.read(4096), timeout=5)
+            xgroup_text = xgroup_raw.decode(errors="replace")
+            if "BUSYGROUP" in xgroup_text:
+                print(f"Consumer group '{GROUP_NAME}' already exists, reusing")
 
             _status = "connected"
             reconnect_delay = 1
             if _app_ref:
                 _app_ref.title = "📦 Ev在线"
 
-            print(f"✅ Connected to {UPSTASH_HOST}:{UPSTASH_PORT}, subscribed to {PUSH_CHANNEL}")
+            print(f"✅ Connected to {UPSTASH_HOST}:{UPSTASH_PORT}")
+            print(f"Stream: {STREAM_KEY}, Group: {GROUP_NAME}, Consumer: {CONSUMER_NAME}")
 
             heartbeat_counter = 0
             while True:
                 try:
-                    raw = await asyncio.wait_for(reader.read(8192), timeout=30)
+                    writer.write(redis_array(
+                        "XREADGROUP", "GROUP", GROUP_NAME, CONSUMER_NAME,
+                        "COUNT", "10", "BLOCK", "5000",
+                        "STREAMS", STREAM_KEY, ">"
+                    ))
+                    await writer.drain()
+
+                    raw = await asyncio.wait_for(reader.read(32768), timeout=30)
                     if not raw:
                         raise ConnectionError("connection closed")
+
                     proto.feed(raw)
-                    for reply in proto.parse_all():
-                        if isinstance(reply, list) and len(reply) >= 3 and reply[0] == "message":
-                            channel = reply[1]
-                            payload_raw = reply[2]
-                            if channel != PUSH_CHANNEL:
+                    replies = proto.parse_all()
+
+                    for reply in replies:
+                        if isinstance(reply, list) and len(reply) >= 2:
+                            stream_name = reply[0]
+                            messages = reply[1]
+                            if not isinstance(messages, list):
                                 continue
-                            try:
-                                msg = json.loads(payload_raw)
-                            except Exception:
-                                continue
-                            handle_message(msg)
+
+                            for msg_entry in messages:
+                                if not isinstance(msg_entry, list) or len(msg_entry) < 2:
+                                    continue
+                                msg_id = msg_entry[0]
+                                fields = msg_entry[1]
+                                if not isinstance(fields, list):
+                                    continue
+
+                                data_raw = None
+                                for i in range(0, len(fields) - 1, 2):
+                                    if fields[i] == "data":
+                                        data_raw = fields[i + 1]
+                                        break
+
+                                if data_raw:
+                                    try:
+                                        msg = json.loads(data_raw)
+                                    except Exception:
+                                        continue
+                                    handle_message(msg)
+
+                                writer.write(redis_array("XACK", STREAM_KEY, GROUP_NAME, msg_id))
+                                await writer.drain()
+
                 except asyncio.TimeoutError:
                     heartbeat_counter += 1
                     if heartbeat_counter >= 3:
@@ -483,7 +518,9 @@ class EvNotifier(rumps.App):
             rumps.alert(
                 "Ev通知器",
                 f"✅ 已连接到 Upstash\n"
-                f"频道: {PUSH_CHANNEL}\n"
+                f"Stream: {STREAM_KEY}\n"
+                f"Group: {GROUP_NAME}\n"
+                f"Consumer: {CONSUMER_NAME}\n"
                 f"端口: {UPSTASH_PORT}\n"
                 f"今日已收: {_new_msg_count} 条\n"
                 f"上次消息: {ts_str}"
@@ -517,7 +554,7 @@ def main():
     except Exception:
         pass
     print(f"Ev通知器启动: {UPSTASH_HOST}:{UPSTASH_PORT}")
-    print(f"订阅频道: {PUSH_CHANNEL}")
+    print(f"Stream: {STREAM_KEY}, Group: {GROUP_NAME}")
     print("菜单栏图标已激活,等待消息...")
     app.run()
 
