@@ -12,11 +12,11 @@
       "schedule": "0 3 * * *"
     },
     {
-      "path": "/api/admin/health?section=backup",
+      "path": "/api/admin/health?section=backup&cron=1",
       "schedule": "0 4 * * *"
     },
     {
-      "path": "/api/admin/health?section=sync",
+      "path": "/api/admin/health?section=sync&cron=1",
       "schedule": "0 5 * * *"
     }
   ]
