@@ -96,34 +96,56 @@
   <script>
     function xhrFetch(url, options) {
       options = options || {};
-      return new Promise(function(resolve, reject) {
-        var xhr = new XMLHttpRequest();
-        xhr.open(options.method || 'GET', url, true);
-        if (options.headers) {
-          for (var k in options.headers) {
-            if (options.headers.hasOwnProperty(k)) {
-              xhr.setRequestHeader(k, options.headers[k]);
-            }
+      var result = {};
+      var callbacks = [];
+      var errCallbacks = [];
+      result.then = function(cb) { callbacks.push(cb); return result; };
+      result.catch = function(cb) { errCallbacks.push(cb); return result; };
+      var xhr = new XMLHttpRequest();
+      xhr.open(options.method || 'GET', url, true);
+      if (options.headers) {
+        for (var k in options.headers) {
+          if (options.headers.hasOwnProperty(k)) {
+            xhr.setRequestHeader(k, options.headers[k]);
           }
         }
-        xhr.onload = function() {
-          resolve({
+      }
+      xhr.onload = function() {
+        for (var i = 0; i < callbacks.length; i++) {
+          callbacks[i]({
             status: xhr.status,
             ok: xhr.status >= 200 && xhr.status < 300,
-            json: function() { return Promise.resolve(JSON.parse(xhr.responseText)); },
-            text: function() { return Promise.resolve(xhr.responseText); }
+            json: function() { var d = JSON.parse(xhr.responseText); return { then: function(cb) { cb(d); } }; },
+            text: function() { var t = xhr.responseText; return { then: function(cb) { cb(t); } }; }
           });
-        };
-        xhr.onerror = function() { reject(new Error('Network error')); };
-        xhr.send(options.body || null);
-      });
+        }
+      };
+      xhr.onerror = function() {
+        for (var i = 0; i < errCallbacks.length; i++) { errCallbacks[i](new Error('Network error')); }
+      };
+      xhr.send(options.body || null);
+      return result;
+    }
+
+    function parseQueryParams(qs) {
+      var params = {};
+      if (qs && qs.charAt(0) === '?') qs = qs.substring(1);
+      if (qs) {
+        var pairs = qs.split('&');
+        for (var i = 0; i < pairs.length; i++) {
+          var eqIdx = pairs[i].indexOf('=');
+          if (eqIdx >= 0) {
+            params[decodeURIComponent(pairs[i].substring(0, eqIdx))] = decodeURIComponent(pairs[i].substring(eqIdx + 1));
+          }
+        }
+      }
+      return params;
     }
 
     function getParam(name) {
       try {
-        var search = window.location.search;
-        var params = new URLSearchParams(search);
-        return params.get(name);
+        var params = parseQueryParams(window.location.search);
+        return params[name] || null;
       } catch (e) { return null; }
     }
 

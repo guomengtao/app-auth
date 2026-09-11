@@ -211,6 +211,7 @@
       var result = {};
       var callbacks = [];
       result.then = function(cb) { callbacks.push(cb); return result; };
+      result.catch = function(cb) { return result; };
       var xhr = new XMLHttpRequest();
       xhr.open(options.method || 'GET', url, true);
       if (options.headers) {
@@ -230,8 +231,11 @@
           text: function() { return { then: function(cb) { cb(_text); } }; }
         };
         for (var i = 0; i < callbacks.length; i++) { callbacks[i](res); }
+        if (typeof setLoading === 'function') setLoading(false);
       };
-      xhr.onerror = function() { };
+      xhr.onerror = function() {
+        if (typeof setLoading === 'function') setLoading(false);
+      };
       xhr.send(options.body || null);
       return result;
     }
@@ -330,10 +334,32 @@
     }
 
     function copyCode(code) {
-      navigator.clipboard.writeText(code).then(function() {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).then(function() {
+          var btn = document.querySelector('.copy-btn');
+          if (btn) { btn.textContent = '已复制！'; btn.style.background = '#666'; }
+        }).catch(function() {
+          fallbackCopy(code);
+        });
+      } else {
+        fallbackCopy(code);
+      }
+    }
+    function fallbackCopy(text) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      ta.style.top = '-9999px';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try {
+        document.execCommand('copy');
         var btn = document.querySelector('.copy-btn');
         if (btn) { btn.textContent = '已复制！'; btn.style.background = '#666'; }
-      });
+      } catch (_) {}
+      document.body.removeChild(ta);
     }
 
     function activate() {
