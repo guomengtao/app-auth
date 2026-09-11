@@ -4477,7 +4477,11 @@
       if (tab === 'afdian-orders') loadAfdianOrders();
       if (tab === 'visitors') loadVisitors();
       
-      lucide.createIcons();
+      try {
+        if (typeof lucide !== 'undefined' && lucide.createIcons) {
+          lucide.createIcons();
+        }
+      } catch (_) {}
     }
 
     function toggleSidebar() {
@@ -7134,7 +7138,6 @@
     loadVersion();
     loadStats();
     initTrends();
-    lucide.createIcons();
     try {
       var pre = new URLSearchParams(window.location.search).get('tab');
       if (pre && TAB_META[pre]) {
@@ -7142,6 +7145,11 @@
       }
     } catch (e) {}
     setInterval(loadStats, 30000);
+    try {
+      if (typeof lucide !== 'undefined' && lucide.createIcons) {
+        lucide.createIcons();
+      }
+    } catch (_) {}
 
     function displayUserInfo() {
       var el = document.getElementById('sidebarUserEmail');
