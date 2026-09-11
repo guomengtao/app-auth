@@ -158,6 +158,12 @@
       color: #6b7280;
       margin-top: 14px;
     }
+    .version-footer {
+      text-align: center;
+      font-size: 0.7rem;
+      color: #9ca3af;
+      margin-top: 20px;
+    }
   </style>
 </head>
 <body>
@@ -188,6 +194,7 @@
 
     <div class="result" id="result"></div>
     <div class="device-info" id="deviceInfo"></div>
+    <div class="version-footer" id="version-text"></div>
   </div>
 
   <script>
@@ -453,6 +460,18 @@
           body: JSON.stringify({ path: window.location.pathname + window.location.search })
         }).catch(function(){});
       } catch(e){}
+    })();
+
+    (function(){
+      xhrFetch('/api/version')
+        .then(function(res) { return res.json(); })
+        .then(function(v) {
+          var el = document.getElementById('version-text');
+          if (el && v.version) {
+            el.textContent = 'v' + v.version;
+          }
+        })
+        .catch(function() {});
     })();
   </script>
 <script>
