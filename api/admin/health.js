@@ -454,6 +454,7 @@ async function doBackup(redis, isAuto) {
 }
 
 module.exports = async (req, res) => {
+  console.log("[health] request:", req.method, req.url, "section:", req.query ? req.query.section : "none");
   var cronAuthHeader = req.headers.authorization || req.headers.Authorization || "";
   var cronSecret = process.env.CRON_SECRET || "";
   var isCron = cronAuthHeader === "Bearer " + cronSecret && cronSecret !== "";
@@ -1328,7 +1329,9 @@ module.exports = async (req, res) => {
       var pg = require("../../lib/postgres");
       var primaryFromRedis = dbSwitches.getPrimary();
       var dbProvider = primaryFromRedis || String(process.env.DB_PROVIDER || "auto").trim();
+      console.log("[health] dbstatus: primaryFromRedis=", primaryFromRedis, "DB_PROVIDER=", process.env.DB_PROVIDER, "final=", dbProvider);
       var providerDb = dbRegistry.getDatabase(dbProvider);
+      console.log("[health] dbstatus: providerDb=", providerDb ? providerDb.id : "null");
 
       var tablesResult = await pg.query(
         "SELECT schemaname, relname, n_live_tup AS est_rows, pg_total_relation_size(quote_ident(schemaname)||'.'||quote_ident(relname)) AS bytes FROM pg_stat_user_tables ORDER BY bytes DESC"
