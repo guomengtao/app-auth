@@ -8777,6 +8777,10 @@
             body: JSON.stringify({ path: window.location.pathname + window.location.search }),
             keepalive: true,
           }).catch(function() {});
+          var v = new XMLHttpRequest();
+          v.open('POST', '/api/admin/health?section=visit', true);
+          v.setRequestHeader('Content-Type', 'application/json');
+          v.send(JSON.stringify({page:location.pathname,referrer:document.referrer||'',title:document.title||''}));
         };
         if (document.readyState === 'complete' || document.readyState === 'interactive') {
           setTimeout(send, 500);
