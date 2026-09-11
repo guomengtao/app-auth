@@ -49,15 +49,11 @@ cat > "$MACOS_DIR/EvNotifier" << 'SCRIPT'
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 PYTHON_SCRIPT="$APP_DIR/ev_notifier.py"
-LOG_DIR="$APP_DIR"
-LOG_FILE="$LOG_DIR/ev_notifier.log"
-ERR_FILE="$LOG_DIR/ev_notifier.err.log"
 
 export PATH="/usr/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"
 
 cd "$APP_DIR"
-nohup /usr/bin/python3 "$PYTHON_SCRIPT" > "$LOG_FILE" 2> "$ERR_FILE" &
-echo "EvNotifier started (PID: $!)"
+exec /usr/bin/python3 "$PYTHON_SCRIPT"
 SCRIPT
 
 # 复制 ev_notifier.py 到 app bundle 内
