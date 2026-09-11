@@ -37,24 +37,15 @@ cat > "$CONTENTS_DIR/Info.plist" << 'PLIST'
   <string>APPL</string>
   <key>LSUIElement</key>
   <true/>
-  <key>LSBackgroundOnly</key>
-  <false/>
+  <key>NSUIElement</key>
+  <true/>
 </dict>
 </plist>
 PLIST
 
-# 启动脚本
-cat > "$MACOS_DIR/EvNotifier" << 'SCRIPT'
-#!/bin/bash
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-APP_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-PYTHON_SCRIPT="$APP_DIR/ev_notifier.py"
-
-export PATH="/usr/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"
-
-cd "$APP_DIR"
-exec /usr/bin/python3 "$PYTHON_SCRIPT"
-SCRIPT
+# 编译 Swift 原生启动器（隐藏 Dock 图标最可靠的方式）
+echo "  编译启动器..."
+swiftc -o "$MACOS_DIR/EvNotifier" "$SCRIPT_DIR/launcher.swift" 2>&1
 
 # 复制 ev_notifier.py 到 app bundle 内
 cp "$SCRIPT_DIR/ev_notifier.py" "$APP_DIR/ev_notifier.py"
@@ -102,8 +93,19 @@ rm -rf "$ICONSET_DIR" /tmp/ev_icon_1024.png
 chmod +x "$MACOS_DIR/EvNotifier"
 
 echo "✅ 构建完成: $APP_DIR"
+
+# 复制到桌面
+DESKTOP_APP="$HOME/Desktop/$APP_NAME.app"
+rm -rf "$DESKTOP_APP"
+cp -r "$APP_DIR" "$DESKTOP_APP"
+echo "✅ 已复制到桌面: $DESKTOP_APP"
+
+# 刷新 Finder 让图标更新
+touch "$DESKTOP_APP"
+osascript -e 'tell application "Finder" to update item (POSIX file "'"$DESKTOP_APP"'" as alias)' 2>/dev/null || true
+
 echo ""
 echo "用法:"
-echo "  双击 $APP_NAME.app 即可启动"
+echo "  双击桌面上的 $APP_NAME.app 即可启动"
 echo "  或拖入 应用程序 文件夹方便日常使用:"
 echo "  cp -r \"$APP_DIR\" /Applications/"

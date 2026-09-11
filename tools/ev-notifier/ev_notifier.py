@@ -16,14 +16,14 @@ import threading
 import time
 from pathlib import Path
 
-import rumps
-
-# Hide Dock icon (only menu bar)
+# MUST be before importing rumps - hide from Dock
 try:
-  from AppKit import NSApp, NSApplicationActivationPolicyAccessory
-  NSApp.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
+    from AppKit import NSApplication, NSApplicationActivationPolicyAccessory
+    NSApplication.sharedApplication().setActivationPolicy_(NSApplicationActivationPolicyAccessory)
 except Exception:
-  pass
+    pass
+
+import rumps
 
 DOTENV_CANDIDATES = [
     os.path.expanduser("~/Documents/guomengtao/app-auth/.env"),
@@ -443,6 +443,12 @@ def _run_event_loop():
 class EvNotifier(rumps.App):
     def __init__(self):
         super().__init__("📦 Ev", quit_button="退出")
+        # Hide from Dock - must happen after NSApp is created
+        try:
+            from AppKit import NSApp, NSApplicationActivationPolicyAccessory
+            NSApp.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
+        except Exception:
+            pass
         self._thread = threading.Thread(target=_run_event_loop, daemon=True)
         self._thread.start()
 
@@ -479,6 +485,13 @@ def main():
     global _app_ref
     app = EvNotifier()
     _app_ref = app
+    # Force hide from Dock before event loop
+    try:
+        from AppKit import NSApp, NSApplicationActivationPolicyAccessory
+        NSApp.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
+        NSApp.windows()[0].orderOut_(None) if NSApp.windows() else None
+    except Exception:
+        pass
     print(f"Ev通知器启动: {UPSTASH_HOST}:{UPSTASH_PORT}")
     print(f"订阅频道: {PUSH_CHANNEL}")
     print("菜单栏图标已激活,等待消息...")
