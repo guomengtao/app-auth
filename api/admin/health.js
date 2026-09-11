@@ -590,7 +590,6 @@ module.exports = async (req, res) => {
         ip: visitIp,
       };
 
-      pushNotify.pushNotification("page_visit", visitMsg).catch(function() {});
 
       return res.status(200).json({ success: true });
     } catch (e) {
