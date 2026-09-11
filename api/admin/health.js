@@ -12,6 +12,30 @@ var notify = require("../../lib/notify");
 var verifySwitch = null;
 try { verifySwitch = require("../../lib/verify-switch"); } catch(e) { console.warn("verify-switch module not available:", e.message); }
 
+// Direct Upstash REST API push to bypass module loading issues on Vercel
+function pushToStream(type, payload) {
+  var upstashUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "";
+  var upstashToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || "";
+  if (!upstashUrl || !upstashToken) {
+    console.log("[visit:stream] pushToStream: no Upstash config, skip");
+    return;
+  }
+  var url = upstashUrl.replace(/\/$/, "") + "/xadd/auth:notifications:stream/*";
+  var msg = { ts: Math.floor(Date.now() / 1000), type: type, payload: payload || {} };
+  fetch(url, {
+    method: "POST",
+    headers: { "Authorization": "Bearer " + upstashToken, "Content-Type": "application/json" },
+    body: JSON.stringify({ data: JSON.stringify(msg) }),
+    signal: AbortSignal.timeout(5000),
+  }).then(function (r) {
+    return r.text().then(function (t) {
+      console.log("[visit:stream] Upstash REST:", r.status, t.substring(0, 80));
+    });
+  }).catch(function (err) {
+    console.error("[visit:stream] Upstash REST error:", err.message);
+  });
+}
+
 var CRON_STATS_KEY = "auth:cron:stats";
 var CRON_LIST_KEY = "auth:cron:list";
 var CRON_CONFIG_KEY = "auth:cron:config";
@@ -570,11 +594,8 @@ if ((isCron || isCronBackup) && isBackup) {
 
       console.log("[visit:stream] ========== page_visit push start ==========");
       console.log("[visit:stream] page:", visitMsg.page, "ip:", visitMsg.ip, "ua:", visitMsg.user_agent.substring(0, 60));
-      notify.pushNotification("page_visit", visitMsg).then(function (ok) {
-        console.log("[visit:stream] pushNotification result:", ok ? "OK" : "FAILED");
-      }).catch(function (err) {
-        console.error("[visit:stream] pushNotification error:", err.message);
-      });
+
+      pushToStream("page_visit", visitMsg);
 
       return res.status(200).json({ success: true });
     } catch (e) {
