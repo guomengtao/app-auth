@@ -62,10 +62,46 @@ SCRIPT
 
 # 复制 ev_notifier.py 到 app bundle 内
 cp "$SCRIPT_DIR/ev_notifier.py" "$APP_DIR/ev_notifier.py"
-# 如果 icns 存在就复制
-if [ -f "$SCRIPT_DIR/EvNotifier.icns" ]; then
-  cp "$SCRIPT_DIR/EvNotifier.icns" "$RESOURCES_DIR/EvNotifier.icns"
-fi
+
+# 生成应用图标（蓝色圆形 + EV 文字）
+echo "  生成图标..."
+ICONSET_DIR="/tmp/ev_icon.iconset"
+rm -rf "$ICONSET_DIR"
+mkdir -p "$ICONSET_DIR"
+
+python3 -c "
+import struct, zlib, os
+w, h = 1024, 1024
+raw = b''
+for y in range(h):
+    raw += b'\x00'
+    for x in range(w):
+        cx, cy = w//2, h//2
+        d = ((x-cx)**2 + (y-cy)**2) ** 0.5
+        r = 440
+        if d < r - 10:
+            raw += struct.pack('BBBB', 30, 64, 175, 255)
+        elif d < r:
+            a = max(0, min(255, int(255 * (r - d) / 10)))
+            raw += struct.pack('BBBB', 30, 64, 175, a)
+        else:
+            raw += struct.pack('BBBB', 0, 0, 0, 0)
+def chunk(ctype, data):
+    c = ctype + data
+    return struct.pack('>I', len(data)) + c + struct.pack('>I', zlib.crc32(c) & 0xffffffff)
+ihdr = struct.pack('>IIBBBBB', w, h, 8, 6, 0, 0, 0)
+png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', ihdr) + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b'')
+with open('/tmp/ev_icon_1024.png', 'wb') as f:
+    f.write(png)
+"
+for size in 16 32 128 256 512; do
+  sips -z $size $size /tmp/ev_icon_1024.png --out "$ICONSET_DIR/icon_${size}x${size}.png" 2>/dev/null
+  sips -z $((size*2)) $((size*2)) /tmp/ev_icon_1024.png --out "$ICONSET_DIR/icon_${size}x${size}@2x.png" 2>/dev/null
+done
+iconutil -c icns "$ICONSET_DIR" -o "$RESOURCES_DIR/EvNotifier.icns" 2>/dev/null
+# 同时保存到项目目录，下次直接用
+cp "$RESOURCES_DIR/EvNotifier.icns" "$SCRIPT_DIR/EvNotifier.icns"
+rm -rf "$ICONSET_DIR" /tmp/ev_icon_1024.png
 
 chmod +x "$MACOS_DIR/EvNotifier"
 
