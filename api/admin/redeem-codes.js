@@ -4,7 +4,6 @@ var crypto = require("../../lib/crypto");
 var { generateRedeemCode } = crypto;
 var { validateCount, validateDuration, validateDeviceId } = require("../../lib/validate");
 var notify = require("../../lib/notify");
-var pushNotify = require("../../lib/push-notify");
 
 function matchCode(data, filterProductId, filterUsed, filterDuration) {
   if (filterProductId && data.product_id !== filterProductId) return false;
@@ -296,14 +295,6 @@ module.exports = async (req, res) => {
             months: r.months, source: "admin-direct"
           });
         } catch (e) { console.error("[direct-activate] Notification failed:", e.message); }
-        try {
-          pushNotify.pushNotification('new_activation', {
-            activation_code: r.activationCode, redeem_code: r.redeemCode,
-            device_id: r.deviceId, product_id: r.productId,
-            product_name: r.productName || '', months: r.months,
-            source: 'admin-direct', time: Date.now(),
-          });
-        } catch (_) {}
       }
       return res.json({ success: true, results: results });
     }

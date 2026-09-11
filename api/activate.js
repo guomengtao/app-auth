@@ -4,7 +4,6 @@ var { validateRedeemCode, validateDeviceId } = require("../lib/validate");
 var quota = require("../lib/quota");
 var rateLimit = require("../lib/rate-limit");
 var notify = require("../lib/notify");
-var pushNotify = require("../lib/push-notify");
 
 var VISITOR_TTL = 7 * 24 * 60 * 60;
 
@@ -435,17 +434,7 @@ module.exports = async (req, res) => {
       console.error("[activate] Notification failed:", e.message);
       notifyResult = { sent: false, error: e.message };
     }
-    try {
-      pushNotify.pushNotification('new_activation', {
-        activation_code: activationCode,
-        redeem_code: code,
-        device_id: device,
-        product_id: productId,
-        months: months,
-        source: 'user',
-        time: Date.now(),
-      });
-    } catch (_) {}
+    
     return res.json({ success: true, activationCode: activationCode, debug: { visitor: visitorInfo, notification: (notifyResult && notifyResult.sent) ? "sent" : "failed", productId: productId, months: months } });
   } catch (error) {
     console.error("Activate error:", error && error.message ? error.message : error, error);
