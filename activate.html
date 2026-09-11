@@ -210,8 +210,9 @@
       options = options || {};
       var result = {};
       var callbacks = [];
+      var errorCallbacks = [];
       result.then = function(cb) { callbacks.push(cb); return result; };
-      result.catch = function(cb) { return result; };
+      result.catch = function(cb) { errorCallbacks.push(cb); return result; };
       var xhr = new XMLHttpRequest();
       xhr.open(options.method || 'GET', url, true);
       if (options.headers) {
@@ -227,10 +228,22 @@
           status: xhr.status,
           ok: xhr.status >= 200 && xhr.status < 300,
           _text: _text,
-          json: function() { return { then: function(cb) { cb(JSON.parse(_text)); } }; },
+          json: function() {
+            return {
+              then: function(cb) {
+                var parsed = null;
+                try { parsed = JSON.parse(_text); } catch (_) { parsed = null; }
+                cb(parsed);
+              }
+            };
+          },
           text: function() { return { then: function(cb) { cb(_text); } }; }
         };
-        for (var i = 0; i < callbacks.length; i++) { callbacks[i](res); }
+        try {
+          for (var i = 0; i < callbacks.length; i++) { callbacks[i](res); }
+        } catch (e) {
+          for (var j = 0; j < errorCallbacks.length; j++) { errorCallbacks[j](e); }
+        }
         if (typeof setLoading === 'function') setLoading(false);
       };
       xhr.onerror = function() {

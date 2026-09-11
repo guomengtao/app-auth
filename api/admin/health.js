@@ -457,10 +457,11 @@ module.exports = async (req, res) => {
   console.log("[health] request:", req.method, req.url, "section:", req.query ? req.query.section : "none");
   var cronAuthHeader = req.headers.authorization || req.headers.Authorization || "";
   var cronSecret = process.env.CRON_SECRET || "";
-  var isCron = (cronAuthHeader === "Bearer " + cronSecret && cronSecret !== "") || ((req.query || {}).cron === "1");
-  var isBackup = req.query.section === "backup";
+  var isCron = (cronAuthHeader === "Bearer " + cronSecret && cronSecret !== "");
+var isBackup = req.query.section === "backup";
+var isCronBackup = (isBackup && ((req.query || {}).cron === "1") && cronSecret !== "");
 
-  if (isCron && isBackup) {
+if ((isCron || isCronBackup) && isBackup) {
     var cronStart = Date.now();
     try {
       try {
