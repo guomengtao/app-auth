@@ -13,7 +13,8 @@ try:
                         NSSwitchButton, NSFont, NSColor, NSNotificationCenter,
                         NSWindowWillCloseNotification, NSViewWidthSizable, NSViewHeightSizable,
                         NSTableView, NSTableColumn, NSBezierPath,
-                        NSViewMinYMargin)
+                        NSViewMinYMargin, NSRectFill,
+                        NSFontAttributeName, NSForegroundColorAttributeName)
     from Foundation import NSObject, NSMakePoint
     _HAS_APPKIT = True
 except ImportError:
