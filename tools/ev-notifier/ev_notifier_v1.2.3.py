@@ -20,6 +20,13 @@ try:
 except ImportError:
     _HAS_APPKIT = False
 
+try:
+    from WebKit import (WKWebView, WKWebViewConfiguration, WKUserContentController,
+                        WKNavigationActionPolicyAllow, WKNavigationActionPolicyCancel)
+    _HAS_WEBKIT = True
+except ImportError:
+    _HAS_WEBKIT = False
+
 import rumps
 
 DOTENV = [
@@ -634,6 +641,26 @@ def _build_trend_data(days=30):
     return dates, counts, amounts
 
 
+def _build_visitor_list():
+    msgs = load_messages()
+    visitors = []
+    for m in msgs:
+        if m.get("type") != "page_visit":
+            continue
+        p = m.get("payload", {}) or {}
+        page = p.get("page", "") or p.get("title", "") or "-"
+        referrer = p.get("referrer", "") or "-"
+        ua = p.get("user_agent", "") or "-"
+        ip = p.get("ip", "") or "-"
+        visitors.append({
+            "time": m.get("time", ""),
+            "page": page,
+            "referrer": referrer,
+            "ip": ip,
+        })
+    return visitors
+
+
 class TrendChartView(NSView):
     def initWithFrame_(self, frame):
         self = super().initWithFrame_(frame)
@@ -753,7 +780,7 @@ class TrendChartView(NSView):
             ns_str.drawAtPoint_withAttributes_(NSMakePoint(lx, margin_bottom - 16), attr)
 
 
-_SIDEBAR_ITEMS = ["消息", "订单列表", "走势图", "设置"]
+_SIDEBAR_ITEMS = ["消息", "订单列表", "走势图", "访客浏览", "设置"]
 _SIDEBAR_WIDTH = 110
 
 
@@ -806,6 +833,70 @@ class OrderTableDataSource(NSObject):
         return ""
 
 
+class WebNavDelegate(NSObject):
+    def init(self):
+        self._dashboard = None
+        return self
+
+    def webView_decidePolicyForNavigationAction_decisionHandler_(self, wv, action, handler):
+        url_str = str(action.request().URL())
+        if url_str and url_str.startswith("ev://"):
+            if "refresh" in url_str and self._dashboard:
+                self._dashboard._refresh_content()
+            handler(WKNavigationActionPolicyCancel)
+        else:
+            handler(WKNavigationActionPolicyAllow)
+
+
+_DASH_CSS = """
+*{{margin:0;padding:0;box-sizing:border-box}}
+body{{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif;background:#f0f2f5;color:#1d1d1f;padding:24px;-webkit-font-smoothing:antialiased}}
+.header{{margin-bottom:20px;display:flex;align-items:center;justify-content:space-between}}
+.header h2{{font-size:18px;font-weight:600;color:#1d1d1f}}
+.stats{{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}}
+.stat-card{{background:#fff;border-radius:8px;padding:14px 18px;box-shadow:0 1px 3px rgba(0,0,0,0.06);min-width:90px;flex:1}}
+.stat-value{{font-size:22px;font-weight:700;color:#0071e3}}
+.stat-label{{font-size:10px;color:#86868b;text-transform:uppercase;letter-spacing:.5px;margin-top:2px}}
+.msg-card{{background:#fff;border-radius:8px;padding:12px 16px;margin-bottom:6px;box-shadow:0 1px 2px rgba(0,0,0,0.04);border-left:4px solid #0071e3;display:flex;align-items:flex-start;gap:10px}}
+.msg-card.type-order{{border-left-color:#34c759}}
+.msg-card.type-activate{{border-left-color:#ff9f0a}}
+.msg-card.type-visit{{border-left-color:#5e5ce6}}
+.msg-card.type-recover{{border-left-color:#30d158}}
+.msg-card.type-other{{border-left-color:#8e8e93}}
+.msg-time{{font-size:11px;color:#86868b;min-width:130px;white-space:nowrap}}
+.msg-badge{{font-size:10px;font-weight:600;padding:2px 8px;border-radius:4px;background:#e8f0fe;color:#0071e3;white-space:nowrap}}
+.msg-badge.badge-order{{background:#d4f5e0;color:#1a7a3a}}
+.msg-badge.badge-activate{{background:#fff3d6;color:#b06d00}}
+.msg-badge.badge-visit{{background:#e5e4f9;color:#4a47b0}}
+.msg-badge.badge-recover{{background:#d4f5e0;color:#1a7a3a}}
+.msg-badge.badge-other{{background:#f2f2f7;color:#636366}}
+.msg-detail{{font-size:12px;color:#3a3a3c;flex:1;line-height:1.4}}
+table{{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06)}}
+th{{text-align:left;padding:10px 14px;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#86868b;background:#fafafa;border-bottom:1px solid #e5e5ea}}
+td{{padding:10px 14px;font-size:12px;border-bottom:1px solid #f2f2f7}}
+tr:last-child td{{border-bottom:none}}
+tr:hover td{{background:#f8f9fa}}
+.chart-wrap{{background:#fff;border-radius:8px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,0.06)}}
+canvas{{max-height:340px;width:100%!important}}
+.empty-msg{{text-align:center;padding:60px 20px;color:#86868b;font-size:14px}}
+.empty-msg svg{{display:block;margin:0 auto 16px;width:48px;height:48px;opacity:.3}}
+.btn-refresh{{font-size:11px;color:#0071e3;background:none;border:1px solid #0071e3;border-radius:6px;padding:4px 12px;cursor:pointer;text-decoration:none}}
+.btn-refresh:hover{{background:#e8f0fe}}
+.info-row{{display:flex;align-items:center;gap:16px;margin-bottom:8px}}
+.info-row .label{{font-size:13px;color:#1d1d1f;font-weight:500;min-width:180px}}
+.info-row .value{{font-size:13px;color:#86868b}}
+"""
+
+_TYPE_STYLES = {
+    "订单": ("type-order", "badge-order"),
+    "激活": ("type-activate", "badge-activate"),
+    "访问": ("type-visit", "badge-visit"),
+    "恢复": ("type-recover", "badge-recover"),
+    "测试": ("type-other", "badge-other"),
+    "其他": ("type-other", "badge-other"),
+}
+
+
 class DashboardWindow:
     def __init__(self, app_ref):
         self._app = app_ref
@@ -815,37 +906,33 @@ class DashboardWindow:
         self._content_container = None
         self._current_tab = 0
         self._pages = {}
-        self._msg_text = None
-        self._order_table = None
-        self._order_ds = OrderTableDataSource.alloc().init()
-        self._chart_view = None
+        self._webview = None
+        self._settings_page = None
         self._auto_start_btn = None
         self._auto_start_label = None
+        self._order_ds = OrderTableDataSource.alloc().init()
 
     def show(self):
         if not _HAS_APPKIT:
             text = _build_status_text() + "\n\n" + _build_messages_text()
             rumps.alert(f"Ev Notifier {VERSION}", text[:800])
             return
-
         NSApplication.sharedApplication().setActivationPolicy_(
             NSApplicationActivationPolicyRegular)
-
         if self._window is None:
             self._create_window()
-
         self._refresh_content()
         self._window.makeKeyAndOrderFront_(None)
         NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
 
     def _create_window(self):
-        rect = NSMakeRect(100, 100, 720, 560)
+        rect = NSMakeRect(100, 100, 820, 620)
         mask = (NSTitledWindowMask | NSClosableWindowMask |
                 NSMiniaturizableWindowMask | NSResizableWindowMask)
         self._window = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
             rect, mask, NSBackingStoreBuffered, False)
         self._window.setTitle_(f"Ev Notifier {VERSION}")
-        self._window.setMinSize_(NSMakeSize(580, 400))
+        self._window.setMinSize_(NSMakeSize(620, 420))
 
         nc = NSNotificationCenter.defaultCenter()
         nc.addObserver_selector_name_object_(
@@ -899,43 +986,322 @@ class DashboardWindow:
         cw = self._content_container.bounds().size.width
         ch = self._content_container.bounds().size.height
 
-        p0 = self._build_messages_page(cw, ch)
-        p0.setHidden_(True)
-        self._content_container.addSubview_(p0)
-        self._pages[0] = p0
+        if _HAS_WEBKIT:
+            nav_delegate = WebNavDelegate.alloc().init()
+            nav_delegate._dashboard = self
+            config = WKWebViewConfiguration.alloc().init()
+            self._webview = WKWebView.alloc().initWithFrame_configuration_(
+                ((0, 0), (cw, ch)), config)
+            self._webview.setAutoresizingMask_(
+                NSViewWidthSizable | NSViewHeightSizable)
+            self._webview.setNavigationDelegate_(nav_delegate)
+            self._content_container.addSubview_(self._webview)
 
-        p1 = self._build_order_list_page(cw, ch)
-        p1.setHidden_(True)
-        self._content_container.addSubview_(p1)
-        self._pages[1] = p1
+        self._settings_page = self._build_settings_page(cw, ch)
+        self._settings_page.setHidden_(True)
+        self._content_container.addSubview_(self._settings_page)
+        self._pages[4] = self._settings_page
 
-        p2 = self._build_trend_page(cw, ch)
-        p2.setHidden_(True)
-        self._content_container.addSubview_(p2)
-        self._pages[2] = p2
-
-        p3 = self._build_settings_page(cw, ch)
-        p3.setHidden_(True)
-        self._content_container.addSubview_(p3)
-        self._pages[3] = p3
-
-    def _build_messages_page(self, cw, ch):
+    def _build_settings_page(self, cw, ch):
         container = NSView.alloc().initWithFrame_(((0, 0), (cw, ch)))
         container.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)
 
-        scroll = NSScrollView.alloc().initWithFrame_(((10, 10), (cw - 20, ch - 20)))
-        scroll.setHasVerticalScroller_(True)
-        scroll.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)
-        scroll.setBorderType_(0)
+        y = ch - 100
 
-        tv = NSTextView.alloc().initWithFrame_(((0, 0), (cw - 20, ch - 20)))
-        tv.setEditable_(False)
-        tv.setSelectable_(True)
-        tv.setVerticallyResizable_(True)
-        tv.setHorizontallyResizable_(False)
-        tv.setFont_(NSFont.fontWithName_size_("Menlo", 12))
-        tv.setTextContainerInset_((8, 8))
-        tv.setAutoresizingMask_(NSViewWidthSizable)
+        card = NSView.alloc().initWithFrame_(((20, y - 60), (cw - 40, 120)))
+        card.setWantsLayer_(True)
+        try:
+            card.layer().setBackgroundColor_(NSColor.whiteColor().CGColor())
+            card.layer().setCornerRadius_(10.0)
+        except Exception:
+            pass
+        container.addSubview_(card)
+
+        label = NSTextField.alloc().initWithFrame_(((20, 74), (300, 22)))
+        label.setStringValue_("Auto-start on Login")
+        label.setBezeled_(False)
+        label.setDrawsBackground_(False)
+        label.setEditable_(False)
+        label.setSelectable_(False)
+        label.setFont_(NSFont.boldSystemFontOfSize_(14))
+        card.addSubview_(label)
+
+        btn = NSButton.alloc().initWithFrame_(((300, 66), (120, 28)))
+        btn.setButtonType_(NSSwitchButton)
+        btn.setTitle_("")
+        btn.setState_(NSOnState if get_auto_start() else NSOffState)
+        btn.setTarget_(self)
+        btn.setAction_('toggleAutoStart:')
+        card.addSubview_(btn)
+        self._auto_start_btn = btn
+
+        self._auto_start_label = NSTextField.alloc().initWithFrame_(((20, 46), (400, 22)))
+        self._auto_start_label.setStringValue_(
+            "Status: " + ("ON" if get_auto_start() else "OFF"))
+        self._auto_start_label.setBezeled_(False)
+        self._auto_start_label.setDrawsBackground_(False)
+        self._auto_start_label.setEditable_(False)
+        self._auto_start_label.setSelectable_(False)
+        self._auto_start_label.setFont_(NSFont.systemFontOfSize_(12))
+        self._auto_start_label.setTextColor_(NSColor.grayColor())
+        card.addSubview_(self._auto_start_label)
+
+        desc = NSTextField.alloc().initWithFrame_(((20, 20), (cw - 80, 20)))
+        desc.setStringValue_("App will start automatically when you log in to your Mac.")
+        desc.setBezeled_(False)
+        desc.setDrawsBackground_(False)
+        desc.setEditable_(False)
+        desc.setSelectable_(False)
+        desc.setFont_(NSFont.systemFontOfSize_(11))
+        desc.setTextColor_(NSColor.lightGrayColor())
+        card.addSubview_(desc)
+
+        y -= 200
+        card2 = NSView.alloc().initWithFrame_(((20, y - 160), (cw - 40, 160)))
+        card2.setWantsLayer_(True)
+        try:
+            card2.layer().setBackgroundColor_(NSColor.whiteColor().CGColor())
+            card2.layer().setCornerRadius_(10.0)
+        except Exception:
+            pass
+        container.addSubview_(card2)
+
+        ttl = NSTextField.alloc().initWithFrame_(((20, 130), (300, 20)))
+        ttl.setStringValue_("Application Info")
+        ttl.setBezeled_(False)
+        ttl.setDrawsBackground_(False)
+        ttl.setEditable_(False)
+        ttl.setSelectable_(False)
+        ttl.setFont_(NSFont.boldSystemFontOfSize_(14))
+        card2.addSubview_(ttl)
+
+        info_items = [
+            "Version: " + VERSION,
+            "Stream Key: " + STREAM_KEY,
+            "Messages: ~/.ev_messages.json",
+            "Poll Log: ~/.ev_poll_log.json",
+            "Launch Agent: " + LAUNCH_AGENT_PATH,
+        ]
+        for i, item_text in enumerate(info_items):
+            ly = 100 - i * 22
+            lbl = NSTextField.alloc().initWithFrame_(((20, ly), (cw - 80, 20)))
+            lbl.setStringValue_(item_text)
+            lbl.setBezeled_(False)
+            lbl.setDrawsBackground_(False)
+            lbl.setEditable_(False)
+            lbl.setSelectable_(True)
+            lbl.setFont_(NSFont.systemFontOfSize_(11))
+            lbl.setTextColor_(NSColor.grayColor())
+            card2.addSubview_(lbl)
+
+        return container
+
+    def _html_base(self, body_html, inject_js=""):
+        return """<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>""" + _DASH_CSS + """</style>""" + inject_js + """</head><body>
+""" + body_html + """</body></html>"""
+
+    def _html_messages(self):
+        status_cn = "Connected" if _status == "connected" else (
+            "Retrying..." if "retry" in _status else "Error")
+        status_color = ("#34c759" if _status == "connected"
+                        else ("#ff9f0a" if "retry" in _status else "#ff3b30"))
+        received_data = load_received()
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        today_data = received_data.get(today_str, {})
+        total_server = today_data.get("total_server", 0)
+        local_cnt = len(today_data.get("received_idx", []))
+
+        stats_html = (
+            '<div class="stats">\n'
+            '  <div class="stat-card"><div class="stat-value">' + str(_new_msg_count) + '</div><div class="stat-label">Today</div></div>\n'
+            '  <div class="stat-card"><div class="stat-value" style="color:' + status_color + '">' + status_cn + '</div><div class="stat-label">Status</div></div>\n'
+            '  <div class="stat-card"><div class="stat-value">' + str(total_server) + '</div><div class="stat-label">Server Total</div></div>\n'
+            '  <div class="stat-card"><div class="stat-value">' + str(local_cnt) + '</div><div class="stat-label">Local Received</div></div>\n'
+            '  <div class="stat-card"><div class="stat-value">' + str(_recovery_count_today) + '</div><div class="stat-label">Recoveries</div></div>\n'
+            '</div>')
+
+        msgs = load_messages()
+        entries = []
+        for m in msgs[:80]:
+            type_cn, detail = _format_message_detail(m)
+            css_cls, badge_cls = _TYPE_STYLES.get(
+                type_cn, ("type-other", "badge-other"))
+            entries.append(
+                (m.get("time", ""), type_cn, detail, css_cls, badge_cls))
+
+        polls = load_poll_log()
+        for date_str in sorted(polls.keys(), reverse=True):
+            for p in polls[date_str].get("polls", []):
+                t = date_str + " " + p.get("time", "")
+                detail = ("Recovered " + str(p.get("recovered", 0))
+                          + " messages - " + p.get("reason", ""))
+                entries.append((t, "恢复", detail,
+                                "type-recover", "badge-recover"))
+
+        msg_html = ""
+        for t, tp, detail, css_cls, badge_cls in entries[:50]:
+            time_short = t[-16:] if len(t) >= 16 else t
+            detail_safe = (detail.replace("&", "&amp;")
+                           .replace("<", "&lt;")
+                           .replace(">", "&gt;")
+                           .replace('"', "&quot;"))
+            msg_html += (
+                '<div class="msg-card ' + css_cls + '">'
+                '<span class="msg-time">' + time_short + '</span>'
+                '<span class="msg-badge ' + badge_cls + '">' + tp + '</span>'
+                '<div class="msg-detail">' + detail_safe + '</div>'
+                '</div>\n')
+
+        if not msg_html:
+            msg_html = (
+                '<div class="empty-msg">'
+                '<svg viewBox="0 0 48 48" fill="none">'
+                '<rect x="6" y="8" width="36" height="32" rx="3" stroke="currentColor" stroke-width="2"/>'
+                '<line x1="12" y1="16" x2="36" y2="16" stroke="currentColor" stroke-width="2"/>'
+                '<line x1="12" y1="22" x2="30" y2="22" stroke="currentColor" stroke-width="2"/>'
+                '<line x1="12" y1="28" x2="24" y2="28" stroke="currentColor" stroke-width="2"/>'
+                '</svg>No messages yet</div>')
+
+        body = (
+            '<div class="header"><h2>Messages</h2>'
+            '<a class="btn-refresh" href="ev://refresh">Refresh</a></div>\n'
+            + stats_html + msg_html)
+        return self._html_base(body)
+
+    def _html_orders(self):
+        orders = _build_order_list()
+        rows = ""
+        for o in orders[:100]:
+            t = o.get("time", "")[-16:] if len(o.get("time", "")) >= 16 else o.get("time", "")
+            amt_display = "CNY{:.2f}".format(o.get("amount", 0))
+            product_safe = o.get("product", "-")
+            product_safe = product_safe.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            redeem_safe = o.get("redeem", "-")
+            redeem_safe = redeem_safe.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            rows += ("<tr><td>" + t + "</td>"
+                     "<td>" + product_safe + "</td>"
+                     "<td>" + amt_display + "</td>"
+                     "<td>" + redeem_safe + "</td></tr>\n")
+        if not rows:
+            rows = ('<tr><td colspan="4" style="text-align:center;padding:40px;color:#86868b">'
+                    'No orders</td></tr>')
+        table = ('<table><thead><tr>'
+                 '<th>Time</th><th>Product</th><th>Amount</th><th>Redeem Code</th>'
+                 '</tr></thead><tbody>' + rows + '</tbody></table>')
+        body = ('<div class="header"><h2>Order List</h2>'
+                '<a class="btn-refresh" href="ev://refresh">Refresh</a></div>\n' + table)
+        return self._html_base(body)
+
+    def _html_trend(self):
+        dates, counts, amounts = _build_trend_data(30)
+        dates_js = json.dumps(list(dates))
+        counts_js = json.dumps(list(counts))
+        amounts_js = json.dumps(list(amounts))
+        js_inject = """
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded',function(){
+  var ctx=document.getElementById('trendChart');
+  if(!ctx)return;
+  new Chart(ctx.getContext('2d'),{
+    type:'bar',
+    data:{
+      labels:""" + dates_js + """,
+      datasets:[
+        {label:'Orders',data:""" + counts_js + """,backgroundColor:'rgba(0,113,227,0.7)',borderColor:'rgba(0,113,227,1)',borderWidth:1,borderRadius:3,yAxisID:'y'},
+        {label:'CNY',data:""" + amounts_js + """,type:'line',borderColor:'rgba(255,69,58,1)',backgroundColor:'rgba(255,69,58,0.1)',borderWidth:2,pointRadius:3,pointBackgroundColor:'rgba(255,69,58,1)',tension:0.3,fill:true,yAxisID:'y1'}
+      ]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{position:'top',labels:{usePointStyle:true,padding:20}}},
+      scales:{
+        y:{type:'linear',position:'left',title:{display:true,text:'Orders'},beginAtZero:true,ticks:{stepSize:1}},
+        y1:{type:'linear',position:'right',title:{display:true,text:'CNY'},beginAtZero:true,grid:{drawOnChartArea:false}}
+      }
+    }
+  });
+});
+</script>"""
+        body = ('<div class="header"><h2>30-Day Trend</h2>'
+                '<a class="btn-refresh" href="ev://refresh">Refresh</a></div>\n'
+                '<div class="chart-wrap"><canvas id="trendChart"></canvas></div>')
+        return self._html_base(body, js_inject)
+
+    def _html_visitor(self):
+        visitors = _build_visitor_list()
+        rows = ""
+        for v in visitors[:100]:
+            t = v.get("time", "")[-16:] if len(v.get("time", "")) >= 16 else v.get("time", "")
+            page = v.get("page", "-")
+            page_safe = page.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+            ref = v.get("referrer", "-")
+            ref_safe = ref.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+            ip = v.get("ip", "-")
+            rows += ("<tr><td>" + t + "</td>"
+                     "<td>" + page_safe + "</td>"
+                     "<td>" + ref_safe + "</td>"
+                     "<td>" + ip + "</td></tr>\n")
+        if not rows:
+            rows = ('<tr><td colspan="4" style="text-align:center;padding:40px;color:#86868b">'
+                    'No visitor data</td></tr>')
+        table = ('<table><thead><tr>'
+                 '<th>Time</th><th>Page URL</th><th>Referrer</th><th>IP</th>'
+                 '</tr></thead><tbody>' + rows + '</tbody></table>')
+        body = ('<div class="header"><h2>Visitor Log</h2>'
+                '<a class="btn-refresh" href="ev://refresh">Refresh</a></div>\n' + table)
+        return self._html_base(body)
+
+    def _switch_page(self, index):
+        if _HAS_WEBKIT and self._webview:
+            self._webview.setHidden_(index >= 4)
+        if self._settings_page:
+            self._settings_page.setHidden_(index != 4)
+        self._current_tab = index
+        if index < 4 and _HAS_WEBKIT and self._webview:
+            self._load_web_page(index)
+
+    def _load_web_page(self, index):
+        if index == 0:
+            html = self._html_messages()
+        elif index == 1:
+            html = self._html_orders()
+        elif index == 2:
+            html = self._html_trend()
+        else:
+            html = self._html_visitor()
+        self._webview.loadHTMLString_baseURL_(html, None)
+
+    def toggleAutoStart_(self, sender):
+        enabled = (sender.state() == NSOnState)
+        if enabled:
+            ensure_auto_start()
+        else:
+            disable_auto_start()
+        new_state = get_auto_start()
+        if self._auto_start_btn:
+            self._auto_start_btn.setState_(NSOnState if new_state else NSOffState)
+        if self._auto_start_label:
+            self._auto_start_label.setStringValue_(
+                "Status: " + ("ON" if new_state else "OFF"))
+
+    def windowWillClose_(self, notification):
+        NSApplication.sharedApplication().setActivationPolicy_(
+            NSApplicationActivationPolicyAccessory)
+
+    def _refresh_content(self):
+        if self._auto_start_btn:
+            self._auto_start_btn.setState_(
+                NSOnState if get_auto_start() else NSOffState)
+        if self._auto_start_label:
+            self._auto_start_label.setStringValue_(
+                "Status: " + ("ON" if get_auto_start() else "OFF"))
+        if _HAS_WEBKIT and self._webview and not self._webview.isHidden():
+            self._load_web_page(self._current_tab).setAutoresizingMask_(NSViewWidthSizable)
         scroll.setDocumentView_(tv)
         container.addSubview_(scroll)
         self._msg_text = tv
