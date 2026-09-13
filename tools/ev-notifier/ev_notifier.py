@@ -18,6 +18,12 @@ except ImportError:
     _HAS_APPKIT = False
 
 try:
+    import webview as _webview_lib
+    _HAS_WEBVIEW = True
+except ImportError:
+    _HAS_WEBVIEW = False
+
+try:
     from WebKit import WebView
     _HAS_WEBKIT = True
 except ImportError:
@@ -1535,26 +1541,44 @@ class DashboardWindow:
         self._webview = None
         self._msg_text = None
         self._current_page = "messages"
+        self._webview_thread = None
         _debug_log("DashboardWindow.__init__")
 
     def show(self):
-        _debug_log(f"show() called")
-        print(f"[DEBUG] show() called")
+        _debug_log("show() called, _HAS_WEBVIEW=%s" % str(_HAS_WEBVIEW))
+        html = self._build_current_html()
+        html_path = os.path.expanduser("~/.ev_dashboard.html")
+        with open(html_path, "w") as f:
+            f.write(html)
+        _debug_log("HTML written to %s, len=%d" % (html_path, len(html)))
+
+        if not _HAS_WEBVIEW:
+            _debug_log("pywebview not available, fallback to browser")
+            try:
+                from Foundation import NSURL
+                from AppKit import NSWorkspace
+                file_url = NSURL.fileURLWithPath_(html_path)
+                NSWorkspace.sharedWorkspace().openURL_(file_url)
+            except Exception as e:
+                _debug_log("ERROR in show fallback: %s" % e)
+            return
+
+        script = (
+            "import webview, sys\n"
+            "with open(%r, 'r') as f:\n"
+            "    html = f.read()\n"
+            "window = webview.create_window(%r, html=html, "
+            "width=1100, height=720, min_size=(900, 560), "
+            "resizable=True, confirm_close=False)\n"
+            "webview.start(debug=False)\n"
+        ) % (html_path, f"Ev Notifier {VERSION}")
         try:
-            html = self._build_current_html()
-            html_path = os.path.expanduser("~/.ev_dashboard.html")
-            with open(html_path, "w") as f:
-                f.write(html)
-            _debug_log(f"HTML written to {html_path}, len={len(html)}")
-            from Foundation import NSURL
-            from AppKit import NSWorkspace
-            file_url = NSURL.fileURLWithPath_(html_path)
-            NSWorkspace.sharedWorkspace().openURL_(file_url)
-            _debug_log("Opened in browser")
+            subprocess.Popen([sys.executable, "-c", script],
+                             stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL)
+            _debug_log("webview subprocess launched")
         except Exception as e:
-            _debug_log(f"ERROR in show: {e}")
-            import traceback
-            traceback.print_exc()
+            _debug_log("ERROR launching webview subprocess: %s" % e)
 
     def _create_window(self):
         rect = NSMakeRect(100, 100, 1100, 720)
