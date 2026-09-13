@@ -1665,7 +1665,7 @@ class DashboardWindow:
                 if item["id"] == "messages" and _new_msg_count > 0:
                     badge_html = f'<span class="nav-badge">{min(_new_msg_count, 99)}</span>'
                 nav_html += (
-                    f'<a class="nav-item {active_cls}" href="#">'
+                    f'<a class="nav-item {active_cls}" href="#" data-tab="{item["id"]}">'
                     f'<span class="nav-icon">{item["icon"]}</span>'
                     f'<span>{item["label"]}</span>'
                     f'{badge_html}'
@@ -2146,19 +2146,44 @@ document.addEventListener('DOMContentLoaded',function(){{
 
     def _build_current_html(self):
         page = self._current_page
-        if page == "messages":
-            return self._html_messages()
-        elif page == "orders":
-            return self._html_orders()
-        elif page == "visitors":
-            return self._html_visitors()
-        elif page == "trend":
-            return self._html_trend()
-        elif page == "devices":
-            return self._html_devices()
-        elif page == "settings":
-            return self._html_settings()
-        return self._html_messages()
+        tabs = [
+            ("messages", self._html_messages()),
+            ("orders", self._html_orders()),
+            ("visitors", self._html_visitors()),
+            ("trend", self._html_trend()),
+            ("devices", self._html_devices()),
+            ("settings", self._html_settings()),
+        ]
+        tab_html = ""
+        for tid, body in tabs:
+            display = "block" if tid == page else "none"
+            tab_html += f'<div class="tab-content" id="tab-{tid}" style="display:{display}">{body}</div>'
+        scripts = """
+<script>
+function switchTab(tabId) {
+    var all = document.querySelectorAll('.tab-content');
+    all.forEach(function(el) { el.style.display = 'none'; });
+    var target = document.getElementById('tab-' + tabId);
+    if (target) target.style.display = 'block';
+    var navs = document.querySelectorAll('.nav-item');
+    navs.forEach(function(el) { el.classList.remove('active'); });
+    var active = document.querySelector('.nav-item[data-tab="' + tabId + '"]');
+    if (active) active.classList.add('active');
+}
+document.addEventListener('DOMContentLoaded', function() {
+    var links = document.querySelectorAll('.nav-item');
+    links.forEach(function(link) {
+        var tabId = link.getAttribute('data-tab');
+        if (tabId) {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                switchTab(tabId);
+            });
+        }
+    });
+});
+</script>"""
+        return self._html_wrap(tab_html, "消息中心", "", scripts=scripts)
 
     def windowWillClose_(self, notification):
         NSApplication.sharedApplication().setActivationPolicy_(
