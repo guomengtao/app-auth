@@ -20,13 +20,13 @@ async function pushToStream(type, payload) {
     console.log("[visit:stream] pushToStream: no Upstash config, skip");
     return;
   }
-  var url = upstashUrl.replace(/\/$/, "") + "/xadd/auth:notifications:stream/*";
   var msg = { ts: Math.floor(Date.now() / 1000), type: type, payload: payload || {} };
+  var dataStr = JSON.stringify(msg);
+  var url = upstashUrl.replace(/\/$/, "") + "/xadd/auth:notifications:stream/*/data/" + encodeURIComponent(dataStr);
   try {
     var r = await fetch(url, {
       method: "POST",
-      headers: { "Authorization": "Bearer " + upstashToken, "Content-Type": "application/json" },
-      body: JSON.stringify({ data: JSON.stringify(msg) }),
+      headers: { "Authorization": "Bearer " + upstashToken },
       signal: AbortSignal.timeout(5000),
     });
     var t = await r.text();
