@@ -1,8 +1,8 @@
-"""Ev Notifier v1.5.0 - Professional Dashboard UI + Advanced Visitor Tracking"""
+"""Ev Notifier v1.3.0 - Professional Dashboard UI + Advanced Visitor Tracking"""
 import json, os, re, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib
 from datetime import datetime, timedelta
 
-VERSION = "v1.5.0"
+VERSION = "v1.3.0"
 
 try:
     from AppKit import (NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyRegular,
@@ -34,7 +34,7 @@ DOTENV = [
 REST_API_URL = None
 UPSTASH_TOKEN = None
 STREAM_KEY = "auth:notifications:stream"
-LAST_ID_FILE = os.path.expanduser("~/.ev_last_id_v1.5.0")
+LAST_ID_FILE = os.path.expanduser("~/.ev_last_id_v1.3.0")
 RECEIVED_FILE = os.path.expanduser("~/.ev_received.json")
 POLL_LOG_FILE = os.path.expanduser("~/.ev_poll_log.json")
 MESSAGES_FILE = os.path.expanduser("~/.ev_messages.json")
@@ -45,16 +45,6 @@ LAUNCH_AGENT_DIR = os.path.expanduser("~/Library/LaunchAgents")
 LAUNCH_AGENT_PATH = os.path.join(LAUNCH_AGENT_DIR, f"{LAUNCH_AGENT_LABEL}.plist")
 
 _MAX_SEEN = 1000
-
-
-def _safe_str(s):
-    if s is None:
-        return ""
-    s = str(s)
-    s = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
-    s = s.replace("{", "&#123;").replace("}", "&#125;")
-    return s
-
 
 _status = "starting"
 _last_msg_ts = 0
@@ -724,20 +714,20 @@ def _build_visitor_stats():
 
 _DASH_CSS = """
 :root {
-  --bg: #f5f7fa;
-  --sidebar-bg: #0f1419;
-  --sidebar-hover: #1c2128;
-  --sidebar-active: #3b82f6;
-  --sidebar-text: #8b949e;
-  --sidebar-text-active: #f0f6fc;
+  --bg: #f0f2f5;
+  --sidebar-bg: #1a1d24;
+  --sidebar-hover: #2a2e38;
+  --sidebar-active: #2a6df4;
+  --sidebar-text: #9ba1ad;
+  --sidebar-text-active: #ffffff;
   --card-bg: #ffffff;
-  --text: #1f2937;
+  --text: #1d1d1f;
   --text-secondary: #6b7280;
   --text-tertiary: #9ca3af;
-  --blue: #3b82f6;
-  --blue-light: #dbeafe;
-  --green: #10b981;
-  --green-light: #d1fae5;
+  --blue: #2a6df4;
+  --blue-light: #e8f0fe;
+  --green: #22c55e;
+  --green-light: #dcfce7;
   --orange: #f59e0b;
   --orange-light: #fef3c7;
   --red: #ef4444;
@@ -745,42 +735,35 @@ _DASH_CSS = """
   --purple: #8b5cf6;
   --purple-light: #ede9fe;
   --border: #e5e7eb;
-  --border-light: #f3f4f6;
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -1px rgba(0,0,0,0.04);
-  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -2px rgba(0,0,0,0.04);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-lg: 0 8px 30px rgba(0,0,0,0.12);
   --radius-sm: 6px;
   --radius: 10px;
   --radius-lg: 14px;
-  --radius-xl: 20px;
-  --sidebar-w: 240px;
-  --topbar-h: 64px;
+  --sidebar-w: 220px;
+  --topbar-h: 56px;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 html, body {
   height: 100%;
-  min-height: 100vh;
   overflow: hidden;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', 'Segoe UI', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
   background: var(--bg);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-size: 13px;
-  line-height: 1.5;
-  display: flex;
-  flex-direction: column;
 }
 
 .layout {
   display: flex;
   height: 100vh;
-  background: linear-gradient(135deg, #f5f7fa 0%, #ebf0f5 100%);
 }
 
 /* =================== SIDEBAR =================== */
@@ -791,155 +774,139 @@ body {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  box-shadow: 2px 0 20px rgba(0,0,0,0.15);
-  z-index: 10;
 }
 
 .sidebar-brand {
-  padding: 24px 20px 20px;
+  padding: 20px 20px 24px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 
 .brand-logo {
-  width: 36px;
-  height: 36px;
-  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%);
-  border-radius: 10px;
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, var(--blue), var(--purple));
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 15px;
+  font-size: 14px;
   color: white;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
 }
 
 .brand-text {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
-  color: #f0f6fc;
+  color: #fff;
   letter-spacing: -0.01em;
 }
 
 .brand-ver {
   font-size: 10px;
   color: var(--sidebar-text);
-  opacity: 0.7;
-  margin-top: 2px;
+  opacity: 0.6;
+  margin-top: 1px;
 }
 
 .sidebar-nav {
   flex: 1;
-  padding: 16px 12px;
+  padding: 12px 10px;
   overflow-y: auto;
 }
 
 .nav-group-label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: rgba(255,255,255,0.3);
-  padding: 20px 14px 8px;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.35);
+  padding: 16px 14px 6px;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  margin-bottom: 4px;
-  border-radius: 10px;
+  gap: 10px;
+  padding: 9px 12px;
+  margin-bottom: 2px;
+  border-radius: 8px;
   cursor: pointer;
   color: var(--sidebar-text);
   font-size: 13px;
   font-weight: 500;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.15s ease;
   text-decoration: none;
 }
 
 .nav-item:hover {
   background: var(--sidebar-hover);
-  color: #f0f6fc;
+  color: #fff;
 }
 
 .nav-item.active {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.15));
+  background: var(--sidebar-active);
   color: var(--sidebar-text-active);
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
 }
 
 .nav-icon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.nav-icon svg { width: 18px; height: 18px; }
+.nav-icon svg { width: 16px; height: 16px; }
 
 .nav-badge {
   margin-left: auto;
-  background: linear-gradient(135deg, #ef4444, #f97316);
+  background: var(--red);
   color: #fff;
   font-size: 10px;
   font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 12px;
-  min-width: 20px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  min-width: 18px;
   text-align: center;
-  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
 }
 
 .sidebar-footer {
-  padding: 16px;
+  padding: 14px 16px;
   border-top: 1px solid rgba(255,255,255,0.06);
 }
 
 .status-bar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
+  gap: 8px;
+  padding: 10px 12px;
   background: rgba(255,255,255,0.04);
-  border-radius: 10px;
-  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 8px;
 }
 
 .status-dot {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--red);
-  box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
 }
 
-.status-dot.online { 
-  background: var(--green); 
-  box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
-  animation: pulse 2s infinite; 
-}
-.status-dot.retry { 
-  background: var(--orange); 
-  box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
-  animation: pulse 1s infinite; 
-}
+.status-dot.online { background: var(--green); animation: pulse 2s infinite; }
+.status-dot.retry { background: var(--orange); animation: pulse 1s infinite; }
 
 .status-label {
   font-size: 12px;
-  color: #f0f6fc;
+  color: #fff;
   flex: 1;
-  font-weight: 500;
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.6; transform: scale(0.95); }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 
 /* =================== MAIN CONTENT =================== */
@@ -952,172 +919,126 @@ body {
 
 .topbar {
   height: var(--topbar-h);
-  background: rgba(255,255,255,0.8);
-  backdrop-filter: blur(12px);
+  background: #fff;
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 32px;
+  padding: 0 28px;
   flex-shrink: 0;
 }
 
 .page-title {
-  font-size: 20px;
+  font-size: 17px;
   font-weight: 600;
-  letter-spacing: -0.02em;
-  color: var(--text);
+  letter-spacing: -0.01em;
 }
 
 .page-subtitle {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-secondary);
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 .topbar-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
-}
-
-.version-badge {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 5px 12px;
-  border-radius: 20px;
-  background: linear-gradient(135deg, #ede9fe, #ddd6fe);
-  color: #7c3aed;
-  letter-spacing: 0.03em;
-  white-space: nowrap;
+  gap: 10px;
 }
 
 .btn {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--text);
   background: #fff;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 8px 16px;
+  border-radius: 8px;
+  padding: 7px 14px;
   cursor: pointer;
   text-decoration: none;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.15s ease;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  gap: 6px;
 }
 
-.btn:hover { 
-  background: #f9fafb; 
-  border-color: #d1d5db; 
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0,0,0,0.06);
-}
-.btn:active {
-  transform: translateY(0);
-}
-
+.btn:hover { background: #f9fafb; border-color: #d1d5db; }
 .btn-primary {
-  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  background: var(--blue);
   color: #fff;
-  border-color: transparent;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  border-color: var(--blue);
 }
-.btn-primary:hover { 
-  background: linear-gradient(135deg, #2563eb, #1d4ed8); 
-  border-color: transparent;
-}
+.btn-primary:hover { background: #1a5ce3; border-color: #1a5ce3; }
 
 .content {
   flex: 1;
   overflow-y: auto;
-  padding: 28px 32px;
+  padding: 24px 28px;
 }
 
 .content::-webkit-scrollbar { width: 8px; }
 .content::-webkit-scrollbar-track { background: transparent; }
-.content::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-.content::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+.content::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+.content::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
 
 /* =================== STAT CARDS =================== */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
 }
 
 .stat-card {
   background: var(--card-bg);
-  border-radius: var(--radius-lg);
-  padding: 20px 22px;
+  border-radius: var(--radius);
+  padding: 18px 20px;
   box-shadow: var(--shadow-sm);
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--border);
   display: flex;
   align-items: flex-start;
-  gap: 16px;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-}
-
-.stat-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--blue), var(--purple));
-  opacity: 0;
-  transition: opacity 0.25s ease;
+  gap: 14px;
+  transition: box-shadow 0.2s ease, transform 0.15s ease;
 }
 
 .stat-card:hover {
-  box-shadow: var(--shadow-lg);
-  transform: translateY(-3px);
-  border-color: var(--blue);
-}
-
-.stat-card:hover::before {
-  opacity: 1;
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }
 
 .stat-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
 
-.stat-icon.blue { background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #2563eb; }
-.stat-icon.green { background: linear-gradient(135deg, #d1fae5, #a7f3d0); color: #059669; }
-.stat-icon.orange { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #d97706; }
-.stat-icon.purple { background: linear-gradient(135deg, #ede9fe, #ddd6fe); color: #7c3aed; }
-.stat-icon.red { background: linear-gradient(135deg, #fee2e2, #fecaca); color: #dc2626; }
+.stat-icon.blue { background: var(--blue-light); color: var(--blue); }
+.stat-icon.green { background: var(--green-light); color: var(--green); }
+.stat-icon.orange { background: var(--orange-light); color: var(--orange); }
+.stat-icon.purple { background: var(--purple-light); color: var(--purple); }
+.stat-icon.red { background: var(--red-light); color: var(--red); }
 
-.stat-icon svg { width: 22px; height: 22px; }
+.stat-icon svg { width: 20px; height: 20px; }
 
 .stat-body { flex: 1; min-width: 0; }
 
 .stat-value {
-  font-size: 28px;
+  font-size: 26px;
   font-weight: 700;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
   color: var(--text);
-  line-height: 1.2;
+  line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
 
-.stat-value.small { font-size: 15px; font-weight: 600; }
+.stat-value.small { font-size: 14px; font-weight: 600; }
 
 .stat-label {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-secondary);
   margin-top: 4px;
   font-weight: 500;
@@ -1126,105 +1047,106 @@ body {
 /* =================== CARDS / PANELS =================== */
 .panel {
   background: var(--card-bg);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
-  border: 1px solid var(--border-light);
-  margin-bottom: 20px;
+  border: 1px solid var(--border);
+  margin-bottom: 16px;
   overflow: hidden;
 }
 
 .panel-header {
-  padding: 18px 24px;
-  border-bottom: 1px solid var(--border-light);
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
 .panel-title {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text);
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .panel-title-icon {
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  background: linear-gradient(135deg, #dbeafe, #ede9fe);
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  background: var(--blue-light);
   color: var(--blue);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.panel-title-icon svg { width: 14px; height: 14px; }
+.panel-title-icon svg { width: 12px; height: 12px; }
 
-.panel-body { padding: 20px 24px; }
+.panel-body { padding: 16px 20px; }
 
 /* =================== MESSAGE LIST =================== */
 .msg-list { display: flex; flex-direction: column; }
 
 .msg-card {
-  padding: 16px 24px;
-  border-bottom: 1px solid var(--border-light);
+  padding: 14px 20px;
+  border-bottom: 1px solid #f3f4f6;
   display: flex;
   align-items: flex-start;
-  gap: 16px;
-  transition: all 0.15s ease;
+  gap: 14px;
+  transition: background 0.15s ease;
 }
 
 .msg-card:last-child { border-bottom: none; }
-.msg-card:hover { background: linear-gradient(90deg, #f8fafc, #f1f5f9); }
+.msg-card:hover { background: #f9fafb; }
 
 .msg-indicator {
-  width: 4px;
-  height: 40px;
+  width: 3px;
+  height: 36px;
   border-radius: 2px;
   flex-shrink: 0;
+  margin-top: 2px;
   align-self: center;
 }
 
-.msg-indicator.type-order { background: linear-gradient(180deg, #10b981, #059669); }
-.msg-indicator.type-activate { background: linear-gradient(180deg, #f59e0b, #d97706); }
-.msg-indicator.type-visit { background: linear-gradient(180deg, #8b5cf6, #7c3aed); }
-.msg-indicator.type-recover { background: linear-gradient(180deg, #3b82f6, #2563eb); }
-.msg-indicator.type-other { background: linear-gradient(180deg, #9ca3af, #6b7280); }
+.msg-indicator.type-order { background: var(--green); }
+.msg-indicator.type-activate { background: var(--orange); }
+.msg-indicator.type-visit { background: var(--purple); }
+.msg-indicator.type-recover { background: var(--blue); }
+.msg-indicator.type-other { background: var(--text-tertiary); }
 
 .msg-time {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-tertiary);
-  min-width: 130px;
+  min-width: 120px;
   font-variant-numeric: tabular-nums;
-  padding-top: 3px;
+  padding-top: 2px;
 }
 
 .msg-badge {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  padding: 4px 12px;
+  padding: 3px 10px;
   border-radius: 20px;
   white-space: nowrap;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
   flex-shrink: 0;
   align-self: flex-start;
 }
 
-.msg-badge.badge-order { background: linear-gradient(135deg, #d1fae5, #a7f3d0); color: #047857; }
-.msg-badge.badge-activate { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #b45309; }
-.msg-badge.badge-visit { background: linear-gradient(135deg, #ede9fe, #ddd6fe); color: #6d28d9; }
-.msg-badge.badge-recover { background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #1d4ed8; }
+.msg-badge.badge-order { background: var(--green-light); color: #15803d; }
+.msg-badge.badge-activate { background: var(--orange-light); color: #b45309; }
+.msg-badge.badge-visit { background: var(--purple-light); color: #6d28d9; }
+.msg-badge.badge-recover { background: var(--blue-light); color: #1d4ed8; }
 .msg-badge.badge-other { background: #f3f4f6; color: #4b5563; }
 
 .msg-detail {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text);
   flex: 1;
-  line-height: 1.6;
-  padding-top: 3px;
+  line-height: 1.5;
+  padding-top: 2px;
   word-break: break-all;
 }
 
@@ -1241,85 +1163,84 @@ thead { position: sticky; top: 0; z-index: 1; }
 
 th {
   text-align: left;
-  padding: 14px 24px;
+  padding: 12px 20px;
   font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   color: var(--text-secondary);
-  background: #f8fafc;
+  background: #fafafa;
   border-bottom: 1px solid var(--border);
   font-weight: 600;
 }
 
 td {
-  padding: 14px 24px;
-  font-size: 13px;
-  border-bottom: 1px solid var(--border-light);
+  padding: 13px 20px;
+  font-size: 12px;
+  border-bottom: 1px solid #f3f4f6;
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
 
 tr:last-child td { border-bottom: none; }
-tr:hover td { background: linear-gradient(90deg, #f8fafc, #f1f5f9); }
+tr:hover td { background: #f9fafb; }
 
-.amount { font-weight: 600; color: #059669; }
+.amount { font-weight: 600; color: var(--green); }
 
 /* =================== CHART =================== */
 .chart-wrap {
   background: var(--card-bg);
-  border-radius: var(--radius-lg);
-  padding: 28px;
+  border-radius: var(--radius);
+  padding: 24px;
   box-shadow: var(--shadow-sm);
-  border: 1px solid var(--border-light);
-  height: 420px;
+  border: 1px solid var(--border);
+  height: 400px;
 }
 
-.chart-wrap canvas { max-height: 380px; width: 100% !important; }
+.chart-wrap canvas { max-height: 360px; width: 100% !important; }
 
 /* =================== EMPTY STATE =================== */
 .empty-state {
   text-align: center;
-  padding: 80px 24px;
+  padding: 80px 20px;
   color: var(--text-tertiary);
 }
 
 .empty-icon {
-  width: 72px;
-  height: 72px;
-  margin: 0 auto 20px;
-  background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 16px;
+  background: #f3f4f6;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.04);
 }
 
-.empty-icon svg { width: 32px; height: 32px; opacity: 0.35; }
+.empty-icon svg { width: 28px; height: 28px; opacity: 0.4; }
 
 .empty-title {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
   color: var(--text-secondary);
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .empty-desc {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-tertiary);
 }
 
 /* =================== VISITOR SPECIFIC =================== */
 .url-full {
-  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
-  font-size: 12px;
+  font-family: 'SF Mono', Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
   color: var(--text-secondary);
   word-break: break-all;
-  line-height: 1.6;
+  line-height: 1.5;
 }
 
 .url-hostname {
-  color: #2563eb;
+  color: var(--blue);
   font-weight: 600;
 }
 
@@ -1328,46 +1249,46 @@ tr:hover td { background: linear-gradient(90deg, #f8fafc, #f1f5f9); }
 .device-tag {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   font-size: 11px;
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 6px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 4px;
   background: #f3f4f6;
   color: var(--text-secondary);
 }
 
-.device-tag.iPhone { background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #2563eb; }
-.device-tag.Android { background: linear-gradient(135deg, #d1fae5, #a7f3d0); color: #059669; }
+.device-tag.iPhone { background: var(--blue-light); color: var(--blue); }
+.device-tag.Android { background: var(--green-light); color: #15803d; }
 .device-tag.Desktop { background: #f3f4f6; color: #4b5563; }
 
 .utm-box {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 6px;
+  margin-top: 4px;
 }
 
 .utm-tag {
   font-size: 10px;
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: 6px;
-  background: linear-gradient(135deg, #ede9fe, #ddd6fe);
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--purple-light);
   color: #6d28d9;
 }
 
-.bar-chart { display: flex; flex-direction: column; gap: 12px; }
+.bar-chart { display: flex; flex-direction: column; gap: 10px; }
 
 .bar-row {
   display: grid;
   grid-template-columns: 1fr 80px 40px;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 }
 
 .bar-label {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1375,21 +1296,21 @@ tr:hover td { background: linear-gradient(90deg, #f8fafc, #f1f5f9); }
 }
 
 .bar-track {
-  height: 8px;
-  background: linear-gradient(180deg, #f3f4f6, #e5e7eb);
-  border-radius: 4px;
+  height: 6px;
+  background: #f3f4f6;
+  border-radius: 3px;
   overflow: hidden;
 }
 
 .bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-  border-radius: 4px;
-  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(90deg, var(--blue), var(--purple));
+  border-radius: 3px;
+  transition: width 0.4s ease;
 }
 
 .bar-count {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text);
   text-align: right;
@@ -1397,83 +1318,60 @@ tr:hover td { background: linear-gradient(90deg, #f8fafc, #f1f5f9); }
 }
 
 /* =================== SETTINGS PAGE =================== */
-.settings-group { margin-bottom: 32px; }
+.settings-group { margin-bottom: 28px; }
 
 .settings-group-title {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   color: var(--text-tertiary);
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .settings-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
+  padding: 14px 18px;
   background: #fff;
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg);
-  margin-bottom: 10px;
-  transition: all 0.2s ease;
-}
-
-.settings-row:hover {
-  border-color: var(--blue);
-  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
 }
 
 .settings-row-label {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
 }
 
 .settings-row-desc {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-tertiary);
-  margin-top: 3px;
+  margin-top: 2px;
 }
 
 .settings-info {
   display: grid;
-  grid-template-columns: 150px 1fr;
-  gap: 12px 20px;
-  padding: 20px 24px;
+  grid-template-columns: 140px 1fr;
+  gap: 10px 16px;
+  padding: 16px 18px;
   background: #fff;
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 
 .settings-info-key {
   font-size: 12px;
   color: var(--text-tertiary);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .settings-info-val {
   font-size: 12px;
   color: var(--text);
-  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+  font-family: 'SF Mono', Menlo, monospace;
   word-break: break-all;
-}
-
-/* =================== RESPONSIVE =================== */
-@media (max-width: 1200px) {
-  .stats-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-@media (max-width: 900px) {
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  
-  .sidebar {
-    width: 200px;
-  }
 }
 """
 
@@ -1487,18 +1385,18 @@ _TYPE_STYLES = {
 }
 
 _MENU = [
-    {"id": "messages", "label": "消息", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>', "group": "main"},
-    {"id": "orders", "label": "订单列表", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>', "group": "main"},
-    {"id": "visitors", "label": "访客浏览", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>', "group": "main"},
-    {"id": "trend", "label": "走势图", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>', "group": "analytics"},
-    {"id": "devices", "label": "设备", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>', "group": "analytics"},
-    {"id": "settings", "label": "设置", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>', "group": "system"},
+    {"id": "messages", "label": "Messages", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>', "group": "main"},
+    {"id": "orders", "label": "Orders", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>', "group": "main"},
+    {"id": "visitors", "label": "Visitors", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>', "group": "main"},
+    {"id": "trend", "label": "Trend", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>', "group": "analytics"},
+    {"id": "devices", "label": "Devices", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>', "group": "analytics"},
+    {"id": "settings", "label": "Settings", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>', "group": "system"},
 ]
 
 _GROUP_LABELS = {
-    "main": "概览",
-    "analytics": "分析",
-    "system": "系统",
+    "main": "Overview",
+    "analytics": "Analytics",
+    "system": "System",
 }
 
 
@@ -1528,11 +1426,9 @@ class DashboardWindow:
         self._app = app_ref
         self._window = None
         self._webview = None
-        self._msg_text = None
         self._current_page = "messages"
 
     def show(self):
-        print(f"[DEBUG] show() called, _HAS_APPKIT={_HAS_APPKIT}, _HAS_WEBKIT={_HAS_WEBKIT}")
         if not _HAS_APPKIT:
             text = self._build_status_summary() + "\n\n" + self._build_messages_text()
             rumps.alert(f"Ev Notifier {VERSION}", text[:800])
@@ -1541,7 +1437,6 @@ class DashboardWindow:
             NSApplicationActivationPolicyRegular)
         if self._window is None:
             self._create_window()
-            print(f"[DEBUG] Window created, webview={self._webview}")
         self._refresh_content()
         self._window.makeKeyAndOrderFront_(None)
         NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
@@ -1569,30 +1464,12 @@ class DashboardWindow:
                 NSViewWidthSizable | NSViewHeightSizable)
             self._webview.setNavigationDelegate_(nav_delegate)
             self._window.contentView().addSubview_(self._webview)
-        else:
-            scroll = NSScrollView.alloc().initWithFrame_(
-                ((10, 10), (rect[1][0] - 20, rect[1][1] - 20)))
-            scroll.setHasVerticalScroller_(True)
-            scroll.setAutoresizingMask_(
-                NSViewWidthSizable | NSViewHeightSizable)
-            scroll.setBorderType_(1)
-            tv = NSTextView.alloc().initWithFrame_(
-                ((0, 0), (rect[1][0] - 20, rect[1][1] - 20)))
-            tv.setEditable_(False)
-            tv.setSelectable_(True)
-            tv.setVerticallyResizable_(True)
-            tv.setHorizontallyResizable_(False)
-            tv.setFont_(NSFont.fontWithName_size_("Menlo", 13))
-            tv.setAutoresizingMask_(NSViewWidthSizable)
-            scroll.setDocumentView_(tv)
-            self._msg_text = tv
-            self._window.contentView().addSubview_(scroll)
 
         self._window.center()
 
     def _build_status_summary(self):
         status_cn = "Connected" if _status == "connected" else ("Retrying..." if "retry" in _status else "Error")
-        return f"状态: {status_cn} | 消息: {_new_msg_count} | 版本: {VERSION}"
+        return f"Status: {status_cn} | Messages: {_new_msg_count} | Version: {VERSION}"
 
     def _build_messages_text(self):
         msgs = load_messages()
@@ -1670,7 +1547,7 @@ class DashboardWindow:
         return sidebar
 
     def _topbar_html(self, title, subtitle=""):
-        refresh_btn = '<a class="btn" href="ev://refresh"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>刷新</a>'
+        refresh_btn = '<a class="btn" href="ev://refresh"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Refresh</a>'
         sub_html = f'<div class="page-subtitle">{subtitle}</div>' if subtitle else ""
         return f"""
         <div class="topbar">
@@ -1678,19 +1555,16 @@ class DashboardWindow:
             <div class="page-title">{title}</div>
             {sub_html}
           </div>
-          <div class="topbar-actions">
-            <span class="version-badge">{VERSION}</span>
-            {refresh_btn}
-          </div>
+          <div class="topbar-actions">{refresh_btn}</div>
         </div>
         """
 
-    def _html_wrap(self, content, title, subtitle="", scripts=""):
+    def _html_wrap(self, content, title, subtitle=""):
         sidebar = self._sidebar_html()
         topbar = self._topbar_html(title, subtitle)
         return f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<style>{_DASH_CSS}</style>{scripts}</head>
+<style>{_DASH_CSS}</style></head>
 <body><div class="layout">{sidebar}<div class="main">{topbar}<div class="content">{content}</div></div></div></body></html>"""
 
     def _html_messages(self):
@@ -1704,23 +1578,23 @@ class DashboardWindow:
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
-            <div class="stat-body"><div class="stat-value">{_new_msg_count}</div><div class="stat-label">今日消息</div></div>
+            <div class="stat-body"><div class="stat-value">{_new_msg_count}</div><div class="stat-label">Messages Today</div></div>
           </div>
           <div class="stat-card">
             <div class="stat-icon {'green' if _status == 'connected' else 'orange'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
-            <div class="stat-body"><div class="stat-value small" style="color:{'var(--green)' if _status == 'connected' else 'var(--orange)'};">{"Online" if _status == "connected" else ("Reconnecting" if "retry" in _status else "Offline")}</div><div class="stat-label">连接状态</div></div>
+            <div class="stat-body"><div class="stat-value small" style="color:{'var(--green)' if _status == 'connected' else 'var(--orange)'};">{"Online" if _status == "connected" else ("Reconnecting" if "retry" in _status else "Offline")}</div><div class="stat-label">Connection</div></div>
           </div>
           <div class="stat-card">
             <div class="stat-icon orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
-            <div class="stat-body"><div class="stat-value">{total_server}</div><div class="stat-label">服务器总量</div></div>
+            <div class="stat-body"><div class="stat-value">{total_server}</div><div class="stat-label">Server Total</div></div>
           </div>
           <div class="stat-card">
             <div class="stat-icon purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
-            <div class="stat-body"><div class="stat-value">{local_cnt}</div><div class="stat-label">本地接收</div></div>
+            <div class="stat-body"><div class="stat-value">{local_cnt}</div><div class="stat-label">Local Received</div></div>
           </div>
           <div class="stat-card">
             <div class="stat-icon red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></div>
-            <div class="stat-body"><div class="stat-value">{_recovery_count_today}</div><div class="stat-label">恢复次数</div></div>
+            <div class="stat-body"><div class="stat-value">{_recovery_count_today}</div><div class="stat-label">Recoveries</div></div>
           </div>
         </div>"""
 
@@ -1740,24 +1614,24 @@ class DashboardWindow:
 
         msg_html = ""
         for t, tp, detail, css_cls, badge_cls in entries[:50]:
-            time_short = _safe_str(t[-16:] if len(t) >= 16 else t)
-            detail_safe = _safe_str(detail)
+            time_short = t[-16:] if len(t) >= 16 else t
+            detail_safe = (detail.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;"))
             msg_html += (
                 f'<div class="msg-card">'
                 f'<div class="msg-indicator {css_cls}"></div>'
                 f'<span class="msg-time">{time_short}</span>'
-                f'<span class="msg-badge {badge_cls}">{_safe_str(tp)}</span>'
+                f'<span class="msg-badge {badge_cls}">{tp}</span>'
                 f'<div class="msg-detail">{detail_safe}</div>'
                 f'</div>\n')
 
         if not msg_html:
             msg_html = ('<div class="empty-state">'
                         '<div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="8" x2="17" y2="8"/><line x1="7" y1="12" x2="14" y2="12"/><line x1="7" y1="16" x2="11" y2="16"/></svg></div>'
-                        '<div class="empty-title">暂无消息</div>'
-                        '<div class="empty-desc">等待通知...</div></div>')
+                        '<div class="empty-title">No messages yet</div>'
+                        '<div class="empty-desc">Waiting for incoming notifications...</div></div>')
 
-        body = f'<div class="panel"><div class="panel-header"><div class="panel-title"><div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>活动流</div></div><div class="msg-list">{msg_html}</div></div>'
-        return self._html_wrap(body, "消息", "实时通知流")
+        body = f'<div class="panel"><div class="panel-header"><div class="panel-title"><div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>Activity Feed</div></div><div class="msg-list">{msg_html}</div></div>'
+        return self._html_wrap(body, "Messages", "Real-time notification stream")
 
     def _html_orders(self):
         orders = _build_order_list()
@@ -1771,11 +1645,11 @@ class DashboardWindow:
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
-            <div class="stat-body"><div class="stat-value">{total_count}</div><div class="stat-label">订单总量</div></div>
+            <div class="stat-body"><div class="stat-value">{total_count}</div><div class="stat-label">Total Orders</div></div>
           </div>
           <div class="stat-card">
             <div class="stat-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-            <div class="stat-body"><div class="stat-value amount">CNY{total_amount:.2f}</div><div class="stat-label">收入总额</div></div>
+            <div class="stat-body"><div class="stat-value amount">CNY{total_amount:.2f}</div><div class="stat-label">Total Revenue</div></div>
           </div>
           <div class="stat-card">
             <div class="stat-icon orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
@@ -1783,7 +1657,7 @@ class DashboardWindow:
           </div>
           <div class="stat-card">
             <div class="stat-icon purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div>
-            <div class="stat-body"><div class="stat-value amount">CNY{today_amount:.2f}</div><div class="stat-label">今日收入</div></div>
+            <div class="stat-body"><div class="stat-value amount">CNY{today_amount:.2f}</div><div class="stat-label">Today Revenue</div></div>
           </div>
         </div>"""
 
@@ -1791,19 +1665,19 @@ class DashboardWindow:
         for o in orders[:100]:
             t = o.get("time", "")[-16:] if len(o.get("time", "")) >= 16 else o.get("time", "")
             amt_display = f"CNY{o.get('amount', 0):.2f}"
-            product_safe = _safe_str(o.get("product", "-"))
-            redeem_safe = _safe_str(o.get("redeem", "-"))
+            product_safe = o.get("product", "-").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            redeem_safe = o.get("redeem", "-").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
             rows += (f"<tr><td>{t}</td><td>{product_safe}</td>"
                      f'<td class="amount">{amt_display}</td><td>{redeem_safe}</td></tr>\n')
         if not rows:
             rows = ('<tr><td colspan="4" style="text-align:center;padding:60px">'
                     '<div class="empty-state" style="padding:0">'
                     '<div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/></svg></div>'
-                    '<div class="empty-title">暂无订单</div>'
-                    '<div class="empty-desc">等待订单数据...</div></div></td></tr>')
+                    '<div class="empty-title">No orders</div>'
+                    '<div class="empty-desc">Waiting for order data...</div></div></td></tr>')
 
-        table = f'<div class="panel"><div class="panel-header"><div class="panel-title"><div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>订单列表</div></div><div class="table-wrap"><table><thead><tr><th>时间</th><th>产品</th><th>金额</th><th>兑换码</th></tr></thead><tbody>{rows}</tbody></table></div></div>'
-        return self._html_wrap(stats_html + table, "Orders", "收入追踪")
+        table = f'<div class="panel"><div class="panel-header"><div class="panel-title"><div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>Order List</div></div><div class="table-wrap"><table><thead><tr><th>Time</th><th>Product</th><th>Amount</th><th>Redeem Code</th></tr></thead><tbody>{rows}</tbody></table></div></div>'
+        return self._html_wrap(stats_html + table, "Orders", "Sales revenue tracking")
 
     def _html_trend(self):
         dates, counts, amounts = _build_trend_data(30)
@@ -1819,19 +1693,19 @@ class DashboardWindow:
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></div>
-            <div class="stat-body"><div class="stat-value">{total_orders}</div><div class="stat-label">30天订单</div></div>
+            <div class="stat-body"><div class="stat-value">{total_orders}</div><div class="stat-label">30-Day Orders</div></div>
           </div>
           <div class="stat-card">
             <div class="stat-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-            <div class="stat-body"><div class="stat-value amount">CNY{total_amount:.0f}</div><div class="stat-label">30天收入</div></div>
+            <div class="stat-body"><div class="stat-value amount">CNY{total_amount:.0f}</div><div class="stat-label">30-Day Revenue</div></div>
           </div>
           <div class="stat-card">
             <div class="stat-icon orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
-            <div class="stat-body"><div class="stat-value small">{avg_orders:.1f}/day</div><div class="stat-label">日均订单</div></div>
+            <div class="stat-body"><div class="stat-value small">{avg_orders:.1f}/day</div><div class="stat-label">Avg Daily Orders</div></div>
           </div>
           <div class="stat-card">
             <div class="stat-icon purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
-            <div class="stat-body"><div class="stat-value small amount">CNY{avg_revenue:.0f}/day</div><div class="stat-label">日均收入</div></div>
+            <div class="stat-body"><div class="stat-value small amount">CNY{avg_revenue:.0f}/day</div><div class="stat-label">Avg Daily Revenue</div></div>
           </div>
         </div>"""
 
@@ -1863,7 +1737,7 @@ document.addEventListener('DOMContentLoaded',function(){{
 }});
 </script>"""
         chart = f'<div class="chart-wrap"><canvas id="trendChart"></canvas></div>'
-        return self._html_wrap(stats_html + chart, "30天走势", "订单与收入分析", scripts=js_inject)
+        return self._html_wrap(stats_html + chart, "30-Day Trend", "Orders & revenue analytics") + js_inject
 
     def _html_visitors(self):
         visitors = load_visitors()
@@ -1873,7 +1747,7 @@ document.addEventListener('DOMContentLoaded',function(){{
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-icon purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
-            <div class="stat-body"><div class="stat-value">{stats['total']}</div><div class="stat-label">总访问量</div></div>
+            <div class="stat-body"><div class="stat-value">{stats['total']}</div><div class="stat-label">Total Visits</div></div>
           </div>
           <div class="stat-card">
             <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
@@ -1881,11 +1755,11 @@ document.addEventListener('DOMContentLoaded',function(){{
           </div>
           <div class="stat-card">
             <div class="stat-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
-            <div class="stat-body"><div class="stat-value">{stats['unique_ips']}</div><div class="stat-label">独立IP</div></div>
+            <div class="stat-body"><div class="stat-value">{stats['unique_ips']}</div><div class="stat-label">Unique IPs</div></div>
           </div>
           <div class="stat-card">
             <div class="stat-icon orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
-            <div class="stat-body"><div class="stat-value">{stats['unique_hosts']}</div><div class="stat-label">独立主机</div></div>
+            <div class="stat-body"><div class="stat-value">{stats['unique_hosts']}</div><div class="stat-label">Unique Hosts</div></div>
           </div>
         </div>"""
 
@@ -1895,14 +1769,14 @@ document.addEventListener('DOMContentLoaded',function(){{
             rows = ""
             for page_url, count in stats["top_pages"]:
                 pct = (count / max_count) * 100 if max_count else 0
-                p = _safe_str(page_url)
+                p = page_url.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                 rows += f'<div class="bar-row"><span class="bar-label" title="{p}">{p}</span><div class="bar-track"><div class="bar-fill" style="width:{pct:.0f}%"></div></div><span class="bar-count">{count}</span></div>\n'
             top_pages_html = f"""
             <div class="panel">
               <div class="panel-header">
                 <div class="panel-title">
                   <div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
-                  热门页面
+                  Top Pages
                 </div>
               </div>
               <div class="panel-body"><div class="bar-chart">{rows}</div></div>
@@ -1914,7 +1788,7 @@ document.addEventListener('DOMContentLoaded',function(){{
             dev_rows = ""
             for dev, count in stats["top_devices"]:
                 pct = (count / max_dev) * 100 if max_dev else 0
-                dev_rows += f'<div class="bar-row"><span class="bar-label">{_safe_str(dev)}</span><div class="bar-track"><div class="bar-fill" style="width:{pct:.0f}%"></div></div><span class="bar-count">{count}</span></div>\n'
+                dev_rows += f'<div class="bar-row"><span class="bar-label">{dev}</span><div class="bar-track"><div class="bar-fill" style="width:{pct:.0f}%"></div></div><span class="bar-count">{count}</span></div>\n'
             devices_html = f"""
             <div class="panel">
               <div class="panel-header">
@@ -1928,50 +1802,50 @@ document.addEventListener('DOMContentLoaded',function(){{
 
         rows = ""
         for v in visitors[:100]:
-            t = _safe_str(v.get("time", "")[-16:] if len(v.get("time", "")) >= 16 else v.get("time", ""))
-            host = _safe_str(v.get("hostname", "") or "")
-            path = _safe_str(v.get("path", "") or "/")
+            t = v.get("time", "")[-16:] if len(v.get("time", "")) >= 16 else v.get("time", "")
+            host = v.get("hostname", "") or ""
+            path = v.get("path", "") or "/"
             url_display = (f'<span class="url-hostname">{host}</span><span class="url-path">{path}</span>' if host else path)
-            ip = _safe_str(v.get("ip", "-") or "-")
+            ip = v.get("ip", "-") or "-"
             device = v.get("device", "Unknown")
-            host_safe = _safe_str(v.get("referrer_host", "") or v.get("referrer", "-") or "-")
+            host_safe = (v.get("referrer_host", "") or v.get("referrer", "-") or "-")
             if len(host_safe) > 30:
                 host_safe = host_safe[:30] + "..."
 
             utm_tags = ""
-            src = _safe_str(v.get("utm_source", ""))
-            med = _safe_str(v.get("utm_medium", ""))
-            camp = _safe_str(v.get("utm_campaign", ""))
-            if v.get("utm_source", ""):
+            src = v.get("utm_source", "")
+            med = v.get("utm_medium", "")
+            camp = v.get("utm_campaign", "")
+            if src:
                 utm_tags += f'<span class="utm-tag">source: {src}</span>'
-            if v.get("utm_medium", ""):
+            if med:
                 utm_tags += f'<span class="utm-tag">{med}</span>'
-            if v.get("utm_campaign", ""):
+            if camp:
                 utm_tags += f'<span class="utm-tag">{camp}</span>'
 
             rows += (f'<tr><td>{t}</td>'
                      f'<td><div>{url_display}</div>{utm_tags}</td>'
-                     f'<td><span class="device-tag {device}">{_safe_str(device)}</span></td>'
+                     f'<td><span class="device-tag {device}">{device}</span></td>'
                      f'<td>{ip}</td>'
                      f'<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{host_safe}">{host_safe}</td></tr>\n')
 
         if not rows:
             rows = ('<tr><td colspan="5"><div class="empty-state">'
                     '<div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>'
-                    '<div class="empty-title">暂无访客数据</div>'
-                    '<div class="empty-desc">访客追踪将自动显示在此</div></div></td></tr>')
+                    '<div class="empty-title">No visitor data</div>'
+                    '<div class="empty-desc">Visitor tracking will appear here automatically</div></div></td></tr>')
 
         table = f"""
         <div class="panel">
           <div class="panel-header">
             <div class="panel-title">
               <div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
-              访客日志
+              Visitor Log
             </div>
           </div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>时间</th><th>页面URL</th><th>设备</th><th>IP</th><th>来源</th></tr></thead>
+              <thead><tr><th>Time</th><th>Page URL</th><th>Device</th><th>IP</th><th>Referrer</th></tr></thead>
               <tbody>{rows}</tbody>
             </table>
           </div>
@@ -1979,7 +1853,7 @@ document.addEventListener('DOMContentLoaded',function(){{
 
         sidebar_right = f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">{top_pages_html}{devices_html}</div>' if (top_pages_html and devices_html) else (top_pages_html or devices_html)
         body = stats_html + (sidebar_right if sidebar_right else "") + table
-        return self._html_wrap(body, "访客浏览", "实时访客追踪")
+        return self._html_wrap(body, "Visitors", "Real-time visitor URL tracking")
 
     def _html_devices(self):
         visitors = load_visitors()
@@ -1989,19 +1863,19 @@ document.addEventListener('DOMContentLoaded',function(){{
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></div>
-            <div class="stat-body"><div class="stat-value">{stats['unique_ips']}</div><div class="stat-label">独立设备</div></div>
+            <div class="stat-body"><div class="stat-value">{stats['unique_ips']}</div><div class="stat-label">Unique Devices</div></div>
           </div>
           <div class="stat-card">
             <div class="stat-icon purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
-            <div class="stat-body"><div class="stat-value">{stats['total']}</div><div class="stat-label">总会话</div></div>
+            <div class="stat-body"><div class="stat-value">{stats['total']}</div><div class="stat-label">Total Sessions</div></div>
           </div>
           <div class="stat-card">
             <div class="stat-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
-            <div class="stat-body"><div class="stat-value">{len([d for d in stats['top_devices'] if d[0] == 'Desktop'])}</div><div class="stat-label">桌面类型</div></div>
+            <div class="stat-body"><div class="stat-value">{len([d for d in stats['top_devices'] if d[0] == 'Desktop'])}</div><div class="stat-label">Desktop Types</div></div>
           </div>
           <div class="stat-card">
             <div class="stat-icon orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></div>
-            <div class="stat-body"><div class="stat-value">{sum(1 for d in stats['top_devices'] if d[0] in ('iPhone', 'Android', 'Mobile'))}</div><div class="stat-label">移动类型</div></div>
+            <div class="stat-body"><div class="stat-value">{sum(1 for d in stats['top_devices'] if d[0] in ('iPhone', 'Android', 'Mobile'))}</div><div class="stat-label">Mobile Types</div></div>
           </div>
         </div>"""
 
@@ -2014,8 +1888,8 @@ document.addEventListener('DOMContentLoaded',function(){{
                 icon_svg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>'
                 if dev == "Desktop":
                     icon_svg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>'
-                rows += f'<div class="bar-row"><span class="bar-label"><span class="device-tag {_safe_str(dev)}" style="margin-right:8px;display:inline-flex;align-items:center;gap:4px;">{icon_svg}{_safe_str(dev)}</span></span><div class="bar-track"><div class="bar-fill" style="width:{pct:.0f}%"></div></div><span class="bar-count">{count}</span></div>\n'
-            devices_panel = f'<div class="panel"><div class="panel-header"><div class="panel-title"><div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></div>设备分布</div></div><div class="panel-body"><div class="bar-chart">{rows}</div></div></div>'
+                rows += f'<div class="bar-row"><span class="bar-label"><span class="device-tag {dev}" style="margin-right:8px;display:inline-flex;align-items:center;gap:4px;">{icon_svg}{dev}</span></span><div class="bar-track"><div class="bar-fill" style="width:{pct:.0f}%"></div></div><span class="bar-count">{count}</span></div>\n'
+            devices_panel = f'<div class="panel"><div class="panel-header"><div class="panel-title"><div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></div>Device Breakdown</div></div><div class="panel-body"><div class="bar-chart">{rows}</div></div></div>'
 
         referrers_panel = ""
         if stats["top_referrers"]:
@@ -2023,8 +1897,8 @@ document.addEventListener('DOMContentLoaded',function(){{
             rows = ""
             for host, count in stats["top_referrers"]:
                 pct = (count / max_count) * 100 if max_count else 0
-                rows += f'<div class="bar-row"><span class="bar-label">{_safe_str(host)}</span><div class="bar-track"><div class="bar-fill" style="width:{pct:.0f}%"></div></div><span class="bar-count">{count}</span></div>\n'
-            referrers_panel = f'<div class="panel"><div class="panel-header"><div class="panel-title"><div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><line x1="2" y1="12" x2="22" y2="12"/></svg></div>热门来源</div></div><div class="panel-body"><div class="bar-chart">{rows}</div></div></div>'
+                rows += f'<div class="bar-row"><span class="bar-label">{host}</span><div class="bar-track"><div class="bar-fill" style="width:{pct:.0f}%"></div></div><span class="bar-count">{count}</span></div>\n'
+            referrers_panel = f'<div class="panel"><div class="panel-header"><div class="panel-title"><div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><line x1="2" y1="12" x2="22" y2="12"/></svg></div>Top Referrers</div></div><div class="panel-body"><div class="bar-chart">{rows}</div></div></div>'
 
         sources_panel = ""
         if stats["top_sources"]:
@@ -2032,38 +1906,38 @@ document.addEventListener('DOMContentLoaded',function(){{
             rows = ""
             for src, count in stats["top_sources"]:
                 pct = (count / max_count) * 100 if max_count else 0
-                rows += f'<div class="bar-row"><span class="bar-label"><span class="utm-tag" style="background:var(--purple-light);color:#6d28d9;">{_safe_str(src)}</span></span><div class="bar-track"><div class="bar-fill" style="width:{pct:.0f}%"></div></div><span class="bar-count">{count}</span></div>\n'
-            sources_panel = f'<div class="panel"><div class="panel-header"><div class="panel-title"><div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg></div>流量来源(UTM)</div></div><div class="panel-body"><div class="bar-chart">{rows}</div></div></div>'
+                rows += f'<div class="bar-row"><span class="bar-label"><span class="utm-tag" style="background:var(--purple-light);color:#6d28d9;">{src}</span></span><div class="bar-track"><div class="bar-fill" style="width:{pct:.0f}%"></div></div><span class="bar-count">{count}</span></div>\n'
+            sources_panel = f'<div class="panel"><div class="panel-header"><div class="panel-title"><div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg></div>Traffic Sources (UTM)</div></div><div class="panel-body"><div class="bar-chart">{rows}</div></div></div>'
 
         grid = f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">{devices_panel}{referrers_panel}</div>'
         body = stats_html + grid + sources_panel
         if not devices_panel and not referrers_panel and not sources_panel:
-            body += '<div class="empty-state"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="2" width="14" height="20" rx="2"/></svg></div><div class="empty-title">暂无设备数据</div><div class="empty-desc">访问追踪将自动显示在此</div></div>'
-        return self._html_wrap(body, "设备", "设备与流量分析")
+            body += '<div class="empty-state"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="2" width="14" height="20" rx="2"/></svg></div><div class="empty-title">No device data</div><div class="empty-desc">Visit tracking will appear here automatically</div></div>'
+        return self._html_wrap(body, "Devices", "Device & traffic source analytics")
 
     def _html_settings(self):
         auto_status = get_auto_start()
         info_items = [
-            ("版本", VERSION),
-            ("数据流", STREAM_KEY),
-            ("消息存储", MESSAGES_FILE),
-            ("访客存储", VISITORS_FILE),
-            ("轮询日志", POLL_LOG_FILE),
-            ("启动项", LAUNCH_AGENT_PATH),
+            ("Version", VERSION),
+            ("Stream Key", STREAM_KEY),
+            ("Messages DB", MESSAGES_FILE),
+            ("Visitors DB", VISITORS_FILE),
+            ("Poll Log", POLL_LOG_FILE),
+            ("Launch Agent", LAUNCH_AGENT_PATH),
         ]
         info_html = ""
         for k, v in info_items:
-            info_html += f'<div class="settings-info-key">{_safe_str(k)}</div><div class="settings-info-val">{_safe_str(v)}</div>\n'
+            info_html += f'<div class="settings-info-key">{k}</div><div class="settings-info-val">{v}</div>\n'
 
         body = f"""
         <div class="settings-group">
-          <div class="settings-group-title">通用</div>
+          <div class="settings-group-title">General</div>
           <div class="panel">
             <div class="panel-body">
               <div class="settings-row">
                 <div>
-                  <div class="settings-row-label">开机自启</div>
-                  <div class="settings-row-desc">登录Mac时自动启动应用</div>
+                  <div class="settings-row-label">Auto-start on Login</div>
+                  <div class="settings-row-desc">App will start automatically when you log in to your Mac.</div>
                 </div>
                 <div style="display:flex;align-items:center;gap:10px;">
                   <span style="font-size:11px;font-weight:600;color:{'var(--green)' if auto_status else 'var(--text-tertiary)'};">{'ON' if auto_status else 'OFF'}</span>
@@ -2074,37 +1948,20 @@ document.addEventListener('DOMContentLoaded',function(){{
           </div>
         </div>
         <div class="settings-group">
-          <div class="settings-group-title">应用信息</div>
+          <div class="settings-group-title">Application Info</div>
           <div class="settings-info">{info_html}</div>
         </div>
         """
-        return self._html_wrap(body, "设置", "应用偏好")
+        return self._html_wrap(body, "Settings", "Application preferences")
 
     def _switch_to(self, page_id):
         self._current_page = page_id
         self._refresh_content()
 
     def _refresh_content(self):
-        try:
-            if _HAS_WEBKIT and self._webview:
-                html = self._build_current_html()
-                print(f"[DEBUG] Loading HTML, length: {len(html)}")
-                from Foundation import NSURL
-                base_url = NSURL.fileURLWithPath_("/")
-                self._webview.loadHTMLString_baseURL_(html, base_url)
-            elif hasattr(self, '_msg_text') and self._msg_text:
-                header = self._build_status_summary()
-                body = self._build_messages_text()
-                self._msg_text.setString_(
-                    header + "\n\n" + "=" * 40 + " 最近消息 " + "=" * 40 + "\n\n" + body)
-            else:
-                print(f"[DEBUG] No WebKit: _HAS_APPKIT={_HAS_APPKIT}, _HAS_WEBKIT={_HAS_WEBKIT}")
-        except Exception as e:
-            print(f"[ERROR] Failed to load dashboard: {e}")
-            import traceback
-            traceback.print_exc()
-            if hasattr(self, '_msg_text') and self._msg_text:
-                self._msg_text.setString_(f"Error loading dashboard:\n\n{e}\n\nPlease check console for details.")
+        if _HAS_WEBKIT and self._webview:
+            html = self._build_current_html()
+            self._webview.loadHTMLString_baseURL_(html, None)
 
     def _build_current_html(self):
         page = self._current_page
@@ -2129,7 +1986,7 @@ document.addEventListener('DOMContentLoaded',function(){{
 
 class EvNotifier(rumps.App):
     def __init__(self):
-        super().__init__(f"Ev {VERSION}", quit_button="退出")
+        super().__init__(f"Ev {VERSION}", quit_button="Quit")
         try:
             from AppKit import NSApp, NSApplicationActivationPolicyAccessory
             NSApp.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
@@ -2139,31 +1996,26 @@ class EvNotifier(rumps.App):
         self._thread.start()
         self._dash = DashboardWindow(self)
         ensure_auto_start()
-        self.menu.add(self._version_menu())
 
-    def _version_menu(self):
-        menu = rumps.MenuItem(f"版本: {VERSION}")
-        return menu
-
-    @rumps.clicked("打开面板")
+    @rumps.clicked("Open Panel")
     def open_dashboard(self, _):
         self._dash.show()
 
-    @rumps.clicked("暂停/恢复")
+    @rumps.clicked("Pause/Resume")
     def toggle_pause(self, _):
         global _paused
         _paused = not _paused
-        state = "已暂停" if _paused else "已恢复"
+        state = "Paused" if _paused else "Resumed"
         rumps.notification(f"Ev {VERSION}", "", state, sound=False)
 
-    @rumps.clicked("重置计数")
+    @rumps.clicked("Reset Count")
     def reset_count(self, _):
         global _new_msg_count, _seen_ids
         _new_msg_count = 0
         _seen_ids.clear()
-        rumps.notification(f"Ev {VERSION}", "", "计数已重置", sound=False)
+        rumps.notification(f"Ev {VERSION}", "", "Count reset", sound=False)
 
-    @rumps.clicked("拉取日志")
+    @rumps.clicked("Poll Log")
     def view_poll_log(self, _):
         try:
             data = load_poll_log()
@@ -2175,19 +2027,19 @@ class EvNotifier(rumps.App):
             for date_str in sorted(data.keys(), reverse=True)[:7]:
                 entry = data[date_str]
                 for p in entry.get("polls", []):
-                    lines.append(f"{date_str} {p['time']}  恢复={p['recovered']}  原因={p['reason']}")
+                    lines.append(f"{date_str} {p['time']}  recovered={p['recovered']}  {p['reason']}")
             if not lines:
-                lines.append("无恢复记录")
+                lines.append("No recovery records")
             text = "\n".join(lines)
-            rumps.alert(f"拉取日志 | 今日: {today_polls} | 本月: {month_total}", text[:500])
+            rumps.alert(f"Poll Log | Today: {today_polls} | Month: {month_total}", text[:500])
         except Exception as e:
-            rumps.alert("错误", str(e))
+            rumps.alert("Error", str(e))
 
-    @rumps.clicked("状态")
+    @rumps.clicked("Status")
     def status_btn(self, _):
-        ts_str = (time.strftime("%H:%M:%S", time.localtime(_last_msg_ts)) if _last_msg_ts else "无")
-        status_str = "已连接" if _status == "connected" else "未连接"
-        text = (f"状态: {status_str}\n今日消息: {_new_msg_count}\n恢复次数: {_recovery_count_today}\n最后消息: {ts_str}")
+        ts_str = (time.strftime("%H:%M:%S", time.localtime(_last_msg_ts)) if _last_msg_ts else "None")
+        status_str = "Connected" if _status == "connected" else "Disconnected"
+        text = (f"Status: {status_str}\nToday: {_new_msg_count}\nRecoveries: {_recovery_count_today}\nLast Msg: {ts_str}")
         rumps.alert(f"Ev {VERSION}", text)
 
 
