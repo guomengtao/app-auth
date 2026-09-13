@@ -10,13 +10,12 @@ DOTENV = [
 REST_API_URL = None
 UPSTASH_TOKEN = None
 STREAM_KEY = "auth:notifications:stream"
-ENCODED_KEY = None
 LAST_ID_FILE = os.path.expanduser("~/.ev_last_id_v1.0.3")
 RECEIVED_FILE = os.path.expanduser("~/.ev_received.json")
 
 
 def load_env():
-    global REST_API_URL, UPSTASH_TOKEN, ENCODED_KEY
+    global REST_API_URL, UPSTASH_TOKEN
     env = {}
     for p in DOTENV:
         if os.path.isfile(p):
@@ -38,7 +37,7 @@ def load_env():
     if not REST_API_URL or not UPSTASH_TOKEN:
         print("ERROR: Config not found. Create ~/.ev-notifier.env")
         sys.exit(1)
-    ENCODED_KEY = urllib.parse.quote(STREAM_KEY, safe="")
+    
 
 
 def upstash_http(cmd, *args, timeout=10):
@@ -166,7 +165,7 @@ def main():
 
     while True:
         try:
-            result = upstash_http("xrange", ENCODED_KEY, last_id, "+", timeout=10)
+            result = upstash_http("xrange", STREAM_KEY, last_id, "+", timeout=10)
             messages = result.get("result", [])
             if messages:
                 for msg_entry in messages:

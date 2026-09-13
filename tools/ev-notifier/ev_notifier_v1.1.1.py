@@ -18,7 +18,6 @@ DOTENV = [
 REST_API_URL = None
 UPSTASH_TOKEN = None
 STREAM_KEY = "auth:notifications:stream"
-ENCODED_KEY = None
 LAST_ID_FILE = os.path.expanduser("~/.ev_last_id_v1.1.1")
 RECEIVED_FILE = os.path.expanduser("~/.ev_received.json")
 POLL_LOG_FILE = os.path.expanduser("~/.ev_poll_log.json")
@@ -37,7 +36,7 @@ _recovery_count_today = 0
 
 
 def load_env():
-    global REST_API_URL, UPSTASH_TOKEN, ENCODED_KEY
+    global REST_API_URL, UPSTASH_TOKEN
     env = {}
     for p in DOTENV:
         if os.path.isfile(p):
@@ -59,7 +58,7 @@ def load_env():
     if not REST_API_URL or not UPSTASH_TOKEN:
         print("ERROR: Config not found.")
         sys.exit(1)
-    ENCODED_KEY = urllib.parse.quote(STREAM_KEY, safe="")
+    
 
 
 def upstash_http(cmd, *args, timeout=10):
@@ -227,7 +226,7 @@ def do_recovery_poll(last_id):
     global _last_poll_hour
     print(f"RECOVERY: XRANGE from {last_id}")
     try:
-        result = upstash_http("xrange", ENCODED_KEY, last_id, "+", timeout=10)
+        result = upstash_http("xrange", STREAM_KEY, last_id, "+", timeout=10)
         messages = result.get("result", [])
         recovered = 0
         for msg_entry in messages:
@@ -367,7 +366,7 @@ def redis_loop():
             print(f"Ev online: {STREAM_KEY}, last_id={last_id}")
             while True:
                 try:
-                    result = upstash_http("xrange", ENCODED_KEY, last_id, "+", timeout=10)
+                    result = upstash_http("xrange", STREAM_KEY, last_id, "+", timeout=10)
                     messages = result.get("result", [])
                     if messages:
                         for msg_entry in messages:
