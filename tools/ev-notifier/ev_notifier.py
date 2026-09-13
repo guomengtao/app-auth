@@ -99,8 +99,7 @@ def load_env():
 def ensure_auto_start():
     if not os.path.exists(LAUNCH_AGENT_DIR):
         os.makedirs(LAUNCH_AGENT_DIR, exist_ok=True)
-    if os.path.exists(LAUNCH_AGENT_PATH):
-        return
+    old_exists = os.path.exists(LAUNCH_AGENT_PATH)
     script_path = os.path.abspath(__file__)
     python_path = sys.executable
     plist = {
@@ -113,11 +112,26 @@ def ensure_auto_start():
     }
     with open(LAUNCH_AGENT_PATH, "wb") as f:
         plistlib.dump(plist, f)
-    print(f"Auto-start enabled: {LAUNCH_AGENT_PATH}")
+    action = "updated" if old_exists else "enabled"
+    print(f"Auto-start {action}: {LAUNCH_AGENT_PATH}")
+    try:
+        subprocess.run(
+            ["launchctl", "bootstrap", f"gui/{os.getuid()}", LAUNCH_AGENT_PATH],
+            capture_output=True, timeout=3
+        )
+    except Exception:
+        pass
 
 
 def disable_auto_start():
     if os.path.exists(LAUNCH_AGENT_PATH):
+        try:
+            subprocess.run(
+                ["launchctl", "bootout", f"gui/{os.getuid()}", LAUNCH_AGENT_PATH],
+                capture_output=True, timeout=3
+            )
+        except Exception:
+            pass
         os.unlink(LAUNCH_AGENT_PATH)
         print(f"Auto-start disabled: {LAUNCH_AGENT_PATH}")
 
@@ -1665,11 +1679,11 @@ class DashboardWindow:
                 if item["id"] == "messages" and _new_msg_count > 0:
                     badge_html = f'<span class="nav-badge">{min(_new_msg_count, 99)}</span>'
                 nav_html += (
-                    f'<a class="nav-item {active_cls}" href="#" data-tab="{item["id"]}">'
+                    f'<div class="nav-item {active_cls}" data-tab="{item["id"]}">'
                     f'<span class="nav-icon">{item["icon"]}</span>'
                     f'<span>{item["label"]}</span>'
                     f'{badge_html}'
-                    f'</a>\n'
+                    f'</div>\n'
                 )
 
         if _status == "connected":
@@ -1723,8 +1737,8 @@ class DashboardWindow:
         topbar = self._topbar_html(title, subtitle)
         return f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<style>{_DASH_CSS}</style>{scripts}</head>
-<body><div class="layout">{sidebar}<div class="main">{topbar}<div class="content">{content}</div></div></div></body></html>"""
+<style>{_DASH_CSS}</style></head>
+<body><div class="layout">{sidebar}<div class="main">{topbar}<div class="content">{content}</div></div></div>{scripts}</body></html>"""
 
     def _html_messages(self):
         received_data = load_received()
@@ -1790,7 +1804,7 @@ class DashboardWindow:
                         '<div class="empty-desc">等待通知...</div></div>')
 
         body = f'<div class="panel"><div class="panel-header"><div class="panel-title"><div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>活动流</div></div><div class="msg-list">{msg_html}</div></div>'
-        return self._html_wrap(body, "消息", "实时通知流")
+        return body
 
     def _html_orders(self):
         orders = _build_order_list()
@@ -1836,7 +1850,7 @@ class DashboardWindow:
                     '<div class="empty-desc">等待订单数据...</div></div></td></tr>')
 
         table = f'<div class="panel"><div class="panel-header"><div class="panel-title"><div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>订单列表</div></div><div class="table-wrap"><table><thead><tr><th>时间</th><th>产品</th><th>金额</th><th>兑换码</th></tr></thead><tbody>{rows}</tbody></table></div></div>'
-        return self._html_wrap(stats_html + table, "Orders", "收入追踪")
+        return stats_html + table
 
     def _html_trend(self):
         dates, counts, amounts = _build_trend_data(30)
@@ -1896,7 +1910,7 @@ document.addEventListener('DOMContentLoaded',function(){{
 }});
 </script>"""
         chart = f'<div class="chart-wrap"><canvas id="trendChart"></canvas></div>'
-        return self._html_wrap(stats_html + chart, "30天走势", "订单与收入分析", scripts=js_inject)
+        return stats_html + chart + js_inject
 
     def _html_visitors(self):
         visitors = load_visitors()
@@ -2012,7 +2026,7 @@ document.addEventListener('DOMContentLoaded',function(){{
 
         sidebar_right = f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">{top_pages_html}{devices_html}</div>' if (top_pages_html and devices_html) else (top_pages_html or devices_html)
         body = stats_html + (sidebar_right if sidebar_right else "") + table
-        return self._html_wrap(body, "访客浏览", "实时访客追踪")
+        return body
 
     def _html_devices(self):
         visitors = load_visitors()
@@ -2072,7 +2086,7 @@ document.addEventListener('DOMContentLoaded',function(){{
         body = stats_html + grid + sources_panel
         if not devices_panel and not referrers_panel and not sources_panel:
             body += '<div class="empty-state"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="2" width="14" height="20" rx="2"/></svg></div><div class="empty-title">暂无设备数据</div><div class="empty-desc">访问追踪将自动显示在此</div></div>'
-        return self._html_wrap(body, "设备", "设备与流量分析")
+        return body
 
     def _html_settings(self):
         auto_status = get_auto_start()
@@ -2111,7 +2125,7 @@ document.addEventListener('DOMContentLoaded',function(){{
           <div class="settings-info">{info_html}</div>
         </div>
         """
-        return self._html_wrap(body, "设置", "应用偏好")
+        return body
 
     def _switch_to(self, page_id):
         self._current_page = page_id
@@ -2158,32 +2172,88 @@ document.addEventListener('DOMContentLoaded',function(){{
         for tid, body in tabs:
             display = "block" if tid == page else "none"
             tab_html += f'<div class="tab-content" id="tab-{tid}" style="display:{display}">{body}</div>'
+        
+        page_titles = {
+            "messages": ("消息中心", ""),
+            "orders": ("订单列表", "订单管理"),
+            "visitors": ("访客浏览", "访问统计"),
+            "trend": ("走势图", "数据趋势"),
+            "devices": ("设备信息", "设备统计"),
+            "settings": ("设置", "应用偏好"),
+        }
+        title, subtitle = page_titles.get(page, ("消息中心", ""))
+        
         scripts = """
 <script>
-function switchTab(tabId) {
-    var all = document.querySelectorAll('.tab-content');
-    all.forEach(function(el) { el.style.display = 'none'; });
-    var target = document.getElementById('tab-' + tabId);
-    if (target) target.style.display = 'block';
-    var navs = document.querySelectorAll('.nav-item');
-    navs.forEach(function(el) { el.classList.remove('active'); });
-    var active = document.querySelector('.nav-item[data-tab="' + tabId + '"]');
-    if (active) active.classList.add('active');
-}
-document.addEventListener('DOMContentLoaded', function() {
-    var links = document.querySelectorAll('.nav-item');
-    links.forEach(function(link) {
-        var tabId = link.getAttribute('data-tab');
-        if (tabId) {
-            link.addEventListener('click', function(e) {
+(function() {
+    var STORAGE_KEY = 'ev-notifier-current-page';
+    var DEFAULT_PAGE = '""" + page + """';
+    var hasStorage = false;
+    try {
+        localStorage.setItem('_ev_test', '1');
+        localStorage.removeItem('_ev_test');
+        hasStorage = true;
+    } catch(e) {
+        hasStorage = false;
+    }
+
+    function getCurrentPage() {
+        try {
+            if (hasStorage) {
+                var v = localStorage.getItem(STORAGE_KEY);
+                if (v) return v;
+            }
+        } catch(e) {}
+        return DEFAULT_PAGE;
+    }
+
+    function setCurrentPage(tabId) {
+        try {
+            if (hasStorage) localStorage.setItem(STORAGE_KEY, tabId);
+        } catch(e) {}
+    }
+
+    function switchTab(tabId) {
+        var all = document.querySelectorAll('.tab-content');
+        for (var i = 0; i < all.length; i++) {
+            all[i].style.display = 'none';
+        }
+        var target = document.getElementById('tab-' + tabId);
+        if (target) {
+            target.style.display = 'block';
+        }
+        var navs = document.querySelectorAll('.nav-item');
+        for (var j = 0; j < navs.length; j++) {
+            navs[j].classList.remove('active');
+        }
+        var active = document.querySelector('.nav-item[data-tab="' + tabId + '"]');
+        if (active) active.classList.add('active');
+        setCurrentPage(tabId);
+    }
+
+    function bindClicks() {
+        var links = document.querySelectorAll('.nav-item[data-tab]');
+        for (var k = 0; k < links.length; k++) {
+            links[k].addEventListener('click', function(e) {
                 e.preventDefault();
-                switchTab(tabId);
+                e.stopPropagation();
+                var tabId = this.getAttribute('data-tab');
+                if (tabId) switchTab(tabId);
+                return false;
             });
         }
-    });
-});
+    }
+
+    var savedPage = getCurrentPage();
+    if (savedPage && savedPage !== DEFAULT_PAGE) {
+        switchTab(savedPage);
+    }
+    bindClicks();
+
+    window.switchTab = switchTab;
+})();
 </script>"""
-        return self._html_wrap(tab_html, "消息中心", "", scripts=scripts)
+        return self._html_wrap(tab_html, title, subtitle, scripts=scripts)
 
     def windowWillClose_(self, notification):
         NSApplication.sharedApplication().setActivationPolicy_(
