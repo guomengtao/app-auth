@@ -18,8 +18,7 @@ except ImportError:
     _HAS_APPKIT = False
 
 try:
-    from WebKit import (WKWebView, WKWebViewConfiguration, WKUserContentController,
-                        WKNavigationActionPolicyAllow, WKNavigationActionPolicyCancel)
+    from WebKit import WebView
     _HAS_WEBKIT = True
 except ImportError:
     _HAS_WEBKIT = False
@@ -1507,8 +1506,9 @@ class WebNavDelegate(NSObject):
         self._dashboard = None
         return self
 
-    def webView_decidePolicyForNavigationAction_decisionHandler_(self, wv, action, handler):
-        url_str = str(action.request().URL())
+    def webView_decidePolicyForNavigationAction_request_frame_decisionListener_(self, wv, info, request, frame, listener):
+        url_str = str(request.URL()) if request and request.URL() else ""
+        _debug_log(f"navAction url={url_str}")
         if url_str and url_str.startswith("ev://"):
             if "refresh" in url_str and self._dashboard:
                 self._dashboard._refresh_content()
@@ -1518,9 +1518,14 @@ class WebNavDelegate(NSObject):
                     self._dashboard._switch_to(page_id)
                 except Exception:
                     pass
-            handler(WKNavigationActionPolicyCancel)
+            listener.ignore()
         else:
-            handler(WKNavigationActionPolicyAllow)
+            listener.use()
+
+
+def _debug_log(msg):
+    with open(os.path.expanduser("~/.ev_debug.log"), "a") as f:
+        f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')}] {msg}\n")
 
 
 class DashboardWindow:
@@ -1530,21 +1535,26 @@ class DashboardWindow:
         self._webview = None
         self._msg_text = None
         self._current_page = "messages"
+        _debug_log("DashboardWindow.__init__")
 
     def show(self):
-        print(f"[DEBUG] show() called, _HAS_APPKIT={_HAS_APPKIT}, _HAS_WEBKIT={_HAS_WEBKIT}")
-        if not _HAS_APPKIT:
-            text = self._build_status_summary() + "\n\n" + self._build_messages_text()
-            rumps.alert(f"Ev Notifier {VERSION}", text[:800])
-            return
-        NSApplication.sharedApplication().setActivationPolicy_(
-            NSApplicationActivationPolicyRegular)
-        if self._window is None:
-            self._create_window()
-            print(f"[DEBUG] Window created, webview={self._webview}")
-        self._refresh_content()
-        self._window.makeKeyAndOrderFront_(None)
-        NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
+        _debug_log(f"show() called")
+        print(f"[DEBUG] show() called")
+        try:
+            html = self._build_current_html()
+            html_path = os.path.expanduser("~/.ev_dashboard.html")
+            with open(html_path, "w") as f:
+                f.write(html)
+            _debug_log(f"HTML written to {html_path}, len={len(html)}")
+            from Foundation import NSURL
+            from AppKit import NSWorkspace
+            file_url = NSURL.fileURLWithPath_(html_path)
+            NSWorkspace.sharedWorkspace().openURL_(file_url)
+            _debug_log("Opened in browser")
+        except Exception as e:
+            _debug_log(f"ERROR in show: {e}")
+            import traceback
+            traceback.print_exc()
 
     def _create_window(self):
         rect = NSMakeRect(100, 100, 1100, 720)
@@ -1562,12 +1572,11 @@ class DashboardWindow:
         if _HAS_WEBKIT:
             nav_delegate = WebNavDelegate.alloc().init()
             nav_delegate._dashboard = self
-            config = WKWebViewConfiguration.alloc().init()
-            self._webview = WKWebView.alloc().initWithFrame_configuration_(
-                ((0, 0), (rect[1][0], rect[1][1])), config)
+            self._webview = WebView.alloc().initWithFrame_(
+                ((0, 0), (rect[1][0], rect[1][1])))
             self._webview.setAutoresizingMask_(
                 NSViewWidthSizable | NSViewHeightSizable)
-            self._webview.setNavigationDelegate_(nav_delegate)
+            self._webview.setPolicyDelegate_(nav_delegate)
             self._window.contentView().addSubview_(self._webview)
         else:
             scroll = NSScrollView.alloc().initWithFrame_(
@@ -1632,7 +1641,7 @@ class DashboardWindow:
                 if item["id"] == "messages" and _new_msg_count > 0:
                     badge_html = f'<span class="nav-badge">{min(_new_msg_count, 99)}</span>'
                 nav_html += (
-                    f'<a class="nav-item {active_cls}" href="ev://nav={item["id"]}">'
+                    f'<a class="nav-item {active_cls}" href="#">'
                     f'<span class="nav-icon">{item["icon"]}</span>'
                     f'<span>{item["label"]}</span>'
                     f'{badge_html}'
@@ -1670,7 +1679,7 @@ class DashboardWindow:
         return sidebar
 
     def _topbar_html(self, title, subtitle=""):
-        refresh_btn = '<a class="btn" href="ev://refresh"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>刷新</a>'
+        refresh_btn = '<a class="btn" href="javascript:location.reload()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>刷新</a>'
         sub_html = f'<div class="page-subtitle">{subtitle}</div>' if subtitle else ""
         return f"""
         <div class="topbar">
@@ -2067,7 +2076,7 @@ document.addEventListener('DOMContentLoaded',function(){{
                 </div>
                 <div style="display:flex;align-items:center;gap:10px;">
                   <span style="font-size:11px;font-weight:600;color:{'var(--green)' if auto_status else 'var(--text-tertiary)'};">{'ON' if auto_status else 'OFF'}</span>
-                  <a class="btn" href="ev://refresh">Toggle</a>
+                  <a class="btn" href="javascript:location.reload()">Toggle</a>
                 </div>
               </div>
             </div>
@@ -2085,13 +2094,17 @@ document.addEventListener('DOMContentLoaded',function(){{
         self._refresh_content()
 
     def _refresh_content(self):
+        _debug_log(f"_refresh_content: page={self._current_page}, webkit={_HAS_WEBKIT}, webview={self._webview}, msg_text={hasattr(self, '_msg_text') and self._msg_text}")
         try:
             if _HAS_WEBKIT and self._webview:
                 html = self._build_current_html()
+                _debug_log(f"HTML built, length={len(html)}, has_body={'<body>' in html}")
                 print(f"[DEBUG] Loading HTML, length: {len(html)}")
-                from Foundation import NSURL
-                base_url = NSURL.fileURLWithPath_("/")
-                self._webview.loadHTMLString_baseURL_(html, base_url)
+                import base64
+                b64 = base64.b64encode(html.encode("utf-8")).decode("ascii")
+                data_url = "data:text/html;base64," + b64
+                self._webview.setMainFrameURL_(data_url)
+                _debug_log(f"setMainFrameURL with data URL, len={len(data_url)}")
             elif hasattr(self, '_msg_text') and self._msg_text:
                 header = self._build_status_summary()
                 body = self._build_messages_text()
@@ -2100,6 +2113,7 @@ document.addEventListener('DOMContentLoaded',function(){{
             else:
                 print(f"[DEBUG] No WebKit: _HAS_APPKIT={_HAS_APPKIT}, _HAS_WEBKIT={_HAS_WEBKIT}")
         except Exception as e:
+            _debug_log(f"ERROR in _refresh_content: {e}")
             print(f"[ERROR] Failed to load dashboard: {e}")
             import traceback
             traceback.print_exc()
@@ -2147,6 +2161,7 @@ class EvNotifier(rumps.App):
 
     @rumps.clicked("打开面板")
     def open_dashboard(self, _):
+        _debug_log("open_dashboard clicked")
         self._dash.show()
 
     @rumps.clicked("暂停/恢复")
