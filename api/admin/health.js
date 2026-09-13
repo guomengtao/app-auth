@@ -13,7 +13,7 @@ var verifySwitch = null;
 try { verifySwitch = require("../../lib/verify-switch"); } catch(e) { console.warn("verify-switch module not available:", e.message); }
 
 // Direct Upstash REST API push to bypass module loading issues on Vercel
-function pushToStream(type, payload) {
+async function pushToStream(type, payload) {
   var upstashUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "";
   var upstashToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || "";
   if (!upstashUrl || !upstashToken) {
@@ -22,18 +22,18 @@ function pushToStream(type, payload) {
   }
   var url = upstashUrl.replace(/\/$/, "") + "/xadd/auth:notifications:stream/*";
   var msg = { ts: Math.floor(Date.now() / 1000), type: type, payload: payload || {} };
-  fetch(url, {
-    method: "POST",
-    headers: { "Authorization": "Bearer " + upstashToken, "Content-Type": "application/json" },
-    body: JSON.stringify({ data: JSON.stringify(msg) }),
-    signal: AbortSignal.timeout(5000),
-  }).then(function (r) {
-    return r.text().then(function (t) {
-      console.log("[visit:stream] Upstash REST:", r.status, t.substring(0, 80));
+  try {
+    var r = await fetch(url, {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + upstashToken, "Content-Type": "application/json" },
+      body: JSON.stringify({ data: JSON.stringify(msg) }),
+      signal: AbortSignal.timeout(5000),
     });
-  }).catch(function (err) {
+    var t = await r.text();
+    console.log("[visit:stream] Upstash REST:", r.status, t.substring(0, 80));
+  } catch (err) {
     console.error("[visit:stream] Upstash REST error:", err.message);
-  });
+  }
 }
 
 var CRON_STATS_KEY = "auth:cron:stats";
@@ -595,7 +595,7 @@ if ((isCron || isCronBackup) && isBackup) {
       console.log("[visit:stream] ========== page_visit push start ==========");
       console.log("[visit:stream] page:", visitMsg.page, "ip:", visitMsg.ip, "ua:", visitMsg.user_agent.substring(0, 60));
 
-      pushToStream("page_visit", visitMsg);
+      await pushToStream("page_visit", visitMsg);
 
       return res.status(200).json({ success: true });
     } catch (e) {
