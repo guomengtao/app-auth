@@ -1,8 +1,8 @@
-"""Ev Notifier v1.5.2 - Performance Optimized + JS-triggered lazy loading"""
+"""Ev Notifier v1.5.3 - Fixed WebView delegate crash"""
 import json, os, re, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib
 from datetime import datetime, timedelta
 
-VERSION = "v1.5.2"
+VERSION = "v1.5.3"
 
 try:
     from AppKit import (NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyRegular,
@@ -1559,6 +1559,7 @@ class DashboardWindow:
         self._msg_text = None
         self._current_page = "messages"
         self._webview_thread = None
+        self._nav_delegate = None
         _debug_log("DashboardWindow.__init__")
 
     def show(self):
@@ -1636,13 +1637,13 @@ p{color:#6b7280;font-size:14px;margin-top:16px}
             self, 'windowWillClose:', NSWindowWillCloseNotification, self._window)
 
         if _HAS_WEBKIT:
-            nav_delegate = WebNavDelegate.alloc().init()
-            nav_delegate._dashboard = self
+            self._nav_delegate = WebNavDelegate.alloc().init()
+            self._nav_delegate._dashboard = self
             self._webview = WebView.alloc().initWithFrame_(
                 ((0, 0), (rect[1][0], rect[1][1])))
             self._webview.setAutoresizingMask_(
                 NSViewWidthSizable | NSViewHeightSizable)
-            self._webview.setPolicyDelegate_(nav_delegate)
+            self._webview.setPolicyDelegate_(self._nav_delegate)
             self._window.contentView().addSubview_(self._webview)
         else:
             scroll = NSScrollView.alloc().initWithFrame_(
