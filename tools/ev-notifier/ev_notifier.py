@@ -1,4 +1,4 @@
-"""Ev Notifier v2.2.3 - PUB/SUB broadcast mode, zero polling cost"""
+"""Ev Notifier v2.2.4 - PUB/SUB broadcast mode, zero polling cost"""
 import json, os, re, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib
 from datetime import datetime, timedelta
 
@@ -7,7 +7,7 @@ try:
 except ImportError:
     redis = None
 
-VERSION = "v2.2.3"
+VERSION = "v2.2.4"
 
 try:
     from AppKit import (NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyRegular,
@@ -673,8 +673,6 @@ def _normalize_amount(amount_raw):
         val = float(s)
         if val == 0:
             return 0.0
-        if val < 100:
-            return val
         return val / 100.0
     except (ValueError, TypeError):
         return 0.0
@@ -1949,20 +1947,26 @@ p{color:#6b7280;font-size:14px;margin-top:16px}
         filter_html = """
         <div class="filter-bar" style="display:flex;align-items:center;gap:10px;padding:12px 0;flex-wrap:wrap;">
           <select id="filterStatus" onchange="applyOrderFilter()" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff;outline:none;cursor:pointer;">
-            <option value="all">All Status</option>
-            <option value="success">Success</option>
-            <option value="failed">Failed</option>
+            <option value="all">All</option>
+            <option value="success">Activation OK</option>
+            <option value="failed">Activation Fail</option>
           </select>
-          <select id="filterTime" onchange="applyOrderFilter()" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff;outline:none;cursor:pointer;">
+          <select id="filterTime" onchange="onTimePresetChange()" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff;outline:none;cursor:pointer;">
             <option value="all">All Time</option>
             <option value="today">Today</option>
+            <option value="yesterday">Yesterday</option>
             <option value="week">This Week</option>
             <option value="month">This Month</option>
+            <option value="custom">Custom Range</option>
           </select>
-          <input id="filterProduct" type="text" placeholder="Search product..." oninput="applyOrderFilter()" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;outline:none;width:160px;" />
-          <input id="filterAmtMin" type="number" placeholder="Min CNY" onchange="applyOrderFilter()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;outline:none;width:90px;" step="0.01" />
+          <input id="filterDateFrom" type="date" onchange="onDateRangeChange()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;outline:none;width:140px;display:none;" />
+          <span id="filterDateSep" style="color:#9ca3af;font-size:12px;display:none;">to</span>
+          <input id="filterDateTo" type="date" onchange="onDateRangeChange()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;outline:none;width:140px;display:none;" />
+          <input id="filterProduct" type="text" placeholder="Product name..." oninput="applyOrderFilter()" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;outline:none;width:160px;" />
+          <input id="filterRedeem" type="text" placeholder="Redeem code..." oninput="applyOrderFilter()" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;outline:none;width:130px;" />
+          <input id="filterAmtMin" type="number" placeholder="Min CNY" onchange="applyOrderFilter()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;outline:none;width:90px;" step="0.01" min="0" />
           <span style="color:#9ca3af;font-size:12px;">-</span>
-          <input id="filterAmtMax" type="number" placeholder="Max CNY" onchange="applyOrderFilter()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;outline:none;width:90px;" step="0.01" />
+          <input id="filterAmtMax" type="number" placeholder="Max CNY" onchange="applyOrderFilter()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;outline:none;width:90px;" step="0.01" min="0" />
           <button onclick="resetOrderFilter()" style="padding:6px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:12px;background:#f9fafb;cursor:pointer;color:#6b7280;">Reset</button>
           <span id="filterResult" style="font-size:12px;color:#6b7280;margin-left:4px;font-weight:500;"></span>
         </div>
@@ -1970,45 +1974,86 @@ p{color:#6b7280;font-size:14px;margin-top:16px}
         function getDateStrings() {
           var now = new Date();
           var todayStr = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+          var yesterday = new Date(now);
+          yesterday.setDate(now.getDate()-1);
+          var yestStr = yesterday.getFullYear()+'-'+String(yesterday.getMonth()+1).padStart(2,'0')+'-'+String(yesterday.getDate()).padStart(2,'0');
           var dayOfWeek = now.getDay();
           var diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
           var weekStart = new Date(now);
           weekStart.setDate(now.getDate()-diffToMonday);
           var weekStr = weekStart.getFullYear()+'-'+String(weekStart.getMonth()+1).padStart(2,'0')+'-'+String(weekStart.getDate()).padStart(2,'0');
           var monthStr = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
-          return {today: todayStr, week: weekStr, month: monthStr};
+          return {today: todayStr, yesterday: yestStr, week: weekStr, month: monthStr};
+        }
+        function onTimePresetChange() {
+          var timeVal = document.getElementById('filterTime').value;
+          var dateFrom = document.getElementById('filterDateFrom');
+          var dateTo = document.getElementById('filterDateTo');
+          var dateSep = document.getElementById('filterDateSep');
+          var ds = getDateStrings();
+          if (timeVal === 'custom') {
+            dateFrom.style.display = '';
+            dateTo.style.display = '';
+            dateSep.style.display = '';
+          } else {
+            dateFrom.style.display = 'none';
+            dateTo.style.display = 'none';
+            dateSep.style.display = 'none';
+          }
+          applyOrderFilter();
+        }
+        function onDateRangeChange() {
+          document.getElementById('filterTime').value = 'custom';
+          applyOrderFilter();
         }
         function applyOrderFilter() {
           var status = document.getElementById('filterStatus').value;
           var time = document.getElementById('filterTime').value;
+          var dateFrom = document.getElementById('filterDateFrom').value;
+          var dateTo = document.getElementById('filterDateTo').value;
           var product = (document.getElementById('filterProduct').value || '').toLowerCase().trim();
+          var redeem = (document.getElementById('filterRedeem').value || '').toUpperCase().trim();
           var amtMin = parseFloat(document.getElementById('filterAmtMin').value);
           var amtMax = parseFloat(document.getElementById('filterAmtMax').value);
           var rows = document.querySelectorAll('#orderTableBody tr');
           var ds = getDateStrings();
           var visible = 0;
+          var totalAmt = 0;
           rows.forEach(function(row) {
             var show = true;
             var rowStatus = row.getAttribute('data-status');
             var rowTime = row.getAttribute('data-time');
             var rowProduct = (row.getAttribute('data-product') || '').toLowerCase();
+            var rowRedeem = (row.getAttribute('data-redeem') || '').toUpperCase();
             var rowAmt = parseFloat(row.getAttribute('data-amount'));
             if (status !== 'all' && rowStatus !== status) show = false;
             if (time === 'today' && rowTime !== ds.today) show = false;
+            if (time === 'yesterday' && rowTime !== ds.yesterday) show = false;
             if (time === 'week' && rowTime < ds.week) show = false;
             if (time === 'month' && !rowTime.startsWith(ds.month)) show = false;
+            if (time === 'custom') {
+              if (dateFrom && rowTime < dateFrom) show = false;
+              if (dateTo && rowTime > dateTo) show = false;
+            }
             if (product && rowProduct.indexOf(product) === -1) show = false;
+            if (redeem && rowRedeem.indexOf(redeem) === -1) show = false;
             if (!isNaN(amtMin) && rowAmt < amtMin) show = false;
             if (!isNaN(amtMax) && rowAmt > amtMax) show = false;
             row.style.display = show ? '' : 'none';
-            if (show) visible++;
+            if (show) { visible++; totalAmt += rowAmt; }
           });
-          document.getElementById('filterResult').textContent = visible+' / '+rows.length+' orders';
+          document.getElementById('filterResult').textContent = visible+'/'+rows.length+' orders, sum CNY'+totalAmt.toFixed(2);
         }
         function resetOrderFilter() {
           document.getElementById('filterStatus').value = 'all';
           document.getElementById('filterTime').value = 'all';
+          document.getElementById('filterDateFrom').value = '';
+          document.getElementById('filterDateTo').value = '';
+          document.getElementById('filterDateFrom').style.display = 'none';
+          document.getElementById('filterDateTo').style.display = 'none';
+          document.getElementById('filterDateSep').style.display = 'none';
           document.getElementById('filterProduct').value = '';
+          document.getElementById('filterRedeem').value = '';
           document.getElementById('filterAmtMin').value = '';
           document.getElementById('filterAmtMax').value = '';
           applyOrderFilter();
@@ -2029,7 +2074,7 @@ p{color:#6b7280;font-size:14px;margin-top:16px}
             status_class = "badge-success" if status == "success" else "badge-fail"
             status_label = "Success" if status == "success" else "Failed"
             status_html = f'<span class="badge {status_class}">{status_label}</span>'
-            rows += (f'<tr data-status="{status}" data-time="{date_str}" data-product="{product_safe}" data-amount="{amt:.2f}">'
+            rows += (f'<tr data-status="{status}" data-time="{date_str}" data-product="{product_safe}" data-redeem="{redeem_safe}" data-amount="{amt:.2f}">'
                      f'<td>{t}</td><td>{product_safe}</td>'
                      f'<td class="amount">{amt_display}</td><td>{redeem_safe}</td>'
                      f'<td>{status_html}</td></tr>\n')
@@ -2540,13 +2585,17 @@ document.addEventListener('DOMContentLoaded',function(){{
                     continue
                 ts = int(order.get("created_at", 0)) if order.get("created_at") else int(time.time())
                 amt_raw = order.get("total_amount", "0")
+                try:
+                    amt_str = f"{float(amt_raw):.2f}"
+                except (ValueError, TypeError):
+                    amt_str = "0.00"
                 payload = {
                     "out_trade_no": trade_no,
                     "user_name": order.get("user_name", ""),
                     "plan_title": order.get("plan_title", ""),
                     "plan_id": order.get("plan_id", ""),
                     "month": order.get("month", 1),
-                    "total_amount": str(amt_raw),
+                    "total_amount": amt_str,
                     "activation_code": order.get("activation_code", ""),
                     "redeem_code": order.get("redeem_code", ""),
                 }
