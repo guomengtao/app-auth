@@ -7,7 +7,7 @@ try:
 except ImportError:
     redis = None
 
-VERSION = "v2.0.0"
+VERSION = "v2.0.1"
 
 try:
     from AppKit import (NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyRegular,
@@ -2265,6 +2265,12 @@ document.addEventListener('DOMContentLoaded',function(){{
 
     def _switch_to(self, page_id):
         self._current_page = page_id
+        if page_id == "messages":
+            global _new_msg_count, _seen_ids
+            _new_msg_count = 0
+            _seen_ids.clear()
+            if _app_ref:
+                _app_ref.title = f"Ev {VERSION}"
         self._refresh_content()
 
     def _refresh_content(self):
