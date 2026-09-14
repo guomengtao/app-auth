@@ -1559,15 +1559,41 @@ class DashboardWindow:
         _debug_log("DashboardWindow.__init__")
 
     def show(self):
-        _debug_log("show() called, _HAS_WEBVIEW=%s" % str(_HAS_WEBVIEW))
+        _debug_log("show() called, _HAS_WEBKIT=%s, _HAS_WEBVIEW=%s" % (str(_HAS_WEBKIT), str(_HAS_WEBVIEW)))
+
+        if _HAS_WEBKIT:
+            if self._window is None:
+                self._create_window()
+            self._window.makeKeyAndOrderFront_(None)
+            NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
+            self._refresh_content()
+            return
+
         html = self._build_current_html()
         html_path = os.path.expanduser("~/.ev_dashboard.html")
         with open(html_path, "w") as f:
             f.write(html)
         _debug_log("HTML written to %s, len=%d" % (html_path, len(html)))
 
-        if not _HAS_WEBVIEW:
-            _debug_log("pywebview not available, fallback to browser")
+        if _HAS_WEBVIEW:
+            script = (
+                "import webview, sys\n"
+                "with open(%r, 'r') as f:\n"
+                "    html = f.read()\n"
+                "window = webview.create_window(%r, html=html, "
+                "width=1100, height=720, min_size=(900, 560), "
+                "resizable=True, confirm_close=False)\n"
+                "webview.start(debug=False)\n"
+            ) % (html_path, f"Ev Notifier {VERSION}")
+            try:
+                subprocess.Popen([sys.executable, "-c", script],
+                                 stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL)
+                _debug_log("webview subprocess launched")
+            except Exception as e:
+                _debug_log("ERROR launching webview subprocess: %s" % e)
+        else:
+            _debug_log("no webview available, fallback to browser")
             try:
                 from Foundation import NSURL
                 from AppKit import NSWorkspace
@@ -1575,24 +1601,6 @@ class DashboardWindow:
                 NSWorkspace.sharedWorkspace().openURL_(file_url)
             except Exception as e:
                 _debug_log("ERROR in show fallback: %s" % e)
-            return
-
-        script = (
-            "import webview, sys\n"
-            "with open(%r, 'r') as f:\n"
-            "    html = f.read()\n"
-            "window = webview.create_window(%r, html=html, "
-            "width=1100, height=720, min_size=(900, 560), "
-            "resizable=True, confirm_close=False)\n"
-            "webview.start(debug=False)\n"
-        ) % (html_path, f"Ev Notifier {VERSION}")
-        try:
-            subprocess.Popen([sys.executable, "-c", script],
-                             stdout=subprocess.DEVNULL,
-                             stderr=subprocess.DEVNULL)
-            _debug_log("webview subprocess launched")
-        except Exception as e:
-            _debug_log("ERROR launching webview subprocess: %s" % e)
 
     def _create_window(self):
         rect = NSMakeRect(100, 100, 1100, 720)
