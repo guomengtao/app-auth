@@ -1,8 +1,8 @@
-"""Ev Notifier v1.5.0 - Professional Dashboard UI + Advanced Visitor Tracking"""
+"""Ev Notifier v1.5.1 - Professional Dashboard UI + Advanced Visitor Tracking + Performance Optimized"""
 import json, os, re, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib
 from datetime import datetime, timedelta
 
-VERSION = "v1.5.0"
+VERSION = "v1.5.1"
 
 try:
     from AppKit import (NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyRegular,
@@ -1494,6 +1494,9 @@ tr:hover td { background: linear-gradient(90deg, #f8fafc, #f1f5f9); }
     width: 200px;
   }
 }
+
+.spinner{width:40px;height:40px;border:4px solid #e5e7eb;border-top-color:#3b82f6;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 """
 
 _TYPE_STYLES = {
@@ -1548,6 +1551,17 @@ def _debug_log(msg):
         f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')}] {msg}\n")
 
 
+if _HAS_APPKIT:
+    class Bridge(NSObject):
+        def init(self):
+            self._dashboard = None
+            return self
+
+        def doRefresh_(self, timer):
+            if self._dashboard:
+                self._dashboard._refresh_content()
+
+
 class DashboardWindow:
     def __init__(self, app_ref):
         self._app = app_ref
@@ -1556,6 +1570,11 @@ class DashboardWindow:
         self._msg_text = None
         self._current_page = "messages"
         self._webview_thread = None
+        if _HAS_APPKIT:
+            self._bridge = Bridge.alloc().init()
+            self._bridge._dashboard = self
+        else:
+            self._bridge = None
         _debug_log("DashboardWindow.__init__")
 
     def show(self):
@@ -1564,9 +1583,14 @@ class DashboardWindow:
         if _HAS_WEBKIT:
             if self._window is None:
                 self._create_window()
+            self._show_loading()
+            self._window.center()
             self._window.makeKeyAndOrderFront_(None)
             NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
-            self._refresh_content()
+            if self._bridge:
+                self._bridge.performSelector_withObject_afterDelay_("doRefresh:", None, 0.05)
+            else:
+                self._refresh_content()
             return
 
         html = self._build_current_html()
@@ -1601,6 +1625,22 @@ class DashboardWindow:
                 NSWorkspace.sharedWorkspace().openURL_(file_url)
             except Exception as e:
                 _debug_log("ERROR in show fallback: %s" % e)
+
+    def _show_loading(self):
+        if not _HAS_WEBKIT or not self._webview:
+            return
+        loading_html = """<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#f5f7fa}
+body{display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,sans-serif}
+.spinner{width:40px;height:40px;border:4px solid #e5e7eb;border-top-color:#3b82f6;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+p{color:#6b7280;font-size:14px;margin-top:16px}
+</style></head><body><div><div class="spinner"></div><p>Loading...</p></div></body></html>"""
+        import base64
+        b64 = base64.b64encode(loading_html.encode("utf-8")).decode("ascii")
+        self._webview.setMainFrameURL_("data:text/html;base64," + b64)
 
     def _create_window(self):
         rect = NSMakeRect(100, 100, 1100, 720)
@@ -2166,79 +2206,43 @@ document.addEventListener('DOMContentLoaded',function(){{
             if hasattr(self, '_msg_text') and self._msg_text:
                 self._msg_text.setString_(f"Error loading dashboard:\n\n{e}\n\nPlease check console for details.")
 
+    _TAB_BUILDERS = {
+        "messages": "_html_messages",
+        "orders": "_html_orders",
+        "visitors": "_html_visitors",
+        "trend": "_html_trend",
+        "devices": "_html_devices",
+        "settings": "_html_settings",
+    }
+
+    _PAGE_TITLES = {
+        "messages": ("消息中心", ""),
+        "orders": ("订单列表", "订单管理"),
+        "visitors": ("访客浏览", "访问统计"),
+        "trend": ("走势图", "数据趋势"),
+        "devices": ("设备信息", "设备统计"),
+        "settings": ("设置", "应用偏好"),
+    }
+
     def _build_current_html(self):
         page = self._current_page
-        tabs = [
-            ("messages", self._html_messages()),
-            ("orders", self._html_orders()),
-            ("visitors", self._html_visitors()),
-            ("trend", self._html_trend()),
-            ("devices", self._html_devices()),
-            ("settings", self._html_settings()),
-        ]
+
+        tab_ids = ["messages", "orders", "visitors", "trend", "devices", "settings"]
         tab_html = ""
-        for tid, body in tabs:
+        for tid in tab_ids:
+            if tid == page:
+                builder = getattr(self, self._TAB_BUILDERS[tid])
+                body = builder()
+            else:
+                body = '<div class="empty-state"><div class="empty-icon"><div class="spinner"></div></div><div class="empty-title" style="color:#86868b">Loading...</div></div>'
             display = "block" if tid == page else "none"
             tab_html += f'<div class="tab-content" id="tab-{tid}" style="display:{display}">{body}</div>'
-        
-        page_titles = {
-            "messages": ("消息中心", ""),
-            "orders": ("订单列表", "订单管理"),
-            "visitors": ("访客浏览", "访问统计"),
-            "trend": ("走势图", "数据趋势"),
-            "devices": ("设备信息", "设备统计"),
-            "settings": ("设置", "应用偏好"),
-        }
-        title, subtitle = page_titles.get(page, ("消息中心", ""))
-        
+
+        title, subtitle = self._PAGE_TITLES.get(page, ("消息中心", ""))
+
         scripts = """
 <script>
 (function() {
-    var STORAGE_KEY = 'ev-notifier-current-page';
-    var DEFAULT_PAGE = '""" + page + """';
-    var hasStorage = false;
-    try {
-        localStorage.setItem('_ev_test', '1');
-        localStorage.removeItem('_ev_test');
-        hasStorage = true;
-    } catch(e) {
-        hasStorage = false;
-    }
-
-    function getCurrentPage() {
-        try {
-            if (hasStorage) {
-                var v = localStorage.getItem(STORAGE_KEY);
-                if (v) return v;
-            }
-        } catch(e) {}
-        return DEFAULT_PAGE;
-    }
-
-    function setCurrentPage(tabId) {
-        try {
-            if (hasStorage) localStorage.setItem(STORAGE_KEY, tabId);
-        } catch(e) {}
-    }
-
-    function switchTab(tabId) {
-        var all = document.querySelectorAll('.tab-content');
-        for (var i = 0; i < all.length; i++) {
-            all[i].style.display = 'none';
-        }
-        var target = document.getElementById('tab-' + tabId);
-        if (target) {
-            target.style.display = 'block';
-        }
-        var navs = document.querySelectorAll('.nav-item');
-        for (var j = 0; j < navs.length; j++) {
-            navs[j].classList.remove('active');
-        }
-        var active = document.querySelector('.nav-item[data-tab="' + tabId + '"]');
-        if (active) active.classList.add('active');
-        setCurrentPage(tabId);
-    }
-
     function bindClicks() {
         var links = document.querySelectorAll('.nav-item[data-tab]');
         for (var k = 0; k < links.length; k++) {
@@ -2246,19 +2250,17 @@ document.addEventListener('DOMContentLoaded',function(){{
                 e.preventDefault();
                 e.stopPropagation();
                 var tabId = this.getAttribute('data-tab');
-                if (tabId) switchTab(tabId);
+                if (tabId) {
+                    window.location = 'ev://nav=' + tabId;
+                }
                 return false;
             });
         }
     }
 
-    var savedPage = getCurrentPage();
-    if (savedPage && savedPage !== DEFAULT_PAGE) {
-        switchTab(savedPage);
-    }
-    bindClicks();
-
-    window.switchTab = switchTab;
+    document.addEventListener('DOMContentLoaded', function() {
+        bindClicks();
+    });
 })();
 </script>"""
         return self._html_wrap(tab_html, title, subtitle, scripts=scripts)
