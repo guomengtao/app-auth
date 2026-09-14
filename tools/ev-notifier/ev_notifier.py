@@ -1,8 +1,8 @@
-"""Ev Notifier v1.5.3 - Fixed WebView delegate crash"""
+"""Ev Notifier v1.5.4 - Hidden dock icon, accessory policy only"""
 import json, os, re, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib
 from datetime import datetime, timedelta
 
-VERSION = "v1.5.3"
+VERSION = "v1.5.4"
 
 try:
     from AppKit import (NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyRegular,
@@ -1571,7 +1571,8 @@ class DashboardWindow:
             self._show_loading()
             self._window.center()
             self._window.makeKeyAndOrderFront_(None)
-            NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
+            NSApplication.sharedApplication().setActivationPolicy_(
+                NSApplicationActivationPolicyAccessory)
             return
 
         html = self._build_current_html()
