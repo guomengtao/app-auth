@@ -7,7 +7,7 @@ try:
 except ImportError:
     redis = None
 
-VERSION = "v2.2.0"
+VERSION = "v2.2.1"
 
 try:
     from AppKit import (NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyRegular,
@@ -2447,10 +2447,12 @@ document.addEventListener('DOMContentLoaded',function(){{
             if new_last_id != last_id:
                 save_last_id(new_last_id)
             _last_poll_detail = detail
+            record_poll("manual_poll", len(detail["messages_found"]))
             _debug_log(f"_poll_now: done, found {len(detail['messages_found'])} messages")
         except Exception as e:
             detail["error"] = str(e)
             _last_poll_detail = detail
+            record_poll("manual_poll_error", 0)
             _debug_log(f"_poll_now: error - {e}")
         self._current_page = "polls"
         self._refresh_content()
