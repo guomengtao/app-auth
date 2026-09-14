@@ -1,6 +1,7 @@
 var afdianSign = require("../../lib/afdian-sign");
 var afdianProcessor = require("../../lib/afdian-processor");
 var quota = require("../../lib/quota");
+var { pushNotification } = require("../../lib/notify");
 
 function parseBody(req) {
   var body = req.body;
@@ -56,6 +57,27 @@ module.exports = async (req, res) => {
     console.log("[afdian:webhook] calling afdianProcessor.processOrder...");
     var result = await afdianProcessor.processOrder(order);
     console.log("[afdian:webhook] processOrder result: success=" + result.success + " skipped=" + (result.skipped || false) + " already_processed=" + (result.already_processed || false));
+
+    // Push notification to EvNotifier via PUB/SUB broadcast
+    if (result.success && !result.already_processed && !result.skipped) {
+      try {
+        var amountStr = order.total_amount || "0";
+        var amountCents = Math.round(parseFloat(amountStr) * 100);
+        await pushNotification("new_order", {
+          out_trade_no: order.out_trade_no,
+          user_name: order.user_name || order.user_id || "",
+          plan_title: order.plan_title || "",
+          plan_id: order.plan_id || "",
+          month: order.month || 1,
+          total_amount: amountCents,
+          activation_code: result.activation_code || "",
+          redeem_code: result.redeem_code || "",
+        });
+        console.log("[afdian:webhook] pushNotification sent OK");
+      } catch (e) {
+        console.error("[afdian:webhook] pushNotification failed:", e.message);
+      }
+    }
 
     return res.status(200).json({ ec: 200, em: "" });
   } catch (e) {
