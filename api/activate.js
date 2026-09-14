@@ -172,6 +172,14 @@ module.exports = async (req, res) => {
       months: "",
       source: "user",
     }).catch(function () {});
+    await notify.pushNotification("activation_failure", {
+      reason: ipCheck.reason,
+      redeem_code: rawRedeemCode || "",
+      device_id: rawDeviceId || "",
+      source: "user",
+      ip: visitorInfo ? visitorInfo.ip : "",
+      user_agent: visitorInfo ? visitorInfo.userAgent : "",
+    }).catch(function () {});
     res.setHeader("Retry-After", Math.ceil(ipCheck.retryAfterMs / 1000));
     return res.status(429).json({ success: false, error: ipCheck.reason, debug: { visitor: visitorInfo, notification: buildNotificationStatus(ipNotifyResult), reason: ipCheck.reason } });
   }
