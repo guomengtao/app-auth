@@ -50,13 +50,17 @@ swiftc -o "$MACOS_DIR/EvNotifier" "$SCRIPT_DIR/launcher.swift" 2>&1
 # 复制 ev_notifier.py 到 app bundle 内
 cp "$SCRIPT_DIR/ev_notifier.py" "$APP_DIR/ev_notifier.py"
 
-# 生成应用图标（蓝色圆形 + EV 文字）
-echo "  生成图标..."
-ICONSET_DIR="/tmp/ev_icon.iconset"
-rm -rf "$ICONSET_DIR"
-mkdir -p "$ICONSET_DIR"
+# 应用图标：优先使用已有的 EvNotifier.icns，否则自动生成
+if [ -f "$SCRIPT_DIR/EvNotifier.icns" ]; then
+  echo "  使用已有图标: $SCRIPT_DIR/EvNotifier.icns"
+  cp "$SCRIPT_DIR/EvNotifier.icns" "$RESOURCES_DIR/EvNotifier.icns"
+else
+  echo "  生成图标..."
+  ICONSET_DIR="/tmp/ev_icon.iconset"
+  rm -rf "$ICONSET_DIR"
+  mkdir -p "$ICONSET_DIR"
 
-python3 -c "
+  python3 -c "
 import struct, zlib, os
 w, h = 1024, 1024
 raw = b''
@@ -81,14 +85,14 @@ png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', ihdr) + chunk(b'IDAT', zlib.compress
 with open('/tmp/ev_icon_1024.png', 'wb') as f:
     f.write(png)
 "
-for size in 16 32 128 256 512; do
-  sips -z $size $size /tmp/ev_icon_1024.png --out "$ICONSET_DIR/icon_${size}x${size}.png" 2>/dev/null
-  sips -z $((size*2)) $((size*2)) /tmp/ev_icon_1024.png --out "$ICONSET_DIR/icon_${size}x${size}@2x.png" 2>/dev/null
-done
-iconutil -c icns "$ICONSET_DIR" -o "$RESOURCES_DIR/EvNotifier.icns" 2>/dev/null
-# 同时保存到项目目录，下次直接用
-cp "$RESOURCES_DIR/EvNotifier.icns" "$SCRIPT_DIR/EvNotifier.icns"
-rm -rf "$ICONSET_DIR" /tmp/ev_icon_1024.png
+  for size in 16 32 128 256 512; do
+    sips -z $size $size /tmp/ev_icon_1024.png --out "$ICONSET_DIR/icon_${size}x${size}.png" 2>/dev/null
+    sips -z $((size*2)) $((size*2)) /tmp/ev_icon_1024.png --out "$ICONSET_DIR/icon_${size}x${size}@2x.png" 2>/dev/null
+  done
+  iconutil -c icns "$ICONSET_DIR" -o "$RESOURCES_DIR/EvNotifier.icns" 2>/dev/null
+  cp "$RESOURCES_DIR/EvNotifier.icns" "$SCRIPT_DIR/EvNotifier.icns"
+  rm -rf "$ICONSET_DIR" /tmp/ev_icon_1024.png
+fi
 
 chmod +x "$MACOS_DIR/EvNotifier"
 

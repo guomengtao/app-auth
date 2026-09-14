@@ -1,4 +1,4 @@
-"""Ev Notifier v2.2.5 - PUB/SUB broadcast mode, zero polling cost"""
+"""Ev Notifier v2.2.6 - PUB/SUB broadcast mode, zero polling cost, auto-restart on crash"""
 import json, os, re, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib
 from datetime import datetime, timedelta
 
@@ -7,7 +7,7 @@ try:
 except ImportError:
     redis = None
 
-VERSION = "v2.2.5"
+VERSION = "v2.2.6"
 
 try:
     from AppKit import (NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyRegular,
