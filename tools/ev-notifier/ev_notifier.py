@@ -1,8 +1,8 @@
-"""Ev Notifier v1.5.6 - Override run() to skip activateIgnoringOtherApps"""
+"""Ev Notifier v1.5.7 - Override run() to skip activateIgnoringOtherApps"""
 import json, os, re, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib
 from datetime import datetime, timedelta
 
-VERSION = "v1.5.6"
+VERSION = "v1.5.7"
 
 try:
     from AppKit import (NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyRegular,
@@ -315,9 +315,28 @@ def record_poll(reason, recovered):
         data[date_str] = {"last_poll_hour": -1, "total_polls_today": 0, "polls": []}
     entry = {
         "time": datetime.now().strftime("%H:%M:%S"),
-        "type": "recovery",
+        "type": "manual",
         "reason": reason,
         "recovered": recovered
+    }
+    data[date_str]["polls"].append(entry)
+    data[date_str]["total_polls_today"] = len(data[date_str]["polls"])
+    data[date_str]["last_poll_hour"] = datetime.now().hour
+    save_poll_log(data)
+    _recovery_count_today = data[date_str]["total_polls_today"]
+    clean_old_logs()
+
+
+def record_auto_poll(msg_count):
+    global _recovery_count_today
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    data = load_poll_log()
+    if date_str not in data:
+        data[date_str] = {"last_poll_hour": -1, "total_polls_today": 0, "polls": []}
+    entry = {
+        "time": datetime.now().strftime("%H:%M:%S"),
+        "type": "auto",
+        "msg_count": msg_count
     }
     data[date_str]["polls"].append(entry)
     data[date_str]["total_polls_today"] = len(data[date_str]["polls"])
@@ -545,6 +564,7 @@ def redis_loop():
                 try:
                     result = upstash_http("xrange", STREAM_KEY, last_id, "+", timeout=10)
                     messages = result.get("result", [])
+                    record_auto_poll(len(messages))
                     if messages:
                         for msg_entry in messages:
                             if not isinstance(msg_entry, list) or len(msg_entry) < 2:
@@ -1497,6 +1517,22 @@ tr:hover td { background: linear-gradient(90deg, #f8fafc, #f1f5f9); }
 
 .spinner{width:40px;height:40px;border:4px solid #e5e7eb;border-top-color:#3b82f6;border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+.badge { display:inline-block; padding:2px 10px; border-radius:99px; font-size:11px; font-weight:600; letter-spacing:0.02em; }
+.badge-auto { background:linear-gradient(135deg, #d1fae5, #a7f3d0); color:#047857; }
+.badge-manual { background:linear-gradient(135deg, #ede9fe, #ddd6fe); color:#6d28d9; }
+
+.chart-bar-group { display:flex; align-items:flex-end; gap:12px; height:120px; padding:8px 0; }
+.chart-bar-item { display:flex; flex-direction:column; align-items:center; flex:1; height:100%; }
+.chart-bar { width:100%; max-width:40px; background:linear-gradient(180deg, #3b82f6, #60a5fa); border-radius:6px 6px 0 0; transition:height .3s ease; min-height:4px; }
+.chart-label { font-size:11px; color:var(--text-secondary); margin-top:6px; font-variant-numeric:tabular-nums; }
+
+.message-table { width:100%; border-collapse:collapse; }
+.message-table th { padding:10px 16px; font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-secondary); background:#f8fafc; border-bottom:1px solid var(--border); text-align:left; }
+.message-table td { padding:10px 16px; font-size:13px; border-bottom:1px solid var(--border-light); color:var(--text); }
+.message-table tr:hover td { background:#f8fafc; }
+.td-time { color:var(--text-secondary); font-size:12px !important; white-space:nowrap; }
+.td-type { text-align:center; }
 """
 
 _TYPE_STYLES = {
@@ -1514,6 +1550,7 @@ _MENU = [
     {"id": "visitors", "label": "访客浏览", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>', "group": "main"},
     {"id": "trend", "label": "走势图", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>', "group": "analytics"},
     {"id": "devices", "label": "设备", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>', "group": "analytics"},
+    {"id": "polls", "label": "轮询统计", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>', "group": "analytics"},
     {"id": "settings", "label": "设置", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>', "group": "system"},
 ]
 
@@ -1571,6 +1608,7 @@ class DashboardWindow:
             self._show_loading()
             self._window.center()
             self._window.makeKeyAndOrderFront_(None)
+            self._window.orderFrontRegardless()
             NSApplication.sharedApplication().setActivationPolicy_(
                 NSApplicationActivationPolicyAccessory)
             return
@@ -2118,6 +2156,123 @@ document.addEventListener('DOMContentLoaded',function(){{
             body += '<div class="empty-state"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="2" width="14" height="20" rx="2"/></svg></div><div class="empty-title">暂无设备数据</div><div class="empty-desc">访问追踪将自动显示在此</div></div>'
         return body
 
+    def _html_polls(self):
+        data = load_poll_log()
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        today_data = data.get(today_str, {})
+        today_polls = today_data.get("polls", [])
+
+        auto_today = sum(1 for p in today_polls if p.get("type") == "auto")
+        manual_today = sum(1 for p in today_polls if p.get("type") == "manual")
+        total_today = auto_today + manual_today
+
+        month_total = 0
+        for date_str in sorted(data.keys()):
+            if date_str.startswith(datetime.now().strftime("%Y-%m")[:7]):
+                month_total += len(data[date_str].get("polls", []))
+
+        stats_html = f"""
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+            <div class="stat-body"><div class="stat-value">{total_today}</div><div class="stat-label">今日总计</div></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+            <div class="stat-body"><div class="stat-value">{auto_today}</div><div class="stat-label">自动轮询</div></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg></div>
+            <div class="stat-body"><div class="stat-value">{manual_today}</div><div class="stat-label">手动轮询</div></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+            <div class="stat-body"><div class="stat-value">{month_total}</div><div class="stat-label">本月总计</div></div>
+          </div>
+        </div>"""
+
+        rows_html = ""
+        recent_polls = []
+        for date_str in sorted(data.keys(), reverse=True)[:3]:
+            for p in reversed(data[date_str].get("polls", [])):
+                recent_polls.append((date_str, p))
+
+        if not recent_polls:
+            body = stats_html + '<div class="empty-state"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="empty-title">暂无轮询记录</div><div class="empty-desc">自动与手动轮询明细将显示在此</div></div>'
+            return body
+
+        for date_str, p in recent_polls[:100]:
+            ptype = p.get("type", "manual")
+            ptime = date_str + " " + p.get("time", "")
+            if ptype == "auto":
+                msg_count = p.get("msg_count", 0)
+                type_badge = '<span class="badge badge-auto">自动</span>'
+                detail = f'收到 {msg_count} 条消息'
+            else:
+                reason = p.get("reason", "")
+                recovered = p.get("recovered", False)
+                type_badge = '<span class="badge badge-manual">手动</span>'
+                recovery_text = "恢复成功" if recovered else "未恢复"
+                recovery_color = "var(--green)" if recovered else "var(--red)"
+                detail = f'<span>{reason}</span> <span style="color:{recovery_color}">({recovery_text})</span>'
+
+            rows_html += f"""
+            <tr>
+              <td class="td-time">{ptime[:16]}</td>
+              <td class="td-type">{type_badge}</td>
+              <td class="td-detail">{detail}</td>
+            </tr>"""
+
+        table_html = f"""
+        <div class="panel" style="margin-top:16px;">
+          <div class="panel-header">
+            <div class="panel-title">
+              <div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+              轮询明细
+            </div>
+            <div class="panel-badge">{len(recent_polls)} 次</div>
+          </div>
+          <div class="panel-body" style="padding:0;">
+            <table class="message-table">
+              <thead><tr><th style="width:160px">时间</th><th style="width:80px">类型</th><th>详情</th></tr></thead>
+              <tbody>{rows_html}</tbody>
+            </table>
+          </div>
+        </div>"""
+
+        today_poll_entries = today_data.get("polls", [])
+        if today_poll_entries:
+            hourly_data = {}
+            for p in today_poll_entries:
+                h = p.get("time", "00:00:00")[:2]
+                hourly_data[h] = hourly_data.get(h, 0) + 1
+
+            hours = sorted(hourly_data.keys())
+            max_bar = max(hourly_data.values()) if hourly_data else 1
+            bars = ""
+            for h in hours:
+                height_pct = (hourly_data[h] / max_bar) * 100
+                bars += f'<div class="chart-bar-item"><div class="chart-bar" style="height:{height_pct:.0f}%"></div><div class="chart-label">{h}</div></div>'
+
+            chart_html = f"""
+            <div class="panel" style="margin-top:16px;">
+              <div class="panel-header">
+                <div class="panel-title">
+                  <div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
+                  今日按小时分布
+                </div>
+              </div>
+              <div class="panel-body">
+                <div class="chart-bar-group">{bars}</div>
+              </div>
+            </div>"""
+
+            body = stats_html + table_html + chart_html
+        else:
+            body = stats_html + table_html
+
+        return body
+
     def _html_settings(self):
         auto_status = get_auto_start()
         info_items = [
@@ -2194,6 +2349,7 @@ document.addEventListener('DOMContentLoaded',function(){{
         "visitors": "_html_visitors",
         "trend": "_html_trend",
         "devices": "_html_devices",
+        "polls": "_html_polls",
         "settings": "_html_settings",
     }
 
@@ -2203,13 +2359,14 @@ document.addEventListener('DOMContentLoaded',function(){{
         "visitors": ("访客浏览", "访问统计"),
         "trend": ("走势图", "数据趋势"),
         "devices": ("设备信息", "设备统计"),
+        "polls": ("轮询统计", "自动 & 手动轮询明细"),
         "settings": ("设置", "应用偏好"),
     }
 
     def _build_current_html(self):
         page = self._current_page
 
-        tab_ids = ["messages", "orders", "visitors", "trend", "devices", "settings"]
+        tab_ids = ["messages", "orders", "visitors", "trend", "devices", "polls", "settings"]
         tab_html = ""
         for tid in tab_ids:
             if tid == page:
