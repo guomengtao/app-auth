@@ -1,8 +1,8 @@
-"""Ev Notifier v1.5.8 - Auto poll cooldown per hour"""
+"""Ev Notifier v1.5.9 - Throttle Redis xrange to 30s, truthful recording"""
 import json, os, re, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib
 from datetime import datetime, timedelta
 
-VERSION = "v1.5.8"
+VERSION = "v1.5.9"
 
 try:
     from AppKit import (NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyRegular,
@@ -68,7 +68,6 @@ _paused = False
 _seen_ids = set()
 _app_ref = None
 _last_poll_hour = -1
-_last_auto_poll_hour = -1
 _recovery_count_today = 0
 
 
@@ -329,11 +328,7 @@ def record_poll(reason, recovered):
 
 
 def record_auto_poll(msg_count):
-    global _recovery_count_today, _last_auto_poll_hour
-    current_hour = datetime.now().hour
-    if current_hour == _last_auto_poll_hour:
-        return
-    _last_auto_poll_hour = current_hour
+    global _recovery_count_today
     date_str = datetime.now().strftime("%Y-%m-%d")
     data = load_poll_log()
     if date_str not in data:
@@ -590,7 +585,7 @@ def redis_loop():
                                 last_id = do_recovery_poll(last_id)
                             last_id = msg_id
                         save_last_id(last_id)
-                    time.sleep(5)
+                    time.sleep(30)
                 except ConnectionError:
                     raise
         except Exception as e:
