@@ -192,7 +192,7 @@ module.exports = async (req, res) => {
         months: "",
         source: "user",
       }).catch(function () {});
-      notify.pushNotification("activation_failure", {
+      await notify.pushNotification("activation_failure", {
         reason: deviceCheck.error,
         redeem_code: redeemCode || "",
         device_id: deviceId || "",
@@ -214,7 +214,7 @@ module.exports = async (req, res) => {
         months: "",
         source: "user",
       }).catch(function () {});
-      notify.pushNotification("activation_failure", {
+      await notify.pushNotification("activation_failure", {
         reason: codeCheck.error,
         redeem_code: redeemCode || "",
         device_id: deviceCheck.value || "",
@@ -238,7 +238,7 @@ module.exports = async (req, res) => {
         months: "",
         source: "user",
       }).catch(function () {});
-      notify.pushNotification("activation_failure", {
+      await notify.pushNotification("activation_failure", {
         reason: deviceCheck2.reason,
         redeem_code: code,
         device_id: device,
@@ -263,7 +263,7 @@ module.exports = async (req, res) => {
         months: "",
         source: "user",
       }).catch(function () {});
-      notify.pushNotification("activation_failure", {
+      await notify.pushNotification("activation_failure", {
         reason: "兑换码不存在或尚未同步到服务器",
         redeem_code: code,
         device_id: device,
@@ -285,7 +285,7 @@ module.exports = async (req, res) => {
         months: "",
         source: "user",
       }).catch(function () {});
-      notify.pushNotification("activation_failure", {
+      await notify.pushNotification("activation_failure", {
         reason: "兑换码数据已损坏",
         redeem_code: code,
         device_id: device,
@@ -309,7 +309,7 @@ module.exports = async (req, res) => {
         months: info.duration_months || "",
         source: "user",
       }).catch(function () {});
-      notify.pushNotification("activation_failure", {
+      await notify.pushNotification("activation_failure", {
         reason: "兑换码配置异常（商品或时长无效）",
         redeem_code: code,
         device_id: device,
@@ -389,7 +389,7 @@ module.exports = async (req, res) => {
           console.error("[activate] Notification failed:", e.message);
         });
 
-        notify.pushNotification("new_activation", {
+        await notify.pushNotification("new_activation", {
           redeem_code: code,
           activation_code: activationCodeReuse,
           product_id: productId,
@@ -411,7 +411,7 @@ module.exports = async (req, res) => {
         months: months,
         source: "user",
       }).catch(function () {});
-      notify.pushNotification("activation_failure", {
+      await notify.pushNotification("activation_failure", {
         reason: "该兑换码已被其他设备使用过",
         redeem_code: code,
         device_id: device,
@@ -502,7 +502,7 @@ module.exports = async (req, res) => {
       notifyResult = { sent: false, error: e.message };
     }
 
-    notify.pushNotification("new_activation", {
+    await notify.pushNotification("new_activation", {
       redeem_code: code,
       activation_code: activationCode,
       product_id: productId,
@@ -532,7 +532,7 @@ module.exports = async (req, res) => {
       source: "user",
     }).catch(function () {});
 
-    notify.pushNotification("activation_failure", {
+    await notify.pushNotification("activation_failure", {
       reason: msg,
       redeem_code: rawRedeemCode || "",
       device_id: rawDeviceId || "",
