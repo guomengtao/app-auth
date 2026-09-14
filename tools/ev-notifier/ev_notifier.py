@@ -1,4 +1,4 @@
-"""Ev Notifier v2.2.6 - PUB/SUB broadcast mode, zero polling cost, auto-restart on crash"""
+"""Ev Notifier v2.2.7 - PUB/SUB broadcast, zero polling, auto-restart, error logging"""
 import json, os, re, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib
 from datetime import datetime, timedelta
 
@@ -7,7 +7,7 @@ try:
 except ImportError:
     redis = None
 
-VERSION = "v2.2.6"
+VERSION = "v2.2.7"
 
 try:
     from AppKit import (NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyRegular,
@@ -49,6 +49,7 @@ RECEIVED_FILE = os.path.expanduser("~/.ev_received.json")
 POLL_LOG_FILE = os.path.expanduser("~/.ev_poll_log.json")
 MESSAGES_FILE = os.path.expanduser("~/.ev_messages.json")
 VISITORS_FILE = os.path.expanduser("~/.ev_visitors.json")
+ERROR_LOG_FILE = os.path.expanduser("~/.ev_error_log.json")
 
 LAUNCH_AGENT_LABEL = "com.evnotifier.agent"
 LAUNCH_AGENT_DIR = os.path.expanduser("~/Library/LaunchAgents")
@@ -73,6 +74,7 @@ _new_msg_count = 0
 _paused = False
 _seen_ids = set()
 _app_ref = None
+_pending_title = None
 _recovery_count_today = 0
 _missing_count = 0
 _last_poll_detail = None
@@ -541,12 +543,15 @@ def handle_message(msg):
     if do_popup:
         notify_macos(title, subtitle, body, sound=do_sound)
     store_message(ts, mtype, p)
-    if _app_ref:
-        _app_ref.title = f"Ev {VERSION}({_new_msg_count})"
+    global _pending_title
+    if _new_msg_count:
+        _pending_title = f"Ev {VERSION}({_new_msg_count})"
+    else:
+        _pending_title = f"Ev {VERSION}"
 
 
 def redis_loop():
-    global _status, _new_msg_count
+    global _status, _new_msg_count, _pending_title
     reconnect_delay = 1
     from urllib.parse import urlparse
     redis_host = urlparse(REST_API_URL).hostname
@@ -556,8 +561,7 @@ def redis_loop():
     while True:
         try:
             _status = "connecting"
-            if _app_ref:
-                _app_ref.title = f"Ev {VERSION} 连接中..."
+            _pending_title = f"Ev {VERSION} 连接中..."
             r = redis.Redis(
                 host=redis_host,
                 port=6379,
@@ -573,13 +577,12 @@ def redis_loop():
             pubsub.subscribe("auth:push_channel")
             _status = "connected"
             reconnect_delay = 1
-            if _app_ref:
-                if _missing_count > 0:
-                    _app_ref.title = f"Ev {VERSION}({_new_msg_count}) ⚠{_missing_count}"
-                elif _new_msg_count:
-                    _app_ref.title = f"Ev {VERSION}({_new_msg_count})"
-                else:
-                    _app_ref.title = f"Ev {VERSION}"
+            if _missing_count > 0:
+                _pending_title = f"Ev {VERSION}({_new_msg_count}) ⚠{_missing_count}"
+            elif _new_msg_count:
+                _pending_title = f"Ev {VERSION}({_new_msg_count})"
+            else:
+                _pending_title = f"Ev {VERSION}"
             print("Ev SUBSCRIBE OK, waiting for messages...")
             for message in pubsub.listen():
                 if message.get("type") != "message":
@@ -599,18 +602,16 @@ def redis_loop():
                 msg_id = str(msg.get("ts", ""))
                 handle_message(msg)
                 record_message(msg_id, idx=idx, total_daily=total_daily, date_str=msg_date)
-                if _app_ref:
-                    if _missing_count > 0:
-                        _app_ref.title = f"Ev {VERSION}({_new_msg_count}) ⚠{_missing_count}"
-                    elif _new_msg_count:
-                        _app_ref.title = f"Ev {VERSION}({_new_msg_count})"
-                    else:
-                        _app_ref.title = f"Ev {VERSION}"
+                if _missing_count > 0:
+                    _pending_title = f"Ev {VERSION}({_new_msg_count}) ⚠{_missing_count}"
+                elif _new_msg_count:
+                    _pending_title = f"Ev {VERSION}({_new_msg_count})"
+                else:
+                    _pending_title = f"Ev {VERSION}"
         except Exception as e:
             print(f"SUBSCRIBE error: {e}, retrying in {reconnect_delay}s...")
             _status = f"retry({reconnect_delay}s)"
-            if _app_ref:
-                _app_ref.title = f"Ev {VERSION} 重试({reconnect_delay}s)..."
+            _pending_title = f"Ev {VERSION} 重试({reconnect_delay}s)..."
             time.sleep(reconnect_delay)
             reconnect_delay = min(reconnect_delay * 2, 30)
 
@@ -1584,6 +1585,7 @@ _MENU = [
     {"id": "devices", "label": "设备", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>', "group": "analytics"},
     {"id": "polls", "label": "轮询统计", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>', "group": "analytics"},
     {"id": "settings", "label": "设置", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>', "group": "system"},
+    {"id": "logs", "label": "错误日志", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>', "group": "system"},
 ]
 
 _GROUP_LABELS = {
@@ -1628,6 +1630,60 @@ class WebNavDelegate(NSObject):
 def _debug_log(msg):
     with open(os.path.expanduser("~/.ev_debug.log"), "a") as f:
         f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')}] {msg}\n")
+
+
+def load_error_log():
+    try:
+        with open(ERROR_LOG_FILE, "r") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def save_error_log(data):
+    try:
+        with open(ERROR_LOG_FILE, "w") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
+
+
+def record_error(level, module, type_name, message, traceback_str=None, context=None):
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    data = load_error_log()
+    if date_str not in data:
+        data[date_str] = []
+    entry = {
+        "time": datetime.now().strftime("%H:%M:%S.%f")[:-3],
+        "level": level,
+        "module": module,
+        "type": type_name,
+        "message": message,
+        "traceback": traceback_str,
+        "context": context or {},
+    }
+    data[date_str].append(entry)
+    if len(data[date_str]) > 200:
+        data[date_str] = data[date_str][-200:]
+    save_error_log(data)
+
+
+def _install_error_hook():
+    original_hook = sys.excepthook
+
+    def _global_error_handler(exc_type, exc_value, exc_tb):
+        import traceback
+        tb_str = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+        record_error(
+            level="error",
+            module="unhandled",
+            type_name=exc_type.__name__,
+            message=str(exc_value),
+            traceback_str=tb_str,
+        )
+        original_hook(exc_type, exc_value, exc_tb)
+
+    sys.excepthook = _global_error_handler
 
 
 class DashboardWindow:
@@ -2635,6 +2691,86 @@ document.addEventListener('DOMContentLoaded',function(){{
         _debug_log(f"notify setting: {key}={settings[key]}")
         self._refresh_content()
 
+    def _html_logs(self):
+        data = load_error_log()
+        all_entries = []
+        for date_key in sorted(data.keys(), reverse=True):
+            for entry in data.get(date_key, []):
+                entry["_date"] = date_key
+                all_entries.append(entry)
+
+        all_entries.sort(key=lambda x: x["_date"] + x["time"], reverse=True)
+        total_errors = len(all_entries)
+        today = datetime.now().strftime("%Y-%m-%d")
+        today_errors = len([e for e in all_entries if e["_date"] == today])
+        week_errors = len([e for e in all_entries if e["_date"] >= (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")])
+
+        LEVEL_LABELS = {"error": "错误", "warning": "警告", "info": "信息"}
+        LEVEL_COLORS = {"error": "#dc2626", "warning": "#d97706", "info": "#2563eb"}
+        LEVEL_BG = {"error": "#fef2f2", "warning": "#fffbeb", "info": "#eff6ff"}
+
+        rows_html = ""
+        for e in all_entries[:100]:
+            date_str = e["_date"]
+            level = e.get("level", "error")
+            module = e.get("module", "-")
+            etype = e.get("type", "-")
+            msg = _safe_str(e.get("message", "-"))
+            tb = e.get("traceback", "")
+            time_str = e.get("time", "")
+            color = LEVEL_COLORS.get(level, "#6b7280")
+            bg = LEVEL_BG.get(level, "#f9fafb")
+            label = LEVEL_LABELS.get(level, level)
+
+            tb_html = ""
+            if tb:
+                tb_safe = _safe_str(tb)
+                tb_html = f"""
+                <details style="margin-top:4px">
+                    <summary style="cursor:pointer;color:#6b7280;font-size:12px">Traceback</summary>
+                    <pre style="margin-top:4px;padding:8px;background:#1e1e1e;color:#d4d4d4;border-radius:6px;font-size:11px;overflow-x:auto;max-height:200px;white-space:pre-wrap">{tb_safe}</pre>
+                </details>"""
+
+            rows_html += f"""
+            <div style="padding:10px 0;border-bottom:1px solid #f0f0f0">
+                <div style="display:flex;align-items:center;gap:8px">
+                    <span style="background:{bg};color:{color};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">{label}</span>
+                    <span style="color:#9ca3af;font-size:12px">{date_str} {time_str}</span>
+                    <span style="color:#6b7280;font-size:12px">[{module}]</span>
+                    <span style="color:#374151;font-size:12px;font-weight:500">{etype}</span>
+                </div>
+                <div style="margin-top:4px;color:#4b5563;font-size:13px;word-break:break-all">{msg}</div>
+                {tb_html}
+            </div>"""
+
+        if not rows_html:
+            rows_html = '<div class="empty-state"><div class="empty-icon">✅</div><div class="empty-title">无错误记录</div><div class="empty-desc">系统运行正常，未捕获到异常</div></div>'
+
+        module_filter_html = ""
+        modules_set = set()
+        for e in all_entries:
+            modules_set.add(e.get("module", "-"))
+
+        return f"""
+        <div class="stats-cards" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+            <div class="stat-card" style="background:#fef2f2;padding:16px;border-radius:10px;text-align:center">
+                <div style="font-size:28px;font-weight:700;color:#dc2626">{today_errors}</div>
+                <div style="font-size:12px;color:#9ca3af;margin-top:4px">今日错误</div>
+            </div>
+            <div class="stat-card" style="background:#fffbeb;padding:16px;border-radius:10px;text-align:center">
+                <div style="font-size:28px;font-weight:700;color:#d97706">{week_errors}</div>
+                <div style="font-size:12px;color:#9ca3af;margin-top:4px">7 天内错误</div>
+            </div>
+            <div class="stat-card" style="background:#f0f9ff;padding:16px;border-radius:10px;text-align:center">
+                <div style="font-size:28px;font-weight:700;color:#2563eb">{total_errors}</div>
+                <div style="font-size:12px;color:#9ca3af;margin-top:4px">全部错误</div>
+            </div>
+        </div>
+        <div style="padding:0">
+            {rows_html}
+        </div>
+        """
+
     def _html_settings(self):
         auto_status = get_auto_start()
         nsettings = load_notify_settings()
@@ -2718,8 +2854,8 @@ document.addEventListener('DOMContentLoaded',function(){{
             global _new_msg_count, _seen_ids
             _new_msg_count = 0
             _seen_ids.clear()
-            if _app_ref:
-                _app_ref.title = f"Ev {VERSION}"
+            global _pending_title
+            _pending_title = f"Ev {VERSION}"
         self._refresh_content()
 
     def _sync_orders(self):
@@ -2889,6 +3025,7 @@ document.addEventListener('DOMContentLoaded',function(){{
         "trend": "_html_trend",
         "devices": "_html_devices",
         "polls": "_html_polls",
+        "logs": "_html_logs",
         "settings": "_html_settings",
     }
 
@@ -2900,13 +3037,14 @@ document.addEventListener('DOMContentLoaded',function(){{
         "trend": ("走势图", "数据趋势"),
         "devices": ("设备信息", "设备统计"),
         "polls": ("轮询统计", "手动恢复操作日志"),
+        "logs": ("错误日志", "运行错误与异常记录"),
         "settings": ("设置", "应用偏好"),
     }
 
     def _build_current_html(self):
         page = self._current_page
 
-        tab_ids = ["messages", "orders", "visitors", "trend", "devices", "polls", "settings"]
+        tab_ids = ["messages", "orders", "visitors", "trend", "devices", "polls", "logs", "settings"]
         tab_html = ""
         for tid in tab_ids:
             if tid == page:
@@ -2966,6 +3104,12 @@ class EvNotifier(rumps.App):
     def _version_menu(self):
         menu = rumps.MenuItem(f"版本: {VERSION}")
         return menu
+
+    @rumps.timer(2)
+    def _update_title(self, _):
+        global _pending_title
+        if _pending_title is not None and self.title != _pending_title:
+            self.title = _pending_title
 
     def run(self, **options):
         import rumps as _r
@@ -3067,6 +3211,7 @@ class EvNotifier(rumps.App):
 
 def main():
     global _app_ref
+    _install_error_hook()
     app = EvNotifier()
     _app_ref = app
     print(f"Ev Notifier {VERSION} started: {REST_API_URL}")
