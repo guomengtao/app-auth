@@ -1,4 +1,4 @@
-"""Ev Notifier v2.0.0 - PUB/SUB broadcast mode, zero polling cost"""
+"""Ev Notifier v2.2.3 - PUB/SUB broadcast mode, zero polling cost"""
 import json, os, re, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib
 from datetime import datetime, timedelta
 
@@ -7,7 +7,7 @@ try:
 except ImportError:
     redis = None
 
-VERSION = "v2.2.2"
+VERSION = "v2.2.3"
 
 try:
     from AppKit import (NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyRegular,
@@ -508,15 +508,11 @@ def handle_message(msg):
         body = "\n".join(lines)
     elif mtype == "new_order":
         product = p.get("product_name", "") or p.get("plan_title", "")
-        amount = p.get("total_amount") or p.get("amount") or ""
-        if amount:
-            try:
-                amount = f"CNY{int(amount) / 100:.2f}"
-            except Exception:
-                pass
+        amount = _normalize_amount(p.get("total_amount") or p.get("amount") or 0)
+        amount_str = f"CNY{amount:.2f}" if amount else ""
         title = "New Order"
         subtitle = product
-        lines = [f"Amount: {amount}"] if amount else []
+        lines = [f"Amount: {amount_str}"] if amount_str else []
         redeem_code = p.get("redeem_code", "")
         if redeem_code:
             lines.append(f"Redeem: {redeem_code}")
@@ -647,13 +643,9 @@ def _format_message_detail(m):
         type_label = "Activation"
     elif mtype == "new_order":
         product = p.get("product_name", "") or ""
-        amount = p.get("total_amount") or p.get("amount") or ""
-        if amount:
-            try:
-                amount = f" CNY{int(amount)/100:.2f}"
-            except Exception:
-                amount = ""
-        detail = f"{product}{amount}"
+        amount = _normalize_amount(p.get("total_amount") or p.get("amount") or 0)
+        amount_str = f" CNY{amount:.2f}" if amount else ""
+        detail = f"{product}{amount_str}"
         type_label = "Order"
     elif mtype == "page_visit":
         page = p.get("page", "") or p.get("title", "") or ""
@@ -671,6 +663,23 @@ def _format_message_detail(m):
     return type_label, detail
 
 
+def _normalize_amount(amount_raw):
+    if amount_raw is None or amount_raw == "":
+        return 0.0
+    try:
+        s = str(amount_raw)
+        if "." in s:
+            return float(s)
+        val = float(s)
+        if val == 0:
+            return 0.0
+        if val < 100:
+            return val
+        return val / 100.0
+    except (ValueError, TypeError):
+        return 0.0
+
+
 def _build_order_list():
     msgs = load_messages()
     orders = []
@@ -680,16 +689,18 @@ def _build_order_list():
         p = m.get("payload", {}) or {}
         product = p.get("product_name", "") or p.get("plan_title", "") or "-"
         amount_raw = p.get("total_amount") or p.get("amount") or 0
-        try:
-            amount = float(amount_raw) / 100.0
-        except Exception:
-            amount = 0.0
+        amount = _normalize_amount(amount_raw)
         redeem = p.get("redeem_code", "") or "-"
+        activation = p.get("activation_code", "") or ""
+        status = "success" if activation else "failed"
         orders.append({
             "time": m.get("time", ""),
+            "ts": m.get("ts", 0),
             "product": product,
             "amount": amount,
             "redeem": redeem,
+            "status": status,
+            "activation": activation,
         })
     return orders
 
@@ -713,10 +724,7 @@ def _build_trend_data(days=30):
                 daily[ds]["count"] += 1
                 p = m.get("payload", {}) or {}
                 amt_raw = p.get("total_amount") or p.get("amount") or 0
-                try:
-                    daily[ds]["amount"] += float(amt_raw) / 100.0
-                except Exception:
-                    pass
+                daily[ds]["amount"] += _normalize_amount(amt_raw)
 
     dates = []
     counts = []
@@ -1543,6 +1551,8 @@ tr:hover td { background: linear-gradient(90deg, #f8fafc, #f1f5f9); }
 .badge-auto { background:linear-gradient(135deg, #d1fae5, #a7f3d0); color:#047857; }
 .badge-manual { background:linear-gradient(135deg, #ede9fe, #ddd6fe); color:#6d28d9; }
 .badge-broadcast { background:linear-gradient(135deg, #dbeafe, #bfdbfe); color:#1d4ed8; }
+.badge-success { background:linear-gradient(135deg, #d1fae5, #6ee7b7); color:#065f46; }
+.badge-fail { background:linear-gradient(135deg, #fee2e2, #fca5a5); color:#991b1b; }
 
 .chart-bar-group { display:flex; align-items:flex-end; gap:12px; height:120px; padding:8px 0; }
 .chart-bar-item { display:flex; flex-direction:column; align-items:center; flex:1; height:100%; }
@@ -1913,6 +1923,8 @@ p{color:#6b7280;font-size:14px;margin-top:16px}
         today_str = datetime.now().strftime("%Y-%m-%d")
         today_orders = [o for o in orders if o.get("time", "").startswith(today_str)]
         today_amount = sum(o.get("amount", 0) for o in today_orders)
+        success_count = sum(1 for o in orders if o.get("status") == "success")
+        failed_count = sum(1 for o in orders if o.get("status") == "failed")
 
         stats_html = f"""
         <div class="stats-grid">
@@ -1934,16 +1946,95 @@ p{color:#6b7280;font-size:14px;margin-top:16px}
           </div>
         </div>"""
 
+        filter_html = """
+        <div class="filter-bar" style="display:flex;align-items:center;gap:10px;padding:12px 0;flex-wrap:wrap;">
+          <select id="filterStatus" onchange="applyOrderFilter()" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff;outline:none;cursor:pointer;">
+            <option value="all">All Status</option>
+            <option value="success">Success</option>
+            <option value="failed">Failed</option>
+          </select>
+          <select id="filterTime" onchange="applyOrderFilter()" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff;outline:none;cursor:pointer;">
+            <option value="all">All Time</option>
+            <option value="today">Today</option>
+            <option value="week">This Week</option>
+            <option value="month">This Month</option>
+          </select>
+          <input id="filterProduct" type="text" placeholder="Search product..." oninput="applyOrderFilter()" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;outline:none;width:160px;" />
+          <input id="filterAmtMin" type="number" placeholder="Min CNY" onchange="applyOrderFilter()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;outline:none;width:90px;" step="0.01" />
+          <span style="color:#9ca3af;font-size:12px;">-</span>
+          <input id="filterAmtMax" type="number" placeholder="Max CNY" onchange="applyOrderFilter()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;outline:none;width:90px;" step="0.01" />
+          <button onclick="resetOrderFilter()" style="padding:6px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:12px;background:#f9fafb;cursor:pointer;color:#6b7280;">Reset</button>
+          <span id="filterResult" style="font-size:12px;color:#6b7280;margin-left:4px;font-weight:500;"></span>
+        </div>
+        <script>
+        function getDateStrings() {
+          var now = new Date();
+          var todayStr = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+          var dayOfWeek = now.getDay();
+          var diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+          var weekStart = new Date(now);
+          weekStart.setDate(now.getDate()-diffToMonday);
+          var weekStr = weekStart.getFullYear()+'-'+String(weekStart.getMonth()+1).padStart(2,'0')+'-'+String(weekStart.getDate()).padStart(2,'0');
+          var monthStr = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+          return {today: todayStr, week: weekStr, month: monthStr};
+        }
+        function applyOrderFilter() {
+          var status = document.getElementById('filterStatus').value;
+          var time = document.getElementById('filterTime').value;
+          var product = (document.getElementById('filterProduct').value || '').toLowerCase().trim();
+          var amtMin = parseFloat(document.getElementById('filterAmtMin').value);
+          var amtMax = parseFloat(document.getElementById('filterAmtMax').value);
+          var rows = document.querySelectorAll('#orderTableBody tr');
+          var ds = getDateStrings();
+          var visible = 0;
+          rows.forEach(function(row) {
+            var show = true;
+            var rowStatus = row.getAttribute('data-status');
+            var rowTime = row.getAttribute('data-time');
+            var rowProduct = (row.getAttribute('data-product') || '').toLowerCase();
+            var rowAmt = parseFloat(row.getAttribute('data-amount'));
+            if (status !== 'all' && rowStatus !== status) show = false;
+            if (time === 'today' && rowTime !== ds.today) show = false;
+            if (time === 'week' && rowTime < ds.week) show = false;
+            if (time === 'month' && !rowTime.startsWith(ds.month)) show = false;
+            if (product && rowProduct.indexOf(product) === -1) show = false;
+            if (!isNaN(amtMin) && rowAmt < amtMin) show = false;
+            if (!isNaN(amtMax) && rowAmt > amtMax) show = false;
+            row.style.display = show ? '' : 'none';
+            if (show) visible++;
+          });
+          document.getElementById('filterResult').textContent = visible+' / '+rows.length+' orders';
+        }
+        function resetOrderFilter() {
+          document.getElementById('filterStatus').value = 'all';
+          document.getElementById('filterTime').value = 'all';
+          document.getElementById('filterProduct').value = '';
+          document.getElementById('filterAmtMin').value = '';
+          document.getElementById('filterAmtMax').value = '';
+          applyOrderFilter();
+        }
+        document.addEventListener('DOMContentLoaded', function() { applyOrderFilter(); });
+        </script>
+        """
+
         rows = ""
-        for o in orders[:100]:
+        for o in orders[:200]:
             t = o.get("time", "")[-16:] if len(o.get("time", "")) >= 16 else o.get("time", "")
-            amt_display = f"CNY{o.get('amount', 0):.2f}"
+            date_str = o.get("time", "")[:10] if len(o.get("time", "")) >= 10 else ""
+            amt = o.get('amount', 0)
+            amt_display = f"CNY{amt:.2f}"
             product_safe = _safe_str(o.get("product", "-"))
             redeem_safe = _safe_str(o.get("redeem", "-"))
-            rows += (f"<tr><td>{t}</td><td>{product_safe}</td>"
-                     f'<td class="amount">{amt_display}</td><td>{redeem_safe}</td></tr>\n')
+            status = o.get("status", "failed")
+            status_class = "badge-success" if status == "success" else "badge-fail"
+            status_label = "Success" if status == "success" else "Failed"
+            status_html = f'<span class="badge {status_class}">{status_label}</span>'
+            rows += (f'<tr data-status="{status}" data-time="{date_str}" data-product="{product_safe}" data-amount="{amt:.2f}">'
+                     f'<td>{t}</td><td>{product_safe}</td>'
+                     f'<td class="amount">{amt_display}</td><td>{redeem_safe}</td>'
+                     f'<td>{status_html}</td></tr>\n')
         if not rows:
-            rows = ('<tr><td colspan="4" style="text-align:center;padding:60px">'
+            rows = ('<tr><td colspan="5" style="text-align:center;padding:60px">'
                     '<div class="empty-state" style="padding:0">'
                     '<div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/></svg></div>'
                     '<div class="empty-title">暂无订单</div>'
@@ -1960,7 +2051,7 @@ p{color:#6b7280;font-size:14px;margin-top:16px}
             else:
                 sync_result_html = f'<div style="margin-top:12px;padding:10px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;color:#166534;font-size:13px">Synced at {sync_time}: {sync_total} orders total, {sync_new} new orders</div>'
 
-        table = f'<div class="panel"><div class="panel-header"><div class="panel-title"><div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>订单列表</div><a class="btn" href="ev://order-sync" onclick="this.style.opacity=&#39;0.6&#39;;this.textContent=&#39;Syncing...&#39;;setTimeout(function(){{location.reload()}},3000)" style="margin-left:8px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>Sync Orders</a></div><div class="table-wrap"><table><thead><tr><th>时间</th><th>产品</th><th>金额</th><th>兑换码</th></tr></thead><tbody>{rows}</tbody></table></div></div>'
+        table = f'<div class="panel"><div class="panel-header"><div class="panel-title"><div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>订单列表</div><a class="btn" href="ev://order-sync" onclick="this.style.opacity=&#39;0.6&#39;;this.textContent=&#39;Syncing...&#39;;setTimeout(function(){{location.reload()}},3000)" style="margin-left:8px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>Sync Orders</a></div>{filter_html}<div class="table-wrap"><table><thead><tr><th>时间</th><th>产品</th><th>金额</th><th>兑换码</th><th>状态</th></tr></thead><tbody id="orderTableBody">{rows}</tbody></table></div></div>'
         return stats_html + sync_result_html + table
 
     def _html_trend(self):
@@ -2448,13 +2539,14 @@ document.addEventListener('DOMContentLoaded',function(){{
                 if trade_no in existing_trade_nos:
                     continue
                 ts = int(order.get("created_at", 0)) if order.get("created_at") else int(time.time())
+                amt_raw = order.get("total_amount", "0")
                 payload = {
                     "out_trade_no": trade_no,
                     "user_name": order.get("user_name", ""),
                     "plan_title": order.get("plan_title", ""),
                     "plan_id": order.get("plan_id", ""),
                     "month": order.get("month", 1),
-                    "total_amount": order.get("total_amount", ""),
+                    "total_amount": str(amt_raw),
                     "activation_code": order.get("activation_code", ""),
                     "redeem_code": order.get("redeem_code", ""),
                 }
