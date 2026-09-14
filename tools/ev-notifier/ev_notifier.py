@@ -7,7 +7,7 @@ try:
 except ImportError:
     redis = None
 
-VERSION = "v2.1.0"
+VERSION = "v2.2.0"
 
 try:
     from AppKit import (NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyRegular,
@@ -53,6 +53,7 @@ VISITORS_FILE = os.path.expanduser("~/.ev_visitors.json")
 LAUNCH_AGENT_LABEL = "com.evnotifier.agent"
 LAUNCH_AGENT_DIR = os.path.expanduser("~/Library/LaunchAgents")
 LAUNCH_AGENT_PATH = os.path.join(LAUNCH_AGENT_DIR, f"{LAUNCH_AGENT_LABEL}.plist")
+NOTIFY_SETTINGS_FILE = os.path.expanduser("~/.ev_notify_settings.json")
 
 _MAX_SEEN = 1000
 
@@ -144,6 +145,22 @@ def disable_auto_start():
 
 def get_auto_start():
     return os.path.exists(LAUNCH_AGENT_PATH)
+
+
+def load_notify_settings():
+    try:
+        with open(NOTIFY_SETTINGS_FILE, "r") as f:
+            return json.load(f)
+    except Exception:
+        return {"popup": True, "sound": True}
+
+
+def save_notify_settings(settings):
+    try:
+        with open(NOTIFY_SETTINGS_FILE, "w") as f:
+            json.dump(settings, f, indent=2)
+    except Exception:
+        pass
 
 
 def load_messages():
@@ -430,11 +447,14 @@ def do_recovery_poll(last_id):
         return last_id
 
 
-def notify_macos(title, subtitle, body):
+def notify_macos(title, subtitle, body, sound=False):
     try:
         safe_title = title.replace('"', "'")
         safe_body = (subtitle + "\n" + body).replace('"', "'")
-        script = f'display notification "{safe_body}" with title "{safe_title}"'
+        if sound:
+            script = f'display notification "{safe_body}" with title "{safe_title}" sound name "default"'
+        else:
+            script = f'display notification "{safe_body}" with title "{safe_title}"'
         subprocess.run(["osascript", "-e", script], timeout=3)
     except Exception:
         pass
@@ -517,7 +537,11 @@ def handle_message(msg):
     else:
         body = json.dumps(p, ensure_ascii=False, indent=2)[:200]
     print(f"[{ts_label}] {title} | {subtitle}")
-    notify_macos(title, subtitle, body)
+    nsettings = load_notify_settings()
+    do_popup = nsettings.get("popup", True)
+    do_sound = nsettings.get("sound", True)
+    if do_popup:
+        notify_macos(title, subtitle, body, sound=do_sound)
     store_message(ts, mtype, p)
     if _app_ref:
         _app_ref.title = f"Ev {VERSION}({_new_msg_count})"
@@ -1571,6 +1595,12 @@ class WebNavDelegate(NSObject):
                 self._dashboard._refresh_content()
             elif "poll=now" in url_str and self._dashboard:
                 self._dashboard._poll_now()
+            elif "setting=" in url_str and self._dashboard:
+                try:
+                    kv = url_str.split("setting=")[1]
+                    self._dashboard._toggle_notify_setting(kv)
+                except Exception:
+                    pass
             elif "nav=" in url_str and self._dashboard:
                 try:
                     page_id = url_str.split("nav=")[1]
@@ -2272,8 +2302,20 @@ document.addEventListener('DOMContentLoaded',function(){{
 
         return stats_html + poll_detail_html + table_html
 
+    def _toggle_notify_setting(self, key):
+        settings = load_notify_settings()
+        current = settings.get(key, True)
+        settings[key] = not current
+        save_notify_settings(settings)
+        _debug_log(f"notify setting: {key}={settings[key]}")
+        self._refresh_content()
+
     def _html_settings(self):
         auto_status = get_auto_start()
+        nsettings = load_notify_settings()
+        popup_on = nsettings.get("popup", True)
+        sound_on = nsettings.get("sound", True)
+
         info_items = [
             ("版本", VERSION),
             ("数据流", STREAM_KEY),
@@ -2286,7 +2328,41 @@ document.addEventListener('DOMContentLoaded',function(){{
         for k, v in info_items:
             info_html += f'<div class="settings-info-key">{_safe_str(k)}</div><div class="settings-info-val">{_safe_str(v)}</div>\n'
 
+        popup_color = "var(--green)" if popup_on else "var(--text-tertiary)"
+        popup_label = "ON" if popup_on else "OFF"
+        popup_url = "ev://setting=popup"
+        sound_color = "var(--green)" if sound_on else "var(--text-tertiary)"
+        sound_label = "ON" if sound_on else "OFF"
+        sound_url = "ev://setting=sound"
+
         body = f"""
+        <div class="settings-group">
+          <div class="settings-group-title">提醒方式</div>
+          <div class="panel">
+            <div class="panel-body">
+              <div class="settings-row">
+                <div>
+                  <div class="settings-row-label">弹窗通知</div>
+                  <div class="settings-row-desc">收到新消息时弹出 macOS 通知</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <span style="font-size:11px;font-weight:600;color:{popup_color};">{popup_label}</span>
+                  <a class="btn" href="{popup_url}">切换</a>
+                </div>
+              </div>
+              <div class="settings-row">
+                <div>
+                  <div class="settings-row-label">提示音</div>
+                  <div class="settings-row-desc">收到新消息时播放系统提示音</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <span style="font-size:11px;font-weight:600;color:{sound_color};">{sound_label}</span>
+                  <a class="btn" href="{sound_url}">切换</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         <div class="settings-group">
           <div class="settings-group-title">通用</div>
           <div class="panel">
