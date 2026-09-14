@@ -1,8 +1,8 @@
-"""Ev Notifier v1.5.1 - Professional Dashboard UI + Advanced Visitor Tracking + Performance Optimized"""
+"""Ev Notifier v1.5.2 - Performance Optimized + JS-triggered lazy loading"""
 import json, os, re, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib
 from datetime import datetime, timedelta
 
-VERSION = "v1.5.1"
+VERSION = "v1.5.2"
 
 try:
     from AppKit import (NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyRegular,
@@ -1551,17 +1551,6 @@ def _debug_log(msg):
         f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')}] {msg}\n")
 
 
-if _HAS_APPKIT:
-    class Bridge(NSObject):
-        def init(self):
-            self._dashboard = None
-            return self
-
-        def doRefresh_(self, timer):
-            if self._dashboard:
-                self._dashboard._refresh_content()
-
-
 class DashboardWindow:
     def __init__(self, app_ref):
         self._app = app_ref
@@ -1570,11 +1559,6 @@ class DashboardWindow:
         self._msg_text = None
         self._current_page = "messages"
         self._webview_thread = None
-        if _HAS_APPKIT:
-            self._bridge = Bridge.alloc().init()
-            self._bridge._dashboard = self
-        else:
-            self._bridge = None
         _debug_log("DashboardWindow.__init__")
 
     def show(self):
@@ -1587,10 +1571,6 @@ class DashboardWindow:
             self._window.center()
             self._window.makeKeyAndOrderFront_(None)
             NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
-            if self._bridge:
-                self._bridge.performSelector_withObject_afterDelay_("doRefresh:", None, 0.05)
-            else:
-                self._refresh_content()
             return
 
         html = self._build_current_html()
@@ -1637,7 +1617,7 @@ body{display:flex;align-items:center;justify-content:center;font-family:-apple-s
 .spinner{width:40px;height:40px;border:4px solid #e5e7eb;border-top-color:#3b82f6;border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 p{color:#6b7280;font-size:14px;margin-top:16px}
-</style></head><body><div><div class="spinner"></div><p>Loading...</p></div></body></html>"""
+</style></head><body><div><div class="spinner"></div><p>Loading...</p></div><script>setTimeout(function(){window.location='ev://refresh';},50);</script></body></html>"""
         import base64
         b64 = base64.b64encode(loading_html.encode("utf-8")).decode("ascii")
         self._webview.setMainFrameURL_("data:text/html;base64," + b64)
