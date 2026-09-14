@@ -7,7 +7,7 @@ try:
 except ImportError:
     redis = None
 
-VERSION = "v2.2.1"
+VERSION = "v2.2.2"
 
 try:
     from AppKit import (NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyRegular,
