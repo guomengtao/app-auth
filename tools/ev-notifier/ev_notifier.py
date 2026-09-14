@@ -1,8 +1,8 @@
-"""Ev Notifier v1.5.4 - Hidden dock icon, accessory policy only"""
+"""Ev Notifier v1.5.5 - Monkey-patch activateIgnoringOtherApps to hide dock icon"""
 import json, os, re, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib
 from datetime import datetime, timedelta
 
-VERSION = "v1.5.4"
+VERSION = "v1.5.5"
 
 try:
     from AppKit import (NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyRegular,
@@ -2255,20 +2255,26 @@ document.addEventListener('DOMContentLoaded',function(){{
 class EvNotifier(rumps.App):
     def __init__(self):
         super().__init__(f"Ev {VERSION}", quit_button="退出")
-        try:
-            from AppKit import NSApp, NSApplicationActivationPolicyAccessory
-            NSApp.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
-        except Exception:
-            pass
         self._thread = threading.Thread(target=_run_event_loop, daemon=True)
         self._thread.start()
         self._dash = DashboardWindow(self)
         ensure_auto_start()
         self.menu.add(self._version_menu())
+        try:
+            from AppKit import NSApp, NSApplicationActivationPolicyAccessory
+            NSApp.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
+        except Exception:
+            pass
 
     def _version_menu(self):
         menu = rumps.MenuItem(f"版本: {VERSION}")
         return menu
+
+    def run(self, **options):
+        from AppKit import NSApp, NSApplicationActivationPolicyAccessory
+        NSApp.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
+        NSApp.activateIgnoringOtherApps_ = lambda _: None
+        super().run(**options)
 
     @rumps.clicked("打开面板")
     def open_dashboard(self, _):
