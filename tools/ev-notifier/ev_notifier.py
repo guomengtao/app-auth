@@ -114,7 +114,7 @@ def ensure_auto_start():
         "Label": LAUNCH_AGENT_LABEL,
         "ProgramArguments": [python_path, script_path],
         "RunAtLoad": True,
-        "KeepAlive": False,
+        "KeepAlive": True,
         "StandardOutPath": os.path.expanduser("~/.ev_notifier_stdout.log"),
         "StandardErrorPath": os.path.expanduser("~/.ev_notifier_stderr.log"),
     }
