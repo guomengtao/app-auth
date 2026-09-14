@@ -7,7 +7,7 @@ try:
 except ImportError:
     redis = None
 
-VERSION = "v2.0.1"
+VERSION = "v2.1.0"
 
 try:
     from AppKit import (NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyRegular,
@@ -74,6 +74,7 @@ _seen_ids = set()
 _app_ref = None
 _recovery_count_today = 0
 _missing_count = 0
+_last_poll_detail = None
 
 
 def load_env():
@@ -1516,6 +1517,7 @@ tr:hover td { background: linear-gradient(90deg, #f8fafc, #f1f5f9); }
 .badge { display:inline-block; padding:2px 10px; border-radius:99px; font-size:11px; font-weight:600; letter-spacing:0.02em; }
 .badge-auto { background:linear-gradient(135deg, #d1fae5, #a7f3d0); color:#047857; }
 .badge-manual { background:linear-gradient(135deg, #ede9fe, #ddd6fe); color:#6d28d9; }
+.badge-broadcast { background:linear-gradient(135deg, #dbeafe, #bfdbfe); color:#1d4ed8; }
 
 .chart-bar-group { display:flex; align-items:flex-end; gap:12px; height:120px; padding:8px 0; }
 .chart-bar-item { display:flex; flex-direction:column; align-items:center; flex:1; height:100%; }
@@ -1567,6 +1569,8 @@ class WebNavDelegate(NSObject):
         if url_str and url_str.startswith("ev://"):
             if "refresh" in url_str and self._dashboard:
                 self._dashboard._refresh_content()
+            elif "poll=now" in url_str and self._dashboard:
+                self._dashboard._poll_now()
             elif "nav=" in url_str and self._dashboard:
                 try:
                     page_id = url_str.split("nav=")[1]
@@ -2152,6 +2156,7 @@ document.addEventListener('DOMContentLoaded',function(){{
         return body
 
     def _html_polls(self):
+        global _last_poll_detail
         data = load_poll_log()
         today_str = datetime.now().strftime("%Y-%m-%d")
         today_data = data.get(today_str, {})
@@ -2165,7 +2170,50 @@ document.addEventListener('DOMContentLoaded',function(){{
             if date_str.startswith(datetime.now().strftime("%Y-%m")[:7]):
                 month_total += sum(1 for p in data[date_str].get("polls", []) if p.get("type") == "manual")
 
+        poll_button = '<a href="ev://poll=now" class="btn btn-primary">立即轮询 Stream</a>'
+        poll_detail_html = ""
+        if _last_poll_detail:
+            d = _last_poll_detail
+            found = d.get("messages_found", [])
+            err = d.get("error")
+            detail_rows = ""
+            _last_poll_detail = None
+            for m in found:
+                idx_str = str(m.get("idx", "-"))
+                mtype = m.get("type", "unknown")
+                ts_val = m.get("ts", "")
+                ts_disp = ""
+                if ts_val:
+                    try:
+                        ts_disp = datetime.fromtimestamp(int(ts_val)).strftime("%H:%M:%S")
+                    except Exception:
+                        ts_disp = str(ts_val)
+                detail_rows += f'<tr><td>{ts_disp}</td><td><span class="badge badge-broadcast">{mtype}</span></td><td>idx={idx_str}</td></tr>'
+            result_color = "var(--green)" if not err and found else "var(--red)"
+            result_text = f"找到 {len(found)} 条消息" if not err else f"错误: {err}"
+            status_icon = "✓" if not err else "✗"
+            poll_detail_html = f"""
+            <div class="panel" style="margin-top:16px; border-left: 3px solid {result_color};">
+              <div class="panel-header">
+                <div class="panel-title">
+                  <div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+                  轮询结果 ({d.get("time", "")})
+                </div>
+                <span style="color:{result_color}; font-weight:600;">{status_icon} {result_text}</span>
+              </div>
+              <div class="panel-body" style="padding:0;">
+                <table class="message-table">
+                  <thead><tr><th style="width:120px">时间</th><th style="width:100px">类型</th><th>索引</th></tr></thead>
+                  <tbody>{detail_rows if detail_rows else '<tr><td colspan="3" style="text-align:center;color:var(--sub);padding:24px;">Stream 无新消息</td></tr>'}</tbody>
+                </table>
+              </div>
+            </div>"""
+
         stats_html = f"""
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+          <div style="font-size:15px; font-weight:600; color:var(--text);">手动轮询</div>
+          {poll_button}
+        </div>
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
@@ -2185,7 +2233,7 @@ document.addEventListener('DOMContentLoaded',function(){{
                     recent_polls.append((date_str, p))
 
         if not recent_polls:
-            body = stats_html + '<div class="empty-state"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="empty-title">暂无手工轮询记录</div><div class="empty-desc">检测到消息丢失时，点击菜单栏「手动恢复」触发</div></div>'
+            body = stats_html + poll_detail_html + '<div class="empty-state"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="empty-title">暂无手工轮询记录</div><div class="empty-desc">检测到消息丢失时，点击菜单栏「手动恢复」触发</div></div>'
             return body
 
         for date_str, p in recent_polls[:50]:
@@ -2222,7 +2270,7 @@ document.addEventListener('DOMContentLoaded',function(){{
           </div>
         </div>"""
 
-        return stats_html + table_html
+        return stats_html + poll_detail_html + table_html
 
     def _html_settings(self):
         auto_status = get_auto_start()
@@ -2271,6 +2319,64 @@ document.addEventListener('DOMContentLoaded',function(){{
             _seen_ids.clear()
             if _app_ref:
                 _app_ref.title = f"Ev {VERSION}"
+        self._refresh_content()
+
+    def _poll_now(self):
+        global _last_poll_detail
+        _debug_log("_poll_now: starting manual poll from polls page")
+        last_id = load_last_id()
+        poll_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        detail = {
+            "time": poll_time,
+            "last_id_before": last_id,
+            "messages_found": [],
+            "total_count": 0,
+            "error": None,
+        }
+        try:
+            result = upstash_http("xrange", STREAM_KEY, last_id, "+", timeout=10)
+            messages = result.get("result", [])
+            detail["total_count"] = len(messages)
+            new_last_id = last_id
+            for msg_entry in messages:
+                if not isinstance(msg_entry, list) or len(msg_entry) < 2:
+                    continue
+                msg_id = msg_entry[0]
+                fields = msg_entry[1]
+                if msg_id == last_id:
+                    continue
+                idx = None
+                total_daily = None
+                msg_date = None
+                msg_type = "unknown"
+                msg_ts = ""
+                data_raw = _extract_field(fields, "data")
+                if data_raw:
+                    try:
+                        msg = json.loads(data_raw)
+                        idx = msg.get("idx")
+                        total_daily = msg.get("total_daily")
+                        msg_date = msg.get("date")
+                        msg_type = msg.get("type", "unknown")
+                        msg_ts = msg.get("ts", "")
+                    except Exception:
+                        pass
+                detail["messages_found"].append({
+                    "id": msg_id,
+                    "idx": idx,
+                    "type": msg_type,
+                    "ts": msg_ts,
+                })
+                new_last_id = msg_id
+            if new_last_id != last_id:
+                save_last_id(new_last_id)
+            _last_poll_detail = detail
+            _debug_log(f"_poll_now: done, found {len(detail['messages_found'])} messages")
+        except Exception as e:
+            detail["error"] = str(e)
+            _last_poll_detail = detail
+            _debug_log(f"_poll_now: error - {e}")
+        self._current_page = "polls"
         self._refresh_content()
 
     def _refresh_content(self):
