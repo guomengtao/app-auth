@@ -1,4 +1,4 @@
-"""Ev Notifier v2.2.4 - PUB/SUB broadcast mode, zero polling cost"""
+"""Ev Notifier v2.2.5 - PUB/SUB broadcast mode, zero polling cost"""
 import json, os, re, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib
 from datetime import datetime, timedelta
 
@@ -7,7 +7,7 @@ try:
 except ImportError:
     redis = None
 
-VERSION = "v2.2.4"
+VERSION = "v2.2.5"
 
 try:
     from AppKit import (NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyRegular,
@@ -167,7 +167,8 @@ def save_notify_settings(settings):
 def load_messages():
     try:
         with open(MESSAGES_FILE, "r") as f:
-            return json.load(f)
+            msgs = json.load(f)
+        return [m for m in msgs if m.get("type") not in ("test", "test_curl")]
     except Exception:
         return []
 
@@ -1577,6 +1578,7 @@ _TYPE_STYLES = {
 _MENU = [
     {"id": "messages", "label": "消息", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>', "group": "main"},
     {"id": "orders", "label": "订单列表", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>', "group": "main"},
+    {"id": "activations", "label": "激活记录", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>', "group": "main"},
     {"id": "visitors", "label": "访客浏览", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>', "group": "main"},
     {"id": "trend", "label": "走势图", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>', "group": "analytics"},
     {"id": "devices", "label": "设备", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>', "group": "analytics"},
@@ -1944,8 +1946,10 @@ p{color:#6b7280;font-size:14px;margin-top:16px}
           </div>
         </div>"""
 
+        filter_toggle_btn = """<button id="orderFilterToggle" onclick="toggleOrderFilter()" style="padding:6px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:12px;background:#fff;cursor:pointer;color:#6b7280;display:inline-flex;align-items:center;gap:4px;margin-bottom:4px;">Show Filters</button>"""
+
         filter_html = """
-        <div class="filter-bar" style="display:flex;align-items:center;gap:10px;padding:12px 0;flex-wrap:wrap;">
+        <div class="filter-bar" id="orderFilterBar" style="display:none;align-items:center;gap:10px;padding:12px 0;flex-wrap:wrap;">
           <select id="filterStatus" onchange="applyOrderFilter()" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff;outline:none;cursor:pointer;">
             <option value="all">All</option>
             <option value="success">Activation OK</option>
@@ -2058,6 +2062,17 @@ p{color:#6b7280;font-size:14px;margin-top:16px}
           document.getElementById('filterAmtMax').value = '';
           applyOrderFilter();
         }
+        function toggleOrderFilter() {
+          var bar = document.getElementById('orderFilterBar');
+          var btn = document.getElementById('orderFilterToggle');
+          if (bar.style.display === 'none' || bar.style.display === '') {
+            bar.style.display = 'flex';
+            btn.textContent = 'Hide Filters';
+          } else {
+            bar.style.display = 'none';
+            btn.textContent = 'Show Filters';
+          }
+        }
         document.addEventListener('DOMContentLoaded', function() { applyOrderFilter(); });
         </script>
         """
@@ -2097,7 +2112,167 @@ p{color:#6b7280;font-size:14px;margin-top:16px}
                 sync_result_html = f'<div style="margin-top:12px;padding:10px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;color:#166534;font-size:13px">Synced at {sync_time}: {sync_total} orders total, {sync_new} new orders</div>'
 
         table = f'<div class="panel"><div class="panel-header"><div class="panel-title"><div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>订单列表</div><a class="btn" href="ev://order-sync" onclick="this.style.opacity=&#39;0.6&#39;;this.textContent=&#39;Syncing...&#39;;setTimeout(function(){{location.reload()}},3000)" style="margin-left:8px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>Sync Orders</a></div>{filter_html}<div class="table-wrap"><table><thead><tr><th>时间</th><th>产品</th><th>金额</th><th>兑换码</th><th>状态</th></tr></thead><tbody id="orderTableBody">{rows}</tbody></table></div></div>'
-        return stats_html + sync_result_html + table
+        return stats_html + sync_result_html + filter_toggle_btn + table
+
+    def _html_activations(self):
+        """Activation records page - list new_activation messages."""
+        messages = load_messages()
+        acts = [m for m in messages if m.get("type") == "new_activation"]
+        acts.sort(key=lambda x: x.get("ts", 0), reverse=True)
+
+        total_count = len(acts)
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        today_acts = [a for a in acts if time.strftime(
+            "%Y-%m-%d", time.localtime(a.get("ts", 0)) if a.get("ts") else 0) == today_str]
+
+        stats_html = f"""
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+            <div class="stat-body"><div class="stat-value">{total_count}</div><div class="stat-label">Total Activations</div></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+            <div class="stat-body"><div class="stat-value">{len(today_acts)}</div><div class="stat-label">Today</div></div>
+          </div>
+        </div>"""
+
+        filter_html = """
+        <div class="filter-bar" id="actFilterBar" style="display:none;align-items:center;gap:10px;padding:12px 0;flex-wrap:wrap;">
+          <select id="actFilterTime" onchange="onActTimePreset()" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff;outline:none;">
+            <option value="all">All Time</option>
+            <option value="today">Today</option>
+            <option value="yesterday">Yesterday</option>
+            <option value="week">This Week</option>
+            <option value="custom">Custom Range</option>
+          </select>
+          <input id="actFilterFrom" type="date" onchange="applyActFilter()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;outline:none;width:140px;display:none;" />
+          <span id="actFilterSep" style="color:#9ca3af;font-size:12px;display:none;">to</span>
+          <input id="actFilterTo" type="date" onchange="applyActFilter()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;outline:none;width:140px;display:none;" />
+          <input id="actFilterProduct" type="text" placeholder="Product name..." oninput="applyActFilter()" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;outline:none;width:160px;" />
+          <input id="actFilterDevice" type="text" placeholder="Device ID..." oninput="applyActFilter()" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;outline:none;width:150px;" />
+          <input id="actFilterRedeem" type="text" placeholder="Redeem code..." oninput="applyActFilter()" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;outline:none;width:140px;" />
+          <button onclick="resetActFilter()" style="padding:6px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:12px;background:#f9fafb;cursor:pointer;color:#6b7280;">Reset</button>
+          <span id="actFilterResult" style="font-size:12px;color:#6b7280;margin-left:4px;font-weight:500;"></span>
+        </div>
+        <script>
+        function onActTimePreset() {
+          var v = document.getElementById("actFilterTime").value;
+          document.getElementById("actFilterFrom").style.display = (v === "custom") ? "" : "none";
+          document.getElementById("actFilterSep").style.display = (v === "custom") ? "" : "none";
+          document.getElementById("actFilterTo").style.display = (v === "custom") ? "" : "none";
+          applyActFilter();
+        }
+        function applyActFilter() {
+          var t = document.getElementById("actFilterTime").value;
+          var f = document.getElementById("actFilterFrom").value;
+          var t2 = document.getElementById("actFilterTo").value;
+          var p = (document.getElementById("actFilterProduct").value || "").toLowerCase();
+          var d = (document.getElementById("actFilterDevice").value || "").toLowerCase();
+          var r = (document.getElementById("actFilterRedeem").value || "").toLowerCase();
+          var rows = document.querySelectorAll("#actTable tbody tr");
+          var vis = 0, total = 0;
+          rows.forEach(function(rr) {
+            total++;
+            var show = true;
+            var dt = rr.getAttribute("data-time") || "";
+            var pp = (rr.getAttribute("data-product") || "").toLowerCase();
+            var dd = (rr.getAttribute("data-device") || "").toLowerCase();
+            var rd = (rr.getAttribute("data-redeem") || "").toLowerCase();
+            if (t === "today") {
+              var n = new Date();
+              var td = n.getFullYear() + "-" + (n.getMonth() + 1).toString().padStart(2, "0") + "-" + n.getDate().toString().padStart(2, "0");
+              if (dt !== td) show = false;
+            } else if (t === "yesterday") {
+              var y = new Date();
+              y.setDate(y.getDate() - 1);
+              var ys = y.getFullYear() + "-" + (y.getMonth() + 1).toString().padStart(2, "0") + "-" + y.getDate().toString().padStart(2, "0");
+              if (dt !== ys) show = false;
+            } else if (t === "week") {
+              var w = new Date();
+              w.setDate(w.getDate() - w.getDay());
+              var ws = w.getFullYear() + "-" + (w.getMonth() + 1).toString().padStart(2, "0") + "-" + w.getDate().toString().padStart(2, "0");
+              if (dt < ws) show = false;
+            } else if (t === "custom" && f && t2) {
+              if (dt < f || dt > t2) show = false;
+            }
+            if (p && pp.indexOf(p) < 0) show = false;
+            if (d && dd.indexOf(d) < 0) show = false;
+            if (r && rd.indexOf(r) < 0) show = false;
+            rr.style.display = show ? "" : "none";
+            if (show) vis++;
+          });
+          document.getElementById("actFilterResult").textContent = vis + "/" + total + " shown";
+        }
+        function resetActFilter() {
+          ["actFilterTime", "actFilterFrom", "actFilterTo", "actFilterProduct", "actFilterDevice", "actFilterRedeem"].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el.tagName === "INPUT") el.value = "";
+            else el.value = "all";
+          });
+          document.getElementById("actFilterFrom").style.display = "none";
+          document.getElementById("actFilterSep").style.display = "none";
+          document.getElementById("actFilterTo").style.display = "none";
+          applyActFilter();
+        }
+        function toggleActFilter() {
+          var bar = document.getElementById("actFilterBar");
+          var btn = document.getElementById("actFilterToggle");
+          if (bar.style.display === "none" || bar.style.display === "") {
+            bar.style.display = "flex";
+            btn.textContent = "Hide Filters";
+          } else {
+            bar.style.display = "none";
+            btn.textContent = "Show Filters";
+          }
+        }
+        </script>
+        """
+        toggle_btn = '<button id="actFilterToggle" onclick="toggleActFilter()" style="padding:6px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:12px;background:#fff;cursor:pointer;color:#6b7280;display:inline-flex;align-items:center;gap:4px;margin-bottom:4px;">Show Filters</button>'
+
+        rows = ""
+        for a in acts:
+            ts = a.get("ts", 0)
+            p = a.get("payload", {}) or {}
+            t = time.strftime("%Y-%m-%d %H:%M", time.localtime(ts)) if ts else "-"
+            date_str = time.strftime("%Y-%m-%d", time.localtime(ts)) if ts else ""
+            product = p.get("product_name", "") or f"#{p.get('product_id', '')}"
+            device = p.get("device_id", "")
+            act_code = p.get("activation_code", "")
+            redeem_code = p.get("redeem_code", "")
+            source = p.get("source", "")
+            months = p.get("months", "")
+            try:
+                m = int(months)
+                months_display = f"{m // 12}y" if m >= 12 and m % 12 == 0 else f"{m}m" if m else ""
+            except Exception:
+                months_display = str(months) if months else ""
+            success = p.get("success", True)
+            status_html = '<span class="badge badge-success">Success</span>' if success else '<span class="badge badge-fail">Failed</span>'
+
+            rows += (f'<tr data-time="{date_str}" data-product="{product}" data-device="{device}" data-redeem="{redeem_code}">'
+                     f'<td>{t}</td><td>{product}</td>'
+                     f'<td style="font-family:monospace;font-size:12px;">{act_code}</td>'
+                     f'<td>{redeem_code}</td>'
+                     f'<td style="font-family:monospace;font-size:11px;">{device}</td>'
+                     f'<td>{months_display}</td>'
+                     f'<td>{source}</td>'
+                     f'<td>{status_html}</td></tr>\n')
+
+        if not rows:
+            rows = ('<tr><td colspan="8" style="text-align:center;padding:60px">'
+                    '<div class="empty-state" style="padding:0">'
+                    '<div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>'
+                    '<div class="empty-title">No activation records</div>'
+                    '<div class="empty-sub">Waiting for device activation events...</div>'
+                    '</div></td></tr>')
+
+        table = f"""<div class="table-wrap"><table id="actTable"><thead><tr>
+          <th>Time</th><th>Product</th><th>Activation Code</th><th>Redeem Code</th>
+          <th>Device</th><th>Months</th><th>Source</th><th>Status</th>
+        </tr></thead><tbody>{rows}</tbody></table></div>"""
+
+        return stats_html + toggle_btn + filter_html + table
 
     def _html_trend(self):
         dates, counts, amounts = _build_trend_data(30)
@@ -2709,6 +2884,7 @@ document.addEventListener('DOMContentLoaded',function(){{
     _TAB_BUILDERS = {
         "messages": "_html_messages",
         "orders": "_html_orders",
+        "activations": "_html_activations",
         "visitors": "_html_visitors",
         "trend": "_html_trend",
         "devices": "_html_devices",
@@ -2719,6 +2895,7 @@ document.addEventListener('DOMContentLoaded',function(){{
     _PAGE_TITLES = {
         "messages": ("消息中心", ""),
         "orders": ("订单列表", "订单管理"),
+        "activations": ("激活记录", "设备激活历史"),
         "visitors": ("访客浏览", "访问统计"),
         "trend": ("走势图", "数据趋势"),
         "devices": ("设备信息", "设备统计"),
