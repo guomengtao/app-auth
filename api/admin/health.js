@@ -55,6 +55,18 @@ async function pushToStream(type, payload) {
     });
     var t = await r.text();
     console.log("[visit:stream] Upstash REST:", r.status, t.substring(0, 80));
+    // Also publish to channel for real-time push (PUB/SUB broadcast mode)
+    try {
+      var pubUrl = upstashUrl.replace(/\/$/, "") + "/publish/auth:push_channel/" + encodeURIComponent(dataStr);
+      var pubResult = await fetch(pubUrl, {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + upstashToken },
+        signal: AbortSignal.timeout(3000),
+      });
+      console.log("[visit:stream] publish to channel:", pubResult.status);
+    } catch (pubErr) {
+      console.error("[visit:stream] publish failed:", pubErr.message);
+    }
   } catch (err) {
     console.error("[visit:stream] Upstash REST error:", err.message);
   }

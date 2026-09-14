@@ -1,8 +1,13 @@
-"""Ev Notifier v1.6.1 - poll log only shows manual recovery, not broadcast receive"""
+"""Ev Notifier v2.0.0 - PUB/SUB broadcast mode, zero polling cost"""
 import json, os, re, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib
 from datetime import datetime, timedelta
 
-VERSION = "v1.6.1"
+try:
+    import redis
+except ImportError:
+    redis = None
+
+VERSION = "v2.0.0"
 
 try:
     from AppKit import (NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyRegular,
@@ -67,7 +72,6 @@ _new_msg_count = 0
 _paused = False
 _seen_ids = set()
 _app_ref = None
-_last_poll_hour = -1
 _recovery_count_today = 0
 _missing_count = 0
 
@@ -328,25 +332,6 @@ def record_poll(reason, recovered):
     clean_old_logs()
 
 
-def record_auto_poll(msg_count):
-    global _recovery_count_today
-    date_str = datetime.now().strftime("%Y-%m-%d")
-    data = load_poll_log()
-    if date_str not in data:
-        data[date_str] = {"last_poll_hour": -1, "total_polls_today": 0, "polls": []}
-    entry = {
-        "time": datetime.now().strftime("%H:%M:%S"),
-        "type": "auto",
-        "msg_count": msg_count
-    }
-    data[date_str]["polls"].append(entry)
-    data[date_str]["total_polls_today"] = len(data[date_str]["polls"])
-    data[date_str]["last_poll_hour"] = datetime.now().hour
-    save_poll_log(data)
-    _recovery_count_today = data[date_str]["total_polls_today"]
-    clean_old_logs()
-
-
 def record_message(msg_id, idx=None, total_daily=None, date_str=None):
     global _missing_count
     if date_str is None:
@@ -538,23 +523,31 @@ def handle_message(msg):
 
 
 def redis_loop():
-    global _status, _last_poll_hour, _new_msg_count
+    global _status, _new_msg_count
     reconnect_delay = 1
-    try:
-        last_id = load_last_id()
-    except Exception:
-        last_id = "-"
-    if last_id != "-":
-        _last_poll_hour = datetime.now().hour
+    from urllib.parse import urlparse
+    redis_host = urlparse(REST_API_URL).hostname
+    last_id = load_last_id()
+    print(f"Ev online: PUB/SUB mode, channel=auth:push_channel, host={redis_host}")
 
     while True:
         try:
             _status = "connecting"
             if _app_ref:
                 _app_ref.title = f"Ev {VERSION} 连接中..."
-            ping = upstash_http("ping", timeout=5)
-            if ping.get("result") != "PONG":
-                raise ConnectionError(f"PING failed: {ping}")
+            r = redis.Redis(
+                host=redis_host,
+                port=6379,
+                password=UPSTASH_TOKEN,
+                ssl=True,
+                ssl_cert_reqs=None,
+                socket_connect_timeout=10,
+                socket_keepalive=True,
+                health_check_interval=30,
+            )
+            r.ping()
+            pubsub = r.pubsub()
+            pubsub.subscribe("auth:push_channel")
             _status = "connected"
             reconnect_delay = 1
             if _app_ref:
@@ -564,47 +557,34 @@ def redis_loop():
                     _app_ref.title = f"Ev {VERSION}({_new_msg_count})"
                 else:
                     _app_ref.title = f"Ev {VERSION}"
-            print(f"Ev online: {STREAM_KEY}, last_id={last_id}")
-            while True:
+            print("Ev SUBSCRIBE OK, waiting for messages...")
+            for message in pubsub.listen():
+                if message.get("type") != "message":
+                    continue
+                data_raw = message.get("data")
+                if not data_raw:
+                    continue
                 try:
-                    result = upstash_http("xrange", STREAM_KEY, last_id, "+", timeout=10)
-                    messages = result.get("result", [])
-                    if messages:
-                        for msg_entry in messages:
-                            if not isinstance(msg_entry, list) or len(msg_entry) < 2:
-                                continue
-                            msg_id = msg_entry[0]
-                            fields = msg_entry[1]
-                            if msg_id == last_id:
-                                continue
-                            idx = None
-                            total_daily = None
-                            msg_date = None
-                            data_raw = _extract_field(fields, "data")
-                            if data_raw:
-                                try:
-                                    msg = json.loads(data_raw)
-                                    idx = msg.get("idx")
-                                    total_daily = msg.get("total_daily")
-                                    msg_date = msg.get("date")
-                                    handle_message(msg)
-                                except Exception:
-                                    pass
-                            record_message(msg_id, idx=idx, total_daily=total_daily, date_str=msg_date)
-                            last_id = msg_id
-                        save_last_id(last_id)
-                    if _app_ref:
-                        if _missing_count > 0:
-                            _app_ref.title = f"Ev {VERSION}({_new_msg_count}) ⚠{_missing_count}"
-                        elif _new_msg_count:
-                            _app_ref.title = f"Ev {VERSION}({_new_msg_count})"
-                        else:
-                            _app_ref.title = f"Ev {VERSION}"
-                    time.sleep(30)
-                except ConnectionError:
-                    raise
+                    if isinstance(data_raw, bytes):
+                        data_raw = data_raw.decode("utf-8")
+                    msg = json.loads(data_raw)
+                except Exception:
+                    continue
+                idx = msg.get("idx")
+                total_daily = msg.get("total_daily")
+                msg_date = msg.get("date")
+                msg_id = str(msg.get("ts", ""))
+                handle_message(msg)
+                record_message(msg_id, idx=idx, total_daily=total_daily, date_str=msg_date)
+                if _app_ref:
+                    if _missing_count > 0:
+                        _app_ref.title = f"Ev {VERSION}({_new_msg_count}) ⚠{_missing_count}"
+                    elif _new_msg_count:
+                        _app_ref.title = f"Ev {VERSION}({_new_msg_count})"
+                    else:
+                        _app_ref.title = f"Ev {VERSION}"
         except Exception as e:
-            print(f"Error: {e}, retrying in {reconnect_delay}s...")
+            print(f"SUBSCRIBE error: {e}, retrying in {reconnect_delay}s...")
             _status = f"retry({reconnect_delay}s)"
             if _app_ref:
                 _app_ref.title = f"Ev {VERSION} 重试({reconnect_delay}s)..."
