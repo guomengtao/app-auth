@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>管理后台 - 激活码系统</title>
-  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://unpkg.com">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
   <style>
     /* ============================================================
    后台专用配色体系（保留品牌色，背景/卡片全浅色化）
@@ -4224,6 +4224,9 @@
 
   <div class="toast" id="toast"></div>
 
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+
   <script>
     var currentTab = 'products';
     function setTheme(name) {
@@ -4537,24 +4540,26 @@
         var codeCount = 0;
         var usedCount = 0;
         var activationCount = 0;
-        try {
-          var productData = await api('/api/admin/products');
-          if (productData.success && productData.products) {
-            productCount = productData.products.length;
-          }
-        } catch (e) {
-          productCount = 0;
+
+        var results = await Promise.allSettled([
+          api('/api/admin/products'),
+          api('/api/admin/stats')
+        ]);
+
+        var productResult = results[0];
+        if (productResult.status === 'fulfilled' && productResult.value.success && productResult.value.products) {
+          productCount = productResult.value.products.length;
         }
-        try {
-          var statsData = await api('/api/admin/stats');
-          if (statsData.success && statsData.stats) {
-            var s = statsData.stats;
-            if (typeof s.totalProducts === 'number') productCount = s.totalProducts;
-            if (typeof s.totalRedeemCodes === 'number') codeCount = s.totalRedeemCodes;
-            if (typeof s.usedRedeemCodes === 'number') usedCount = s.usedRedeemCodes;
-            if (typeof s.totalActivations === 'number') activationCount = s.totalActivations;
-          }
-        } catch (e) {}
+
+        var statsResult = results[1];
+        if (statsResult.status === 'fulfilled' && statsResult.value.success && statsResult.value.stats) {
+          var s = statsResult.value.stats;
+          if (typeof s.totalProducts === 'number') productCount = s.totalProducts;
+          if (typeof s.totalRedeemCodes === 'number') codeCount = s.totalRedeemCodes;
+          if (typeof s.usedRedeemCodes === 'number') usedCount = s.usedRedeemCodes;
+          if (typeof s.totalActivations === 'number') activationCount = s.totalActivations;
+        }
+
         document.getElementById('statProducts').textContent = productCount;
         document.getElementById('statCodes').textContent = codeCount;
         document.getElementById('statUsed').textContent = usedCount;
