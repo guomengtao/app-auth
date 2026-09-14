@@ -1,8 +1,8 @@
-"""Ev Notifier v1.5.5 - Monkey-patch activateIgnoringOtherApps to hide dock icon"""
+"""Ev Notifier v1.5.6 - Override run() to skip activateIgnoringOtherApps"""
 import json, os, re, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib
 from datetime import datetime, timedelta
 
-VERSION = "v1.5.5"
+VERSION = "v1.5.6"
 
 try:
     from AppKit import (NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyRegular,
@@ -2271,10 +2271,34 @@ class EvNotifier(rumps.App):
         return menu
 
     def run(self, **options):
-        from AppKit import NSApp, NSApplicationActivationPolicyAccessory
-        NSApp.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
-        NSApp.activateIgnoringOtherApps_ = lambda _: None
-        super().run(**options)
+        import rumps as _r
+        from AppKit import NSApplicationActivationPolicyAccessory
+        _rm = _r.rumps
+
+        dont_change = object()
+        debug = options.get('debug', dont_change)
+        if debug is not dont_change:
+            _r.debug_mode(debug)
+
+        nsapplication = _rm.NSApplication.sharedApplication()
+        nsapplication.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
+
+        self._nsapp = _rm.NSApp.alloc().init()
+        self._nsapp._app = self.__dict__
+        nsapplication.setDelegate_(self._nsapp)
+        nsdict = _rm.__dict__
+        nsdict['notifications']._init_nsapp(self._nsapp)
+
+        setattr(_rm.App, '*app_instance', self)
+        for t in getattr(_rm.timer, '*timers', []):
+            t.start()
+        for b in getattr(_rm.clicked, '*buttons', []):
+            b(self)
+
+        self._nsapp.initializeStatusBar()
+        _rm.AppHelper.installMachInterrupt()
+        nsdict['events'].before_start.emit()
+        _rm.AppHelper.runEventLoop()
 
     @rumps.clicked("打开面板")
     def open_dashboard(self, _):
