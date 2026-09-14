@@ -1,8 +1,8 @@
-"""Ev Notifier v1.5.9 - Throttle Redis xrange to 30s, truthful recording"""
+"""Ev Notifier v1.6.0 - idx+total_daily integrity check, manual recovery button"""
 import json, os, re, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib
 from datetime import datetime, timedelta
 
-VERSION = "v1.5.9"
+VERSION = "v1.6.0"
 
 try:
     from AppKit import (NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyRegular,
@@ -69,6 +69,7 @@ _seen_ids = set()
 _app_ref = None
 _last_poll_hour = -1
 _recovery_count_today = 0
+_missing_count = 0
 
 
 def load_env():
@@ -346,20 +347,23 @@ def record_auto_poll(msg_count):
     clean_old_logs()
 
 
-def record_message(msg_id, fields):
-    date_str = datetime.now().strftime("%Y-%m-%d")
+def record_message(msg_id, idx=None, total_daily=None, date_str=None):
+    global _missing_count
+    if date_str is None:
+        date_str = datetime.now().strftime("%Y-%m-%d")
     data = load_received()
     if date_str not in data:
         data[date_str] = {"total_server": 0, "received_idx": [], "last_check": ""}
-    idx = _extract_idx(fields)
     if idx is not None and idx not in data[date_str]["received_idx"]:
         data[date_str]["received_idx"].append(idx)
         data[date_str]["received_idx"].sort()
-    total = _extract_total_daily(fields)
-    if total is not None:
-        data[date_str]["total_server"] = total
+    if total_daily is not None:
+        data[date_str]["total_server"] = total_daily
     data[date_str]["last_check"] = datetime.now().strftime("%H:%M:%S")
     save_received(data)
+    local_cnt = len(data[date_str]["received_idx"])
+    server_cnt = data[date_str]["total_server"]
+    _missing_count = max(0, server_cnt - local_cnt)
     return data[date_str]
 
 
@@ -393,25 +397,16 @@ def _extract_idx(fields):
 
 
 def check_integrity(day_data):
-    global _last_poll_hour
     total = day_data.get("total_server", 0)
     received = day_data.get("received_idx", [])
     local_cnt = len(received)
     if total <= 0:
-        return False
-    if local_cnt < total:
-        missing = total - local_cnt
-        print(f"LOSS: server={total}, local={local_cnt}, missing={missing}")
-        current_hour = datetime.now().hour
-        if current_hour == _last_poll_hour:
-            print(f"COOLDOWN: recovery already used this hour (hour={current_hour})")
-            return False
-        return True
-    return False
+        return 0
+    return max(0, total - local_cnt)
 
 
 def do_recovery_poll(last_id):
-    global _last_poll_hour
+    global _missing_count
     print(f"RECOVERY: XRANGE from {last_id}")
     try:
         result = upstash_http("xrange", STREAM_KEY, last_id, "+", timeout=10)
@@ -424,20 +419,25 @@ def do_recovery_poll(last_id):
             fields = msg_entry[1]
             if msg_id == last_id:
                 continue
-            record_message(msg_id, fields)
+            idx = None
+            total_daily = None
+            msg_date = None
             data_raw = _extract_field(fields, "data")
             if data_raw:
                 try:
                     msg = json.loads(data_raw)
+                    idx = msg.get("idx")
+                    total_daily = msg.get("total_daily")
+                    msg_date = msg.get("date")
                     handle_message(msg)
                 except Exception:
                     pass
+            record_message(msg_id, idx=idx, total_daily=total_daily, date_str=msg_date)
             recovered += 1
             last_id = msg_id
         save_last_id(last_id)
-        _last_poll_hour = datetime.now().hour
         record_poll("loss_detected", recovered)
-        print(f"RECOVERY: done, recovered={recovered}")
+        print(f"RECOVERY: done, recovered={recovered}, missing={_missing_count}")
         return last_id
     except Exception as e:
         print(f"RECOVERY: failed - {e}")
@@ -558,7 +558,12 @@ def redis_loop():
             _status = "connected"
             reconnect_delay = 1
             if _app_ref:
-                _app_ref.title = f"Ev {VERSION}({_new_msg_count})" if _new_msg_count else f"Ev {VERSION}"
+                if _missing_count > 0:
+                    _app_ref.title = f"Ev {VERSION}({_new_msg_count}) ⚠{_missing_count}"
+                elif _new_msg_count:
+                    _app_ref.title = f"Ev {VERSION}({_new_msg_count})"
+                else:
+                    _app_ref.title = f"Ev {VERSION}"
             print(f"Ev online: {STREAM_KEY}, last_id={last_id}")
             while True:
                 try:
@@ -573,18 +578,29 @@ def redis_loop():
                             fields = msg_entry[1]
                             if msg_id == last_id:
                                 continue
+                            idx = None
+                            total_daily = None
+                            msg_date = None
                             data_raw = _extract_field(fields, "data")
                             if data_raw:
                                 try:
                                     msg = json.loads(data_raw)
+                                    idx = msg.get("idx")
+                                    total_daily = msg.get("total_daily")
+                                    msg_date = msg.get("date")
                                     handle_message(msg)
                                 except Exception:
                                     pass
-                            day_data = record_message(msg_id, fields)
-                            if check_integrity(day_data):
-                                last_id = do_recovery_poll(last_id)
+                            record_message(msg_id, idx=idx, total_daily=total_daily, date_str=msg_date)
                             last_id = msg_id
                         save_last_id(last_id)
+                    if _app_ref:
+                        if _missing_count > 0:
+                            _app_ref.title = f"Ev {VERSION}({_new_msg_count}) ⚠{_missing_count}"
+                        elif _new_msg_count:
+                            _app_ref.title = f"Ev {VERSION}({_new_msg_count})"
+                        else:
+                            _app_ref.title = f"Ev {VERSION}"
                     time.sleep(30)
                 except ConnectionError:
                     raise
@@ -2475,6 +2491,25 @@ class EvNotifier(rumps.App):
         _new_msg_count = 0
         _seen_ids.clear()
         rumps.notification(f"Ev {VERSION}", "", "计数已重置", sound=False)
+
+    @rumps.clicked("手动恢复")
+    def manual_recovery(self, _):
+        global _missing_count
+        if _missing_count <= 0:
+            rumps.notification(f"Ev {VERSION}", "", "无丢失消息", sound=False)
+            return
+        last_id = load_last_id()
+        if not last_id:
+            rumps.notification(f"Ev {VERSION}", "", "无法获取 last_id", sound=False)
+            return
+        rumps.notification(f"Ev {VERSION}", "", f"开始恢复 {_missing_count} 条...", sound=False)
+        new_last_id = do_recovery_poll(last_id)
+        if new_last_id:
+            save_last_id(new_last_id)
+        if _missing_count > 0:
+            rumps.notification(f"Ev {VERSION}", "", f"恢复完成，剩余 {_missing_count} 条", sound=False)
+        else:
+            rumps.notification(f"Ev {VERSION}", "", "已全部恢复 ✓", sound=False)
 
     @rumps.clicked("拉取日志")
     def view_poll_log(self, _):

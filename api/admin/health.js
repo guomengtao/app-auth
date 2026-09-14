@@ -20,7 +20,31 @@ async function pushToStream(type, payload) {
     console.log("[visit:stream] pushToStream: no Upstash config, skip");
     return;
   }
+
+  // Get daily counter for idx + total_daily
+  var today = new Date().toISOString().slice(0, 10);
+  var counterKey = "auth:daily:" + today + ":count";
+  var idx = 0, total_daily = 0;
+  try {
+    var incrUrl = upstashUrl.replace(/\/$/, "") + "/incr/" + encodeURIComponent(counterKey);
+    var incrR = await fetch(incrUrl, {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + upstashToken },
+      signal: AbortSignal.timeout(5000),
+    });
+    var incrT = await incrR.text();
+    if (incrR.ok) {
+      var incrVal = JSON.parse(incrT);
+      idx = incrVal.result;
+      total_daily = incrVal.result;
+      console.log("[visit:stream] incr OK, idx:", idx, "total_daily:", total_daily);
+    }
+  } catch (e) {
+    console.error("[visit:stream] incr error:", e.message);
+  }
+
   var msg = { ts: Math.floor(Date.now() / 1000), type: type, payload: payload || {} };
+  if (idx > 0) { msg.idx = idx; msg.total_daily = total_daily; msg.date = today; }
   var dataStr = JSON.stringify(msg);
   var url = upstashUrl.replace(/\/$/, "") + "/xadd/auth:notifications:stream/*/data/" + encodeURIComponent(dataStr);
   try {
