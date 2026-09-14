@@ -183,6 +183,45 @@ module.exports = async (req, res) => {
     }
   }
 
+  if (action === "export") {
+    console.log("[afdian:sync] export mode: reading all orders from Redis...");
+    try {
+      var processedSet = await redis.smembers("afdian:processed");
+      console.log("[afdian:sync] export mode: processedSet size=" + (processedSet ? processedSet.length : 0));
+
+      var orders = [];
+      for (var i = 0; i < processedSet.length; i++) {
+        var orderRaw = await redis.get("afdian:order:" + processedSet[i]);
+        if (orderRaw) {
+          var parsed = afdianProcessor.parseRedisValue(orderRaw);
+          if (parsed) {
+            orders.push({
+              out_trade_no: parsed.out_trade_no || "",
+              plan_title: parsed.plan_title || "",
+              plan_id: parsed.plan_id || "",
+              total_amount: parsed.total_amount || "",
+              user_name: parsed.user_name || parsed.user_id || "",
+              created_at: parsed.created_at || null,
+              activation_code: parsed.activation_code || "",
+              redeem_code: parsed.redeem_code || "",
+              month: parsed.month || 1,
+            });
+          }
+        }
+      }
+
+      orders.sort(function (a, b) {
+        return (b.created_at || 0) - (a.created_at || 0);
+      });
+
+      console.log("[afdian:sync] export mode: done, orders=" + orders.length);
+      return res.status(200).json({ success: true, orders: orders, total: orders.length });
+    } catch (e) {
+      console.error("[afdian:sync] export mode: EXCEPTION:", e.message, e.stack);
+      return res.status(500).json({ success: false, error: (e && e.message) || "Unknown error" });
+    }
+  }
+
   if (action === "update-redeem") {
     console.log("[afdian:sync] update-redeem mode: checking auth...");
     var auth = requireAuth(req);

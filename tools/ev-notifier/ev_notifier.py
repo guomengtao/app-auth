@@ -76,6 +76,7 @@ _app_ref = None
 _recovery_count_today = 0
 _missing_count = 0
 _last_poll_detail = None
+_last_sync_result = None
 
 
 def load_env():
@@ -1607,6 +1608,8 @@ class WebNavDelegate(NSObject):
                     self._dashboard._switch_to(page_id)
                 except Exception:
                     pass
+            elif "order-sync" in url_str and self._dashboard:
+                self._dashboard._sync_orders()
             listener.ignore()
         else:
             listener.use()
@@ -1946,8 +1949,19 @@ p{color:#6b7280;font-size:14px;margin-top:16px}
                     '<div class="empty-title">暂无订单</div>'
                     '<div class="empty-desc">等待订单数据...</div></div></td></tr>')
 
-        table = f'<div class="panel"><div class="panel-header"><div class="panel-title"><div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>订单列表</div></div><div class="table-wrap"><table><thead><tr><th>时间</th><th>产品</th><th>金额</th><th>兑换码</th></tr></thead><tbody>{rows}</tbody></table></div></div>'
-        return stats_html + table
+        sync_result_html = ""
+        if _last_sync_result:
+            sync_time = _last_sync_result.get("time", "")
+            sync_total = _last_sync_result.get("total", 0)
+            sync_new = _last_sync_result.get("new", 0)
+            sync_error = _last_sync_result.get("error", "")
+            if sync_error:
+                sync_result_html = f'<div style="margin-top:12px;padding:10px 16px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#dc2626;font-size:13px">Sync failed: {sync_error}</div>'
+            else:
+                sync_result_html = f'<div style="margin-top:12px;padding:10px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;color:#166534;font-size:13px">Synced at {sync_time}: {sync_total} orders total, {sync_new} new orders</div>'
+
+        table = f'<div class="panel"><div class="panel-header"><div class="panel-title"><div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>订单列表</div><a class="btn" href="ev://order-sync" onclick="this.style.opacity=&#39;0.6&#39;;this.textContent=&#39;Syncing...&#39;;setTimeout(function(){{location.reload()}},3000)" style="margin-left:8px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>Sync Orders</a></div><div class="table-wrap"><table><thead><tr><th>时间</th><th>产品</th><th>金额</th><th>兑换码</th></tr></thead><tbody>{rows}</tbody></table></div></div>'
+        return stats_html + sync_result_html + table
 
     def _html_trend(self):
         dates, counts, amounts = _build_trend_data(30)
@@ -2395,6 +2409,73 @@ document.addEventListener('DOMContentLoaded',function(){{
             _seen_ids.clear()
             if _app_ref:
                 _app_ref.title = f"Ev {VERSION}"
+        self._refresh_content()
+
+    def _sync_orders(self):
+        global _last_sync_result
+        _debug_log("_sync_orders: starting order sync")
+        try:
+            fd, tmp = tempfile.mkstemp(suffix=".json", prefix="ev_sync_")
+            os.close(fd)
+            r = subprocess.run([
+                "curl", "-s", "--connect-timeout", "10", "--max-time", "30",
+                "-X", "GET",
+                "https://app-auth.gudq.com/api/afdian/query-orders?action=export",
+                "-o", tmp
+            ], timeout=35)
+            if r.returncode != 0:
+                raise ConnectionError(f"curl rc={r.returncode}")
+            data = open(tmp).read()
+            os.unlink(tmp)
+            if not data.strip():
+                raise ConnectionError("empty response")
+            result = json.loads(data)
+            if not result.get("success"):
+                raise ConnectionError(result.get("error", "unknown error"))
+            remote_orders = result.get("orders", [])
+            _debug_log(f"_sync_orders: received {len(remote_orders)} orders from API")
+            local_msgs = load_messages()
+            existing_trade_nos = set()
+            for m in local_msgs:
+                if m.get("type") == "new_order":
+                    p = m.get("payload", {}) or {}
+                    tn = p.get("out_trade_no", "")
+                    if tn:
+                        existing_trade_nos.add(tn)
+            new_count = 0
+            for order in remote_orders:
+                trade_no = order.get("out_trade_no", "")
+                if trade_no in existing_trade_nos:
+                    continue
+                ts = int(order.get("created_at", 0)) if order.get("created_at") else int(time.time())
+                payload = {
+                    "out_trade_no": trade_no,
+                    "user_name": order.get("user_name", ""),
+                    "plan_title": order.get("plan_title", ""),
+                    "plan_id": order.get("plan_id", ""),
+                    "month": order.get("month", 1),
+                    "total_amount": order.get("total_amount", ""),
+                    "activation_code": order.get("activation_code", ""),
+                    "redeem_code": order.get("redeem_code", ""),
+                }
+                store_message(ts, "new_order", payload)
+                existing_trade_nos.add(trade_no)
+                new_count += 1
+            _last_sync_result = {
+                "time": datetime.now().strftime("%H:%M:%S"),
+                "total": len(remote_orders),
+                "new": new_count,
+            }
+            _debug_log(f"_sync_orders: done, total={len(remote_orders)}, new={new_count}")
+        except Exception as e:
+            _last_sync_result = {
+                "time": datetime.now().strftime("%H:%M:%S"),
+                "total": 0,
+                "new": 0,
+                "error": str(e),
+            }
+            _debug_log(f"_sync_orders: error - {e}")
+        self._current_page = "orders"
         self._refresh_content()
 
     def _poll_now(self):
