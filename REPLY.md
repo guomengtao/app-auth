@@ -17,6 +17,8 @@
 | **P3-13** | @vercel/edge-config 装了未用 | v1.5.42 | `package.json` | 从 dependencies 移除 |
 | **P3-14** | 协调器失败完全静默 | v1.5.42 | `lib/db-switches.js` | Upstash/Postgres switch 加载 3 处 catch 改为 console.warn |
 | **P3-15** | redis.js 与 postgres.js 主库判定口径不一致 | v1.5.42 | `lib/redis.js` `lib/postgres.js` | 两边各加注释说明：redis.js 启动期静态判断，postgres.js 查询期运行时判断 |
+| **P3-11** | 文档环境变量名错误 | v1.5.42 | `docs/edge-config-vs-redis-coordinator-analysis.md` | `EDGE_CONFIG_TOKEN` → `VERCEL_OIDC_TOKEN`（与代码一致） |
+| **P3-12** | 文档 key 名错误 | v1.5.42 | `docs/edge-config-vs-redis-coordinator-analysis.md` | `auth:db:primary` → `auth_db_primary`（与代码一致） |
 
 ### Round 5 → Round 6 修复（2026-09-11）
 
@@ -67,8 +69,7 @@
 
 | 编号 | 标题 | 定位 | 说明 |
 |------|------|------|------|
-| **P3-11** | 文档环境变量名 `EDGE_CONFIG_TOKEN` ≠ 代码 `VERCEL_OIDC_TOKEN`/`VERCEL_TOKEN`/`VERCEL_TOKEN_ALT` | `docs/edge-config-vs-redis-coordinator-analysis.md:155` `lib/db-switches.js:179` | 按文档配必失败 |
-| **P3-12** | 文档 key `auth:db:primary` ≠ 代码 `auth_db_primary` | 文档 `:167` 代码 `lib/db-switches.js:3` | 按文档建的 key 永远读不到 |
+| — | 暂无待处理 P3 | — | — |
 
 ### 已知风险（不急修）
 
@@ -98,8 +99,8 @@
 
 | 状态 | 数量 |
 |------|------|
-| 已修复 | 26 条（Round 7 P0: 3 条 + P3: 3 条 + Round 5/6 P0+P1: 8 条 + UI QA: 9 条 + CRON_SECRET: 1 条 + cron 路径修复: 1 条 + 激活码显示: 1 条） |
+| 已修复 | 28 条（Round 7 P0: 3 条 + P3: 5 条 + Round 5/6 P0+P1: 8 条 + UI QA: 9 条 + CRON_SECRET: 1 条 + cron 路径修复: 1 条 + 激活码显示: 1 条） |
 | 处理中 | 0 条 |
-| 待处理 | 2 条（P3: 2 条） |
+| 待处理 | 0 条 |
 | 已知风险（不急修） | 3 条 |
 | 确认无需修复 | 7 项 |

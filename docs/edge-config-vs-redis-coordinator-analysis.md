@@ -3,8 +3,8 @@
 ## 一、背景
 
 当前系统的数据库切换协调功能仅需要一个简单的键值存储：
-- **读操作**：每次 API 请求读取 `auth:db:primary`（当前主库是谁）
-- **写操作**：管理员切换主库时写入 `auth:db:primary`（极低频，可能几天一次）
+- **读操作**：每次 API 请求读取 `auth_db_primary`（当前主库是谁）
+- **写操作**：管理员切换主库时写入 `auth_db_primary`（极低频，可能几天一次）
 
 之前使用 Upstash Redis 承载这个功能，每天约消耗 400+ 次 HTTP 请求。本文分析使用 Vercel Edge Config 替代的可行性。
 
@@ -152,7 +152,8 @@ npm install @vercel/edge-config
 
 ```
 EDGE_CONFIG            # Vercel 自动注入的连接字符串
-EDGE_CONFIG_TOKEN      # 写入需要的 API Token（仅管理后台需要）
+VERCEL_OIDC_TOKEN      # 写入需要的 API Token（代码优先读取此变量）
+# 备选：VERCEL_TOKEN、VERCEL_TOKEN_ALT（代码依次回退）
 ```
 
 ### 7.4 代码示意
