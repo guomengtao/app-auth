@@ -8,8 +8,8 @@ let launcherDir = URL(fileURLWithPath: launcherPath)
 let pythonScript = launcherDir.appendingPathComponent("region_manager.py").path
 
 let pythonPaths = [
-    "/opt/homebrew/bin/python3",
     "/usr/local/bin/python3",
+    "/opt/homebrew/bin/python3",
     "/usr/bin/python3"
 ]
 let pythonPath = pythonPaths.first { FileManager.default.isExecutableFile(atPath: $0) } ?? "/usr/bin/python3"
