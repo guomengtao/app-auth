@@ -3164,7 +3164,7 @@ document.addEventListener('DOMContentLoaded',function(){{
 
 class EvNotifier(rumps.App):
     def __init__(self):
-        super().__init__(f"Ev {VERSION}", quit_button="退出")
+        super().__init__(f"Ev {VERSION}", quit_button=None)
         self._thread = threading.Thread(target=_run_event_loop, daemon=True)
         self._thread.start()
         self._dash = DashboardWindow(self)
@@ -3175,6 +3175,16 @@ class EvNotifier(rumps.App):
             NSApp.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
         except Exception:
             pass
+        try:
+            self.menu.add(rumps.separator)
+        except Exception:
+            pass
+
+    @rumps.clicked("退出")
+    def quit_app(self, _):
+        disable_auto_start()
+        from AppKit import NSApp
+        NSApp.terminate_(None)
 
     def _version_menu(self):
         menu = rumps.MenuItem(f"版本: {VERSION}")
