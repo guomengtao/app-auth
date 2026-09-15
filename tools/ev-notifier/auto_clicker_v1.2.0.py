@@ -954,7 +954,7 @@ class AutoClickerApp(rumps.App):
         self._build_menu()
         threading.Thread(target=self._check_permission_startup, daemon=True).start()
         if self._cfg.get("regions_enabled", True):
-            threading.Thread(target=lambda: (time.sleep(0.5), self._rm.load_all()), daemon=True).start()
+            self._rm.load_all()
         if self._cfg.get("show_status_window", False):
             self.start_status_window(None)
 
@@ -1090,6 +1090,15 @@ class AutoClickerApp(rumps.App):
             self.title = f"{p}{s}{self._click_count}"
         else:
             self.title = p
+
+    @rumps.timer(0.2)
+    def _keep_tk_alive(self, _):
+        for overlay in list(self._rm.overlays.values()):
+            try:
+                if overlay.root and overlay.root.winfo_exists():
+                    overlay.root.update()
+            except Exception:
+                pass
 
     def start_monitoring(self, _):
         if not self._has_permission:
