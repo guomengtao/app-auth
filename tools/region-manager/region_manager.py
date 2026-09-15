@@ -1,5 +1,5 @@
-"""Screen Region Manager v1.0.5 - Multi-monitor wireframe overlay tool with Chinese menu"""
-VERSION = "v1.0.5"
+"""Screen Region Manager v1.0.6 - Multi-monitor wireframe overlay tool with Chinese menu"""
+VERSION = "v1.0.6"
 
 import atexit
 import json
@@ -37,7 +37,10 @@ except ImportError:
     TK_AVAILABLE = False
 
 try:
-    from AppKit import NSScreen, NSApp, NSApplicationActivationPolicyAccessory
+    from AppKit import NSScreen, NSApp, NSApplicationActivationPolicyAccessory, \
+        NSEvent, NSLeftMouseDownMask, NSLeftMouseUpMask, NSMouseMovedMask, \
+        NSApplication, NSWindow, NSBorderlessWindowMask, NSBackingStoreBuffered, \
+        NSColor, NSMakeRect
     HAS_APPKIT = True
 except ImportError:
     HAS_APPKIT = False
@@ -322,10 +325,7 @@ class RegionOverlay:
 
         self._draw_everything(w, h, color, label)
         if self.edit_mode:
-            self._bind_edit()
-
-        self.canvas.bind("<Enter>", lambda e: self._on_hover(True))
-        self.canvas.bind("<Leave>", lambda e: self._on_hover(False))
+            self._setup_appkit_monitor()
 
     def _draw_everything(self, w, h, color, label):
         self.canvas.delete("all")
@@ -373,6 +373,69 @@ class RegionOverlay:
             b2 = int(b * alpha + 255 * (1 - alpha))
             return f"#{r2:02x}{g2:02x}{b2:02x}"
         return hex_color
+
+    def _setup_appkit_monitor(self):
+        if not HAS_APPKIT:
+            return
+        from AppKit import NSEvent, NSLeftMouseDownMask, NSLeftMouseUpMask, NSMouseMovedMask
+
+        wx = self.cfg["x"]
+        wy = self.cfg["y"]
+        ww = self.cfg["width"]
+        wh = self.cfg["height"]
+
+        state = {"mode": None}
+
+        def on_down(event):
+            loc = event.absoluteLocation()
+            mx, my = int(loc.x), int(loc.y)
+            if wx <= mx <= wx + ww and wy <= my <= wy + wh:
+                cx, cy = mx - wx, my - wy
+                if cx >= ww - 16 and cy >= wh - 16:
+                    state["mode"] = "resize"
+                    state["start_x"] = mx
+                    state["start_y"] = my
+                    state["orig_w"] = ww
+                    state["orig_h"] = wh
+                else:
+                    state["mode"] = "move"
+                    state["start_x"] = mx
+                    state["start_y"] = my
+                    state["orig_x"] = wx
+                    state["orig_y"] = wy
+
+        def on_dragged(event):
+            if state["mode"] is None:
+                return
+            loc = event.absoluteLocation()
+            mx, my = int(loc.x), int(loc.y)
+            if state["mode"] == "move":
+                nx = state["orig_x"] + (mx - state["start_x"])
+                ny = state["orig_y"] + (my - state["start_y"])
+                self.win.geometry(f"+{nx}+{ny}")
+                self.cfg["x"] = nx
+                self.cfg["y"] = ny
+                self._save_position()
+            elif state["mode"] == "resize":
+                nw = max(REGION_MIN_WIDTH, state["orig_w"] + (mx - state["start_x"]))
+                nh = max(REGION_MIN_HEIGHT, state["orig_h"] + (my - state["start_y"]))
+                self.cfg["width"] = nw
+                self.cfg["height"] = nh
+                self.win.geometry(f"{nw}x{nh}")
+                self._draw_everything(nw, nh, self.cfg.get("color", "#FF4444"), self.cfg.get("label", "?"))
+                self._save_position()
+
+        def on_up(event):
+            state["mode"] = None
+
+        self._monitor_down = NSEvent.addGlobalMonitorForEventsMatchingMask_handler_(NSLeftMouseDownMask, on_down)
+        self._monitor_drag = NSEvent.addGlobalMonitorForEventsMatchingMask_handler_(NSMouseMovedMask, on_dragged)
+        self._monitor_up = NSEvent.addGlobalMonitorForEventsMatchingMask_handler_(NSLeftMouseUpMask, on_up)
+
+    def _remove_appkit_monitor(self):
+        self._monitor_down = None
+        self._monitor_drag = None
+        self._monitor_up = None
 
     def _on_hover(self, entering):
         if not self.edit_mode:
@@ -446,13 +509,12 @@ class RegionOverlay:
         w, h = self.cfg["width"], self.cfg["height"]
         color = self.cfg.get("color", "#FF4444")
         label = self.cfg.get("label", "?")
-        if edit_mode:
-            self._unbind_edit()
+        self._remove_appkit_monitor()
         self._draw_everything(w, h, color, label)
         if edit_mode:
             self.win.attributes("-alpha", 0.90)
             self.win.configure(cursor="crosshair")
-            self._bind_edit()
+            self._setup_appkit_monitor()
         else:
             self.win.attributes("-alpha", 0.70)
             self.win.configure(cursor="none")
@@ -463,9 +525,11 @@ class RegionOverlay:
         self._draw_everything(self.cfg["width"], self.cfg["height"],
                               self.cfg.get("color", "#FF4444"), self.cfg.get("label", "?"))
         if self.edit_mode:
-            self._bind_edit()
+            self._setup_appkit_monitor()
+        self.win.lift()
 
     def destroy(self):
+        self._remove_appkit_monitor()
         if self.win:
             try:
                 self.win.destroy()
@@ -691,11 +755,14 @@ class RegionManager:
         return None
 
 
-DRAG_SUBPROCESS_SCRIPT = r'''
-import json, sys, tkinter as tk
+def _drag_overlay_native(screens):
+    """Drag overlay using pure AppKit (no Tk, no Quartz)."""
+    if not HAS_APPKIT:
+        _log("_drag_overlay_native: AppKit not available")
+        return None
 
-def main():
-    screens = json.loads(sys.argv[1])
+    import threading as _th
+
     min_x = int(min(s["x"] for s in screens))
     min_y = int(min(s["y"] for s in screens))
     max_x = int(max(s["x"] + s["width"] for s in screens))
@@ -703,67 +770,74 @@ def main():
     total_w = max_x - min_x
     total_h = max_y - min_y
 
-    root = tk.Tk()
-    root.withdraw()
-
-    dlg = tk.Toplevel(root)
-    dlg.overrideredirect(True)
-    dlg.attributes("-topmost", True)
-    dlg.attributes("-alpha", 0.35)
-    dlg.geometry(f"{total_w}x{total_h}+{min_x}+{min_y}")
-    dlg.configure(bg="black")
-    dlg.focus_force()
-
-    canvas = tk.Canvas(dlg, width=total_w, height=total_h,
-                       bg="black", highlightthickness=0, cursor="crosshair")
-    canvas.pack(fill="both", expand=True)
-    canvas.create_text(total_w // 2, 30, text="Drag to select region, ESC to cancel",
-                       fill="#AAAAAA", font=("PingFang SC", 16, "bold"))
-
-    state = {"start_x": 0, "start_y": 0, "rect_id": None}
     result = [None]
+    stop_flag = _th.Event()
 
-    def on_press(event):
-        state["start_x"] = event.x
-        state["start_y"] = event.y
-        if state["rect_id"]:
-            canvas.delete(state["rect_id"])
-        state["rect_id"] = canvas.create_rectangle(
-            event.x, event.y, event.x, event.y,
-            outline="#FF4444", width=3, dash=(6, 3))
+    def run():
+        from AppKit import NSApplication, NSWindow, NSBorderlessWindowMask, \
+            NSBackingStoreBuffered, NSColor, NSMakeRect, NSApp, \
+            NSApplicationActivationPolicyAccessory, NSEvent, \
+            NSLeftMouseDownMask, NSLeftMouseUpMask, NSMouseMovedMask
 
-    def on_drag(event):
-        if state["rect_id"]:
-            canvas.coords(state["rect_id"],
-                          state["start_x"], state["start_y"], event.x, event.y)
+        NSApp.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
 
-    def on_release(event):
-        x1 = min(state["start_x"], event.x)
-        y1 = min(state["start_y"], event.y)
-        x2 = max(state["start_x"], event.x)
-        y2 = max(state["start_y"], event.y)
-        w, h = x2 - x1, y2 - y1
-        if w >= 30 and h >= 20:
-            result[0] = {"x": min_x + x1, "y": min_y + y1, "w": w, "h": h, "label": ""}
-        dlg.destroy()
+        overlay = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
+            NSMakeRect(min_x, min_y, total_w, total_h),
+            NSBorderlessWindowMask,
+            NSBackingStoreBuffered,
+            False
+        )
+        overlay.setBackgroundColor_(NSColor.blackColor().colorWithAlphaComponent_(0.35))
+        overlay.setLevel_(1000)
+        overlay.setIgnoresMouseEvents_(False)
+        overlay.setOpaque_(False)
+        overlay.orderFrontRegardless()
 
-    def on_cancel(_event=None):
-        result[0] = {}
-        dlg.destroy()
+        state = {"down": False, "sx": 0, "sy": 0, "cx": 0, "cy": 0}
 
-    canvas.bind("<Button-1>", on_press)
-    canvas.bind("<B1-Motion>", on_drag)
-    canvas.bind("<ButtonRelease-1>", on_release)
-    dlg.bind("<Escape>", on_cancel)
+        def on_mouse_down(event):
+            loc = event.locationInWindow()
+            state["down"] = True
+            state["sx"] = int(loc.x)
+            state["sy"] = int(total_h - loc.y)
+            state["cx"] = state["sx"]
+            state["cy"] = state["sy"]
 
-    dlg.grab_set()
-    root.mainloop()
+        def on_mouse_dragged(event):
+            if state["down"]:
+                loc = event.locationInWindow()
+                state["cx"] = int(loc.x)
+                state["cy"] = int(total_h - loc.y)
 
-    print(json.dumps(result[0] or {}))
+        def on_mouse_up(event):
+            if state["down"]:
+                loc = event.locationInWindow()
+                state["cx"] = int(loc.x)
+                state["cy"] = int(total_h - loc.y)
+                state["down"] = False
+                x1 = min(state["sx"], state["cx"])
+                y1 = min(state["sy"], state["cy"])
+                x2 = max(state["sx"], state["cx"])
+                y2 = max(state["sy"], state["cy"])
+                w, h = x2 - x1, y2 - y1
+                if w >= 30 and h >= 20:
+                    result[0] = {"x": min_x + x1, "y": min_y + y1, "w": w, "h": h}
+                overlay.orderOut_(None)
+                stop_flag.set()
 
-if __name__ == "__main__":
-    main()
-'''
+        NSEvent.addGlobalMonitorForEventsMatchingMask_handler_(NSLeftMouseDownMask, on_mouse_down)
+        NSEvent.addGlobalMonitorForEventsMatchingMask_handler_(NSLeftMouseUpMask, on_mouse_up)
+        NSEvent.addGlobalMonitorForEventsMatchingMask_handler_(NSMouseMovedMask, on_mouse_dragged)
+
+        from AppKit import NSRunLoop, NSDate
+        rl = NSRunLoop.currentRunLoop()
+        while not stop_flag.is_set():
+            rl.runUntilDate_(NSDate.dateWithTimeIntervalSinceNow_(0.1))
+
+    t = _th.Thread(target=run, daemon=True)
+    t.start()
+    stop_flag.wait(timeout=120)
+    return result[0]
 
 
 class RegionManagerApp(rumps.App):
@@ -867,29 +941,19 @@ class RegionManagerApp(rumps.App):
         threading.Thread(target=self._run_drag_subprocess, daemon=True).start()
 
     def _run_drag_subprocess(self):
-        _log("_run_drag_subprocess: launching subprocess")
-        import json as _json
-        screen_frames = _json.dumps(self._screens)
-        proc = subprocess.run(
-            [sys.executable, "-c", DRAG_SUBPROCESS_SCRIPT, screen_frames],
-            capture_output=True, text=True, timeout=120
-        )
-        _log(f"_run_drag_subprocess: stdout={proc.stdout[:200]}, stderr={proc.stderr[:200]}")
-        try:
-            result = _json.loads(proc.stdout.strip())
-        except Exception:
-            result = None
-        self._drag_result = result
+        _log("_run_drag_subprocess: starting native drag overlay")
+        result = _drag_overlay_native(self._screens)
+        _log(f"_run_drag_subprocess: result={result}")
         self._drag_done.set()
         self._drag_pending = False
 
         if result and result.get("x") is not None:
             x, y, w, h = result["x"], result["y"], result["w"], result["h"]
-            _log(f"_run_drag_subprocess: result=({x},{y}) {w}x{h}")
+            _log(f"_run_drag_subprocess: valid region=({x},{y}) {w}x{h}")
             label = show_text_input_sync("新建区域", f"大小: {w}x{h} 位置: ({x},{y})",
                                          f"区域{len(load_regions())+1}")
             if label:
-                self._op_queue.put((self.PENDING_ADD_SIMPLE, (x, y, label)))
+                self._op_queue.put((self.PENDING_ADD_SIMPLE, (x, y, w, h, label)))
             else:
                 _log("_run_drag_subprocess: no label provided")
         else:
