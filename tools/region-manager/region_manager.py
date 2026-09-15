@@ -3,6 +3,7 @@ VERSION = "v1.0.4"
 
 import atexit
 import json
+import logging
 import os
 import queue
 import shutil
@@ -11,6 +12,17 @@ import sys
 import threading
 import time
 from datetime import datetime
+
+LOG_FILE = os.path.expanduser("~/.region_manager.log")
+logging.basicConfig(
+    filename=LOG_FILE,
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
+
+def _log(msg):
+    logging.debug(msg)
+    print(msg, flush=True)
 
 try:
     import rumps
@@ -771,70 +783,94 @@ class RegionManagerApp(rumps.App):
             show_notification("错误", "tkinter 不可用")
             return
         if self._drag_pending:
+            _log("_cb_drag_create: already pending, skip")
             return
+        _log("_cb_drag_create: START")
         self._drag_pending = True
         self._drag_done.clear()
         show_notification("区域管理器", "在屏幕上拖拽绘制区域，按 ESC 取消")
 
     def _do_drag_create(self):
-        root = get_tk_root()
-        sw = root.winfo_screenwidth()
-        sh = root.winfo_screenheight()
+        _log("_do_drag_create: ENTER")
+        import traceback
+        try:
+            root = get_tk_root()
+            sw = root.winfo_screenwidth()
+            sh = root.winfo_screenheight()
+            _log(f"_do_drag_create: screen={sw}x{sh}")
 
-        dlg = tk.Toplevel(root)
-        dlg.overrideredirect(True)
-        dlg.attributes("-topmost", True)
-        dlg.attributes("-alpha", 0.35)
-        dlg.geometry(f"{sw}x{sh}+0+0")
-        dlg.configure(bg="black")
+            dlg = tk.Toplevel(root)
+            dlg.overrideredirect(True)
+            dlg.attributes("-topmost", True)
+            dlg.attributes("-alpha", 0.35)
+            dlg.geometry(f"{sw}x{sh}+0+0")
+            dlg.configure(bg="black")
 
-        canvas = tk.Canvas(dlg, width=sw, height=sh,
-                           bg="black", highlightthickness=0, cursor="crosshair")
-        canvas.pack(fill="both", expand=True)
+            canvas = tk.Canvas(dlg, width=sw, height=sh,
+                               bg="black", highlightthickness=0, cursor="crosshair")
+            canvas.pack(fill="both", expand=True)
 
-        canvas.create_text(sw // 2, 30, text="拖拽绘制区域，按 ESC 取消",
-                           fill="#AAAAAA", font=("PingFang SC", 16, "bold"))
+            canvas.create_text(sw // 2, 30, text="拖拽绘制区域，按 ESC 取消",
+                               fill="#AAAAAA", font=("PingFang SC", 16, "bold"))
 
-        state = {"start_x": 0, "start_y": 0, "rect_id": None}
+            state = {"start_x": 0, "start_y": 0, "rect_id": None}
 
-        def on_press(event):
-            state["start_x"] = event.x
-            state["start_y"] = event.y
-            if state["rect_id"]:
-                canvas.delete(state["rect_id"])
-            state["rect_id"] = canvas.create_rectangle(
-                event.x, event.y, event.x, event.y,
-                outline="#FF4444", width=3, dash=(6, 3))
+            def on_press(event):
+                state["start_x"] = event.x
+                state["start_y"] = event.y
+                if state["rect_id"]:
+                    canvas.delete(state["rect_id"])
+                state["rect_id"] = canvas.create_rectangle(
+                    event.x, event.y, event.x, event.y,
+                    outline="#FF4444", width=3, dash=(6, 3))
 
-        def on_drag(event):
-            if state["rect_id"]:
-                canvas.coords(state["rect_id"],
-                              state["start_x"], state["start_y"], event.x, event.y)
+            def on_drag(event):
+                if state["rect_id"]:
+                    canvas.coords(state["rect_id"],
+                                  state["start_x"], state["start_y"], event.x, event.y)
 
-        def on_release(event):
-            x1, y1 = min(state["start_x"], event.x), min(state["start_y"], event.y)
-            x2, y2 = max(state["start_x"], event.x), max(state["start_y"], event.y)
-            w, h = x2 - x1, y2 - y1
-            if w >= REGION_MIN_WIDTH and h >= REGION_MIN_HEIGHT:
-                self._drag_result = (x1, y1, w, h)
-            dlg.destroy()
+            def on_release(event):
+                x1, y1 = min(state["start_x"], event.x), min(state["start_y"], event.y)
+                x2, y2 = max(state["start_x"], event.x), max(state["start_y"], event.y)
+                w, h = x2 - x1, y2 - y1
+                _log(f"_do_drag_create: release ({x1},{y1}) {w}x{h}")
+                if w >= REGION_MIN_WIDTH and h >= REGION_MIN_HEIGHT:
+                    self._drag_result = (x1, y1, w, h)
+                dlg.destroy()
 
-        def on_cancel(_event=None):
-            self._drag_result = None
-            dlg.destroy()
+            def on_cancel(_event=None):
+                _log("_do_drag_create: ESC cancel")
+                self._drag_result = None
+                dlg.destroy()
 
-        canvas.bind("<Button-1>", on_press)
-        canvas.bind("<B1-Motion>", on_drag)
-        canvas.bind("<ButtonRelease-1>", on_release)
-        dlg.bind("<Escape>", on_cancel)
+            canvas.bind("<Button-1>", on_press)
+            canvas.bind("<B1-Motion>", on_drag)
+            canvas.bind("<ButtonRelease-1>", on_release)
+            dlg.bind("<Escape>", on_cancel)
 
-        dlg.grab_set()
-        dlg.wait_window()
+            dlg.grab_set()
+            _log("_do_drag_create: entering poll loop (instead of wait_window)")
+
+            poll_count = 0
+            while dlg.winfo_exists():
+                try:
+                    root.update()
+                except Exception as e:
+                    _log(f"_do_drag_create: update error: {e}")
+                    break
+                poll_count += 1
+                if poll_count % 300 == 0:
+                    _log(f"_do_drag_create: poll loop alive ({poll_count})")
+
+            _log("_do_drag_create: poll loop exited")
+        except Exception:
+            _log(f"_do_drag_create: EXCEPTION\n{traceback.format_exc()}")
 
         self._drag_done.set()
         result = self._drag_result
         self._drag_result = None
         self._drag_pending = False
+        _log(f"_do_drag_create: result={result}")
 
         if result:
             x, y, w, h = result
@@ -844,6 +880,7 @@ class RegionManagerApp(rumps.App):
                 self._rm.add_region(x, y, w, h, label)
                 self._build_menu()
                 show_notification("区域管理器", f"已创建: {label} ({w}x{h})")
+        _log("_do_drag_create: EXIT")
 
     def _cb_region_detail(self, rid):
         self._do_region_detail(rid)
@@ -1026,6 +1063,9 @@ class RegionManagerApp(rumps.App):
 
     @rumps.timer(0.3)
     def _main_loop(self, _):
+        if self._drag_in_progress:
+            return
+
         try:
             while True:
                 op_type, args = self._op_queue.get_nowait()
@@ -1038,9 +1078,11 @@ class RegionManagerApp(rumps.App):
             pass
 
         if self._drag_pending and not self._drag_done.is_set() and not self._drag_in_progress:
+            _log("_main_loop: firing _do_drag_create")
             self._drag_in_progress = True
             self._do_drag_create()
             self._drag_in_progress = False
+            _log("_main_loop: _do_drag_create finished")
 
 
 if __name__ == "__main__":
