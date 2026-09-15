@@ -1,5 +1,5 @@
-"""Screen Region Manager v1.1.0 - Multi-monitor wireframe overlay tool with Chinese menu"""
-VERSION = "v1.1.0"
+"""Screen Region Manager v1.2.0 - Multi-monitor wireframe overlay tool with Chinese menu"""
+VERSION = "v1.2.0"
 
 import atexit
 import json
@@ -591,6 +591,14 @@ class RegionManagerApp(rumps.App):
         self._screens = get_all_screens()
         self._op_queue = queue.Queue()
         self._editor_process = None
+        self._drag_pending = False
+        self._drag_done = threading.Event()
+        self._drag_methods = [
+            "canvas", "window", "bind_all", "motion", "poll",
+            "nsevent_global", "nsevent_local", "cgevent_poll",
+            "grab_global", "focus_poll",
+        ]
+        self._drag_method_index = 0
 
         if HAS_APPKIT:
             try:
@@ -667,11 +675,17 @@ class RegionManagerApp(rumps.App):
             return
         if not self._ensure_editor_script_exists():
             return
-        show_notification("Region Manager", "Drag on screen to draw region, Esc to cancel")
+        if self._drag_pending:
+            _log("_cb_drag_create: already pending, skip")
+            return
+        method = self._drag_methods[self._drag_method_index]
+        self._drag_method_index = (self._drag_method_index + 1) % len(self._drag_methods)
+        next_method = self._drag_methods[self._drag_method_index]
+        show_notification("Region Manager", f"Drag: [{method}] (next: {next_method})")
         self._drag_pending = True
         self._drag_done.clear()
-        _log("_cb_drag_create: launching editor subprocess")
-        threading.Thread(target=self._run_drag_subprocess, daemon=True).start()
+        _log(f"_cb_drag_create: launching editor with method={method}")
+        threading.Thread(target=self._run_drag_subprocess, args=(method,), daemon=True).start()
 
     def _ensure_editor_script_exists(self):
         if not os.path.exists(EDITOR_SCRIPT):
@@ -679,12 +693,15 @@ class RegionManagerApp(rumps.App):
             return False
         return True
 
-    def _run_drag_subprocess(self):
-        _log("_run_drag_subprocess: launching editor --create")
+    def _run_drag_subprocess(self, method="canvas"):
+        _log(f"_run_drag_subprocess: launching editor --create method={method}")
+        env = os.environ.copy()
+        env["DRAG_METHOD"] = method
         try:
             proc = subprocess.run(
                 [sys.executable, EDITOR_SCRIPT, "--create"],
-                capture_output=True, text=True, timeout=120
+                capture_output=True, text=True, timeout=120,
+                env=env
             )
             out = proc.stdout.strip()
             _log(f"_run_drag_subprocess: stdout={out}")

@@ -84,8 +84,15 @@ def _hex_fade(hex_color, alpha):
 
 
 class RegionCreateOverlay:
-    def __init__(self, root, bounds):
+    DRAG_METHODS = [
+        "canvas", "window", "bind_all", "motion", "poll",
+        "nsevent_global", "nsevent_local", "cgevent_poll",
+        "grab_global", "focus_poll",
+    ]
+
+    def __init__(self, root, bounds, method="canvas"):
         self.root = root
+        self.method = method
         self.min_x, self.min_y, self.max_x, self.max_y = bounds
         self.tw = self.max_x - self.min_x
         self.th = self.max_y - self.min_y
@@ -102,14 +109,252 @@ class RegionCreateOverlay:
                                 bg="black", highlightthickness=0, cursor="crosshair")
         self.canvas.pack(fill="both", expand=True)
 
-        self._sx, self._sy = 0, 0
-        self._cx, self._cy = 0, 0
+        self._sx = None
+        self._sy = None
+        self._cx = 0
+        self._cy = 0
+        self._mouse_down = False
 
+        self.win.bind("<Escape>", lambda e: self._cancel())
+
+        method_name = f"_bind_{method}"
+        bind_fn = getattr(self, method_name, None)
+        if bind_fn:
+            bind_fn()
+        else:
+            self._bind_canvas()
+
+        print(f"[DragMethod] {method}", file=sys.stderr, flush=True)
+
+    def _bind_canvas(self):
         self.canvas.bind("<ButtonPress-1>", self._on_down)
         self.canvas.bind("<B1-Motion>", self._on_drag)
         self.canvas.bind("<ButtonRelease-1>", self._on_up)
 
-        self.win.bind("<Escape>", lambda e: self._cancel())
+    def _bind_window(self):
+        self.win.bind("<ButtonPress-1>", self._on_down)
+        self.win.bind("<B1-Motion>", self._on_drag)
+        self.win.bind("<ButtonRelease-1>", self._on_up)
+
+    def _bind_bind_all(self):
+        self.root.bind_all("<ButtonPress-1>", self._on_down)
+        self.root.bind_all("<B1-Motion>", self._on_drag)
+        self.root.bind_all("<ButtonRelease-1>", self._on_up)
+
+    def _bind_motion(self):
+        self.canvas.bind("<ButtonPress-1>", self._on_motion_down)
+        self.canvas.bind("<ButtonRelease-1>", self._on_motion_up)
+        self.canvas.bind("<Motion>", self._on_motion_move)
+
+    def _bind_poll(self):
+        self.canvas.bind("<ButtonPress-1>", self._on_poll_down)
+        self.canvas.bind("<ButtonRelease-1>", self._on_poll_up)
+        self._poll_loop()
+
+    def _bind_nsevent_global(self):
+        try:
+            from AppKit import NSEvent, NSLeftMouseDownMask, NSLeftMouseUpMask, \
+                NSMouseMovedMask, NSLeftMouseDraggedMask
+            from Quartz import CGEventGetLocation, CGEventCreate
+            self._nsevent_down_mon = NSEvent.addGlobalMonitorForEventsMatchingMask_handler_(
+                NSLeftMouseDownMask, self._on_nsevent_down)
+            self._nsevent_drag_mon = NSEvent.addGlobalMonitorForEventsMatchingMask_handler_(
+                NSLeftMouseDraggedMask, self._on_nsevent_drag)
+            self._nsevent_up_mon = NSEvent.addGlobalMonitorForEventsMatchingMask_handler_(
+                NSLeftMouseUpMask, self._on_nsevent_up)
+        except Exception as e:
+            print(f"[NSEventGlobal] Failed: {e}", file=sys.stderr, flush=True)
+            self._bind_canvas()
+
+    def _on_nsevent_down(self, event):
+        try:
+            pos = CGEventGetLocation(CGEventCreate(None))
+            px = int(pos.x) - self.win.winfo_rootx()
+            py = int(pos.y) - self.win.winfo_rooty()
+            if 0 <= px <= self.tw and 0 <= py <= self.th:
+                self._sx, self._sy = px, py
+                self._cx, self._cy = px, py
+                self._draw_rect()
+        except Exception:
+            pass
+
+    def _on_nsevent_drag(self, event):
+        if self._sx is None:
+            return
+        try:
+            pos = CGEventGetLocation(CGEventCreate(None))
+            px = int(pos.x) - self.win.winfo_rootx()
+            py = int(pos.y) - self.win.winfo_rooty()
+            self._cx, self._cy = px, py
+            self._draw_rect()
+        except Exception:
+            pass
+
+    def _on_nsevent_up(self, event):
+        if self._sx is None:
+            return
+        try:
+            pos = CGEventGetLocation(CGEventCreate(None))
+            px = int(pos.x) - self.win.winfo_rootx()
+            py = int(pos.y) - self.win.winfo_rooty()
+            self._cx, self._cy = px, py
+            self._finish_rect()
+        except Exception:
+            pass
+
+    def _bind_nsevent_local(self):
+        try:
+            from AppKit import NSEvent, NSLeftMouseDownMask, NSLeftMouseUpMask, \
+                NSLeftMouseDraggedMask
+            self._nsevent_loc_down = NSEvent.addLocalMonitorForEventsMatchingMask_handler_(
+                NSLeftMouseDownMask, self._on_nsevent_local)
+            self._nsevent_loc_drag = NSEvent.addLocalMonitorForEventsMatchingMask_handler_(
+                NSLeftMouseDraggedMask, self._on_nsevent_local_drag)
+            self._nsevent_loc_up = NSEvent.addLocalMonitorForEventsMatchingMask_handler_(
+                NSLeftMouseUpMask, self._on_nsevent_local_up)
+        except Exception as e:
+            print(f"[NSEventLocal] Failed: {e}", file=sys.stderr, flush=True)
+            self._bind_canvas()
+
+    def _on_nsevent_local(self, event):
+        if not self.win.winfo_exists():
+            return event
+        loc = event.locationInWindow()
+        if hasattr(loc, 'x'):
+            px, py = int(loc.x), int(loc.y)
+        else:
+            return event
+        if 0 <= px <= self.tw and 0 <= py <= self.th:
+            self._sx, self._sy = px, py
+            self._cx, self._cy = px, py
+            self._draw_rect()
+        return event
+
+    def _on_nsevent_local_drag(self, event):
+        if self._sx is None or not self.win.winfo_exists():
+            return event
+        loc = event.locationInWindow()
+        if hasattr(loc, 'x'):
+            px, py = int(loc.x), int(loc.y)
+        else:
+            return event
+        self._cx, self._cy = px, py
+        self._draw_rect()
+        return event
+
+    def _on_nsevent_local_up(self, event):
+        if self._sx is None or not self.win.winfo_exists():
+            return event
+        loc = event.locationInWindow()
+        if hasattr(loc, 'x'):
+            px, py = int(loc.x), int(loc.y)
+        else:
+            return event
+        self._cx, self._cy = px, py
+        self._finish_rect()
+        return event
+
+    def _bind_cgevent_poll(self):
+        try:
+            from Quartz import CGEventSourceButtonState, kCGEventSourceStateHIDSystemState
+            self.canvas.bind("<ButtonPress-1>", self._on_cgpoll_down)
+            self.canvas.bind("<ButtonRelease-1>", self._on_cgpoll_up)
+            self._cgevent_poll_loop()
+        except Exception as e:
+            print(f"[CGEventPoll] Failed: {e}", file=sys.stderr, flush=True)
+            self._bind_canvas()
+
+    def _on_cgpoll_down(self, event):
+        self._mouse_down = True
+        self._sx, self._sy = event.x, event.y
+        self._cx, self._cy = event.x, event.y
+
+    def _on_cgpoll_up(self, event):
+        if self._mouse_down and self._sx is not None:
+            self._finish_rect()
+        self._mouse_down = False
+
+    def _cgevent_poll_loop(self):
+        if self._mouse_down and self._sx is not None:
+            try:
+                from Quartz import CGEventGetLocation, CGEventCreate
+                pos = CGEventGetLocation(CGEventCreate(None))
+                px = int(pos.x) - self.win.winfo_rootx()
+                py = int(pos.y) - self.win.winfo_rooty()
+                self._cx, self._cy = px, py
+                self._draw_rect()
+            except Exception:
+                px = self.win.winfo_pointerx() - self.win.winfo_rootx()
+                py = self.win.winfo_pointery() - self.win.winfo_rooty()
+                self._cx, self._cy = px, py
+                self._draw_rect()
+        if self.win.winfo_exists():
+            self.win.after(16, self._cgevent_poll_loop)
+
+    def _bind_grab_global(self):
+        try:
+            self.win.grab_set_global()
+            self.canvas.bind("<ButtonPress-1>", self._on_grab_down)
+            self.canvas.bind("<B1-Motion>", self._on_grab_drag)
+            self.canvas.bind("<ButtonRelease-1>", self._on_grab_up)
+        except Exception as e:
+            print(f"[GrabGlobal] grab_set_global failed: {e}", file=sys.stderr, flush=True)
+            self.canvas.bind("<ButtonPress-1>", self._on_grab_down)
+            self.canvas.bind("<B1-Motion>", self._on_grab_drag)
+            self.canvas.bind("<ButtonRelease-1>", self._on_grab_up)
+
+    def _on_grab_down(self, event):
+        self._sx, self._sy = event.x, event.y
+        self._cx, self._cy = event.x, event.y
+        self._draw_rect()
+
+    def _on_grab_drag(self, event):
+        if self._sx is None:
+            return
+        self._cx, self._cy = event.x, event.y
+        self._draw_rect()
+
+    def _on_grab_up(self, event):
+        if self._sx is None:
+            return
+        self._cx, self._cy = event.x, event.y
+        self._draw_rect()
+        self._finish_rect()
+
+    def _bind_focus_poll(self):
+        self.canvas.bind("<ButtonPress-1>", self._on_focus_down)
+        self.canvas.bind("<ButtonRelease-1>", self._on_focus_up)
+        self._focus_poll_loop()
+
+    def _on_focus_down(self, event):
+        self._mouse_down = True
+        self._sx, self._sy = event.x, event.y
+        self._cx, self._cy = event.x, event.y
+        try:
+            self.win.focus_force()
+            self.win.lift()
+        except Exception:
+            pass
+
+    def _on_focus_up(self, event):
+        if self._mouse_down and self._sx is not None:
+            self._cx, self._cy = event.x, event.y
+            self._finish_rect()
+        self._mouse_down = False
+
+    def _focus_poll_loop(self):
+        if self._mouse_down and self._sx is not None:
+            px = self.win.winfo_pointerx() - self.win.winfo_rootx()
+            py = self.win.winfo_pointery() - self.win.winfo_rooty()
+            if px >= 0 and py >= 0:
+                self._cx, self._cy = px, py
+                self._draw_rect()
+            else:
+                self._cx = max(0, min(px, self.tw))
+                self._cy = max(0, min(py, self.th))
+                self._draw_rect()
+        if self.win.winfo_exists():
+            self.win.after(8, self._focus_poll_loop)
 
     def _on_down(self, event):
         self._sx, self._sy = event.x, event.y
@@ -127,6 +372,46 @@ class RegionCreateOverlay:
             return
         self._cx, self._cy = event.x, event.y
         self._draw_rect()
+        self._finish_rect()
+
+    def _on_motion_down(self, event):
+        self._mouse_down = True
+        self._sx, self._sy = event.x, event.y
+        self._cx, self._cy = event.x, event.y
+
+    def _on_motion_up(self, event):
+        if self._mouse_down and self._sx is not None:
+            self._cx, self._cy = event.x, event.y
+            self._finish_rect()
+        self._mouse_down = False
+
+    def _on_motion_move(self, event):
+        if not self._mouse_down or self._sx is None:
+            return
+        self._cx, self._cy = event.x, event.y
+        self._draw_rect()
+
+    def _on_poll_down(self, event):
+        self._mouse_down = True
+        self._sx, self._sy = event.x, event.y
+        self._cx, self._cy = event.x, event.y
+
+    def _on_poll_up(self, event):
+        if self._mouse_down and self._sx is not None:
+            self._finish_rect()
+        self._mouse_down = False
+
+    def _poll_loop(self):
+        if self._mouse_down and self._sx is not None:
+            px = self.win.winfo_pointerx() - self.win.winfo_rootx()
+            py = self.win.winfo_pointery() - self.win.winfo_rooty()
+            if 0 <= px <= self.tw and 0 <= py <= self.th:
+                self._cx, self._cy = px, py
+                self._draw_rect()
+        if self.win.winfo_exists():
+            self.win.after(16, self._poll_loop)
+
+    def _finish_rect(self):
         x1 = min(self._sx, self._cx)
         y1 = min(self._sy, self._cy)
         x2 = max(self._sx, self._cx)
@@ -224,16 +509,29 @@ class RegionEditWindow:
                                 fill=color, font=("PingFang SC", 8, "bold"), tags="action_label")
 
     def _bind_events(self):
-        for tag in ("border", "label_bg", "label_text", "cross", "action_label"):
-            self.canvas.tag_bind(tag, "<ButtonPress-1>", self._start_move)
-            self.canvas.tag_bind(tag, "<B1-Motion>", self._do_move)
+        self.canvas.bind("<ButtonPress-1>", self._start_move)
+        self.canvas.bind("<B1-Motion>", self._do_move)
+        self.canvas.bind("<ButtonRelease-1>", self._stop_move)
 
         self.canvas.tag_bind("resize_handle", "<ButtonPress-1>", self._start_resize)
         self.canvas.tag_bind("resize_handle", "<B1-Motion>", self._do_resize)
+        self.canvas.tag_bind("resize_handle", "<ButtonRelease-1>", self._stop_move)
 
-        self.canvas.tag_bind("close_btn", "<Button-1>", lambda e: self._close())
+        self.canvas.tag_bind("close_btn", "<Button-1>", self._on_close_click)
+
+    def _on_close_click(self, event):
+        if self._mode == "move":
+            self._mode = None
+            return "break"
+        self._close()
+        return "break"
+
+    def _stop_move(self, event):
+        self._mode = None
 
     def _start_move(self, event):
+        if self._mode is not None:
+            return
         self._mode = "move"
         self._start_x = event.x_root
         self._start_y = event.y_root
@@ -284,17 +582,66 @@ class RegionEditWindow:
 
 
 def run_create():
+    method = os.environ.get("DRAG_METHOD", "canvas")
+    test_all = os.environ.get("DRAG_TEST_ALL", "").lower() in ("1", "true", "yes")
+    args = sys.argv[2:] if len(sys.argv) > 2 else []
+
+    if "--test-all" in args:
+        test_all = True
+    for a in args:
+        if a.startswith("--method="):
+            method = a.split("=", 1)[1]
+
+    if test_all:
+        return _test_all_methods()
+
+    if method not in RegionCreateOverlay.DRAG_METHODS:
+        print(f"Unknown method: {method}, trying: {RegionCreateOverlay.DRAG_METHODS}",
+              file=sys.stderr, flush=True)
+        method = "canvas"
     bounds = get_screen_bounds()
     root = tk.Tk()
     root.withdraw()
-    overlay = RegionCreateOverlay(root, bounds)
+    overlay = RegionCreateOverlay(root, bounds, method=method)
     root.wait_window(overlay.win)
     root.destroy()
     result = overlay.result
     if result:
+        result["method"] = method
         print(json.dumps(result, ensure_ascii=False))
     else:
         print("null")
+
+
+def _test_all_methods():
+    results = []
+    for method in RegionCreateOverlay.DRAG_METHODS:
+        print(f"\n{'='*60}", file=sys.stderr, flush=True)
+        print(f"[TestAll] Testing method: {method}", file=sys.stderr, flush=True)
+        bounds = get_screen_bounds()
+        root = tk.Tk()
+        root.withdraw()
+        try:
+            overlay = RegionCreateOverlay(root, bounds, method=method)
+            root.wait_window(overlay.win)
+            result = overlay.result
+            status = "OK" if result else "CANCELLED"
+            results.append({"method": method, "result": result, "status": status})
+            print(f"[TestAll] {method}: {status}", file=sys.stderr, flush=True)
+        except Exception as e:
+            print(f"[TestAll] {method}: ERROR - {e}", file=sys.stderr, flush=True)
+            results.append({"method": method, "result": None, "status": f"ERROR: {e}"})
+        finally:
+            try:
+                root.destroy()
+            except Exception:
+                pass
+
+    print("\n" + "=" * 60, file=sys.stderr, flush=True)
+    print("[TestAll] SUMMARY:", file=sys.stderr, flush=True)
+    for r in results:
+        print(f"  {r['method']:20s} → {r['status']}", file=sys.stderr, flush=True)
+    print(json.dumps(results, ensure_ascii=False))
 
 
 def run_edit():
