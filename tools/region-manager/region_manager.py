@@ -1,5 +1,5 @@
-"""Screen Region Manager v1.0.2 - Multi-monitor wireframe overlay tool with Chinese menu"""
-VERSION = "v1.0.2"
+"""Screen Region Manager v1.0.3 - Multi-monitor wireframe overlay tool with Chinese menu"""
+VERSION = "v1.0.3"
 
 import atexit
 import json
@@ -845,7 +845,7 @@ class RegionManagerApp(rumps.App):
                 show_notification("区域管理器", f"已创建: {label} ({w}x{h})")
 
     def _cb_region_detail(self, rid):
-        self._op_queue.put((self.PENDING_DETAIL, rid))
+        self._do_region_detail(rid)
 
     def _do_region_detail(self, rid):
         regions = load_regions()
@@ -1023,9 +1023,8 @@ class RegionManagerApp(rumps.App):
         else:
             rumps.quit_application()
 
-    @rumps.timer(0.1)
+    @rumps.timer(0.3)
     def _main_loop(self, _):
-        # Process pending operations on main thread (safe for Tkinter)
         try:
             while True:
                 op_type, args = self._op_queue.get_nowait()
@@ -1034,20 +1033,11 @@ class RegionManagerApp(rumps.App):
                     self._rm.add_region(x, y, 120, 40, label)
                     self._build_menu()
                     show_notification("区域管理器", f"已创建: {label}")
-                elif op_type == self.PENDING_DETAIL:
-                    self._do_region_detail(args)
         except queue.Empty:
             pass
 
         if self._drag_pending and not self._drag_done.is_set():
             self._do_drag_create()
-
-        root = get_tk_root()
-        if root:
-            try:
-                root.update()
-            except Exception:
-                pass
 
 
 if __name__ == "__main__":
