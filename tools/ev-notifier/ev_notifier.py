@@ -3239,26 +3239,93 @@ class EvNotifier(rumps.App):
     def manual_recovery(self, _):
         global _missing_count, _pending_title, _new_msg_count
         _debug_log("manual_recovery clicked")
+        try:
+            self.manual_recovery.title = "恢复中…"
+        except Exception:
+            pass
         real_missing = _recalc_missing()
         _debug_log(f"recalc_missing={real_missing}, stale _missing_count={_missing_count}")
         if real_missing <= 0:
             rumps.notification(f"Ev {VERSION}", "", "无丢失消息", sound=False)
+            try:
+                self.manual_recovery.title = "手动恢复"
+            except Exception:
+                pass
             return
         last_id = load_last_id()
         _debug_log(f"last_id={last_id}")
         if not last_id:
             rumps.notification(f"Ev {VERSION}", "", "无法获取 last_id", sound=False)
+            try:
+                self.manual_recovery.title = "手动恢复"
+            except Exception:
+                pass
             return
         rumps.notification(f"Ev {VERSION}", "", f"开始恢复 {real_missing} 条...", sound=False)
-        new_last_id = do_recovery_poll(last_id)
+        try:
+            new_last_id = do_recovery_poll(last_id)
+        except Exception as e:
+            _debug_log(f"manual_recovery failed: {e}")
+            rumps.notification(f"Ev {VERSION}", "", "连接失败，请检查网络后重试", sound=False)
+            try:
+                self.manual_recovery.title = "手动恢复"
+            except Exception:
+                pass
+            return
         if new_last_id:
             save_last_id(new_last_id)
-        if _missing_count > 0:
-            _pending_title = f"Ev {VERSION}({_new_msg_count}) ⚠{_missing_count}"
-            rumps.notification(f"Ev {VERSION}", "", f"恢复完成，剩余 {_missing_count} 条", sound=False)
+        after_missing = _recalc_missing()
+        if after_missing > 0:
+            _pending_title = f"Ev {VERSION}({_new_msg_count}) ⚠{after_missing}"
+            rumps.notification(f"Ev {VERSION}", "", f"恢复完成，已恢复 {real_missing - after_missing} 条，剩余 {after_missing} 条", sound=False)
+            try:
+                self.manual_recovery.title = f"手动恢复({after_missing})"
+            except Exception:
+                pass
         else:
             _pending_title = f"Ev {VERSION}({_new_msg_count})"
             rumps.notification(f"Ev {VERSION}", "", "已全部恢复 ✓", sound=False)
+            try:
+                self.manual_recovery.title = "手动恢复"
+            except Exception:
+                pass
+
+    @rumps.clicked("全量扫描")
+    def deep_scan(self, _):
+        global _missing_count, _pending_title, _new_msg_count
+        _debug_log("deep_scan clicked")
+        try:
+            self.deep_scan.title = "扫描中…"
+        except Exception:
+            pass
+        rumps.notification(f"Ev {VERSION}", "", "开始全量扫描...", sound=False)
+        try:
+            new_last_id = do_recovery_poll("-")
+        except Exception as e:
+            _debug_log(f"deep_scan failed: {e}")
+            rumps.notification(f"Ev {VERSION}", "", "连接失败，请检查网络后重试", sound=False)
+            try:
+                self.deep_scan.title = "全量扫描"
+            except Exception:
+                pass
+            return
+        if new_last_id:
+            save_last_id(new_last_id)
+        after_missing = _recalc_missing()
+        if after_missing > 0:
+            _pending_title = f"Ev {VERSION}({_new_msg_count}) ⚠{after_missing}"
+            rumps.notification(f"Ev {VERSION}", "", f"扫描完成，剩余 {after_missing} 条丢失", sound=False)
+            try:
+                self.deep_scan.title = f"全量扫描({after_missing})"
+            except Exception:
+                pass
+        else:
+            _pending_title = f"Ev {VERSION}({_new_msg_count})"
+            rumps.notification(f"Ev {VERSION}", "", "全量扫描完成 ✓", sound=False)
+            try:
+                self.deep_scan.title = "全量扫描"
+            except Exception:
+                pass
 
     @rumps.clicked("拉取日志")
     def view_poll_log(self, _):
