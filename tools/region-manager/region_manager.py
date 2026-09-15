@@ -1,9 +1,10 @@
-"""Screen Region Manager v1.0.0 - Multi-monitor wireframe overlay tool with Chinese menu"""
-VERSION = "v1.0.0"
+"""Screen Region Manager v1.0.1 - Multi-monitor wireframe overlay tool with Chinese menu"""
+VERSION = "v1.0.1"
 
 import atexit
 import json
 import os
+import queue
 import shutil
 import subprocess
 import sys
@@ -54,6 +55,7 @@ ACTION_NAMES = ["定时点击", "OCR 识别", "自动滚动", "定时截图", "�
 INTERVALS = [1, 2, 3, 5, 10, 30, 60]
 
 _REGION_ACTION_STOP = {}
+_PENDING_OPERATIONS = queue.Queue()
 
 def load_regions():
     try:
@@ -232,7 +234,7 @@ def show_notification(title, message):
     except Exception:
         pass
 
-def show_text_input(title, message, default_value=""):
+def show_text_input_sync(title, message, default_value=""):
     script = f'''
 tell application "System Events"
     set resultText to text returned of (display dialog "{message}" with title "{title}" default answer "{default_value}" buttons {{"取消", "确定"}} default button "确定")
@@ -241,13 +243,13 @@ end tell'''
     try:
         r = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=30)
         out = r.stdout.strip()
-        if not out or "取消" in out or "false" in out.lower():
+        if not out or "取消" in out:
             return None
         return out
     except Exception:
         return None
 
-def show_dialog(title, message, buttons):
+def show_dialog_sync(title, message, buttons):
     btn_str = ",".join(f'"{b}"' for b in buttons)
     script = f'''
 tell application "System Events"
@@ -259,9 +261,6 @@ end tell'''
         return r.stdout.strip()
     except Exception:
         return None
-
-def show_alert(title, message, ok_text="确定"):
-    return show_dialog(title, message, [ok_text]) is not None
 
 class DragCreateOverlay:
     def __init__(self):
@@ -354,6 +353,7 @@ class RegionOverlay:
         self.root.attributes("-alpha", alpha)
         self.root.geometry(f"{c['width']}x{c['height']}+{c['x']}+{c['y']}")
         self.root.configure(bg="systemTransparent")
+        self.root.configure(background="systemTransparent")
 
         color = c.get("color", "#FF4444")
         label = c.get("label", "?")
@@ -437,7 +437,6 @@ class RegionOverlay:
     def _unbind_edit(self):
         for tag in ("border", "label_bg", "label_text", "cross", "action_label", "resize_handle", "close_btn"):
             self.canvas.tag_unbind(tag, "<Button-1>")
-            self.canvas.tag_unbind(tag, "<B1-Motion>")
 
     def _close_clicked(self):
         if self.on_delete:
@@ -609,7 +608,6 @@ class RegionManager:
     def start_action_loops(self):
         for rid in list(_REGION_ACTION_STOP.keys()):
             _REGION_ACTION_STOP[rid] = True
-
         regions = self.get_active_regions()
         for r in regions:
             rid = r["id"]
@@ -646,14 +644,12 @@ class RegionManager:
                 if double:
                     time.sleep(0.05)
                     click_at(ax, ay)
-                print(f"  [{label}] 点击 @ ({ax},{ay})")
-            except Exception as e:
-                print(f"  [{label}] 点击失败: {e}")
+            except Exception:
+                pass
             time.sleep(interval)
 
     def _ocr_loop(self, r):
         if not HAS_OCR or not HAS_PIL:
-            print(f"  [OCR] pytesseract/PIL 不可用，请安装: pip install pytesseract Pillow")
             return
         rid = r["id"]
         interval = r.get("action_config", {}).get("interval_seconds", 5.0)
@@ -669,16 +665,14 @@ class RegionManager:
                     text = pytesseract.image_to_string(img, lang="chi_sim+eng").strip()
                     if text and text != last_text:
                         last_text = text
-                        ts = datetime.now().strftime("%H:%M:%S")
-                        print(f"  [{label}] OCR [{ts}]: {text[:100]}")
                         if watch_text and watch_text in text.lower():
                             show_notification(f"区域 [{label}]", f"匹配: {watch_text}")
                     try:
                         os.unlink(img_path)
                     except Exception:
                         pass
-            except Exception as e:
-                print(f"  [{label}] OCR 错误: {e}")
+            except Exception:
+                pass
             time.sleep(interval)
 
     def _scroll_loop(self, r):
@@ -686,21 +680,11 @@ class RegionManager:
         interval = r.get("action_config", {}).get("interval_seconds", 10.0)
         distance = r.get("action_config", {}).get("scroll_distance", 300)
         direction = r.get("action_config", {}).get("direction", "down")
-        label = r.get("label", "?")
         cx = r["x"] + r["width"] // 2
         cy = r["y"] + r["height"] // 2
         while not _REGION_ACTION_STOP.get(rid, True):
             try:
                 dy = distance if direction == "down" else -distance
-                script = f'''
-tell application "System Events"
-    set frontProcess to first process whose frontmost is true
-    tell frontProcess
-        set _x to {cx}
-        set _y to {cy}
-    end tell
-end tell'''
-                subprocess.run(["osascript", "-e", script], timeout=5)
                 try:
                     import Quartz
                     Quartz.CGEventPost(Quartz.kCGHIDEventTap,
@@ -710,9 +694,8 @@ end tell'''
                         Quartz.CGEventCreateScrollWheelEvent(None, Quartz.kCGScrollEventUnitLine, 1, dy, 0))
                 except ImportError:
                     pass
-                print(f"  [{label}] 滚动 {direction} {distance}px")
-            except Exception as e:
-                print(f"  [{label}] 滚动失败: {e}")
+            except Exception:
+                pass
             time.sleep(interval)
 
     def _screenshot_loop(self, r):
@@ -730,7 +713,6 @@ end tell'''
                 filename = f"{prefix}_{label}_{ts}.png"
                 filepath = os.path.join(save_path, filename)
                 self._capture_screenshot(rect, filepath)
-                print(f"  [{label}] 截图: {filepath}")
                 existing = sorted([f for f in os.listdir(save_path)
                                    if f.startswith(f"{prefix}_{label}_") and f.endswith(".png")])
                 while len(existing) > max_files:
@@ -739,8 +721,8 @@ end tell'''
                         existing.pop(0)
                     except Exception:
                         break
-            except Exception as e:
-                print(f"  [{label}] 截图失败: {e}")
+            except Exception:
+                pass
             time.sleep(interval)
 
     def _capture_screenshot(self, rect, filepath):
@@ -752,14 +734,14 @@ end tell'''
             if img_ref is None:
                 return None
             from Quartz import CGImageGetWidth, CGImageGetHeight, CGImageGetDataProvider, CGDataProviderCopyData, CGImageGetBitsPerPixel, CGImageGetBytesPerRow
-            from PIL import Image
+            from PIL import Image as PILImage
             width = CGImageGetWidth(img_ref)
             height = CGImageGetHeight(img_ref)
             provider = CGImageGetDataProvider(img_ref)
             data = CGDataProviderCopyData(provider)
             bpp = CGImageGetBitsPerPixel(img_ref)
             bpr = CGImageGetBytesPerRow(img_ref)
-            img = Image.frombytes("RGBA", (width, height), bytes(data), "raw", "BGRA", bpr, 1)
+            img = PILImage.frombytes("RGBA", (width, height), bytes(data), "raw", "BGRA", bpr, 1)
             img.save(filepath, "PNG")
             return filepath
         except ImportError:
@@ -786,6 +768,7 @@ class RegionManagerApp(rumps.App):
         self._rm = RegionManager()
         self._edit_mode = False
         self._screens = get_all_screens()
+        self._dragging = False
 
         if HAS_APPKIT:
             try:
@@ -793,8 +776,8 @@ class RegionManagerApp(rumps.App):
             except Exception:
                 pass
 
-        self._build_menu()
         self._rm.load_all()
+        self._build_menu()
 
     def _build_menu(self):
         self.menu.clear()
@@ -810,8 +793,8 @@ class RegionManagerApp(rumps.App):
         self.menu.add(rumps.MenuItem(f"区域: {active_count}/{len(regions)} 个"))
         self.menu.add(rumps.separator)
 
-        self.menu.add(rumps.MenuItem("➕ 新建区域", callback=self._new_region))
-        self.menu.add(rumps.MenuItem("✏️ 拖拽创建区域", callback=self._drag_create_region))
+        self.menu.add(rumps.MenuItem("➕ 新建区域", callback=self._cb_new_region))
+        self.menu.add(rumps.MenuItem("✏️ 拖拽创建区域", callback=self._cb_drag_create))
         self.menu.add(rumps.separator)
 
         if regions:
@@ -824,26 +807,89 @@ class RegionManagerApp(rumps.App):
                 label = r.get("label", "?")
                 self.menu.add(rumps.MenuItem(
                     f"   {status} #{label} [{at_name}]",
-                    callback=lambda _, rid=r["id"]: self._region_detail(rid)
+                    callback=lambda _, rid=r["id"]: self._cb_region_detail(rid)
                 ))
             self.menu.add(rumps.separator)
 
         edit_label = "🔧 编辑模式: 开" if self._edit_mode else "🔧 编辑模式: 关"
-        self.menu.add(rumps.MenuItem(edit_label, callback=self._toggle_edit_mode))
-        self.menu.add(rumps.MenuItem("👁️ 显示全部区域", callback=self._show_all))
-        self.menu.add(rumps.MenuItem("🙈 隐藏全部区域", callback=self._hide_all))
-        self.menu.add(rumps.MenuItem("💣 删除全部区域", callback=self._delete_all))
+        self.menu.add(rumps.MenuItem(edit_label, callback=self._cb_toggle_edit_mode))
+        self.menu.add(rumps.MenuItem("👁️ 显示全部区域", callback=self._cb_show_all))
+        self.menu.add(rumps.MenuItem("🙈 隐藏全部区域", callback=self._cb_hide_all))
+        self.menu.add(rumps.MenuItem("💣 删除全部区域", callback=self._cb_delete_all))
         self.menu.add(rumps.separator)
 
-        self.menu.add(rumps.MenuItem("📤 导出配置...", callback=self._export_config))
-        self.menu.add(rumps.MenuItem("📥 导入配置...", callback=self._import_config))
+        self.menu.add(rumps.MenuItem("📤 导出配置...", callback=self._cb_export_config))
+        self.menu.add(rumps.MenuItem("📥 导入配置...", callback=self._cb_import_config))
         self.menu.add(rumps.separator)
 
         self.menu.add(rumps.MenuItem(VERSION))
         self.menu.add(rumps.separator)
-        self.menu.add(rumps.MenuItem("🚪 退出", callback=self._quit_app))
+        self.menu.add(rumps.MenuItem("🚪 退出", callback=self._cb_quit_app))
 
-    def _region_detail(self, rid):
+    def _process_pending_operations(self):
+        try:
+            op_type, args = _PENDING_OPERATIONS.get_nowait()
+            if op_type == "add_region":
+                x, y, w, h, label = args
+                self._rm.add_region(x, y, w, h, label)
+                self._build_menu()
+                show_notification("区域管理器", f"已创建: {label} ({w}x{h})")
+            elif op_type == "add_region_simple":
+                x, y, label = args
+                self._rm.add_region(x, y, 120, 40, label)
+                self._build_menu()
+                show_notification("区域管理器", f"已创建: {label}")
+            elif op_type == "rebuild_menu":
+                self._build_menu()
+            elif op_type == "region_detail":
+                rid = args
+                self._do_region_detail(rid)
+        except queue.Empty:
+            pass
+
+    def _prompt_new_region(self):
+        x, y = get_mouse_position()
+        label = show_text_input_sync("新建区域", f"位置: ({x}, {y})",
+                                     f"区域{len(load_regions())+1}")
+        if label:
+            _PENDING_OPERATIONS.put(("add_region_simple", (x, y, label)))
+
+    def _prompt_drag_create(self):
+        overlay = DragCreateOverlay()
+        result = overlay.get_result()
+        if result:
+            x, y, w, h = result
+            label = show_text_input_sync("新建区域", f"大小: {w}x{h} 位置: ({x},{y})",
+                                         f"区域{len(load_regions())+1}")
+            if label:
+                _PENDING_OPERATIONS.put(("add_region", (x, y, w, h, label)))
+
+    def _cb_new_region(self, _):
+        if self._dragging:
+            return
+        if not TK_AVAILABLE:
+            show_notification("错误", "tkinter 不可用")
+            return
+        threading.Thread(target=self._prompt_new_region, daemon=True).start()
+
+    def _cb_drag_create(self, _):
+        if self._dragging:
+            return
+        if not TK_AVAILABLE:
+            show_notification("错误", "tkinter 不可用")
+            return
+        self._dragging = True
+        show_notification("区域管理器", "在屏幕上拖拽绘制区域，按 ESC 取消")
+        threading.Thread(target=self._run_drag_create, daemon=True).start()
+
+    def _run_drag_create(self):
+        self._prompt_drag_create()
+        self._dragging = False
+
+    def _cb_region_detail(self, rid):
+        _PENDING_OPERATIONS.put(("region_detail", rid))
+
+    def _do_region_detail(self, rid):
         regions = load_regions()
         r = next((r for r in regions if r["id"] == rid), None)
         if not r:
@@ -852,7 +898,6 @@ class RegionManagerApp(rumps.App):
         at = r.get("action_type", "click")
         at_name = dict(zip(ACTION_TYPES, ACTION_NAMES)).get(at, at)
         enabled = r.get("enabled", True)
-        en_str = "启用" if enabled else "禁用"
         screen_idx = get_region_screen(r, self._screens)
         screen_name = self._screens[screen_idx]["name"] if 0 <= screen_idx < len(self._screens) else "未知"
 
@@ -860,137 +905,96 @@ class RegionManagerApp(rumps.App):
         msg += f"位置: ({r['x']}, {r['y']})\n"
         msg += f"大小: {r['width']}x{r['height']}\n"
         msg += f"操作: {at_name}\n"
-        msg += f"状态: {en_str}\n"
+        msg += f"状态: {'启用' if enabled else '禁用'}\n"
         msg += f"显示器: {screen_name}\n"
         if at == "click":
             msg += f"间隔: {r.get('action_config',{}).get('interval_seconds',3)} 秒"
 
-        btn = show_dialog(f"区域 #{label}", msg, ["切换状态", "修改操作", "修改颜色", "修改间隔", "重命名", "删除", "关闭"])
+        btn = show_dialog_sync(f"区域 #{label}", msg,
+                               ["切换状态", "修改操作", "修改颜色", "修改间隔", "重命名", "删除", "关闭"])
         if btn == "切换状态":
             self._rm.toggle_region(rid)
-            self._build_menu()
+            _PENDING_OPERATIONS.put(("rebuild_menu", None))
             show_notification("区域管理器", f"{label}: {'启用' if not enabled else '禁用'}")
         elif btn == "修改操作":
-            self._change_action(rid, r)
+            sel = show_dialog_sync(f"修改操作 - {label}", "选择操作类型:",
+                                   ACTION_NAMES + ["取消"])
+            if sel and sel != "取消":
+                idx = ACTION_NAMES.index(sel) if sel in ACTION_NAMES else -1
+                if idx >= 0:
+                    new_at = ACTION_TYPES[idx]
+                    update_region_action(rid, new_at)
+                    if rid in self._rm.overlays:
+                        self._rm.overlays[rid].cfg["action_type"] = new_at
+                        self._rm.overlays[rid]._draw_everything(
+                            self._rm.overlays[rid].cfg["width"],
+                            self._rm.overlays[rid].cfg["height"],
+                            self._rm.overlays[rid].cfg.get("color", "#FF4444"),
+                            self._rm.overlays[rid].cfg.get("label", "?"))
+                        if self._edit_mode:
+                            self._rm.overlays[rid]._bind_edit()
+                    _PENDING_OPERATIONS.put(("rebuild_menu", None))
+                    show_notification("区域管理器", f"{label}: {sel}")
         elif btn == "修改颜色":
-            self._change_color(rid, r)
+            sel = show_dialog_sync(f"修改颜色 - {label}", "选择颜色:",
+                                   COLOR_NAMES + ["取消"])
+            if sel and sel != "取消":
+                idx_c = COLOR_NAMES.index(sel) if sel in COLOR_NAMES else -1
+                if idx_c >= 0:
+                    new_color = REGION_COLORS[idx_c]
+                    update_region_color(rid, new_color)
+                    if rid in self._rm.overlays:
+                        self._rm.overlays[rid].cfg["color"] = new_color
+                        self._rm.overlays[rid]._draw_everything(
+                            self._rm.overlays[rid].cfg["width"],
+                            self._rm.overlays[rid].cfg["height"],
+                            new_color,
+                            self._rm.overlays[rid].cfg.get("label", "?"))
+                        if self._edit_mode:
+                            self._rm.overlays[rid]._bind_edit()
+                    _PENDING_OPERATIONS.put(("rebuild_menu", None))
+                    show_notification("区域管理器", f"{label}: {sel}")
         elif btn == "修改间隔":
-            self._change_interval(rid, r)
+            sel = show_dialog_sync(f"修改间隔 - {label}", "选择间隔时间:",
+                                   [f"{iv} 秒" for iv in INTERVALS] + ["取消"])
+            if sel and sel != "取消":
+                iv = int(sel.replace(" 秒", ""))
+                update_region_interval(rid, iv)
+                if rid in self._rm.overlays:
+                    if "action_config" not in self._rm.overlays[rid].cfg:
+                        self._rm.overlays[rid].cfg["action_config"] = {}
+                    self._rm.overlays[rid].cfg["action_config"]["interval_seconds"] = iv
+                _PENDING_OPERATIONS.put(("rebuild_menu", None))
+                show_notification("区域管理器", f"{label}: {iv} 秒")
         elif btn == "重命名":
-            new_name = show_text_input("重命名", f"区域 #{label} 的新名称:", label)
+            new_name = show_text_input_sync("重命名", f"区域 #{label} 的新名称:", label)
             if new_name:
                 update_region_label(rid, new_name)
-                self._rm.overlays[rid].cfg["label"] = new_name
-                self._rm.overlays[rid]._draw_everything(
-                    self._rm.overlays[rid].cfg["width"],
-                    self._rm.overlays[rid].cfg["height"],
-                    self._rm.overlays[rid].cfg.get("color", "#FF4444"),
-                    new_name)
-                if self._edit_mode:
-                    self._rm.overlays[rid]._bind_edit()
-                self._build_menu()
-                show_notification("区域管理器", f"已重命名为: {new_name}")
-        elif btn == "删除":
-            self._rm.stop_action_loops()
-            self._rm.remove_region(rid)
-            self._build_menu()
-            show_notification("区域管理器", f"已删除: {label}")
-
-    def _change_action(self, rid, r):
-        cur_at = r.get("action_type", "click")
-        ats_with_check = [f"{'✅' if a == cur_at else '  '} {n}" for a, n in zip(ACTION_TYPES, ACTION_NAMES)]
-        sel = show_dialog(f"修改操作 - {r['label']}", "选择操作类型:",
-                          ["定时点击", "OCR 识别", "自动滚动", "定时截图", "仅标记", "取消"])
-        if sel and sel != "取消":
-            idx = ACTION_NAMES.index(sel) if sel in ACTION_NAMES else -1
-            if idx >= 0:
-                new_at = ACTION_TYPES[idx]
-                update_region_action(rid, new_at)
                 if rid in self._rm.overlays:
-                    self._rm.overlays[rid].cfg["action_type"] = new_at
+                    self._rm.overlays[rid].cfg["label"] = new_name
                     self._rm.overlays[rid]._draw_everything(
                         self._rm.overlays[rid].cfg["width"],
                         self._rm.overlays[rid].cfg["height"],
                         self._rm.overlays[rid].cfg.get("color", "#FF4444"),
-                        self._rm.overlays[rid].cfg.get("label", "?"))
+                        new_name)
                     if self._edit_mode:
                         self._rm.overlays[rid]._bind_edit()
-                self._build_menu()
-                show_notification("区域管理器", f"{r['label']}: {sel}")
+                _PENDING_OPERATIONS.put(("rebuild_menu", None))
+                show_notification("区域管理器", f"已重命名为: {new_name}")
+        elif btn == "删除":
+            self._rm.stop_action_loops()
+            self._rm.remove_region(rid)
+            _PENDING_OPERATIONS.put(("rebuild_menu", None))
+            show_notification("区域管理器", f"已删除: {label}")
 
-    def _change_color(self, rid, r):
-        cur_color = r.get("color", "#FF4444")
-        sel = show_dialog(f"修改颜色 - {r['label']}", "选择颜色:",
-                          COLOR_NAMES + ["取消"])
-        if sel and sel != "取消":
-            idx = COLOR_NAMES.index(sel) if sel in COLOR_NAMES else -1
-            if idx >= 0:
-                new_color = REGION_COLORS[idx]
-                update_region_color(rid, new_color)
-                if rid in self._rm.overlays:
-                    self._rm.overlays[rid].cfg["color"] = new_color
-                    self._rm.overlays[rid]._draw_everything(
-                        self._rm.overlays[rid].cfg["width"],
-                        self._rm.overlays[rid].cfg["height"],
-                        new_color,
-                        self._rm.overlays[rid].cfg.get("label", "?"))
-                    if self._edit_mode:
-                        self._rm.overlays[rid]._bind_edit()
-                self._build_menu()
-                show_notification("区域管理器", f"{r['label']}: {sel}")
-
-    def _change_interval(self, rid, r):
-        cur_iv = r.get("action_config", {}).get("interval_seconds", 3)
-        iv_names = [f"{'✅' if iv == cur_iv else '  '} {iv} 秒" for iv in INTERVALS]
-        sel = show_dialog(f"修改间隔 - {r['label']}", "选择间隔时间:",
-                          [f"{iv} 秒" for iv in INTERVALS] + ["取消"])
-        if sel and sel != "取消":
-            iv = int(sel.replace(" 秒", ""))
-            update_region_interval(rid, iv)
-            if rid in self._rm.overlays:
-                if "action_config" not in self._rm.overlays[rid].cfg:
-                    self._rm.overlays[rid].cfg["action_config"] = {}
-                self._rm.overlays[rid].cfg["action_config"]["interval_seconds"] = iv
-            self._build_menu()
-            show_notification("区域管理器", f"{r['label']}: {iv} 秒")
-
-    def _new_region(self, _):
-        if not TK_AVAILABLE:
-            show_notification("错误", "tkinter 不可用")
-            return
-        x, y = get_mouse_position()
-        label = show_text_input("新建区域", f"位置: ({x}, {y})", f"区域{len(load_regions())+1}")
-        if label:
-            self._rm.add_region(x, y, 120, 40, label)
-            self._build_menu()
-            show_notification("区域管理器", f"已创建: {label}")
-
-    def _drag_create_region(self, _):
-        if not TK_AVAILABLE:
-            show_notification("错误", "tkinter 不可用")
-            return
-        show_notification("区域管理器", "在屏幕上拖拽绘制区域，按 ESC 取消")
-        def _run():
-            overlay = DragCreateOverlay()
-            result = overlay.get_result()
-            if result:
-                x, y, w, h = result
-                label = show_text_input("新建区域", f"大小: {w}x{h} 位置: ({x},{y})",
-                                        f"区域{len(load_regions())+1}")
-                if label:
-                    self._rm.add_region(x, y, w, h, label)
-                    self._build_menu()
-                    show_notification("区域管理器", f"已创建: {label} ({w}x{h})")
-        threading.Thread(target=_run, daemon=True).start()
-
-    def _toggle_edit_mode(self, _):
+    def _cb_toggle_edit_mode(self, _):
         self._edit_mode = not self._edit_mode
         self._rm.set_edit_mode(self._edit_mode)
         self._build_menu()
         status = "开启" if self._edit_mode else "关闭"
         show_notification("区域管理器", f"编辑模式: {status}")
 
-    def _show_all(self, _):
+    def _cb_show_all(self, _):
         regions = load_regions()
         to_show = [r for r in regions if not r.get("enabled", True)]
         for r in to_show:
@@ -1000,7 +1004,7 @@ class RegionManagerApp(rumps.App):
         self._build_menu()
         show_notification("区域管理器", f"已显示 {len(to_show)} 个区域")
 
-    def _hide_all(self, _):
+    def _cb_hide_all(self, _):
         self._rm.stop_action_loops()
         self._rm.destroy_all()
         regions = load_regions()
@@ -1010,8 +1014,9 @@ class RegionManagerApp(rumps.App):
         self._build_menu()
         show_notification("区域管理器", "已隐藏全部区域")
 
-    def _delete_all(self, _):
-        btn = show_dialog("确认删除", "确定要删除全部区域吗？此操作不可恢复。", ["取消", "确定删除"])
+    def _cb_delete_all(self, _):
+        btn = show_dialog_sync("确认删除", "确定要删除全部区域吗？此操作不可恢复。",
+                               ["取消", "确定删除"])
         if btn == "确定删除":
             self._rm.stop_action_loops()
             self._rm.destroy_all()
@@ -1019,11 +1024,10 @@ class RegionManagerApp(rumps.App):
             self._build_menu()
             show_notification("区域管理器", "已删除全部区域")
 
-    def _export_config(self, _):
-        from datetime import datetime
+    def _cb_export_config(self, _):
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         default_path = os.path.expanduser(f"~/Desktop/screen_regions_{ts}.json")
-        path = show_text_input("导出配置", "保存路径:", default_path)
+        path = show_text_input_sync("导出配置", "保存路径:", default_path)
         if path:
             try:
                 regions = load_regions()
@@ -1034,8 +1038,8 @@ class RegionManagerApp(rumps.App):
             except Exception as e:
                 show_notification("错误", f"导出失败: {e}")
 
-    def _import_config(self, _):
-        path = show_text_input("导入配置", "输入配置文件路径:", "")
+    def _cb_import_config(self, _):
+        path = show_text_input_sync("导入配置", "输入配置文件路径:", "")
         if path and os.path.exists(path):
             try:
                 with open(path, "r") as f:
@@ -1057,7 +1061,7 @@ class RegionManagerApp(rumps.App):
         elif path:
             show_notification("错误", f"文件不存在: {path}")
 
-    def _quit_app(self, _):
+    def _cb_quit_app(self, _):
         self._rm.stop_action_loops()
         self._rm.destroy_all()
         if HAS_APPKIT:
@@ -1068,8 +1072,9 @@ class RegionManagerApp(rumps.App):
         else:
             rumps.quit_application()
 
-    @rumps.timer(0.2)
-    def _keep_tk_alive(self, _):
+    @rumps.timer(0.15)
+    def _main_loop(self, _):
+        self._process_pending_operations()
         for overlay in list(self._rm.overlays.values()):
             try:
                 if overlay.root and overlay.root.winfo_exists():
