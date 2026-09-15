@@ -1,5 +1,5 @@
 """Ev Notifier v2.2.8 - PUB/SUB broadcast, zero polling, auto-restart, error logging"""
-import json, os, re, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib
+import atexit, json, os, re, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib
 from datetime import datetime, timedelta
 
 try:
@@ -3183,6 +3183,7 @@ class EvNotifier(rumps.App):
     @rumps.clicked("退出")
     def quit_app(self, _):
         disable_auto_start()
+        _release_pid_lock()
         from AppKit import NSApp
         NSApp.terminate_(None)
 
@@ -3392,6 +3393,39 @@ def main():
     app.run()
 
 
+PID_FILE = os.path.expanduser("~/.ev_notifier.pid")
+
+
+def _acquire_pid_lock():
+    try:
+        if os.path.exists(PID_FILE):
+            with open(PID_FILE, "r") as f:
+                old_pid = f.read().strip()
+            if old_pid:
+                try:
+                    os.kill(int(old_pid), 0)
+                    print(f"Another instance is already running (PID {old_pid}). Exiting.")
+                    return False
+                except (OSError, ValueError):
+                    pass
+        with open(PID_FILE, "w") as f:
+            f.write(str(os.getpid()))
+        return True
+    except Exception:
+        return True
+
+
+def _release_pid_lock():
+    try:
+        if os.path.exists(PID_FILE):
+            os.unlink(PID_FILE)
+    except Exception:
+        pass
+
+
 if __name__ == "__main__":
+    if not _acquire_pid_lock():
+        sys.exit(0)
+    atexit.register(_release_pid_lock)
     load_env()
     main()
