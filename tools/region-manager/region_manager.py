@@ -1,5 +1,5 @@
-"""Screen Region Manager v1.0.6 - Multi-monitor wireframe overlay tool with Chinese menu"""
-VERSION = "v1.0.6"
+"""Screen Region Manager v1.1.0 - Multi-monitor wireframe overlay tool with Chinese menu"""
+VERSION = "v1.1.0"
 
 import atexit
 import json
@@ -58,6 +58,7 @@ except ImportError:
     HAS_OCR = False
 
 REGIONS_FILE = os.path.expanduser("~/.screen_regions.json")
+EDITOR_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "region_editor.py")
 REGION_MIN_WIDTH = 30
 REGION_MIN_HEIGHT = 20
 
@@ -297,9 +298,6 @@ class RegionOverlay:
         self.on_delete = on_delete
         self.win = None
         self.canvas = None
-        self._drag_x = 0
-        self._drag_y = 0
-        self._result = None
         self._create_window()
 
     def _create_window(self):
@@ -308,8 +306,7 @@ class RegionOverlay:
         self.win = tk.Toplevel(root)
         self.win.overrideredirect(True)
         self.win.attributes("-topmost", True)
-        alpha = 0.90 if self.edit_mode else 0.70
-        self.win.attributes("-alpha", alpha)
+        self.win.attributes("-alpha", 0.70)
         self.win.geometry(f"{c['width']}x{c['height']}+{c['x']}+{c['y']}")
         self.win.configure(bg="systemTransparent")
         self.win.configure(background="systemTransparent")
@@ -319,13 +316,10 @@ class RegionOverlay:
         w, h = c["width"], c["height"]
 
         self.canvas = tk.Canvas(self.win, width=w, height=h,
-                                bg="systemTransparent", highlightthickness=0,
-                                cursor="crosshair" if self.edit_mode else "none")
+                                bg="systemTransparent", highlightthickness=0)
         self.canvas.pack(fill="both", expand=True)
 
         self._draw_everything(w, h, color, label)
-        if self.edit_mode:
-            self._setup_appkit_monitor()
 
     def _draw_everything(self, w, h, color, label):
         self.canvas.delete("all")
@@ -339,23 +333,13 @@ class RegionOverlay:
         self.canvas.create_text(10, tag_height // 2, text=num_label, anchor="w",
                                 fill="#FFFFFF", font=("PingFang SC", 10, "bold"), tags="label_text")
 
-        cx = tag_width - 12
-        cy = tag_height // 2
-        self.canvas.create_oval(cx - 6, cy - 6, cx + 6, cy + 6,
-                                fill="#CC0000", outline="#990000", tags="close_btn")
-        self.canvas.create_text(cx, cy, text="x", fill="#FFFFFF",
-                                font=("Helvetica", 10, "bold"), tags="close_btn")
-        if self.edit_mode:
-            self.canvas.tag_bind("close_btn", "<Button-1>", lambda e: self._close_clicked())
-
         cross_color = self._hex_fade(color, 0.25)
         self.canvas.create_line(w // 2, 0, w // 2, h, fill=cross_color, width=1, tags="cross")
         self.canvas.create_line(0, h // 2, w, h // 2, fill=cross_color, width=1, tags="cross")
 
         rh_size = 16
-        handle_color = "#3388FF" if self.edit_mode else "#666666"
         self.canvas.create_rectangle(w - rh_size, h - rh_size, w, h,
-                                     fill=handle_color, outline="", tags="resize_handle")
+                                     fill="#666666", outline="", tags="resize_handle")
         self.canvas.create_line(w - rh_size + 5, h - 5, w - 5, h - rh_size + 5,
                                 fill="#FFFFFF", width=2, tags="resize_handle")
 
@@ -374,162 +358,7 @@ class RegionOverlay:
             return f"#{r2:02x}{g2:02x}{b2:02x}"
         return hex_color
 
-    def _setup_appkit_monitor(self):
-        if not HAS_APPKIT:
-            return
-        from AppKit import NSEvent, NSLeftMouseDownMask, NSLeftMouseUpMask, NSMouseMovedMask
-
-        wx = self.cfg["x"]
-        wy = self.cfg["y"]
-        ww = self.cfg["width"]
-        wh = self.cfg["height"]
-
-        state = {"mode": None}
-
-        def on_down(event):
-            loc = event.absoluteLocation()
-            mx, my = int(loc.x), int(loc.y)
-            if wx <= mx <= wx + ww and wy <= my <= wy + wh:
-                cx, cy = mx - wx, my - wy
-                if cx >= ww - 16 and cy >= wh - 16:
-                    state["mode"] = "resize"
-                    state["start_x"] = mx
-                    state["start_y"] = my
-                    state["orig_w"] = ww
-                    state["orig_h"] = wh
-                else:
-                    state["mode"] = "move"
-                    state["start_x"] = mx
-                    state["start_y"] = my
-                    state["orig_x"] = wx
-                    state["orig_y"] = wy
-
-        def on_dragged(event):
-            if state["mode"] is None:
-                return
-            loc = event.absoluteLocation()
-            mx, my = int(loc.x), int(loc.y)
-            if state["mode"] == "move":
-                nx = state["orig_x"] + (mx - state["start_x"])
-                ny = state["orig_y"] + (my - state["start_y"])
-                self.win.geometry(f"+{nx}+{ny}")
-                self.cfg["x"] = nx
-                self.cfg["y"] = ny
-                self._save_position()
-            elif state["mode"] == "resize":
-                nw = max(REGION_MIN_WIDTH, state["orig_w"] + (mx - state["start_x"]))
-                nh = max(REGION_MIN_HEIGHT, state["orig_h"] + (my - state["start_y"]))
-                self.cfg["width"] = nw
-                self.cfg["height"] = nh
-                self.win.geometry(f"{nw}x{nh}")
-                self._draw_everything(nw, nh, self.cfg.get("color", "#FF4444"), self.cfg.get("label", "?"))
-                self._save_position()
-
-        def on_up(event):
-            state["mode"] = None
-
-        self._monitor_down = NSEvent.addGlobalMonitorForEventsMatchingMask_handler_(NSLeftMouseDownMask, on_down)
-        self._monitor_drag = NSEvent.addGlobalMonitorForEventsMatchingMask_handler_(NSMouseMovedMask, on_dragged)
-        self._monitor_up = NSEvent.addGlobalMonitorForEventsMatchingMask_handler_(NSLeftMouseUpMask, on_up)
-
-    def _remove_appkit_monitor(self):
-        self._monitor_down = None
-        self._monitor_drag = None
-        self._monitor_up = None
-
-    def _on_hover(self, entering):
-        if not self.edit_mode:
-            return
-        try:
-            self.win.attributes("-alpha", 0.95 if entering else 0.85)
-        except Exception:
-            pass
-
-    def _bind_edit(self):
-        for tag in ("border", "label_bg", "label_text", "cross", "action_label"):
-            self.canvas.tag_bind(tag, "<Button-1>", self._start_drag)
-            self.canvas.tag_bind(tag, "<B1-Motion>", self._do_drag)
-        self.canvas.tag_bind("resize_handle", "<Button-1>", self._start_resize)
-        self.canvas.tag_bind("resize_handle", "<B1-Motion>", self._do_resize)
-        self.canvas.tag_bind("close_btn", "<Button-1>", lambda e: self._close_clicked())
-
-    def _unbind_edit(self):
-        for tag in ("border", "label_bg", "label_text", "cross", "action_label", "resize_handle", "close_btn"):
-            self.canvas.tag_unbind(tag, "<Button-1>")
-
-    def _close_clicked(self):
-        if self.on_delete:
-            self.on_delete(self.cfg["id"])
-        self.destroy()
-
-    def _start_drag(self, event):
-        self._drag_x = event.x
-        self._drag_y = event.y
-
-    def _do_drag(self, event):
-        dx = event.x - self._drag_x
-        dy = event.y - self._drag_y
-        nx = max(0, self.win.winfo_x() + dx)
-        ny = max(0, self.win.winfo_y() + dy)
-        self.win.geometry(f"+{nx}+{ny}")
-        self.cfg["x"] = nx
-        self.cfg["y"] = ny
-        self._save_position()
-
-    def _start_resize(self, event):
-        self._drag_x = event.x
-        self._drag_y = event.y
-
-    def _do_resize(self, event):
-        nw = max(REGION_MIN_WIDTH, self.cfg["width"] + event.x - self._drag_x)
-        nh = max(REGION_MIN_HEIGHT, self.cfg["height"] + event.y - self._drag_y)
-        self.cfg["width"] = nw
-        self.cfg["height"] = nh
-        self._drag_x = event.x
-        self._drag_y = event.y
-        self.win.geometry(f"{nw}x{nh}")
-        self._draw_everything(nw, nh, self.cfg.get("color", "#FF4444"), self.cfg.get("label", "?"))
-        if self.edit_mode:
-            self._bind_edit()
-        self._save_position()
-
-    def _save_position(self):
-        regions = load_regions()
-        for r in regions:
-            if r["id"] == self.cfg["id"]:
-                r["x"] = self.cfg["x"]
-                r["y"] = self.cfg["y"]
-                r["width"] = self.cfg["width"]
-                r["height"] = self.cfg["height"]
-                break
-        save_regions(regions)
-
-    def set_edit_mode(self, edit_mode):
-        self.edit_mode = edit_mode
-        w, h = self.cfg["width"], self.cfg["height"]
-        color = self.cfg.get("color", "#FF4444")
-        label = self.cfg.get("label", "?")
-        self._remove_appkit_monitor()
-        self._draw_everything(w, h, color, label)
-        if edit_mode:
-            self.win.attributes("-alpha", 0.90)
-            self.win.configure(cursor="crosshair")
-            self._setup_appkit_monitor()
-        else:
-            self.win.attributes("-alpha", 0.70)
-            self.win.configure(cursor="none")
-        self.win.lift()
-
-    def update_label(self, index):
-        self.index = index
-        self._draw_everything(self.cfg["width"], self.cfg["height"],
-                              self.cfg.get("color", "#FF4444"), self.cfg.get("label", "?"))
-        if self.edit_mode:
-            self._setup_appkit_monitor()
-        self.win.lift()
-
     def destroy(self):
-        self._remove_appkit_monitor()
         if self.win:
             try:
                 self.win.destroy()
@@ -537,11 +366,16 @@ class RegionOverlay:
                 pass
             self.win = None
 
+    def update_label(self, index):
+        self.index = index
+        self._draw_everything(self.cfg["width"], self.cfg["height"],
+                              self.cfg.get("color", "#FF4444"), self.cfg.get("label", "?"))
+        self.win.lift()
+
 
 class RegionManager:
     def __init__(self):
         self.overlays = {}
-        self._edit_mode = False
 
     def _renumber_all(self):
         sorted_ids = sorted(self.overlays.keys(),
@@ -557,8 +391,7 @@ class RegionManager:
         for r in regions:
             if r.get("enabled", True):
                 try:
-                    overlay = RegionOverlay(r, idx, self._edit_mode,
-                                            on_delete=lambda rid=r["id"]: self.remove_region(rid))
+                    overlay = RegionOverlay(r, idx)
                     self.overlays[r["id"]] = overlay
                     idx += 1
                 except RuntimeError:
@@ -568,8 +401,7 @@ class RegionManager:
         region = add_region_config(x, y, width, height, label, color, action_type)
         idx = len(self.overlays) + 1
         try:
-            overlay = RegionOverlay(region, idx, self._edit_mode,
-                                    on_delete=lambda rid=region["id"]: self.remove_region(rid))
+            overlay = RegionOverlay(region, idx)
             self.overlays[region["id"]] = overlay
         except RuntimeError:
             pass
@@ -591,8 +423,7 @@ class RegionManager:
         if r.get("enabled", True) and rid not in self.overlays:
             try:
                 idx = len(self.overlays) + 1
-                overlay = RegionOverlay(r, idx, self._edit_mode,
-                                        on_delete=lambda: self.remove_region(rid))
+                overlay = RegionOverlay(r, idx)
                 self.overlays[rid] = overlay
             except RuntimeError:
                 pass
@@ -600,15 +431,6 @@ class RegionManager:
             self.overlays[rid].destroy()
             del self.overlays[rid]
             self._renumber_all()
-
-    def set_edit_mode(self, edit_mode):
-        self._edit_mode = edit_mode
-        for o in list(self.overlays.values()):
-            try:
-                if o.win and o.win.winfo_exists():
-                    o.set_edit_mode(edit_mode)
-            except Exception:
-                pass
 
     def destroy_all(self):
         for o in list(self.overlays.values()):
@@ -755,91 +577,6 @@ class RegionManager:
         return None
 
 
-def _drag_overlay_native(screens):
-    """Drag overlay using pure AppKit (no Tk, no Quartz)."""
-    if not HAS_APPKIT:
-        _log("_drag_overlay_native: AppKit not available")
-        return None
-
-    import threading as _th
-
-    min_x = int(min(s["x"] for s in screens))
-    min_y = int(min(s["y"] for s in screens))
-    max_x = int(max(s["x"] + s["width"] for s in screens))
-    max_y = int(max(s["y"] + s["height"] for s in screens))
-    total_w = max_x - min_x
-    total_h = max_y - min_y
-
-    result = [None]
-    stop_flag = _th.Event()
-
-    def run():
-        from AppKit import NSApplication, NSWindow, NSBorderlessWindowMask, \
-            NSBackingStoreBuffered, NSColor, NSMakeRect, NSApp, \
-            NSApplicationActivationPolicyAccessory, NSEvent, \
-            NSLeftMouseDownMask, NSLeftMouseUpMask, NSMouseMovedMask
-
-        NSApp.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
-
-        overlay = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
-            NSMakeRect(min_x, min_y, total_w, total_h),
-            NSBorderlessWindowMask,
-            NSBackingStoreBuffered,
-            False
-        )
-        overlay.setBackgroundColor_(NSColor.blackColor().colorWithAlphaComponent_(0.35))
-        overlay.setLevel_(1000)
-        overlay.setIgnoresMouseEvents_(False)
-        overlay.setOpaque_(False)
-        overlay.orderFrontRegardless()
-
-        state = {"down": False, "sx": 0, "sy": 0, "cx": 0, "cy": 0}
-
-        def on_mouse_down(event):
-            loc = event.locationInWindow()
-            state["down"] = True
-            state["sx"] = int(loc.x)
-            state["sy"] = int(total_h - loc.y)
-            state["cx"] = state["sx"]
-            state["cy"] = state["sy"]
-
-        def on_mouse_dragged(event):
-            if state["down"]:
-                loc = event.locationInWindow()
-                state["cx"] = int(loc.x)
-                state["cy"] = int(total_h - loc.y)
-
-        def on_mouse_up(event):
-            if state["down"]:
-                loc = event.locationInWindow()
-                state["cx"] = int(loc.x)
-                state["cy"] = int(total_h - loc.y)
-                state["down"] = False
-                x1 = min(state["sx"], state["cx"])
-                y1 = min(state["sy"], state["cy"])
-                x2 = max(state["sx"], state["cx"])
-                y2 = max(state["sy"], state["cy"])
-                w, h = x2 - x1, y2 - y1
-                if w >= 30 and h >= 20:
-                    result[0] = {"x": min_x + x1, "y": min_y + y1, "w": w, "h": h}
-                overlay.orderOut_(None)
-                stop_flag.set()
-
-        NSEvent.addGlobalMonitorForEventsMatchingMask_handler_(NSLeftMouseDownMask, on_mouse_down)
-        NSEvent.addGlobalMonitorForEventsMatchingMask_handler_(NSLeftMouseUpMask, on_mouse_up)
-        NSEvent.addGlobalMonitorForEventsMatchingMask_handler_(NSMouseMovedMask, on_mouse_dragged)
-
-        from AppKit import NSRunLoop, NSDate
-        rl = NSRunLoop.currentRunLoop()
-        while not stop_flag.is_set():
-            rl.runUntilDate_(NSDate.dateWithTimeIntervalSinceNow_(0.1))
-
-    t = _th.Thread(target=run, daemon=True)
-    t.start()
-    stop_flag.wait(timeout=120)
-    return result[0]
-
-
 class RegionManagerApp(rumps.App):
     PENDING_ADD_SIMPLE = "add_simple"
     PENDING_ADD_DRAG = "add_drag"
@@ -853,10 +590,7 @@ class RegionManagerApp(rumps.App):
         self._edit_mode = False
         self._screens = get_all_screens()
         self._op_queue = queue.Queue()
-        self._drag_pending = False
-        self._drag_result = None
-        self._drag_done = threading.Event()
-        self._drag_in_progress = False
+        self._editor_process = None
 
         if HAS_APPKIT:
             try:
@@ -929,35 +663,49 @@ class RegionManagerApp(rumps.App):
 
     def _cb_drag_create(self, _):
         if not TK_AVAILABLE:
-            show_notification("错误", "tkinter 不可用")
+            show_notification("Error", "tkinter not available")
             return
-        if self._drag_pending:
-            _log("_cb_drag_create: already pending, skip")
+        if not self._ensure_editor_script_exists():
             return
-        _log("_cb_drag_create: START")
+        show_notification("Region Manager", "Drag on screen to draw region, Esc to cancel")
         self._drag_pending = True
         self._drag_done.clear()
-        show_notification("区域管理器", "在屏幕上拖拽绘制区域，按 ESC 取消")
+        _log("_cb_drag_create: launching editor subprocess")
         threading.Thread(target=self._run_drag_subprocess, daemon=True).start()
 
+    def _ensure_editor_script_exists(self):
+        if not os.path.exists(EDITOR_SCRIPT):
+            show_notification("Error", f"Editor script not found: {EDITOR_SCRIPT}")
+            return False
+        return True
+
     def _run_drag_subprocess(self):
-        _log("_run_drag_subprocess: starting native drag overlay")
-        result = _drag_overlay_native(self._screens)
-        _log(f"_run_drag_subprocess: result={result}")
+        _log("_run_drag_subprocess: launching editor --create")
+        try:
+            proc = subprocess.run(
+                [sys.executable, EDITOR_SCRIPT, "--create"],
+                capture_output=True, text=True, timeout=120
+            )
+            out = proc.stdout.strip()
+            _log(f"_run_drag_subprocess: stdout={out}")
+            if out and out != "null":
+                result = json.loads(out)
+                x, y, w, h = result["x"], result["y"], result["w"], result["h"]
+                _log(f"_run_drag_subprocess: valid region=({x},{y}) {w}x{h}")
+                label = show_text_input_sync("New Region", f"Size: {w}x{h} Pos: ({x},{y})",
+                                             f"region{len(load_regions())+1}")
+                if label:
+                    self._op_queue.put((self.PENDING_ADD_SIMPLE, (x, y, w, h, label)))
+            else:
+                _log("_run_drag_subprocess: cancelled or no result")
+        except subprocess.TimeoutExpired:
+            _log("_run_drag_subprocess: timeout")
+        except json.JSONDecodeError:
+            _log("_run_drag_subprocess: invalid JSON")
+        except Exception as e:
+            _log(f"_run_drag_subprocess: error: {e}")
         self._drag_done.set()
         self._drag_pending = False
-
-        if result and result.get("x") is not None:
-            x, y, w, h = result["x"], result["y"], result["w"], result["h"]
-            _log(f"_run_drag_subprocess: valid region=({x},{y}) {w}x{h}")
-            label = show_text_input_sync("新建区域", f"大小: {w}x{h} 位置: ({x},{y})",
-                                         f"区域{len(load_regions())+1}")
-            if label:
-                self._op_queue.put((self.PENDING_ADD_SIMPLE, (x, y, w, h, label)))
-            else:
-                _log("_run_drag_subprocess: no label provided")
-        else:
-            _log("_run_drag_subprocess: cancelled or no result")
 
     def _cb_region_detail(self, rid):
         self._do_region_detail(rid)
