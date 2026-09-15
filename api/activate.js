@@ -235,7 +235,7 @@ module.exports = async (req, res) => {
 
     var code = codeCheck.value;
 
-    var deviceCheck2 = await rateLimit.checkDeviceRateLimit(device);
+    var deviceCheck2 = await rateLimit.checkDeviceRateLimit(device, code);
     if (deviceCheck2.blocked) {
       saveFailureRecord(deviceCheck2.reason, device, code, "", "", visitorInfo, deviceInfo);
       var device2NotifyResult = await notify.sendActivationFailure(req, {
@@ -408,6 +408,8 @@ module.exports = async (req, res) => {
           user_agent: visitorInfo ? visitorInfo.userAgent : "",
         }).catch(function () {});
 
+        rateLimit.clearDeviceRateLimit(device).catch(function () {});
+
         return res.json({ success: true, activationCode: activationCodeReuse, debug: { visitor: visitorInfo, notification: "success", productId: productId, months: months } });
       }
       saveFailureRecord("该兑换码已被其他设备使用过", device, code, productId, months, visitorInfo, deviceInfo);
@@ -520,6 +522,8 @@ module.exports = async (req, res) => {
       ip: visitorInfo ? visitorInfo.ip : "",
       user_agent: visitorInfo ? visitorInfo.userAgent : "",
     }).catch(function () {});
+
+    rateLimit.clearDeviceRateLimit(device).catch(function () {});
 
     return res.json({ success: true, activationCode: activationCode, debug: { visitor: visitorInfo, notification: (notifyResult && notifyResult.sent) ? "sent" : "failed", productId: productId, months: months } });
   } catch (error) {

@@ -1,11 +1,19 @@
 # QA 问题回复 · 处理状态登记
 
-> 更新日期：2026-09-11
-> 当前版本：v1.5.41
+> 更新日期：2026-09-15
+> 当前版本：v1.5.42
 
 ---
 
 ## 一、已修复（按轮次排列）
+
+### Round 7 修复（2026-09-15）—— P0 级限流修复
+
+| 编号 | 标题 | 修复版本 | 改动文件 | 修复说明 |
+|------|------|----------|----------|----------|
+| **P0-18** | 激活限流成功也计数，正常用户耗光额度 | v1.5.42 | `lib/rate-limit.js` `api/activate.js` | 激活成功/幂等复用后调用 `clearDeviceRateLimit()` 清零；阈值 50→10 |
+| **P0-19** | Postgres 模式 incr 忽略过期键 → 计数永不归零 | v1.5.42 | `lib/redis.js` | incr() SELECT 增加 `AND (expires_at IS NULL OR expires_at >= NOW())` 过期过滤 |
+| **P0-20** | 限流 key 仅用 deviceId 可伪造绕过 | v1.5.42 | `lib/rate-limit.js` `api/activate.js` `api/admin/clear-rate-limit.js` | checkDeviceRateLimit 增加 redeemCode 维度联合限流；新增 `POST /api/admin/clear-rate-limit` 应急清除接口 |
 
 ### Round 5 → Round 6 修复（2026-09-11）
 
@@ -50,9 +58,7 @@
 
 | 编号 | 标题 | 来源 | 定位 | 建议 |
 |------|------|------|------|------|
-| **P0-18** | 设备激活限流：成功与失败都计数，正常用户会被自己耗光 3 次 | Round 6 | `lib/rate-limit.js:27-28` `api/activate.js:214` | 成功激活后清零计数；幂等复用不计数；阈值 3→10、窗口 24h→1h |
-| **P0-19** | Postgres 模式下限流计数可能永不归零 → 设备永久锁定 | Round 6 | `lib/redis.js:240` | incr 补过期过滤 `AND (expires_at IS NULL OR expires_at > NOW())`；或 incr 开头调 purgeExpired() |
-| **P0-20** | 限流 key 用客户端 deviceId，可被伪造换 ID 绕过/刷满锁死他人 | Round 6 | `lib/rate-limit.js:46` | 增加兑换码维度联合限流；后台加「清除设备限流」应急按钮 |
+| — | 暂无待处理 P0 | — | — | — |
 
 ### P3 级（代码质量）
 
@@ -92,8 +98,8 @@
 
 | 状态 | 数量 |
 |------|------|
-| 已修复 | 20 条（Round 5/6 P0+P1: 8 条 + UI QA: 9 条 + CRON_SECRET: 1 条 + cron 路径修复: 1 条 + 激活码显示: 1 条） |
+| 已修复 | 23 条（Round 7 P0: 3 条 + Round 5/6 P0+P1: 8 条 + UI QA: 9 条 + CRON_SECRET: 1 条 + cron 路径修复: 1 条 + 激活码显示: 1 条） |
 | 处理中 | 0 条 |
-| 待处理 | 8 条（P0: 3 条 + P3: 5 条） |
+| 待处理 | 5 条（P3: 5 条） |
 | 已知风险（不急修） | 3 条 |
 | 确认无需修复 | 7 项 |
