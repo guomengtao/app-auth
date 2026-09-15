@@ -1,5 +1,5 @@
-"""Screen Region Manager v1.0.1 - Multi-monitor wireframe overlay tool with Chinese menu"""
-VERSION = "v1.0.1"
+"""Screen Region Manager v1.0.2 - Multi-monitor wireframe overlay tool with Chinese menu"""
+VERSION = "v1.0.2"
 
 import atexit
 import json
@@ -55,7 +55,16 @@ ACTION_NAMES = ["定时点击", "OCR 识别", "自动滚动", "定时截图", "�
 INTERVALS = [1, 2, 3, 5, 10, 30, 60]
 
 _REGION_ACTION_STOP = {}
-_PENDING_OPERATIONS = queue.Queue()
+_TK_ROOT = None
+
+def get_tk_root():
+    global _TK_ROOT
+    if _TK_ROOT is None and TK_AVAILABLE:
+        _TK_ROOT = tk.Tk()
+        _TK_ROOT.withdraw()
+        _TK_ROOT.geometry("1x1+0+0")
+        _TK_ROOT.overrideredirect(True)
+    return _TK_ROOT
 
 def load_regions():
     try:
@@ -262,73 +271,6 @@ end tell'''
     except Exception:
         return None
 
-class DragCreateOverlay:
-    def __init__(self):
-        if not TK_AVAILABLE:
-            raise RuntimeError("tkinter not available")
-        self.root = None
-        self.canvas = None
-        self.start_x = 0
-        self.start_y = 0
-        self.rect_id = None
-        self._result = None
-        self._create_window()
-
-    def _create_window(self):
-        self.root = tk.Tk()
-        self.root.overrideredirect(True)
-        self.root.attributes("-topmost", True)
-        self.root.attributes("-alpha", 0.35)
-        sw = self.root.winfo_screenwidth()
-        sh = self.root.winfo_screenheight()
-        self.root.geometry(f"{sw}x{sh}+0+0")
-        self.root.configure(bg="black")
-
-        self.canvas = tk.Canvas(self.root, width=sw, height=sh,
-                                bg="black", highlightthickness=0, cursor="crosshair")
-        self.canvas.pack(fill="both", expand=True)
-
-        hint = "拖拽绘制区域，按 ESC 取消"
-        self.canvas.create_text(sw // 2, 30, text=hint,
-                                fill="#AAAAAA", font=("PingFang SC", 16, "bold"), tags="hint")
-
-        self.canvas.bind("<Button-1>", self._on_press)
-        self.canvas.bind("<B1-Motion>", self._on_drag)
-        self.canvas.bind("<ButtonRelease-1>", self._on_release)
-        self.root.bind("<Escape>", lambda e: self._cancel())
-        self.root.mainloop()
-
-    def _on_press(self, event):
-        self.start_x = event.x
-        self.start_y = event.y
-        if self.rect_id:
-            self.canvas.delete(self.rect_id)
-        self.rect_id = self.canvas.create_rectangle(
-            self.start_x, self.start_y, self.start_x, self.start_y,
-            outline="#FF4444", width=3, dash=(6, 3), tags="drag_rect")
-
-    def _on_drag(self, event):
-        if self.rect_id:
-            self.canvas.coords(self.rect_id, self.start_x, self.start_y, event.x, event.y)
-
-    def _on_release(self, event):
-        x1, y1 = min(self.start_x, event.x), min(self.start_y, event.y)
-        x2, y2 = max(self.start_x, event.x), max(self.start_y, event.y)
-        w, h = x2 - x1, y2 - y1
-        if w < REGION_MIN_WIDTH or h < REGION_MIN_HEIGHT:
-            return
-        self._result = (x1, y1, w, h)
-        self.root.quit()
-        self.root.destroy()
-
-    def _cancel(self):
-        self._result = None
-        self.root.quit()
-        self.root.destroy()
-
-    def get_result(self):
-        return self._result
-
 
 class RegionOverlay:
     def __init__(self, region_cfg, region_index, edit_mode=False, on_delete=None):
@@ -338,28 +280,30 @@ class RegionOverlay:
         self.index = region_index
         self.edit_mode = edit_mode
         self.on_delete = on_delete
-        self.root = None
+        self.win = None
         self.canvas = None
         self._drag_x = 0
         self._drag_y = 0
+        self._result = None
         self._create_window()
 
     def _create_window(self):
         c = self.cfg
-        self.root = tk.Tk()
-        self.root.overrideredirect(True)
-        self.root.attributes("-topmost", True)
+        root = get_tk_root()
+        self.win = tk.Toplevel(root)
+        self.win.overrideredirect(True)
+        self.win.attributes("-topmost", True)
         alpha = 0.90 if self.edit_mode else 0.70
-        self.root.attributes("-alpha", alpha)
-        self.root.geometry(f"{c['width']}x{c['height']}+{c['x']}+{c['y']}")
-        self.root.configure(bg="systemTransparent")
-        self.root.configure(background="systemTransparent")
+        self.win.attributes("-alpha", alpha)
+        self.win.geometry(f"{c['width']}x{c['height']}+{c['x']}+{c['y']}")
+        self.win.configure(bg="systemTransparent")
+        self.win.configure(background="systemTransparent")
 
         color = c.get("color", "#FF4444")
         label = c.get("label", "?")
         w, h = c["width"], c["height"]
 
-        self.canvas = tk.Canvas(self.root, width=w, height=h,
+        self.canvas = tk.Canvas(self.win, width=w, height=h,
                                 bg="systemTransparent", highlightthickness=0,
                                 cursor="crosshair" if self.edit_mode else "none")
         self.canvas.pack(fill="both", expand=True)
@@ -374,7 +318,7 @@ class RegionOverlay:
     def _draw_everything(self, w, h, color, label):
         self.canvas.delete("all")
 
-        self.canvas.create_rectangle(0, 0, w, h, outline=color, width=2, tags="border")
+        self.canvas.create_rectangle(1, 1, w - 1, h - 1, outline=color, width=2, tags="border")
 
         tag_height = 24
         tag_width = max(len(label) * 12 + 50, 80)
@@ -422,7 +366,7 @@ class RegionOverlay:
         if not self.edit_mode:
             return
         try:
-            self.root.attributes("-alpha", 0.95 if entering else 0.85)
+            self.win.attributes("-alpha", 0.95 if entering else 0.85)
         except Exception:
             pass
 
@@ -450,9 +394,9 @@ class RegionOverlay:
     def _do_drag(self, event):
         dx = event.x - self._drag_x
         dy = event.y - self._drag_y
-        nx = max(0, self.root.winfo_x() + dx)
-        ny = max(0, self.root.winfo_y() + dy)
-        self.root.geometry(f"+{nx}+{ny}")
+        nx = max(0, self.win.winfo_x() + dx)
+        ny = max(0, self.win.winfo_y() + dy)
+        self.win.geometry(f"+{nx}+{ny}")
         self.cfg["x"] = nx
         self.cfg["y"] = ny
         self._save_position()
@@ -468,7 +412,7 @@ class RegionOverlay:
         self.cfg["height"] = nh
         self._drag_x = event.x
         self._drag_y = event.y
-        self.root.geometry(f"{nw}x{nh}")
+        self.win.geometry(f"{nw}x{nh}")
         self._draw_everything(nw, nh, self.cfg.get("color", "#FF4444"), self.cfg.get("label", "?"))
         if self.edit_mode:
             self._bind_edit()
@@ -494,13 +438,13 @@ class RegionOverlay:
             self._unbind_edit()
         self._draw_everything(w, h, color, label)
         if edit_mode:
-            self.root.attributes("-alpha", 0.90)
-            self.root.configure(cursor="crosshair")
+            self.win.attributes("-alpha", 0.90)
+            self.win.configure(cursor="crosshair")
             self._bind_edit()
         else:
-            self.root.attributes("-alpha", 0.70)
-            self.root.configure(cursor="none")
-        self.root.lift()
+            self.win.attributes("-alpha", 0.70)
+            self.win.configure(cursor="none")
+        self.win.lift()
 
     def update_label(self, index):
         self.index = index
@@ -510,18 +454,12 @@ class RegionOverlay:
             self._bind_edit()
 
     def destroy(self):
-        if self.root:
+        if self.win:
             try:
-                self.root.destroy()
+                self.win.destroy()
             except Exception:
                 pass
-            self.root = None
-
-    def get_click_center(self):
-        off_x = self.cfg.get("action_config", {}).get("click_offset_x", 0)
-        off_y = self.cfg.get("action_config", {}).get("click_offset_y", 0)
-        return (self.cfg["x"] + self.cfg["width"] // 2 + off_x,
-                self.cfg["y"] + self.cfg["height"] // 2 + off_y)
+            self.win = None
 
 
 class RegionManager:
@@ -591,7 +529,7 @@ class RegionManager:
         self._edit_mode = edit_mode
         for o in list(self.overlays.values()):
             try:
-                if o.root and o.root.winfo_exists():
+                if o.win and o.win.winfo_exists():
                     o.set_edit_mode(edit_mode)
             except Exception:
                 pass
@@ -637,7 +575,6 @@ class RegionManager:
         ay = r["y"] + r["height"] // 2 + r.get("action_config", {}).get("click_offset_y", 0)
         interval = r.get("action_config", {}).get("interval_seconds", 3.0)
         double = r.get("action_config", {}).get("double_click", False)
-        label = r.get("label", "?")
         while not _REGION_ACTION_STOP.get(rid, True):
             try:
                 click_at(ax, ay)
@@ -654,7 +591,6 @@ class RegionManager:
         rid = r["id"]
         interval = r.get("action_config", {}).get("interval_seconds", 5.0)
         watch_text = r.get("action_config", {}).get("watch_text", "").lower()
-        label = r.get("label", "?")
         rect = (r["x"], r["y"], r["width"], r["height"])
         last_text = ""
         while not _REGION_ACTION_STOP.get(rid, True):
@@ -666,7 +602,7 @@ class RegionManager:
                     if text and text != last_text:
                         last_text = text
                         if watch_text and watch_text in text.lower():
-                            show_notification(f"区域 [{label}]", f"匹配: {watch_text}")
+                            show_notification(f"区域 [{r.get('label','?')}]", f"匹配: {watch_text}")
                     try:
                         os.unlink(img_path)
                     except Exception:
@@ -728,25 +664,6 @@ class RegionManager:
     def _capture_screenshot(self, rect, filepath):
         x, y, w, h = rect
         try:
-            from Quartz import CGWindowListCreateImage, CGRectMake, kCGWindowListOptionOnScreenOnly, kCGWindowImageDefault
-            region = CGRectMake(x, y, w, h)
-            img_ref = CGWindowListCreateImage(region, kCGWindowListOptionOnScreenOnly, 0, kCGWindowImageDefault)
-            if img_ref is None:
-                return None
-            from Quartz import CGImageGetWidth, CGImageGetHeight, CGImageGetDataProvider, CGDataProviderCopyData, CGImageGetBitsPerPixel, CGImageGetBytesPerRow
-            from PIL import Image as PILImage
-            width = CGImageGetWidth(img_ref)
-            height = CGImageGetHeight(img_ref)
-            provider = CGImageGetDataProvider(img_ref)
-            data = CGDataProviderCopyData(provider)
-            bpp = CGImageGetBitsPerPixel(img_ref)
-            bpr = CGImageGetBytesPerRow(img_ref)
-            img = PILImage.frombytes("RGBA", (width, height), bytes(data), "raw", "BGRA", bpr, 1)
-            img.save(filepath, "PNG")
-            return filepath
-        except ImportError:
-            pass
-        try:
             tmp = "/tmp/_rm_screenshot.png"
             subprocess.run(["screencapture", "-R", f"{x},{y},{w},{h}", "-x", tmp],
                            timeout=5, capture_output=True)
@@ -763,18 +680,30 @@ class RegionManager:
 
 
 class RegionManagerApp(rumps.App):
+    PENDING_ADD_SIMPLE = "add_simple"
+    PENDING_ADD_DRAG = "add_drag"
+    PENDING_REBUILD = "rebuild"
+    PENDING_DETAIL = "detail"
+    PENDING_SHOW_DIALOG = "show_dialog"
+
     def __init__(self):
         super().__init__("屏幕位置", quit_button=None)
         self._rm = RegionManager()
         self._edit_mode = False
         self._screens = get_all_screens()
-        self._dragging = False
+        self._op_queue = queue.Queue()
+        self._drag_pending = False
+        self._drag_result = None
+        self._drag_done = threading.Event()
 
         if HAS_APPKIT:
             try:
                 NSApp.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
             except Exception:
                 pass
+
+        if TK_AVAILABLE:
+            get_tk_root()
 
         self._rm.load_all()
         self._build_menu()
@@ -826,68 +755,97 @@ class RegionManagerApp(rumps.App):
         self.menu.add(rumps.separator)
         self.menu.add(rumps.MenuItem("🚪 退出", callback=self._cb_quit_app))
 
-    def _process_pending_operations(self):
-        try:
-            op_type, args = _PENDING_OPERATIONS.get_nowait()
-            if op_type == "add_region":
-                x, y, w, h, label = args
-                self._rm.add_region(x, y, w, h, label)
-                self._build_menu()
-                show_notification("区域管理器", f"已创建: {label} ({w}x{h})")
-            elif op_type == "add_region_simple":
-                x, y, label = args
-                self._rm.add_region(x, y, 120, 40, label)
-                self._build_menu()
-                show_notification("区域管理器", f"已创建: {label}")
-            elif op_type == "rebuild_menu":
-                self._build_menu()
-            elif op_type == "region_detail":
-                rid = args
-                self._do_region_detail(rid)
-        except queue.Empty:
-            pass
-
-    def _prompt_new_region(self):
+    def _cb_new_region(self, _):
+        if not TK_AVAILABLE:
+            show_notification("错误", "tkinter 不可用")
+            return
         x, y = get_mouse_position()
         label = show_text_input_sync("新建区域", f"位置: ({x}, {y})",
                                      f"区域{len(load_regions())+1}")
         if label:
-            _PENDING_OPERATIONS.put(("add_region_simple", (x, y, label)))
+            self._op_queue.put((self.PENDING_ADD_SIMPLE, (x, y, label)))
 
-    def _prompt_drag_create(self):
-        overlay = DragCreateOverlay()
-        result = overlay.get_result()
+    def _cb_drag_create(self, _):
+        if not TK_AVAILABLE:
+            show_notification("错误", "tkinter 不可用")
+            return
+        if self._drag_pending:
+            return
+        self._drag_pending = True
+        self._drag_done.clear()
+        show_notification("区域管理器", "在屏幕上拖拽绘制区域，按 ESC 取消")
+
+    def _do_drag_create(self):
+        root = get_tk_root()
+        sw = root.winfo_screenwidth()
+        sh = root.winfo_screenheight()
+
+        dlg = tk.Toplevel(root)
+        dlg.overrideredirect(True)
+        dlg.attributes("-topmost", True)
+        dlg.attributes("-alpha", 0.35)
+        dlg.geometry(f"{sw}x{sh}+0+0")
+        dlg.configure(bg="black")
+
+        canvas = tk.Canvas(dlg, width=sw, height=sh,
+                           bg="black", highlightthickness=0, cursor="crosshair")
+        canvas.pack(fill="both", expand=True)
+
+        canvas.create_text(sw // 2, 30, text="拖拽绘制区域，按 ESC 取消",
+                           fill="#AAAAAA", font=("PingFang SC", 16, "bold"))
+
+        state = {"start_x": 0, "start_y": 0, "rect_id": None}
+
+        def on_press(event):
+            state["start_x"] = event.x
+            state["start_y"] = event.y
+            if state["rect_id"]:
+                canvas.delete(state["rect_id"])
+            state["rect_id"] = canvas.create_rectangle(
+                event.x, event.y, event.x, event.y,
+                outline="#FF4444", width=3, dash=(6, 3))
+
+        def on_drag(event):
+            if state["rect_id"]:
+                canvas.coords(state["rect_id"],
+                              state["start_x"], state["start_y"], event.x, event.y)
+
+        def on_release(event):
+            x1, y1 = min(state["start_x"], event.x), min(state["start_y"], event.y)
+            x2, y2 = max(state["start_x"], event.x), max(state["start_y"], event.y)
+            w, h = x2 - x1, y2 - y1
+            if w >= REGION_MIN_WIDTH and h >= REGION_MIN_HEIGHT:
+                self._drag_result = (x1, y1, w, h)
+            dlg.destroy()
+
+        def on_cancel(_event=None):
+            self._drag_result = None
+            dlg.destroy()
+
+        canvas.bind("<Button-1>", on_press)
+        canvas.bind("<B1-Motion>", on_drag)
+        canvas.bind("<ButtonRelease-1>", on_release)
+        dlg.bind("<Escape>", on_cancel)
+
+        dlg.grab_set()
+        dlg.wait_window()
+
+        self._drag_done.set()
+        result = self._drag_result
+        self._drag_result = None
+        self._drag_pending = False
+
         if result:
             x, y, w, h = result
             label = show_text_input_sync("新建区域", f"大小: {w}x{h} 位置: ({x},{y})",
                                          f"区域{len(load_regions())+1}")
             if label:
-                _PENDING_OPERATIONS.put(("add_region", (x, y, w, h, label)))
-
-    def _cb_new_region(self, _):
-        if self._dragging:
-            return
-        if not TK_AVAILABLE:
-            show_notification("错误", "tkinter 不可用")
-            return
-        threading.Thread(target=self._prompt_new_region, daemon=True).start()
-
-    def _cb_drag_create(self, _):
-        if self._dragging:
-            return
-        if not TK_AVAILABLE:
-            show_notification("错误", "tkinter 不可用")
-            return
-        self._dragging = True
-        show_notification("区域管理器", "在屏幕上拖拽绘制区域，按 ESC 取消")
-        threading.Thread(target=self._run_drag_create, daemon=True).start()
-
-    def _run_drag_create(self):
-        self._prompt_drag_create()
-        self._dragging = False
+                self._rm.add_region(x, y, w, h, label)
+                self._build_menu()
+                show_notification("区域管理器", f"已创建: {label} ({w}x{h})")
 
     def _cb_region_detail(self, rid):
-        _PENDING_OPERATIONS.put(("region_detail", rid))
+        self._op_queue.put((self.PENDING_DETAIL, rid))
 
     def _do_region_detail(self, rid):
         regions = load_regions()
@@ -914,7 +872,7 @@ class RegionManagerApp(rumps.App):
                                ["切换状态", "修改操作", "修改颜色", "修改间隔", "重命名", "删除", "关闭"])
         if btn == "切换状态":
             self._rm.toggle_region(rid)
-            _PENDING_OPERATIONS.put(("rebuild_menu", None))
+            self._build_menu()
             show_notification("区域管理器", f"{label}: {'启用' if not enabled else '禁用'}")
         elif btn == "修改操作":
             sel = show_dialog_sync(f"修改操作 - {label}", "选择操作类型:",
@@ -925,15 +883,13 @@ class RegionManagerApp(rumps.App):
                     new_at = ACTION_TYPES[idx]
                     update_region_action(rid, new_at)
                     if rid in self._rm.overlays:
-                        self._rm.overlays[rid].cfg["action_type"] = new_at
-                        self._rm.overlays[rid]._draw_everything(
-                            self._rm.overlays[rid].cfg["width"],
-                            self._rm.overlays[rid].cfg["height"],
-                            self._rm.overlays[rid].cfg.get("color", "#FF4444"),
-                            self._rm.overlays[rid].cfg.get("label", "?"))
+                        o = self._rm.overlays[rid]
+                        o.cfg["action_type"] = new_at
+                        o._draw_everything(o.cfg["width"], o.cfg["height"],
+                                           o.cfg.get("color", "#FF4444"), o.cfg.get("label", "?"))
                         if self._edit_mode:
-                            self._rm.overlays[rid]._bind_edit()
-                    _PENDING_OPERATIONS.put(("rebuild_menu", None))
+                            o._bind_edit()
+                    self._build_menu()
                     show_notification("区域管理器", f"{label}: {sel}")
         elif btn == "修改颜色":
             sel = show_dialog_sync(f"修改颜色 - {label}", "选择颜色:",
@@ -944,15 +900,13 @@ class RegionManagerApp(rumps.App):
                     new_color = REGION_COLORS[idx_c]
                     update_region_color(rid, new_color)
                     if rid in self._rm.overlays:
-                        self._rm.overlays[rid].cfg["color"] = new_color
-                        self._rm.overlays[rid]._draw_everything(
-                            self._rm.overlays[rid].cfg["width"],
-                            self._rm.overlays[rid].cfg["height"],
-                            new_color,
-                            self._rm.overlays[rid].cfg.get("label", "?"))
+                        o = self._rm.overlays[rid]
+                        o.cfg["color"] = new_color
+                        o._draw_everything(o.cfg["width"], o.cfg["height"],
+                                           new_color, o.cfg.get("label", "?"))
                         if self._edit_mode:
-                            self._rm.overlays[rid]._bind_edit()
-                    _PENDING_OPERATIONS.put(("rebuild_menu", None))
+                            o._bind_edit()
+                    self._build_menu()
                     show_notification("区域管理器", f"{label}: {sel}")
         elif btn == "修改间隔":
             sel = show_dialog_sync(f"修改间隔 - {label}", "选择间隔时间:",
@@ -964,35 +918,32 @@ class RegionManagerApp(rumps.App):
                     if "action_config" not in self._rm.overlays[rid].cfg:
                         self._rm.overlays[rid].cfg["action_config"] = {}
                     self._rm.overlays[rid].cfg["action_config"]["interval_seconds"] = iv
-                _PENDING_OPERATIONS.put(("rebuild_menu", None))
+                self._build_menu()
                 show_notification("区域管理器", f"{label}: {iv} 秒")
         elif btn == "重命名":
             new_name = show_text_input_sync("重命名", f"区域 #{label} 的新名称:", label)
             if new_name:
                 update_region_label(rid, new_name)
                 if rid in self._rm.overlays:
-                    self._rm.overlays[rid].cfg["label"] = new_name
-                    self._rm.overlays[rid]._draw_everything(
-                        self._rm.overlays[rid].cfg["width"],
-                        self._rm.overlays[rid].cfg["height"],
-                        self._rm.overlays[rid].cfg.get("color", "#FF4444"),
-                        new_name)
+                    o = self._rm.overlays[rid]
+                    o.cfg["label"] = new_name
+                    o._draw_everything(o.cfg["width"], o.cfg["height"],
+                                       o.cfg.get("color", "#FF4444"), new_name)
                     if self._edit_mode:
-                        self._rm.overlays[rid]._bind_edit()
-                _PENDING_OPERATIONS.put(("rebuild_menu", None))
+                        o._bind_edit()
+                self._build_menu()
                 show_notification("区域管理器", f"已重命名为: {new_name}")
         elif btn == "删除":
             self._rm.stop_action_loops()
             self._rm.remove_region(rid)
-            _PENDING_OPERATIONS.put(("rebuild_menu", None))
+            self._build_menu()
             show_notification("区域管理器", f"已删除: {label}")
 
     def _cb_toggle_edit_mode(self, _):
         self._edit_mode = not self._edit_mode
         self._rm.set_edit_mode(self._edit_mode)
         self._build_menu()
-        status = "开启" if self._edit_mode else "关闭"
-        show_notification("区域管理器", f"编辑模式: {status}")
+        show_notification("区域管理器", f"编辑模式: {'开启' if self._edit_mode else '关闭'}")
 
     def _cb_show_all(self, _):
         regions = load_regions()
@@ -1072,13 +1023,29 @@ class RegionManagerApp(rumps.App):
         else:
             rumps.quit_application()
 
-    @rumps.timer(0.15)
+    @rumps.timer(0.1)
     def _main_loop(self, _):
-        self._process_pending_operations()
-        for overlay in list(self._rm.overlays.values()):
+        # Process pending operations on main thread (safe for Tkinter)
+        try:
+            while True:
+                op_type, args = self._op_queue.get_nowait()
+                if op_type == self.PENDING_ADD_SIMPLE:
+                    x, y, label = args
+                    self._rm.add_region(x, y, 120, 40, label)
+                    self._build_menu()
+                    show_notification("区域管理器", f"已创建: {label}")
+                elif op_type == self.PENDING_DETAIL:
+                    self._do_region_detail(args)
+        except queue.Empty:
+            pass
+
+        if self._drag_pending and not self._drag_done.is_set():
+            self._do_drag_create()
+
+        root = get_tk_root()
+        if root:
             try:
-                if overlay.root and overlay.root.winfo_exists():
-                    overlay.root.update()
+                root.update()
             except Exception:
                 pass
 
