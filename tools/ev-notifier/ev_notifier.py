@@ -1,4 +1,4 @@
-"""Ev Notifier v2.2.7 - PUB/SUB broadcast, zero polling, auto-restart, error logging"""
+"""Ev Notifier v2.2.8 - PUB/SUB broadcast, zero polling, auto-restart, error logging"""
 import json, os, re, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib
 from datetime import datetime, timedelta
 
@@ -7,7 +7,7 @@ try:
 except ImportError:
     redis = None
 
-VERSION = "v2.2.7"
+VERSION = "v2.2.8"
 
 try:
     from AppKit import (NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyRegular,
@@ -414,36 +414,75 @@ def check_integrity(day_data):
 
 def do_recovery_poll(last_id):
     global _missing_count
-    print(f"RECOVERY: XRANGE from {last_id}")
+    print(f"RECOVERY: full stream scan from beginning, last_id={last_id}")
+
+    all_received = load_received()
+    received_by_date = {}
+    for d, dd in all_received.items():
+        received_by_date[d] = set(dd.get("received_idx", []))
+
     try:
-        result = upstash_http("xrange", STREAM_KEY, last_id, "+", timeout=10)
-        messages = result.get("result", [])
+        batch_start = "-"
         recovered = 0
-        for msg_entry in messages:
-            if not isinstance(msg_entry, list) or len(msg_entry) < 2:
-                continue
-            msg_id = msg_entry[0]
-            fields = msg_entry[1]
-            if msg_id == last_id:
-                continue
-            idx = None
-            total_daily = None
-            msg_date = None
-            data_raw = _extract_field(fields, "data")
-            if data_raw:
-                try:
-                    msg = json.loads(data_raw)
-                    idx = msg.get("idx")
-                    total_daily = msg.get("total_daily")
-                    msg_date = msg.get("date")
-                    handle_message(msg)
-                except Exception:
-                    pass
-            record_message(msg_id, idx=idx, total_daily=total_daily, date_str=msg_date)
-            recovered += 1
-            last_id = msg_id
+        max_batches = 20
+
+        for _ in range(max_batches):
+            result = upstash_http("xrange", STREAM_KEY, batch_start, "+", "COUNT", "500", timeout=15)
+            messages = result.get("result", [])
+            if not messages:
+                break
+
+            for msg_entry in messages:
+                if not isinstance(msg_entry, list) or len(msg_entry) < 2:
+                    continue
+                msg_id = msg_entry[0]
+                fields = msg_entry[1]
+                if msg_id == batch_start:
+                    continue
+
+                idx = None
+                total_daily = None
+                msg_date = None
+                data_raw = _extract_field(fields, "data")
+                if data_raw:
+                    try:
+                        msg = json.loads(data_raw)
+                        idx = msg.get("idx")
+                        total_daily = msg.get("total_daily")
+                        msg_date = msg.get("date")
+                    except Exception:
+                        pass
+
+                should_process = False
+                if idx is not None and msg_date:
+                    existing = received_by_date.get(msg_date, set())
+                    if idx not in existing:
+                        should_process = True
+                        existing.add(idx)
+                        received_by_date[msg_date] = existing
+                elif idx is not None:
+                    should_process = True
+
+                if should_process:
+                    if data_raw:
+                        try:
+                            handle_message(json.loads(data_raw))
+                        except Exception:
+                            pass
+                    record_message(msg_id, idx=idx, total_daily=total_daily, date_str=msg_date)
+                    recovered += 1
+
+                last_id = msg_id
+
+            if len(messages) < 500:
+                break
+            batch_start = messages[-1][0]
+
         save_last_id(last_id)
         record_poll("loss_detected", recovered)
+
+        _missing_count = _recalc_missing()
+
         print(f"RECOVERY: done, recovered={recovered}, missing={_missing_count}")
         return last_id
     except Exception as e:
@@ -550,6 +589,14 @@ def handle_message(msg):
         _pending_title = f"Ev {VERSION}"
 
 
+def _recalc_missing():
+    data = load_received()
+    total = 0
+    for date_str, day_data in data.items():
+        total += max(0, day_data.get("total_server", 0) - len(day_data.get("received_idx", [])))
+    return total
+
+
 def redis_loop():
     global _status, _new_msg_count, _pending_title
     reconnect_delay = 1
@@ -577,8 +624,9 @@ def redis_loop():
             pubsub.subscribe("auth:push_channel")
             _status = "connected"
             reconnect_delay = 1
-            if _missing_count > 0:
-                _pending_title = f"Ev {VERSION}({_new_msg_count}) ⚠{_missing_count}"
+            recalc_missing = _recalc_missing()
+            if recalc_missing > 0:
+                _pending_title = f"Ev {VERSION}({_new_msg_count}) ⚠{recalc_missing}"
             elif _new_msg_count:
                 _pending_title = f"Ev {VERSION}({_new_msg_count})"
             else:
@@ -602,8 +650,9 @@ def redis_loop():
                 msg_id = str(msg.get("ts", ""))
                 handle_message(msg)
                 record_message(msg_id, idx=idx, total_daily=total_daily, date_str=msg_date)
-                if _missing_count > 0:
-                    _pending_title = f"Ev {VERSION}({_new_msg_count}) ⚠{_missing_count}"
+                recalc_missing = _recalc_missing()
+                if recalc_missing > 0:
+                    _pending_title = f"Ev {VERSION}({_new_msg_count}) ⚠{recalc_missing}"
                 elif _new_msg_count:
                     _pending_title = f"Ev {VERSION}({_new_msg_count})"
                 else:
@@ -3162,7 +3211,7 @@ class EvNotifier(rumps.App):
 
     @rumps.clicked("手动恢复")
     def manual_recovery(self, _):
-        global _missing_count
+        global _missing_count, _pending_title, _new_msg_count
         if _missing_count <= 0:
             rumps.notification(f"Ev {VERSION}", "", "无丢失消息", sound=False)
             return
@@ -3175,8 +3224,10 @@ class EvNotifier(rumps.App):
         if new_last_id:
             save_last_id(new_last_id)
         if _missing_count > 0:
+            _pending_title = f"Ev {VERSION}({_new_msg_count}) ⚠{_missing_count}"
             rumps.notification(f"Ev {VERSION}", "", f"恢复完成，剩余 {_missing_count} 条", sound=False)
         else:
+            _pending_title = f"Ev {VERSION}({_new_msg_count})"
             rumps.notification(f"Ev {VERSION}", "", "已全部恢复 ✓", sound=False)
 
     @rumps.clicked("拉取日志")
