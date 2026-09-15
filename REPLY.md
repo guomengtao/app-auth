@@ -14,6 +14,9 @@
 | **P0-18** | 激活限流成功也计数，正常用户耗光额度 | v1.5.42 | `lib/rate-limit.js` `api/activate.js` | 激活成功/幂等复用后调用 `clearDeviceRateLimit()` 清零；阈值 50→10 |
 | **P0-19** | Postgres 模式 incr 忽略过期键 → 计数永不归零 | v1.5.42 | `lib/redis.js` | incr() SELECT 增加 `AND (expires_at IS NULL OR expires_at >= NOW())` 过期过滤 |
 | **P0-20** | 限流 key 仅用 deviceId 可伪造绕过 | v1.5.42 | `lib/rate-limit.js` `api/activate.js` `api/admin/clear-rate-limit.js` | checkDeviceRateLimit 增加 redeemCode 维度联合限流；新增 `POST /api/admin/clear-rate-limit` 应急清除接口 |
+| **P3-13** | @vercel/edge-config 装了未用 | v1.5.42 | `package.json` | 从 dependencies 移除 |
+| **P3-14** | 协调器失败完全静默 | v1.5.42 | `lib/db-switches.js` | Upstash/Postgres switch 加载 3 处 catch 改为 console.warn |
+| **P3-15** | redis.js 与 postgres.js 主库判定口径不一致 | v1.5.42 | `lib/redis.js` `lib/postgres.js` | 两边各加注释说明：redis.js 启动期静态判断，postgres.js 查询期运行时判断 |
 
 ### Round 5 → Round 6 修复（2026-09-11）
 
@@ -66,9 +69,6 @@
 |------|------|------|------|
 | **P3-11** | 文档环境变量名 `EDGE_CONFIG_TOKEN` ≠ 代码 `VERCEL_OIDC_TOKEN`/`VERCEL_TOKEN`/`VERCEL_TOKEN_ALT` | `docs/edge-config-vs-redis-coordinator-analysis.md:155` `lib/db-switches.js:179` | 按文档配必失败 |
 | **P3-12** | 文档 key `auth:db:primary` ≠ 代码 `auth_db_primary` | 文档 `:167` 代码 `lib/db-switches.js:3` | 按文档建的 key 永远读不到 |
-| **P3-13** | `@vercel/edge-config` 已装但未使用 | `package.json` | 要么用起来，要么删掉 |
-| **P3-14** | 协调器失败完全静默 | `lib/db-switches.js:52` `:64` `:198-201` | 三条分支各加 `console.warn` |
-| **P3-15** | `redis.js`（加载期锁定）与 `postgres.js`（查询期路由）主库判定口径不一致 | `lib/redis.js:4-7` `lib/postgres.js:100-105` | 统一判定或明确注释 |
 
 ### 已知风险（不急修）
 
@@ -98,8 +98,8 @@
 
 | 状态 | 数量 |
 |------|------|
-| 已修复 | 23 条（Round 7 P0: 3 条 + Round 5/6 P0+P1: 8 条 + UI QA: 9 条 + CRON_SECRET: 1 条 + cron 路径修复: 1 条 + 激活码显示: 1 条） |
+| 已修复 | 26 条（Round 7 P0: 3 条 + P3: 3 条 + Round 5/6 P0+P1: 8 条 + UI QA: 9 条 + CRON_SECRET: 1 条 + cron 路径修复: 1 条 + 激活码显示: 1 条） |
 | 处理中 | 0 条 |
-| 待处理 | 5 条（P3: 5 条） |
+| 待处理 | 2 条（P3: 2 条） |
 | 已知风险（不急修） | 3 条 |
 | 确认无需修复 | 7 项 |

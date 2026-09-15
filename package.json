@@ -22,7 +22,6 @@
   },
   "dependencies": {
     "@upstash/redis": "^1.38.3",
-    "@vercel/edge-config": "^1.5.1",
     "@vercel/postgres": "^0.10.0",
     "pg": "^8.23.0"
   }
