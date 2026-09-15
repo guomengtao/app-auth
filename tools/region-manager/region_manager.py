@@ -1,5 +1,5 @@
-"""Screen Region Manager v1.0.3 - Multi-monitor wireframe overlay tool with Chinese menu"""
-VERSION = "v1.0.3"
+"""Screen Region Manager v1.0.4 - Multi-monitor wireframe overlay tool with Chinese menu"""
+VERSION = "v1.0.4"
 
 import atexit
 import json
@@ -695,6 +695,7 @@ class RegionManagerApp(rumps.App):
         self._drag_pending = False
         self._drag_result = None
         self._drag_done = threading.Event()
+        self._drag_in_progress = False
 
         if HAS_APPKIT:
             try:
@@ -1036,8 +1037,10 @@ class RegionManagerApp(rumps.App):
         except queue.Empty:
             pass
 
-        if self._drag_pending and not self._drag_done.is_set():
+        if self._drag_pending and not self._drag_done.is_set() and not self._drag_in_progress:
+            self._drag_in_progress = True
             self._do_drag_create()
+            self._drag_in_progress = False
 
 
 if __name__ == "__main__":
