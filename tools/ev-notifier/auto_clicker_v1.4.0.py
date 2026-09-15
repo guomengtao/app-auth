@@ -1404,7 +1404,7 @@ def open_status_window(rm):
 
 class AutoClickerApp(rumps.App):
     def __init__(self):
-        super().__init__("AC", quit_button=None)
+        super().__init__("AC v1.4", quit_button=None)
         self._cfg = load_config()
         self._running = False
         self._click_count = 0
@@ -1428,6 +1428,11 @@ class AutoClickerApp(rumps.App):
             self._rm.load_all()
         if self._cfg.get("show_status_window", False):
             self.start_status_window(None)
+
+    @rumps.timer(2)
+    def _startup_notify(self, _):
+        show_notification("Auto Clicker v1.4.0", "Started! Look for 'AC v1.4' in menu bar.")
+        return False  # one-shot
 
     def _build_menu(self):
         self.menu.clear()
@@ -1890,7 +1895,7 @@ def main():
         run_cli_loop(cfg, rm); return
 
     app = AutoClickerApp()
-    print(f"Auto Clicker {VERSION}. Look for 'AC' in menu bar.")
+    print(f"Auto Clicker {VERSION}. Look for 'AC v1.4' in menu bar.")
     app.run()
 
 if __name__ == "__main__":
