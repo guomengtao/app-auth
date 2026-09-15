@@ -365,7 +365,7 @@ def record_message(msg_id, idx=None, total_daily=None, date_str=None):
         data[date_str]["received_idx"].append(idx)
         data[date_str]["received_idx"].sort()
     if total_daily is not None:
-        data[date_str]["total_server"] = total_daily
+        data[date_str]["total_server"] = max(data[date_str]["total_server"], total_daily)
     data[date_str]["last_check"] = datetime.now().strftime("%H:%M:%S")
     save_received(data)
     local_cnt = len(data[date_str]["received_idx"])
