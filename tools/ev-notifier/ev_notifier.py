@@ -50,6 +50,7 @@ POLL_LOG_FILE = os.path.expanduser("~/.ev_poll_log.json")
 MESSAGES_FILE = os.path.expanduser("~/.ev_messages.json")
 VISITORS_FILE = os.path.expanduser("~/.ev_visitors.json")
 ERROR_LOG_FILE = os.path.expanduser("~/.ev_error_log.json")
+DEBUG_LOG_FILE = os.path.expanduser("~/.ev_debug_log.json")
 
 LAUNCH_AGENT_LABEL = "com.evnotifier.agent"
 LAUNCH_AGENT_DIR = os.path.expanduser("~/Library/LaunchAgents")
@@ -412,23 +413,45 @@ def check_integrity(day_data):
     return max(0, total - local_cnt)
 
 
+def _debug_log(msg):
+    try:
+        entry = {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "msg": str(msg)}
+        logs = []
+        try:
+            with open(DEBUG_LOG_FILE, "r") as f:
+                logs = json.load(f)
+        except Exception:
+            logs = []
+        logs.append(entry)
+        if len(logs) > 200:
+            logs = logs[-200:]
+        with open(DEBUG_LOG_FILE, "w") as f:
+            json.dump(logs, f, indent=2)
+    except Exception:
+        pass
+
+
 def do_recovery_poll(last_id):
     global _missing_count
+    _debug_log(f"RECOVERY start: last_id={last_id}")
     print(f"RECOVERY: full stream scan from beginning, last_id={last_id}")
 
     all_received = load_received()
     received_by_date = {}
     for d, dd in all_received.items():
         received_by_date[d] = set(dd.get("received_idx", []))
+    _debug_log(f"Loaded received data: dates={list(all_received.keys())}")
 
     try:
         batch_start = "-"
         recovered = 0
         max_batches = 20
 
-        for _ in range(max_batches):
+        for batch_num in range(max_batches):
+            _debug_log(f"XRANGE batch {batch_num+1}: start={batch_start}")
             result = upstash_http("xrange", STREAM_KEY, batch_start, "+", "COUNT", "500", timeout=15)
             messages = result.get("result", [])
+            _debug_log(f"XRANGE batch {batch_num+1}: got {len(messages)} messages")
             if not messages:
                 break
 
@@ -464,6 +487,7 @@ def do_recovery_poll(last_id):
                     should_process = True
 
                 if should_process:
+                    _debug_log(f"Recovering: date={msg_date}, idx={idx}, total_daily={total_daily}")
                     if data_raw:
                         try:
                             handle_message(json.loads(data_raw))
@@ -483,9 +507,11 @@ def do_recovery_poll(last_id):
 
         _missing_count = _recalc_missing()
 
+        _debug_log(f"RECOVERY done: recovered={recovered}, missing={_missing_count}")
         print(f"RECOVERY: done, recovered={recovered}, missing={_missing_count}")
         return last_id
     except Exception as e:
+        _debug_log(f"RECOVERY failed: {e}")
         print(f"RECOVERY: failed - {e}")
         return last_id
 
@@ -3212,14 +3238,18 @@ class EvNotifier(rumps.App):
     @rumps.clicked("手动恢复")
     def manual_recovery(self, _):
         global _missing_count, _pending_title, _new_msg_count
-        if _missing_count <= 0:
+        _debug_log("manual_recovery clicked")
+        real_missing = _recalc_missing()
+        _debug_log(f"recalc_missing={real_missing}, stale _missing_count={_missing_count}")
+        if real_missing <= 0:
             rumps.notification(f"Ev {VERSION}", "", "无丢失消息", sound=False)
             return
         last_id = load_last_id()
+        _debug_log(f"last_id={last_id}")
         if not last_id:
             rumps.notification(f"Ev {VERSION}", "", "无法获取 last_id", sound=False)
             return
-        rumps.notification(f"Ev {VERSION}", "", f"开始恢复 {_missing_count} 条...", sound=False)
+        rumps.notification(f"Ev {VERSION}", "", f"开始恢复 {real_missing} 条...", sound=False)
         new_last_id = do_recovery_poll(last_id)
         if new_last_id:
             save_last_id(new_last_id)
@@ -3258,6 +3288,22 @@ class EvNotifier(rumps.App):
         status_str = "已连接" if _status == "connected" else "未连接"
         text = (f"状态: {status_str}\n今日消息: {_new_msg_count}\n恢复次数: {_recovery_count_today}\n最后消息: {ts_str}")
         rumps.alert(f"Ev {VERSION}", text)
+
+    @rumps.clicked("调试日志")
+    def debug_log_btn(self, _):
+        try:
+            with open(DEBUG_LOG_FILE, "r") as f:
+                logs = json.load(f)
+        except Exception:
+            logs = []
+        if not logs:
+            rumps.alert("调试日志", "暂无日志")
+            return
+        lines = []
+        for entry in logs[-30:]:
+            lines.append(f"{entry['time']}  {entry['msg']}")
+        text = "\n".join(lines)
+        rumps.alert(f"调试日志 (最近{min(30, len(logs))}条)", text[:800])
 
 
 def main():
