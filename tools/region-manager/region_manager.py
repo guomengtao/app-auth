@@ -1,5 +1,5 @@
-"""Screen Region Manager v1.0.4 - Multi-monitor wireframe overlay tool with Chinese menu"""
-VERSION = "v1.0.4"
+"""Screen Region Manager v1.0.5 - Multi-monitor wireframe overlay tool with Chinese menu"""
+VERSION = "v1.0.5"
 
 import atexit
 import json
@@ -691,6 +691,81 @@ class RegionManager:
         return None
 
 
+DRAG_SUBPROCESS_SCRIPT = r'''
+import json, sys, tkinter as tk
+
+def main():
+    screens = json.loads(sys.argv[1])
+    min_x = int(min(s["x"] for s in screens))
+    min_y = int(min(s["y"] for s in screens))
+    max_x = int(max(s["x"] + s["width"] for s in screens))
+    max_y = int(max(s["y"] + s["height"] for s in screens))
+    total_w = max_x - min_x
+    total_h = max_y - min_y
+
+    root = tk.Tk()
+    root.withdraw()
+
+    dlg = tk.Toplevel(root)
+    dlg.overrideredirect(True)
+    dlg.attributes("-topmost", True)
+    dlg.attributes("-alpha", 0.35)
+    dlg.geometry(f"{total_w}x{total_h}+{min_x}+{min_y}")
+    dlg.configure(bg="black")
+    dlg.focus_force()
+
+    canvas = tk.Canvas(dlg, width=total_w, height=total_h,
+                       bg="black", highlightthickness=0, cursor="crosshair")
+    canvas.pack(fill="both", expand=True)
+    canvas.create_text(total_w // 2, 30, text="Drag to select region, ESC to cancel",
+                       fill="#AAAAAA", font=("PingFang SC", 16, "bold"))
+
+    state = {"start_x": 0, "start_y": 0, "rect_id": None}
+    result = [None]
+
+    def on_press(event):
+        state["start_x"] = event.x
+        state["start_y"] = event.y
+        if state["rect_id"]:
+            canvas.delete(state["rect_id"])
+        state["rect_id"] = canvas.create_rectangle(
+            event.x, event.y, event.x, event.y,
+            outline="#FF4444", width=3, dash=(6, 3))
+
+    def on_drag(event):
+        if state["rect_id"]:
+            canvas.coords(state["rect_id"],
+                          state["start_x"], state["start_y"], event.x, event.y)
+
+    def on_release(event):
+        x1 = min(state["start_x"], event.x)
+        y1 = min(state["start_y"], event.y)
+        x2 = max(state["start_x"], event.x)
+        y2 = max(state["start_y"], event.y)
+        w, h = x2 - x1, y2 - y1
+        if w >= 30 and h >= 20:
+            result[0] = {"x": min_x + x1, "y": min_y + y1, "w": w, "h": h, "label": ""}
+        dlg.destroy()
+
+    def on_cancel(_event=None):
+        result[0] = {}
+        dlg.destroy()
+
+    canvas.bind("<Button-1>", on_press)
+    canvas.bind("<B1-Motion>", on_drag)
+    canvas.bind("<ButtonRelease-1>", on_release)
+    dlg.bind("<Escape>", on_cancel)
+
+    dlg.grab_set()
+    root.mainloop()
+
+    print(json.dumps(result[0] or {}))
+
+if __name__ == "__main__":
+    main()
+'''
+
+
 class RegionManagerApp(rumps.App):
     PENDING_ADD_SIMPLE = "add_simple"
     PENDING_ADD_DRAG = "add_drag"
@@ -776,7 +851,7 @@ class RegionManagerApp(rumps.App):
         label = show_text_input_sync("新建区域", f"位置: ({x}, {y})",
                                      f"区域{len(load_regions())+1}")
         if label:
-            self._op_queue.put((self.PENDING_ADD_SIMPLE, (x, y, label)))
+            self._op_queue.put((self.PENDING_ADD_SIMPLE, (x, y, 120, 40, label)))
 
     def _cb_drag_create(self, _):
         if not TK_AVAILABLE:
@@ -789,98 +864,36 @@ class RegionManagerApp(rumps.App):
         self._drag_pending = True
         self._drag_done.clear()
         show_notification("区域管理器", "在屏幕上拖拽绘制区域，按 ESC 取消")
+        threading.Thread(target=self._run_drag_subprocess, daemon=True).start()
 
-    def _do_drag_create(self):
-        _log("_do_drag_create: ENTER")
-        import traceback
+    def _run_drag_subprocess(self):
+        _log("_run_drag_subprocess: launching subprocess")
+        import json as _json
+        screen_frames = _json.dumps(self._screens)
+        proc = subprocess.run(
+            [sys.executable, "-c", DRAG_SUBPROCESS_SCRIPT, screen_frames],
+            capture_output=True, text=True, timeout=120
+        )
+        _log(f"_run_drag_subprocess: stdout={proc.stdout[:200]}, stderr={proc.stderr[:200]}")
         try:
-            root = get_tk_root()
-            sw = root.winfo_screenwidth()
-            sh = root.winfo_screenheight()
-            _log(f"_do_drag_create: screen={sw}x{sh}")
-
-            dlg = tk.Toplevel(root)
-            dlg.overrideredirect(True)
-            dlg.attributes("-topmost", True)
-            dlg.attributes("-alpha", 0.35)
-            dlg.geometry(f"{sw}x{sh}+0+0")
-            dlg.configure(bg="black")
-
-            canvas = tk.Canvas(dlg, width=sw, height=sh,
-                               bg="black", highlightthickness=0, cursor="crosshair")
-            canvas.pack(fill="both", expand=True)
-
-            canvas.create_text(sw // 2, 30, text="拖拽绘制区域，按 ESC 取消",
-                               fill="#AAAAAA", font=("PingFang SC", 16, "bold"))
-
-            state = {"start_x": 0, "start_y": 0, "rect_id": None}
-
-            def on_press(event):
-                state["start_x"] = event.x
-                state["start_y"] = event.y
-                if state["rect_id"]:
-                    canvas.delete(state["rect_id"])
-                state["rect_id"] = canvas.create_rectangle(
-                    event.x, event.y, event.x, event.y,
-                    outline="#FF4444", width=3, dash=(6, 3))
-
-            def on_drag(event):
-                if state["rect_id"]:
-                    canvas.coords(state["rect_id"],
-                                  state["start_x"], state["start_y"], event.x, event.y)
-
-            def on_release(event):
-                x1, y1 = min(state["start_x"], event.x), min(state["start_y"], event.y)
-                x2, y2 = max(state["start_x"], event.x), max(state["start_y"], event.y)
-                w, h = x2 - x1, y2 - y1
-                _log(f"_do_drag_create: release ({x1},{y1}) {w}x{h}")
-                if w >= REGION_MIN_WIDTH and h >= REGION_MIN_HEIGHT:
-                    self._drag_result = (x1, y1, w, h)
-                dlg.destroy()
-
-            def on_cancel(_event=None):
-                _log("_do_drag_create: ESC cancel")
-                self._drag_result = None
-                dlg.destroy()
-
-            canvas.bind("<Button-1>", on_press)
-            canvas.bind("<B1-Motion>", on_drag)
-            canvas.bind("<ButtonRelease-1>", on_release)
-            dlg.bind("<Escape>", on_cancel)
-
-            dlg.grab_set()
-            _log("_do_drag_create: entering poll loop (instead of wait_window)")
-
-            poll_count = 0
-            while dlg.winfo_exists():
-                try:
-                    root.update()
-                except Exception as e:
-                    _log(f"_do_drag_create: update error: {e}")
-                    break
-                poll_count += 1
-                if poll_count % 300 == 0:
-                    _log(f"_do_drag_create: poll loop alive ({poll_count})")
-
-            _log("_do_drag_create: poll loop exited")
+            result = _json.loads(proc.stdout.strip())
         except Exception:
-            _log(f"_do_drag_create: EXCEPTION\n{traceback.format_exc()}")
-
+            result = None
+        self._drag_result = result
         self._drag_done.set()
-        result = self._drag_result
-        self._drag_result = None
         self._drag_pending = False
-        _log(f"_do_drag_create: result={result}")
 
-        if result:
-            x, y, w, h = result
+        if result and result.get("x") is not None:
+            x, y, w, h = result["x"], result["y"], result["w"], result["h"]
+            _log(f"_run_drag_subprocess: result=({x},{y}) {w}x{h}")
             label = show_text_input_sync("新建区域", f"大小: {w}x{h} 位置: ({x},{y})",
                                          f"区域{len(load_regions())+1}")
             if label:
-                self._rm.add_region(x, y, w, h, label)
-                self._build_menu()
-                show_notification("区域管理器", f"已创建: {label} ({w}x{h})")
-        _log("_do_drag_create: EXIT")
+                self._op_queue.put((self.PENDING_ADD_SIMPLE, (x, y, label)))
+            else:
+                _log("_run_drag_subprocess: no label provided")
+        else:
+            _log("_run_drag_subprocess: cancelled or no result")
 
     def _cb_region_detail(self, rid):
         self._do_region_detail(rid)
@@ -1063,26 +1076,20 @@ class RegionManagerApp(rumps.App):
 
     @rumps.timer(0.3)
     def _main_loop(self, _):
-        if self._drag_in_progress:
-            return
-
         try:
             while True:
                 op_type, args = self._op_queue.get_nowait()
                 if op_type == self.PENDING_ADD_SIMPLE:
-                    x, y, label = args
-                    self._rm.add_region(x, y, 120, 40, label)
+                    if len(args) == 5:
+                        x, y, w, h, label = args
+                    else:
+                        x, y, label = args
+                        w, h = 120, 40
+                    self._rm.add_region(x, y, w, h, label)
                     self._build_menu()
-                    show_notification("区域管理器", f"已创建: {label}")
+                    show_notification("区域管理器", f"已创建: {label} ({w}x{h})")
         except queue.Empty:
             pass
-
-        if self._drag_pending and not self._drag_done.is_set() and not self._drag_in_progress:
-            _log("_main_loop: firing _do_drag_create")
-            self._drag_in_progress = True
-            self._do_drag_create()
-            self._drag_in_progress = False
-            _log("_main_loop: _do_drag_create finished")
 
 
 if __name__ == "__main__":
