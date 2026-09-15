@@ -1429,11 +1429,6 @@ class AutoClickerApp(rumps.App):
         if self._cfg.get("show_status_window", False):
             self.start_status_window(None)
 
-    @rumps.timer(2)
-    def _startup_notify(self, _):
-        show_notification("Auto Clicker v1.4.0", "Started! Look for 'AC v1.4' in menu bar.")
-        return False  # one-shot
-
     def _build_menu(self):
         self.menu.clear()
         dry = "DRY" if self._cfg.get("dry_run", True) else "LIVE"
@@ -1611,12 +1606,13 @@ class AutoClickerApp(rumps.App):
 
     @rumps.timer(1)
     def _update_title(self, _):
-        p = "D" if self._cfg.get("dry_run", True) else "L"
+        p = "AC"
         if self._running:
             s = {"permission_denied":"X","timeout":"T","none":"-","ok":"+"}.get(self._last_status,"")
             self.title = f"{p}{s}{self._click_count}"
         else:
-            self.title = p
+            dry = "D" if self._cfg.get("dry_run", True) else "L"
+            self.title = f"{p}:{dry}"
 
     @rumps.timer(0.2)
     def _keep_tk_alive(self, _):
