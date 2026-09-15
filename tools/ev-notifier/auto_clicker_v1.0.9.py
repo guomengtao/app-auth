@@ -561,8 +561,7 @@ def build_standalone():
         f.write('''#!/bin/bash
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-APP_DIR="$SCRIPT_DIR/../.."
-RESOURCES="$APP_DIR/Contents/Resources"
+RESOURCES="$SCRIPT_DIR/../Resources"
 cd "$RESOURCES"
 exec /usr/bin/python3 "$RESOURCES/auto_clicker.py" --gui
 ''')
