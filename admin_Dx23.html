@@ -5322,7 +5322,7 @@
             expiresText = new Date(d).toLocaleDateString('zh-CN') + '<span style="color:#e65100;font-size:0.75rem;margin-left:4px">(est)</span>';
           }
           var rcCell = r.redeem_code
-            ? ('<span class="mono" style="font-weight:700">' + escapeHtml(r.redeem_code) + '</span>')
+            ? ('<span class="mono" style="font-weight:700">' + escapeHtml(String(r.redeem_code).slice(0, 4)) + '</span>')
             : '<span style="color:#aaa">-</span>';
           var rawDeviceId = r.device_id || '';
           var hashDeviceId = r.device_id_hash || r.used_device_id || '';
@@ -5353,9 +5353,13 @@
           }
 
           var di = r.device_info || {};
-          var versionCell = di.osVersionCode || di.platformVersionCode || '';
+          var vi = r.visitor_info || {};
+          var refUrl = vi.referer || '';
+          var rMatch = refUrl.match(/[&?]r=([^&]+)/);
+          var versionVal = rMatch ? decodeURIComponent(rMatch[1]) : '';
+          var versionCell = versionVal || '';
           if (!versionCell) versionCell = '<span style="color:#aaa">-</span>';
-          var modelCell = di.model || di.product || '';
+          var modelCell = di.product || di.model || '';
           if (!modelCell) modelCell = '<span style="color:#aaa">-</span>';
 
           tableHtml += '<tr class="' + hl.trim() + '">';
