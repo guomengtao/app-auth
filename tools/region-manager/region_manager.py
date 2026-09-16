@@ -62,6 +62,29 @@ EDITOR_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "region
 REGION_MIN_WIDTH = 30
 REGION_MIN_HEIGHT = 20
 
+def _find_tk_python():
+    candidates = [
+        sys.executable,
+        "/opt/homebrew/bin/python3.13",
+        "/opt/homebrew/bin/python3.12",
+        "/usr/local/bin/python3.12",
+        "/usr/local/bin/python3.13",
+        "/usr/bin/python3",
+    ]
+    for py in candidates:
+        if not os.path.exists(py):
+            continue
+        try:
+            result = subprocess.run(
+                [py, "-c", "import tkinter"], capture_output=True, timeout=10)
+            if result.returncode == 0:
+                _log(f"_find_tk_python: found {py}")
+                return py
+        except Exception:
+            continue
+    _log("_find_tk_python: no Python with tkinter found, falling back to sys.executable")
+    return sys.executable
+
 REGION_COLORS = ["#FF4444", "#4488FF", "#44CC44", "#FF8800", "#AA44FF", "#888888"]
 COLOR_NAMES = ["红色", "蓝色", "绿色", "橙色", "紫色", "灰色"]
 
@@ -697,9 +720,10 @@ class RegionManagerApp(rumps.App):
         _log(f"_run_drag_subprocess: launching editor --create method={method}")
         env = os.environ.copy()
         env["DRAG_METHOD"] = method
+        py_exe = _find_tk_python()
         try:
             proc = subprocess.run(
-                [sys.executable, EDITOR_SCRIPT, "--create"],
+                [py_exe, EDITOR_SCRIPT, "--create"],
                 capture_output=True, text=True, timeout=120,
                 env=env
             )

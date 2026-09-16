@@ -497,11 +497,35 @@ class RegionEditWindow:
         self.canvas.create_line(w // 2, 0, w // 2, h, fill=cross_color, width=1, tags="cross")
         self.canvas.create_line(0, h // 2, w, h // 2, fill=cross_color, width=1, tags="cross")
 
-        rh_size = 16
-        self.canvas.create_rectangle(w - rh_size, h - rh_size, w, h,
-                                     fill="#3388FF", outline="", tags="resize_handle")
-        self.canvas.create_line(w - rh_size + 5, h - 5, w - 5, h - rh_size + 5,
-                                fill="#FFFFFF", width=2, tags="resize_handle")
+        rh = 18
+
+        self.canvas.create_rectangle(w - rh, h - rh, w, h,
+                                     fill="#3388FF", outline="", tags="resize_se")
+        self.canvas.create_line(w - rh + 5, h - 5, w - 5, h - rh + 5,
+                                fill="#FFFFFF", width=2, tags="resize_se")
+
+        self.canvas.create_rectangle(0, h - rh, rh, h,
+                                     fill="#3388FF", outline="", tags="resize_sw")
+        self.canvas.create_line(rh - 5, h - 5, 5, h - rh + 5,
+                                fill="#FFFFFF", width=2, tags="resize_sw")
+
+        self.canvas.create_rectangle(w - rh, 0, w, rh,
+                                     fill="#3388FF", outline="", tags="resize_ne")
+        self.canvas.create_line(w - rh + 5, rh - 5, w - 5, 5,
+                                fill="#FFFFFF", width=2, tags="resize_ne")
+
+        self.canvas.create_rectangle(0, 0, rh, rh,
+                                     fill="#3388FF", outline="", tags="resize_nw")
+
+        edge_thick = 8
+        self.canvas.create_rectangle(0, rh, edge_thick, h - rh,
+                                     fill="", outline="", tags="resize_w")
+        self.canvas.create_rectangle(w - edge_thick, rh, w, h - rh,
+                                     fill="", outline="", tags="resize_e")
+        self.canvas.create_rectangle(rh, 0, w - rh, edge_thick,
+                                     fill="", outline="", tags="resize_n")
+        self.canvas.create_rectangle(rh, h - edge_thick, w - rh, h,
+                                     fill="", outline="", tags="resize_s")
 
         at = self.cfg.get("action_type", "click")
         at_short = dict(zip(ACTION_TYPES, ACTION_NAMES)).get(at, "click")
@@ -513,9 +537,14 @@ class RegionEditWindow:
         self.canvas.bind("<B1-Motion>", self._do_move)
         self.canvas.bind("<ButtonRelease-1>", self._stop_move)
 
-        self.canvas.tag_bind("resize_handle", "<ButtonPress-1>", self._start_resize)
-        self.canvas.tag_bind("resize_handle", "<B1-Motion>", self._do_resize)
-        self.canvas.tag_bind("resize_handle", "<ButtonRelease-1>", self._stop_move)
+        resize_tags = ["resize_se", "resize_sw", "resize_ne", "resize_nw",
+                       "resize_e", "resize_w", "resize_n", "resize_s"]
+        for tag in resize_tags:
+            self.canvas.tag_bind(tag, "<ButtonPress-1>",
+                                 lambda e, t=tag: self._start_resize(e, t))
+            self.canvas.tag_bind(tag, "<B1-Motion>",
+                                 lambda e, t=tag: self._do_resize(e, t))
+            self.canvas.tag_bind(tag, "<ButtonRelease-1>", self._stop_move)
 
         self.canvas.tag_bind("close_btn", "<Button-1>", self._on_close_click)
 
@@ -550,21 +579,44 @@ class RegionEditWindow:
         self.win.geometry(f"+{nx}+{ny}")
         self.on_modified()
 
-    def _start_resize(self, event):
-        self._mode = "resize"
+    def _start_resize(self, event, tag):
+        self._mode = tag
         self._start_x = event.x_root
         self._start_y = event.y_root
+        self._orig_x = self.cfg["x"]
+        self._orig_y = self.cfg["y"]
         self._orig_w = self.cfg["width"]
         self._orig_h = self.cfg["height"]
 
-    def _do_resize(self, event):
-        if self._mode != "resize":
+    def _do_resize(self, event, tag):
+        if not self._mode or not self._mode.startswith("resize"):
             return
-        nw = max(REGION_MIN_WIDTH, self._orig_w + (event.x_root - self._start_x))
-        nh = max(REGION_MIN_HEIGHT, self._orig_h + (event.y_root - self._start_y))
+        dx = event.x_root - self._start_x
+        dy = event.y_root - self._start_y
+
+        nw, nh = self._orig_w, self._orig_h
+        nx, ny = self._orig_x, self._orig_y
+
+        if "e" in tag:
+            nw = max(REGION_MIN_WIDTH, self._orig_w + dx)
+        if "w" in tag:
+            nw = max(REGION_MIN_WIDTH, self._orig_w - dx)
+            nx = self._orig_x + dx
+            if nw == REGION_MIN_WIDTH:
+                nx = self._orig_x + self._orig_w - REGION_MIN_WIDTH
+        if "s" in tag:
+            nh = max(REGION_MIN_HEIGHT, self._orig_h + dy)
+        if "n" in tag:
+            nh = max(REGION_MIN_HEIGHT, self._orig_h - dy)
+            ny = self._orig_y + dy
+            if nh == REGION_MIN_HEIGHT:
+                ny = self._orig_y + self._orig_h - REGION_MIN_HEIGHT
+
+        self.cfg["x"] = nx
+        self.cfg["y"] = ny
         self.cfg["width"] = nw
         self.cfg["height"] = nh
-        self.win.geometry(f"{nw}x{nh}")
+        self.win.geometry(f"{nw}x{nh}+{nx}+{ny}")
         self._draw(nw, nh, self.cfg.get("color", "#FF4444"), self.cfg.get("label", "?"))
         self._bind_events()
         self.on_modified()
