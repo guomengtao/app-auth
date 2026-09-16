@@ -1,5 +1,5 @@
 """Screen Region Manager v1.3.0 - Draggable overlay windows with edit mode support"""
-VERSION = "v1.4.0"
+VERSION = "v1.5.0"
 
 import atexit
 import json
@@ -330,6 +330,11 @@ class RegionOverlay:
         self.win = None
         self.canvas = None
         self._close_win = None
+        self._run_btn_win = None
+        self._run_btn_label = None
+        self._run_count = 0
+        self._run_thread = None
+        self._run_stop = True
         self._create_window()
 
     def _create_window(self):
@@ -354,6 +359,7 @@ class RegionOverlay:
 
         self._draw_everything(w, h, color, label)
         self._create_close_button()
+        self._create_start_button()
         self._start_x = 0
         self._start_y = 0
         self._orig_x = 0
@@ -438,7 +444,125 @@ class RegionOverlay:
         except Exception:
             pass
 
+    def _create_start_button(self):
+        c = self.cfg
+        btn_w, btn_h = 52, 22
+        self._run_btn_win = tk.Toplevel(self.win)
+        self._run_btn_win.overrideredirect(True)
+        self._run_btn_win.attributes("-topmost", True)
+        cx = c["x"] + c["width"] // 2 - btn_w // 2
+        cy = c["y"] + c["height"] + 4
+        self._run_btn_win.geometry(f"{btn_w}x{btn_h}+{cx}+{cy}")
+        self._run_btn_win.configure(bg="#228B22")
+
+        self._run_btn_label = tk.Label(self._run_btn_win, text="Start",
+                                       bg="#228B22", fg="#FFFFFF",
+                                       font=("Helvetica", 9, "bold"),
+                                       cursor="hand2")
+        self._run_btn_label.pack(fill="both", expand=True)
+        self._run_btn_label.bind("<Button-1>", self._toggle_run)
+        self._run_btn_label.bind("<Enter>",
+            lambda e: self._run_btn_label.configure(
+                bg="#FF4444" if not self._run_stop else "#32CD32"))
+        self._run_btn_label.bind("<Leave>",
+            lambda e: self._run_btn_label.configure(
+                bg="#FF4444" if not self._run_stop else "#228B22"))
+
+    def _position_start_button(self):
+        if self._run_btn_win is None:
+            return
+        c = self.cfg
+        btn_w, btn_h = 52, 22
+        cx = c["x"] + c["width"] // 2 - btn_w // 2
+        cy = c["y"] + c["height"] + 4
+        try:
+            self._run_btn_win.geometry(f"{btn_w}x{btn_h}+{cx}+{cy}")
+        except Exception:
+            pass
+
+    def _toggle_run(self, event=None):
+        if self._run_stop:
+            self._start_run_loop()
+        else:
+            self._stop_run_loop()
+
+    def _start_run_loop(self):
+        self._run_stop = False
+        self._run_count = 0
+        if self._run_btn_label:
+            self._run_btn_label.configure(text="0 times", bg="#FF4444")
+        self._run_thread = threading.Thread(target=self._run_loop, daemon=True)
+        self._run_thread.start()
+
+    def _stop_run_loop(self):
+        self._run_stop = True
+        if self._run_btn_label:
+            self._run_btn_label.configure(text="Start", bg="#228B22")
+
+    def _update_run_count(self):
+        if self._run_btn_label:
+            try:
+                self._run_btn_label.configure(text=f"{self._run_count} times")
+            except Exception:
+                pass
+
+    def _run_loop(self):
+        while not self._run_stop:
+            try:
+                cx = self.cfg["x"] + self.cfg["width"] // 2
+                cy = self.cfg["y"] + self.cfg["height"] // 2
+
+                for _ in range(7):
+                    if self._run_stop:
+                        return
+                    import Quartz
+                    try:
+                        Quartz.CGEventPost(Quartz.kCGHIDEventTap,
+                            Quartz.CGEventCreateScrollWheelEvent(
+                                None, Quartz.kCGScrollEventUnitLine, 1, -800))
+                    except Exception:
+                        pass
+                    time.sleep(0.15)
+
+                if self._run_stop:
+                    return
+
+                try:
+                    import Quartz
+                    Quartz.CGEventPost(Quartz.kCGHIDEventTap,
+                        Quartz.CGEventCreateMouseEvent(
+                            None, Quartz.kCGEventMouseMoved, (cx, cy), 0))
+                    time.sleep(0.03)
+                    Quartz.CGEventPost(Quartz.kCGHIDEventTap,
+                        Quartz.CGEventCreateMouseEvent(
+                            None, Quartz.kCGEventLeftMouseDown, (cx, cy), 0))
+                    time.sleep(0.03)
+                    Quartz.CGEventPost(Quartz.kCGHIDEventTap,
+                        Quartz.CGEventCreateMouseEvent(
+                            None, Quartz.kCGEventLeftMouseUp, (cx, cy), 0))
+                except Exception:
+                    pass
+
+                self._run_count += 1
+                self.win.after(0, self._update_run_count)
+
+                waited = 0
+                while waited < 10 and not self._run_stop:
+                    time.sleep(0.1)
+                    waited += 0.1
+
+            except Exception:
+                time.sleep(1)
+
     def destroy(self):
+        self._stop_run_loop()
+        if self._run_btn_win:
+            try:
+                self._run_btn_win.destroy()
+            except Exception:
+                pass
+            self._run_btn_win = None
+            self._run_btn_label = None
         if self._close_win:
             try:
                 self._close_win.destroy()
@@ -522,6 +646,7 @@ class RegionOverlay:
         self.cfg["y"] = ny
         self.win.geometry(f"+{nx}+{ny}")
         self._position_close_button()
+        self._position_start_button()
 
     def _stop_move(self, event):
         if self._mode in ("move", "resize"):
@@ -552,6 +677,7 @@ class RegionOverlay:
                               self.cfg.get("label", "?"))
         self._bind_edit()
         self._position_close_button()
+        self._position_start_button()
 
 
 class RegionManager:
