@@ -1297,6 +1297,10 @@
       font-style: italic;
     }
 
+    .copy-url-btn:hover {
+      opacity: 1 !important;
+    }
+
     .record-detail {
       background: var(--row-hover);
       padding: 16px 20px;
@@ -3333,34 +3337,34 @@
           <div class="panel" id="panel-records">
             <div class="filter-bar">
               <div class="filter-group">
-                <label class="filter-label">Product</label>
+                <label class="filter-label">产品</label>
                 <select id="filterRecordProduct" onchange="loadRecords()" class="filter-select">
-                  <option value="">All Products</option>
+                  <option value="">全部产品</option>
                 </select>
               </div>
               <div class="filter-group">
-                <label class="filter-label">Status</label>
+                <label class="filter-label">状态</label>
                 <div class="filter-segmented">
-                  <button class="filter-seg-btn active" data-value="all" onclick="setStatusFilter('all', this)">All</button>
-                  <button class="filter-seg-btn" data-value="success" onclick="setStatusFilter('success', this)">Success</button>
-                  <button class="filter-seg-btn" data-value="failure" onclick="setStatusFilter('failure', this)">Failed</button>
+                  <button class="filter-seg-btn active" data-value="all" onclick="setStatusFilter('all', this)">全部</button>
+                  <button class="filter-seg-btn" data-value="success" onclick="setStatusFilter('success', this)">成功</button>
+                  <button class="filter-seg-btn" data-value="failure" onclick="setStatusFilter('failure', this)">失败</button>
                 </div>
               </div>
               <div class="filter-group">
-                <label class="filter-label">Device ID</label>
-                <input type="text" id="filterRecordDeviceId" class="filter-input" placeholder="e.g. Aa09" maxlength="32" onkeydown="if(event.key==='Enter')loadRecords()">
+                <label class="filter-label">设备ID</label>
+                <input type="text" id="filterRecordDeviceId" class="filter-input" placeholder="例如 Aa09" maxlength="32" onkeydown="if(event.key==='Enter')loadRecords()">
               </div>
               <div class="filter-group">
-                <label class="filter-label">IP Address</label>
-                <input type="text" id="filterRecordIp" class="filter-input" placeholder="e.g. 192.168" maxlength="24" onkeydown="if(event.key==='Enter')loadRecords()">
+                <label class="filter-label">IP 地址</label>
+                <input type="text" id="filterRecordIp" class="filter-input" placeholder="例如 192.168" maxlength="24" onkeydown="if(event.key==='Enter')loadRecords()">
               </div>
               <div class="filter-group">
-                <label class="filter-label">Redeem Code</label>
-                <input type="text" id="filterRecordRedeemCode" class="filter-input" placeholder="e.g. 1BZR" maxlength="16" onkeydown="if(event.key==='Enter')loadRecords()">
+                <label class="filter-label">兑换码</label>
+                <input type="text" id="filterRecordRedeemCode" class="filter-input" placeholder="例如 1BZR" maxlength="16" onkeydown="if(event.key==='Enter')loadRecords()">
               </div>
               <div class="filter-actions">
-                <button class="btn btn-outline" onclick="clearRecordFilter()" style="height:40px;padding:0 16px">Clear</button>
-                <button class="btn btn-primary" onclick="loadRecords()" style="height:40px;padding:0 16px">Search</button>
+                <button class="btn btn-outline" onclick="clearRecordFilter()" style="height:40px;padding:0 16px">清除</button>
+                <button class="btn btn-primary" onclick="loadRecords()" style="height:40px;padding:0 16px">搜索</button>
               </div>
             </div>
             <div id="recordFilterHint" style="display:none;margin-bottom:8px;font-size:0.85rem;color:#667eea"></div>
@@ -5291,7 +5295,7 @@
 
     function renderRecordsTable(allRecords, highlightRc, highlightAc, rc) {
       allRecords = allRecords || [];
-      var tableHtml = '<table><thead><tr><th>Status</th><th>Activation Code</th><th>Redeem Code</th><th style="max-width:80px">Device ID</th><th>Product</th><th>Duration</th><th>Activated At</th><th>Expires At</th><th style="width:60px">Detail</th><th style="width:60px">Actions</th></tr></thead><tbody>';
+      var tableHtml = '<table><thead><tr><th>状态</th><th>激活码</th><th>兑换码</th><th style="max-width:80px">设备ID</th><th>产品</th><th>版本号</th><th>手环型号</th><th>激活时间</th><th>到期时间</th><th style="width:60px">操作</th></tr></thead><tbody>';
       if (allRecords.length === 0) {
         var emptyReason = rc
           ? 'No records found for redeem code "' + rc + '".'
@@ -5302,12 +5306,11 @@
           var isFailure = r.status === 'failure';
           var durationMonths = Number(r.duration_months);
           var isPermanent = durationMonths === 99;
-          var durationText = isPermanent ? 'Permanent' : (durationMonths > 0 ? durationMonths + ' months' : '-');
           var expiresText;
           if (isFailure) {
             expiresText = '<span class="badge" style="background:#f5f5f5;color:#999">-</span>';
           } else if (isPermanent) {
-            expiresText = '<span class="badge badge-info">Permanent</span>';
+            expiresText = '<span class="badge badge-info">永久</span>';
           } else if (r.expires_at && Number(r.expires_at) > 0) {
             expiresText = new Date(Number(r.expires_at)).toLocaleDateString('zh-CN');
           } else {
@@ -5344,10 +5347,17 @@
           }
           var statusBadge;
           if (isFailure) {
-            statusBadge = '<span class="badge" style="background:#fff3cd;color:#856404;border:1px solid #ffc107">Failed</span>';
+            statusBadge = '<span class="badge" style="background:#fff3cd;color:#856404;border:1px solid #ffc107">失败</span>';
           } else {
-            statusBadge = '<span class="badge badge-success">OK</span>';
+            statusBadge = '<span class="badge badge-success">成功</span>';
           }
+
+          var di = r.device_info || {};
+          var versionCell = di.osVersionCode || di.platformVersionCode || '';
+          if (!versionCell) versionCell = '<span style="color:#aaa">-</span>';
+          var modelCell = di.model || di.product || '';
+          if (!modelCell) modelCell = '<span style="color:#aaa">-</span>';
+
           tableHtml += '<tr class="' + hl.trim() + '">';
           tableHtml += '<td>' + statusBadge + '</td>';
           var ac = r.activation_code || '';
@@ -5361,13 +5371,13 @@
           tableHtml += '<td>' + rcCell + '</td>';
           tableHtml += '<td>' + deviceCell + '</td>';
           tableHtml += '<td>' + escapeHtml(r.product_id || '') + '</td>';
-          tableHtml += '<td>' + durationText + '</td>';
+          tableHtml += '<td style="font-size:0.78rem">' + versionCell + '</td>';
+          tableHtml += '<td style="font-size:0.78rem">' + modelCell + '</td>';
           tableHtml += '<td>' + new Date(Number(r.generated_at) || 0).toLocaleString('zh-CN') + '</td>';
           tableHtml += '<td>' + expiresText + '</td>';
-          tableHtml += '<td><button class="detail-toggle-btn" onclick="toggleRecordDetail(event, this)" data-idx="' + idx + '">Show</button></td>';
           var actionCell = '';
           if (!isFailure && rawDeviceId) {
-            actionCell = '<button class="btn btn-sm" onclick="unbindActivation(\'' + escapeJs(r.activation_code || '') + '\', \'' + escapeJs(rawDeviceId) + '\', \'' + escapeJs(r.redeem_code || '') + '\')" style="font-size:0.72rem;padding:1px 6px;background:#fff5f5;color:#dc2626;border:1px solid #fecaca">Unbind</button>';
+            actionCell = '<button class="btn btn-sm" onclick="unbindActivation(\'' + escapeJs(r.activation_code || '') + '\', \'' + escapeJs(rawDeviceId) + '\', \'' + escapeJs(r.redeem_code || '') + '\')" style="font-size:0.72rem;padding:1px 6px;background:#fff5f5;color:#dc2626;border:1px solid #fecaca">解绑</button>';
           } else {
             actionCell = '<span style="color:#aaa;font-size:0.72rem">-</span>';
           }
@@ -8449,6 +8459,26 @@
       }
     }
 
+    function copyPageUrl(url) {
+      var text = url.startsWith('/') ? 'https://app-auth.gudq.com' + url : url;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(function() {
+          showToast('URL 已复制', 'success');
+        }).catch(function() {
+          showToast('复制失败', 'error');
+        });
+      } else {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); showToast('URL 已复制', 'success'); } catch (_) { showToast('复制失败', 'error'); }
+        document.body.removeChild(ta);
+      }
+    }
+
     function daCopyAllCodes() {
       var codes = daResults.map(function(r) { return r.activationCode; }).join('\n');
       if (!codes) { showToast('No results to copy', 'error'); return; }
@@ -8861,7 +8891,11 @@
                 var vidx = 'visitorDetail' + idx;
                 rowsHtml += '<tr class="visitor-row" onclick="toggleVisitorDetail(event, this)" data-vidx="' + vidx + '">' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-family:monospace;color:#6366f1;font-size:0.75rem">' + escapeHtml(v.hash || '-') + '</td>' +
-                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(v.path || '/') + '</td>' +
+                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(v.path || '/') + '">' +
+                  '<span style="display:inline-flex;align-items:center;gap:4px;max-width:100%">' +
+                  '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;max-width:110px">' + escapeHtml(v.path || '/') + '</span>' +
+                  '<span class="copy-url-btn" onclick="event.stopPropagation();copyPageUrl(\'' + escapeJs(v.path || '/') + '\')" title="复制 URL" style="cursor:pointer;flex-shrink:0;font-size:0.7rem;opacity:0.4;transition:opacity 0.15s">📋</span>' +
+                  '</span></td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:0.75rem">' + t + '</td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-size:0.75rem">' + escapeHtml(locStr) + ispHint + '</td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:0.72rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(v.ua || '') + '">' + escapeHtml(uaShort) + '</td>' +
