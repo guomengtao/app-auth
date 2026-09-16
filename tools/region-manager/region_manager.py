@@ -85,6 +85,14 @@ def _find_tk_python():
     _log("_find_tk_python: no Python with tkinter found, falling back to sys.executable")
     return sys.executable
 
+if not TK_AVAILABLE:
+    _tk_py = _find_tk_python()
+    if _tk_py != sys.executable and os.path.exists(_tk_py):
+        _log(f"re-executing with tkinter-capable Python: {_tk_py}")
+        os.execv(_tk_py, [_tk_py] + sys.argv)
+    else:
+        _log("tkinter not available, continuing without overlay windows")
+
 REGION_COLORS = ["#FF4444", "#4488FF", "#44CC44", "#FF8800", "#AA44FF", "#888888"]
 COLOR_NAMES = ["红色", "蓝色", "绿色", "橙色", "紫色", "灰色"]
 
@@ -683,9 +691,6 @@ class RegionManagerApp(rumps.App):
         self.menu.add(rumps.MenuItem("🚪 退出", callback=self._cb_quit_app))
 
     def _cb_new_region(self, _):
-        if not TK_AVAILABLE:
-            show_notification("错误", "tkinter 不可用")
-            return
         x, y = get_mouse_position()
         label = show_text_input_sync("新建区域", f"位置: ({x}, {y})",
                                      f"区域{len(load_regions())+1}")
@@ -693,9 +698,6 @@ class RegionManagerApp(rumps.App):
             self._op_queue.put((self.PENDING_ADD_SIMPLE, (x, y, 120, 40, label)))
 
     def _cb_drag_create(self, _):
-        if not TK_AVAILABLE:
-            show_notification("Error", "tkinter not available")
-            return
         if not self._ensure_editor_script_exists():
             return
         if self._drag_pending:
