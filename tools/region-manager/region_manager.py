@@ -1,5 +1,5 @@
-"""Screen Region Manager v1.2.0 - Multi-monitor wireframe overlay tool with Chinese menu"""
-VERSION = "v1.2.0"
+"""Screen Region Manager v1.3.0 - Draggable overlay windows with edit mode support"""
+VERSION = "v1.3.0"
 
 import atexit
 import json
@@ -351,6 +351,13 @@ class RegionOverlay:
         self.canvas.pack(fill="both", expand=True)
 
         self._draw_everything(w, h, color, label)
+        self._start_x = 0
+        self._start_y = 0
+        self._orig_x = 0
+        self._orig_y = 0
+        self._orig_w = 0
+        self._orig_h = 0
+        self._mode = None
 
     def _draw_everything(self, w, h, color, label):
         self.canvas.delete("all")
@@ -403,10 +410,112 @@ class RegionOverlay:
                               self.cfg.get("color", "#FF4444"), self.cfg.get("label", "?"))
         self.win.lift()
 
+    def _bind_edit(self):
+        self._unbind_edit()
+        self.canvas.bind("<ButtonPress-1>", self._start_move)
+        self.canvas.bind("<B1-Motion>", self._do_move)
+        self.canvas.bind("<ButtonRelease-1>", self._stop_move)
+
+        self.canvas.tag_bind("resize_handle", "<ButtonPress-1>", self._start_resize)
+        self.canvas.tag_bind("resize_handle", "<B1-Motion>", self._do_resize)
+        self.canvas.tag_bind("resize_handle", "<ButtonRelease-1>", self._stop_move)
+
+        tag_height = 24
+        tag_width = max(len(self.cfg.get("label", "?")) * 12 + 50, 80)
+        self.canvas.tag_unbind("label_bg", "<ButtonPress-1>")
+        self.canvas.tag_unbind("label_text", "<ButtonPress-1>")
+        self.canvas.tag_bind("label_bg", "<Double-Button-1>",
+                             lambda e: self._open_detail())
+        self.canvas.tag_bind("label_text", "<Double-Button-1>",
+                             lambda e: self._open_detail())
+
+    def _unbind_edit(self):
+        self.canvas.unbind("<ButtonPress-1>")
+        self.canvas.unbind("<B1-Motion>")
+        self.canvas.unbind("<ButtonRelease-1>")
+        self.canvas.tag_unbind("resize_handle", "<ButtonPress-1>")
+        self.canvas.tag_unbind("resize_handle", "<B1-Motion>")
+        self.canvas.tag_unbind("resize_handle", "<ButtonRelease-1>")
+        self.canvas.tag_unbind("label_bg", "<Double-Button-1>")
+        self.canvas.tag_unbind("label_text", "<Double-Button-1>")
+
+    def _open_detail(self):
+        if self.on_delete:
+            pass
+
+    def _save_cfg(self):
+        regions = load_regions()
+        for r in regions:
+            if r["id"] == self.cfg["id"]:
+                r["x"] = self.cfg["x"]
+                r["y"] = self.cfg["y"]
+                r["width"] = self.cfg["width"]
+                r["height"] = self.cfg["height"]
+                break
+        save_regions(regions)
+
+    def _start_move(self, event):
+        if self._mode is not None:
+            return
+        self._mode = "move"
+        self._start_x = event.x_root
+        self._start_y = event.y_root
+        self._orig_x = self.cfg["x"]
+        self._orig_y = self.cfg["y"]
+
+    def _do_move(self, event):
+        if self._mode != "move":
+            return
+        dx = event.x_root - self._start_x
+        dy = event.y_root - self._start_y
+        nx = self._orig_x + dx
+        ny = self._orig_y + dy
+        self.cfg["x"] = nx
+        self.cfg["y"] = ny
+        self.win.geometry(f"+{nx}+{ny}")
+
+    def _stop_move(self, event):
+        if self._mode in ("move", "resize"):
+            self._save_cfg()
+        self._mode = None
+
+    def _start_resize(self, event):
+        self._mode = "resize"
+        self._start_x = event.x_root
+        self._start_y = event.y_root
+        self._orig_x = self.cfg["x"]
+        self._orig_y = self.cfg["y"]
+        self._orig_w = self.cfg["width"]
+        self._orig_h = self.cfg["height"]
+
+    def _do_resize(self, event):
+        if self._mode != "resize":
+            return
+        dx = event.x_root - self._start_x
+        dy = event.y_root - self._start_y
+        nw = max(REGION_MIN_WIDTH, self._orig_w + dx)
+        nh = max(REGION_MIN_HEIGHT, self._orig_h + dy)
+        self.cfg["width"] = nw
+        self.cfg["height"] = nh
+        self.win.geometry(f"{nw}x{nh}")
+        self._draw_everything(nw, nh,
+                              self.cfg.get("color", "#FF4444"),
+                              self.cfg.get("label", "?"))
+        self._bind_edit()
+
 
 class RegionManager:
     def __init__(self):
         self.overlays = {}
+        self._edit_mode = False
+
+    def set_edit_mode(self, flag):
+        self._edit_mode = flag
+        for o in self.overlays.values():
+            if flag:
+                o._bind_edit()
+            else:
+                o._unbind_edit()
 
     def _renumber_all(self):
         sorted_ids = sorted(self.overlays.keys(),
@@ -424,6 +533,8 @@ class RegionManager:
                 try:
                     overlay = RegionOverlay(r, idx)
                     self.overlays[r["id"]] = overlay
+                    if self._edit_mode:
+                        overlay._bind_edit()
                     idx += 1
                 except RuntimeError:
                     pass
@@ -434,6 +545,8 @@ class RegionManager:
         try:
             overlay = RegionOverlay(region, idx)
             self.overlays[region["id"]] = overlay
+            if self._edit_mode:
+                overlay._bind_edit()
         except RuntimeError:
             pass
         return region
@@ -677,6 +790,7 @@ class RegionManagerApp(rumps.App):
 
         edit_label = "🔧 编辑模式: 开" if self._edit_mode else "🔧 编辑模式: 关"
         self.menu.add(rumps.MenuItem(edit_label, callback=self._cb_toggle_edit_mode))
+        self.menu.add(rumps.MenuItem("🔬 高级编辑器", callback=self._cb_launch_editor))
         self.menu.add(rumps.MenuItem("👁️ 显示全部区域", callback=self._cb_show_all))
         self.menu.add(rumps.MenuItem("🙈 隐藏全部区域", callback=self._cb_hide_all))
         self.menu.add(rumps.MenuItem("💣 删除全部区域", callback=self._cb_delete_all))
@@ -850,6 +964,18 @@ class RegionManagerApp(rumps.App):
         self._rm.set_edit_mode(self._edit_mode)
         self._build_menu()
         show_notification("区域管理器", f"编辑模式: {'开启' if self._edit_mode else '关闭'}")
+
+    def _cb_launch_editor(self, _):
+        if not self._ensure_editor_script_exists():
+            return
+        py_exe = _find_tk_python()
+        show_notification("区域管理器", "启动高级编辑器...")
+        try:
+            subprocess.Popen([py_exe, EDITOR_SCRIPT, "--edit"],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception as e:
+            _log(f"_cb_launch_editor: error: {e}")
+            show_notification("错误", f"无法启动编辑器: {e}")
 
     def _cb_show_all(self, _):
         regions = load_regions()
