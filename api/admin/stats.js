@@ -249,11 +249,38 @@ async function handleVisitorTrend(days) {
 
 async function handleVisitorRecent() {
   var records = await redis.lrange("stats:recent", 0, 49).catch(function () { return []; });
+  var ipLookup = null;
+  try { ipLookup = require("../../lib/ip-lookup"); } catch (e) {}
+
+  var ipSet = {};
+  for (var i = 0; i < records.length; i++) {
+    try {
+      var obj = typeof records[i] === "string" ? JSON.parse(records[i]) : records[i];
+      if (obj.ip && ipLookup && !ipLookup.isPrivateOrInvalid(obj.ip)) {
+        ipSet[obj.ip] = true;
+      }
+    } catch (e) {}
+  }
+
+  var ipDetails = {};
+  if (ipLookup && Object.keys(ipSet).length > 0) {
+    var ips = Object.keys(ipSet);
+    var cacheKeys = ips.map(function(ip) {
+      return "ip:detail:" + ip.replace(/[^a-fA-F0-9:.]/g, "_");
+    });
+    var cachedResults = await redis.mget(cacheKeys).catch(function () { return []; });
+    for (var j = 0; j < ips.length; j++) {
+      if (cachedResults && cachedResults[j]) {
+        try { ipDetails[ips[j]] = JSON.parse(cachedResults[j]); } catch (e) {}
+      }
+    }
+  }
+
   var list = [];
   for (var i = 0; i < records.length; i++) {
     try {
       var obj = typeof records[i] === "string" ? JSON.parse(records[i]) : records[i];
-      list.push({
+      var entry = {
         hash: obj.h || "",
         path: obj.p || "/",
         ua: obj.u || "",
@@ -263,7 +290,18 @@ async function handleVisitorRecent() {
         region: obj.rg || "",
         city: obj.ci || "",
         timezone: obj.tz || "",
-      });
+        ip: obj.ip || "",
+      };
+      var detail = ipDetails[obj.ip];
+      if (detail) {
+        entry.isp = detail.isp || "";
+        entry.org = detail.org || "";
+        entry.asn = detail.asn || "";
+        entry.lat = detail.lat || 0;
+        entry.lon = detail.lon || 0;
+        entry.ipSource = detail.source || "";
+      }
+      list.push(entry);
     } catch (e) {}
   }
   return { success: true, visitors: list };

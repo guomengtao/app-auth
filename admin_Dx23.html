@@ -5742,6 +5742,19 @@
       if (v.ua) html += '<tr><td>User-Agent</td><td style="word-break:break-all;font-size:0.72rem">' + escapeHtml(v.ua) + '</td></tr>';
       html += '</table></div>';
 
+      if (v.ip || v.isp || v.asn) {
+        html += '<div class="detail-section">';
+        html += '<div class="detail-section-title">IP Details</div>';
+        html += '<table class="detail-table">';
+        if (v.ip) html += '<tr><td>IP Address</td><td style="font-family:monospace">' + escapeHtml(v.ip) + '</td></tr>';
+        if (v.isp) html += '<tr><td>ISP</td><td>' + escapeHtml(v.isp) + '</td></tr>';
+        if (v.org && v.org !== v.isp) html += '<tr><td>Organization</td><td>' + escapeHtml(v.org) + '</td></tr>';
+        if (v.asn) html += '<tr><td>ASN</td><td style="font-family:monospace">AS' + escapeHtml(v.asn) + '</td></tr>';
+        if (v.lat && v.lon) html += '<tr><td>Coordinates</td><td>' + Number(v.lat).toFixed(4) + ', ' + Number(v.lon).toFixed(4) + '</td></tr>';
+        if (v.ipSource) html += '<tr><td>Data Source</td><td style="font-size:0.72rem;color:var(--muted)">' + escapeHtml(v.ipSource) + '</td></tr>';
+        html += '</table></div>';
+      }
+
       html += '</div>';
       return html;
     }
@@ -8780,12 +8793,13 @@
                 if (v.city) loc.push(v.city);
                 if (v.region && v.city) loc.push(v.region);
                 var locStr = loc.length ? loc.join(' · ') : '-';
+                var ispHint = v.isp ? '<div style="font-size:0.62rem;color:#8b5cf6;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px">' + escapeHtml(v.isp) + '</div>' : '';
                 var vidx = 'visitorDetail' + idx;
                 rowsHtml += '<tr class="visitor-row" onclick="toggleVisitorDetail(event, this)" data-vidx="' + vidx + '">' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-family:monospace;color:#6366f1;font-size:0.75rem">' + escapeHtml(v.hash || '-') + '</td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(v.path || '/') + '</td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:0.75rem">' + t + '</td>' +
-                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-size:0.75rem">' + escapeHtml(locStr) + '</td>' +
+                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-size:0.75rem">' + escapeHtml(locStr) + ispHint + '</td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:0.72rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(v.ua || '') + '">' + escapeHtml(uaShort) + '</td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);text-align:center;color:var(--muted);font-size:0.72rem">▼</td>' +
                   '</tr>' +

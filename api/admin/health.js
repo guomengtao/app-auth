@@ -107,6 +107,16 @@ var DEFAULT_TASKS = [
     createdAt: Date.now(),
     updatedAt: Date.now(),
   },
+  {
+    id: "ip-lookup",
+    name: "IP 归属地查询",
+    description: "每分钟查询访客 IP 的 ISP/ASN/经纬度信息（异步不阻塞用户请求）",
+    schedule: "* * * * *",
+    enabled: true,
+    vercelPath: "/api/admin/health?section=ip-lookup&cron=1",
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  },
 ];
 
 async function getTaskConfigs() {
@@ -2113,6 +2123,71 @@ if ((isCron || isCronBackup) && isBackup) {
         success: false,
         error: (e && e.message) || String(e),
       });
+    }
+  }
+
+  if (req.query && req.query.section === "ip-lookup") {
+    var ipLookupStart = Date.now();
+    var isIpLookupCron = req.query.cron === "1";
+    try {
+      var ipLookup = require("../../lib/ip-lookup");
+      var records = await redis.lrange("stats:recent", 0, 49).catch(function () { return []; });
+      var ips = [];
+      var ipSeen = {};
+      for (var i = 0; i < records.length; i++) {
+        try {
+          var obj = typeof records[i] === "string" ? JSON.parse(records[i]) : records[i];
+          if (obj.ip && !ipSeen[obj.ip] && !ipLookup.isPrivateOrInvalid(obj.ip)) {
+            ips.push(obj.ip);
+            ipSeen[obj.ip] = true;
+          }
+        } catch (e) {}
+      }
+
+      var results = [];
+      for (var j = 0; j < ips.length; j++) {
+        try {
+          var detail = await ipLookup.getIpDetail(redis, ips[j]);
+          if (detail) {
+            results.push({ ip: ips[j], detail: detail });
+          }
+        } catch (e) {
+          console.error("[ip-lookup] query failed for", ips[j], e.message);
+        }
+      }
+
+      if (isIpLookupCron) {
+        try {
+          await recordCronRun("ip-lookup", {
+            duration: Date.now() - ipLookupStart,
+            status: "success",
+            summary: "IPs queried: " + results.length + "/" + ips.length + " unique",
+          });
+        } catch (_) {}
+      }
+
+      return res.json({
+        success: true,
+        message: "IP lookup completed",
+        totalIps: ips.length,
+        queried: results.length,
+        duration: Date.now() - ipLookupStart,
+        results: results.map(function(r) {
+          return { ip: r.ip, isp: r.detail.isp, org: r.detail.org, asn: r.detail.asn, source: r.detail.source };
+        }),
+      });
+    } catch (e) {
+      console.error("[ip-lookup] error:", e);
+      if (isIpLookupCron) {
+        try {
+          await recordCronRun("ip-lookup", {
+            duration: Date.now() - ipLookupStart,
+            status: "error",
+            summary: (e && e.message) || String(e),
+          });
+        } catch (_) {}
+      }
+      return res.status(500).json({ success: false, error: (e && e.message) || String(e) });
     }
   }
 

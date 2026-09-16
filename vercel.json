@@ -18,6 +18,10 @@
     {
       "path": "/api/admin/health?section=sync&cron=1",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/admin/health?section=ip-lookup&cron=1",
+      "schedule": "* * * * *"
     }
   ]
 }

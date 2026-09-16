@@ -62,6 +62,7 @@ async function handleVisitorTrack(req, res) {
       u: ua.slice(0, 80),
       r: ref.slice(0, 80),
       t: ts,
+      ip: ip.slice(0, 45),
       c: String(req.headers["x-vercel-ip-country"] || "").slice(0, 8),
       rg: String(req.headers["x-vercel-ip-country-region"] || "").slice(0, 16),
       ci: String(req.headers["x-vercel-ip-city"] || "").slice(0, 40),
