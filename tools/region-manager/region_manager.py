@@ -61,6 +61,24 @@ REGIONS_FILE = os.path.expanduser("~/.screen_regions.json")
 EDITOR_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "region_editor.py")
 REGION_MIN_WIDTH = 30
 REGION_MIN_HEIGHT = 20
+DEBUG_EVENTS = True
+_DEBUG_FILE = None
+
+def _debug_init():
+    global _DEBUG_FILE
+    try:
+        _DEBUG_FILE = open("/tmp/region_click.log", "w")
+    except Exception:
+        pass
+
+def _debug(msg):
+    global _DEBUG_FILE
+    if _DEBUG_FILE is not None:
+        try:
+            _DEBUG_FILE.write(msg + "\n")
+            _DEBUG_FILE.flush()
+        except Exception:
+            pass
 
 def _find_tk_python():
     candidates = [
@@ -342,15 +360,17 @@ class RegionOverlay:
         self.win.attributes("-topmost", True)
         self.win.attributes("-alpha", 0.70)
         self.win.geometry(f"{c['width']}x{c['height']}+{c['x']}+{c['y']}")
-        self.win.configure(bg="systemTransparent")
-        self.win.configure(background="systemTransparent")
+        self.win.configure(bg="white")
+
+        if DEBUG_EVENTS:
+            _debug(f"[CR] #{self.index} created")
 
         color = c.get("color", "#FF4444")
         label = c.get("label", "?")
         w, h = c["width"], c["height"]
 
         self.canvas = tk.Canvas(self.win, width=w, height=h,
-                                bg="systemTransparent", highlightthickness=0)
+                                bg="white", highlightthickness=0)
         self.canvas.pack(fill="both", expand=True)
 
         self._draw_everything(w, h, color, label)
@@ -430,9 +450,12 @@ class RegionOverlay:
         return hex_color
 
     def _bind_always(self):
+        if DEBUG_EVENTS:
+            _debug(f"[BIND] #{self.index}")
         self.canvas.bind("<ButtonPress-1>", self._on_canvas_click)
 
     def _on_canvas_click(self, event):
+        _debug(f"[CLICK] #{self.index} ({event.x},{event.y})")
         w = self.cfg["width"]
         h = self.cfg["height"]
 
@@ -461,6 +484,7 @@ class RegionOverlay:
         return "break"
 
     def _on_close(self, event=None):
+        _debug(f"[CLOSE] #{self.index}")
         self._mode = None
         if self.on_delete:
             self.on_delete(self.cfg["id"])
@@ -468,6 +492,7 @@ class RegionOverlay:
         return "break"
 
     def _toggle_run(self, event=None):
+        _debug(f"[RUN] #{self.index} stop={self._run_stop}")
         if self._run_stop:
             self._start_run_loop()
         else:
@@ -560,6 +585,8 @@ class RegionOverlay:
 
     def _bind_edit(self):
         self._unbind_edit()
+        if DEBUG_EVENTS:
+            _debug(f"[EDIT] #{self.index}")
         self.canvas.bind("<ButtonPress-1>", self._on_canvas_click)
         self.canvas.bind("<B1-Motion>", self._do_move_or_resize)
         self.canvas.bind("<ButtonRelease-1>", self._stop_move)
@@ -607,6 +634,7 @@ class RegionOverlay:
     def _start_move(self, event):
         if self._mode is not None:
             return
+        _debug(f"[MOVE] #{self.index}")
         self._mode = "move"
         self._start_x = event.x_root
         self._start_y = event.y_root
@@ -676,8 +704,10 @@ class RegionManager:
                 self.overlays[rid].update_label(i)
 
     def load_all(self):
+        _debug(f"[LOAD] start")
         self.destroy_all()
         regions = load_regions()
+        _debug(f"[LOAD] {len(regions)} regions")
         idx = 1
         for r in regions:
             if r.get("enabled", True):
@@ -880,6 +910,8 @@ class RegionManagerApp(rumps.App):
     PENDING_SHOW_DIALOG = "show_dialog"
 
     def __init__(self):
+        _debug_init()
+        _debug("[INIT] start")
         super().__init__("屏幕位置", quit_button=None)
         self._rm = RegionManager()
         self._edit_mode = False
