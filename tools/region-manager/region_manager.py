@@ -428,10 +428,35 @@ class RegionOverlay:
         return hex_color
 
     def _bind_always(self):
-        self.canvas.tag_bind("close_btn", "<ButtonPress-1>",
-                             lambda e: self._on_close(e))
-        self.canvas.tag_bind("run_btn", "<ButtonPress-1>",
-                             lambda e: self._toggle_run(e))
+        self.canvas.bind("<ButtonPress-1>", self._on_canvas_click)
+
+    def _on_canvas_click(self, event):
+        w = self.cfg["width"]
+        h = self.cfg["height"]
+
+        close_size = 16
+        if (w - close_size - 2 <= event.x <= w - 2 and
+                2 <= event.y <= close_size + 2):
+            self._on_close()
+            return "break"
+
+        btn_w, btn_h = 56, 20
+        btn_x1 = w // 2 - btn_w // 2
+        btn_y1 = h - btn_h - 2
+        if (btn_x1 <= event.x <= btn_x1 + btn_w and
+                btn_y1 <= event.y <= btn_y1 + btn_h):
+            self._toggle_run()
+            return "break"
+
+        if self.edit_mode:
+            rh_size = 16
+            if (w - rh_size <= event.x <= w and
+                    h - rh_size <= event.y <= h):
+                self._start_resize(event)
+                return "break"
+            self._start_move(event)
+
+        return "break"
 
     def _on_close(self, event=None):
         self._mode = None
@@ -533,13 +558,9 @@ class RegionOverlay:
 
     def _bind_edit(self):
         self._unbind_edit()
-        self.canvas.bind("<ButtonPress-1>", self._start_move)
-        self.canvas.bind("<B1-Motion>", self._do_move)
+        self.canvas.bind("<ButtonPress-1>", self._on_canvas_click)
+        self.canvas.bind("<B1-Motion>", self._do_move_or_resize)
         self.canvas.bind("<ButtonRelease-1>", self._stop_move)
-
-        self.canvas.tag_bind("resize_handle", "<ButtonPress-1>", self._start_resize)
-        self.canvas.tag_bind("resize_handle", "<B1-Motion>", self._do_resize)
-        self.canvas.tag_bind("resize_handle", "<ButtonRelease-1>", self._stop_move)
 
         tag_height = 24
         tag_width = max(len(self.cfg.get("label", "?")) * 12 + 50, 80)
@@ -549,6 +570,12 @@ class RegionOverlay:
                              lambda e: self._open_detail())
         self.canvas.tag_bind("label_text", "<Double-Button-1>",
                              lambda e: self._open_detail())
+
+    def _do_move_or_resize(self, event):
+        if self._mode == "move":
+            self._do_move(event)
+        elif self._mode == "resize":
+            self._do_resize(event)
 
     def _unbind_edit(self):
         self.canvas.unbind("<ButtonPress-1>")
@@ -637,6 +664,7 @@ class RegionManager:
                 o._bind_edit()
             else:
                 o._unbind_edit()
+                o._bind_always()
 
     def _renumber_all(self):
         sorted_ids = sorted(self.overlays.keys(),
