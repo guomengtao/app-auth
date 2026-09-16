@@ -5688,7 +5688,44 @@
       html += '<div class="detail-section">';
       html += '<div class="detail-section-title">Page Info</div>';
       html += '<table class="detail-table">';
-      html += '<tr><td>Full Path</td><td style="word-break:break-all">' + escapeHtml(v.path || '/') + '</td></tr>';
+
+      var path = v.path || '/';
+      var pageName = path;
+      var queryStr = '';
+      var qIdx = path.indexOf('?');
+      if (qIdx >= 0) {
+        pageName = path.substring(0, qIdx);
+        queryStr = path.substring(qIdx + 1);
+      }
+
+      html += '<tr><td>Page</td><td>' + escapeHtml(pageName) + '</td></tr>';
+
+      if (queryStr) {
+        var params = queryStr.split('&');
+        var paramLabels = {
+          deviceId: 'Device ID',
+          m: 'Manufacturer',
+          p: 'Product',
+          o: 'OEM Code',
+          v: 'Version',
+          t: 'Device Type',
+          s: 'Screen Shape',
+          w: 'Width',
+          h: 'Height',
+          a: 'API Level',
+          l: 'Language',
+          r: 'Redirect',
+          tab: 'Tab',
+        };
+        for (var i = 0; i < params.length; i++) {
+          var pair = params[i].split('=');
+          var key = pair[0];
+          var val = pair.length > 1 ? decodeURIComponent(pair.slice(1).join('=').replace(/\+/g, ' ')) : '';
+          var label = paramLabels[key] || key;
+          html += '<tr><td>' + escapeHtml(label) + '</td><td style="word-break:break-all">' + escapeHtml(val) + '</td></tr>';
+        }
+      }
+
       if (v.ref) html += '<tr><td>Referrer</td><td style="word-break:break-all">' + escapeHtml(v.ref) + '</td></tr>';
       html += '</table></div>';
 
