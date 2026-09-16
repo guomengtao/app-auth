@@ -20,8 +20,8 @@
       "schedule": "0 5 * * *"
     },
     {
-      "path": "/api/admin/health?section=ip-lookup&cron=1",
-      "schedule": "* * * * *"
-    }
+    "path": "/api/admin/health?section=ip-lookup&cron=1",
+    "schedule": "0 2 * * *"
+  }
   ]
 }

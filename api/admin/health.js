@@ -110,8 +110,8 @@ var DEFAULT_TASKS = [
   {
     id: "ip-lookup",
     name: "IP 归属地查询",
-    description: "每分钟查询访客 IP 的 ISP/ASN/经纬度信息（异步不阻塞用户请求）",
-    schedule: "* * * * *",
+    description: "每天凌晨2点查询访客 IP 的 ISP/ASN/经纬度（Hobby 计划每日限1次 Cron）",
+    schedule: "0 2 * * *",
     enabled: true,
     vercelPath: "/api/admin/health?section=ip-lookup&cron=1",
     createdAt: Date.now(),
