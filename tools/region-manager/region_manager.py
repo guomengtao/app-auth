@@ -1,5 +1,5 @@
 """Screen Region Manager v1.3.0 - Draggable overlay windows with edit mode support"""
-VERSION = "v1.3.0"
+VERSION = "v1.4.0"
 
 import atexit
 import json
@@ -329,6 +329,7 @@ class RegionOverlay:
         self.on_delete = on_delete
         self.win = None
         self.canvas = None
+        self._close_win = None
         self._create_window()
 
     def _create_window(self):
@@ -339,18 +340,20 @@ class RegionOverlay:
         self.win.attributes("-topmost", True)
         self.win.attributes("-alpha", 0.70)
         self.win.geometry(f"{c['width']}x{c['height']}+{c['x']}+{c['y']}")
-        self.win.configure(bg="systemTransparent")
-        self.win.configure(background="systemTransparent")
+        self.win.configure(bg="white")
+        self.win.configure(background="white")
+        self.win.wm_attributes("-transparent", "white")
 
         color = c.get("color", "#FF4444")
         label = c.get("label", "?")
         w, h = c["width"], c["height"]
 
         self.canvas = tk.Canvas(self.win, width=w, height=h,
-                                bg="systemTransparent", highlightthickness=0)
+                                bg="white", highlightthickness=0)
         self.canvas.pack(fill="both", expand=True)
 
         self._draw_everything(w, h, color, label)
+        self._create_close_button()
         self._start_x = 0
         self._start_y = 0
         self._orig_x = 0
@@ -396,7 +399,52 @@ class RegionOverlay:
             return f"#{r2:02x}{g2:02x}{b2:02x}"
         return hex_color
 
+    def _create_close_button(self):
+        c = self.cfg
+        close_size = 20
+        self._close_win = tk.Toplevel(self.win)
+        self._close_win.overrideredirect(True)
+        self._close_win.attributes("-topmost", True)
+        cx = c["x"] + c["width"] - close_size - 2
+        cy = c["y"] - close_size + 4
+        self._close_win.geometry(f"{close_size}x{close_size}+{cx}+{cy}")
+        self._close_win.configure(bg="#CC0000")
+
+        btn = tk.Label(self._close_win, text="X",
+                       bg="#CC0000", fg="#FFFFFF",
+                       font=("Helvetica", 11, "bold"),
+                       cursor="hand2")
+        btn.pack(fill="both", expand=True)
+        btn.bind("<Button-1>", self._on_close)
+        btn.bind("<Enter>", lambda e: btn.configure(bg="#FF0000"))
+        btn.bind("<Leave>", lambda e: btn.configure(bg="#CC0000"))
+
+    def _on_close(self, event=None):
+        self._mode = None
+        if self.on_delete:
+            self.on_delete(self.cfg["id"])
+        self.destroy()
+        return "break"
+
+    def _position_close_button(self):
+        if self._close_win is None:
+            return
+        c = self.cfg
+        close_size = 20
+        cx = c["x"] + c["width"] - close_size - 2
+        cy = c["y"] - close_size + 4
+        try:
+            self._close_win.geometry(f"{close_size}x{close_size}+{cx}+{cy}")
+        except Exception:
+            pass
+
     def destroy(self):
+        if self._close_win:
+            try:
+                self._close_win.destroy()
+            except Exception:
+                pass
+            self._close_win = None
         if self.win:
             try:
                 self.win.destroy()
@@ -473,6 +521,7 @@ class RegionOverlay:
         self.cfg["x"] = nx
         self.cfg["y"] = ny
         self.win.geometry(f"+{nx}+{ny}")
+        self._position_close_button()
 
     def _stop_move(self, event):
         if self._mode in ("move", "resize"):
@@ -502,6 +551,7 @@ class RegionOverlay:
                               self.cfg.get("color", "#FF4444"),
                               self.cfg.get("label", "?"))
         self._bind_edit()
+        self._position_close_button()
 
 
 class RegionManager:
