@@ -329,12 +329,9 @@ class RegionOverlay:
         self.on_delete = on_delete
         self.win = None
         self.canvas = None
-        self._close_win = None
         self._run_count = 0
         self._run_thread = None
         self._run_stop = True
-        self._btn_y1 = 0
-        self._btn_y2 = 0
         self._create_window()
 
     def _create_window(self):
@@ -356,7 +353,6 @@ class RegionOverlay:
         self.canvas.pack(fill="both", expand=True)
 
         self._draw_everything(w, h, color, label)
-        self._create_close_button()
         self._start_x = 0
         self._start_y = 0
         self._orig_x = 0
@@ -391,6 +387,17 @@ class RegionOverlay:
         self.canvas.create_text(w // 2, h - 26, text=f"[{action_name}]",
                                 fill=color, font=("PingFang SC", 8, "bold"), tags="action_label")
 
+        close_size = 16
+        cx1, cy1 = w - close_size - 2, 2
+        cx2, cy2 = w - 2, close_size + 2
+        self.canvas.create_rectangle(cx1, cy1, cx2, cy2,
+                                     fill="#CC0000", outline="",
+                                     tags=("close_btn",))
+        self.canvas.create_text((cx1 + cx2) // 2, (cy1 + cy2) // 2,
+                                text="X", fill="#FFFFFF",
+                                font=("Helvetica", 10, "bold"),
+                                tags=("close_btn",))
+
         btn_w, btn_h = 56, 20
         btn_x1 = w // 2 - btn_w // 2
         btn_y1 = h - btn_h - 2
@@ -407,6 +414,7 @@ class RegionOverlay:
                                 text=btn_text, fill="#FFFFFF",
                                 font=("Helvetica", 9, "bold"),
                                 tags=("run_btn", "run_btn_text"))
+        self._bind_always()
 
     @staticmethod
     def _hex_fade(hex_color, alpha):
@@ -419,25 +427,11 @@ class RegionOverlay:
             return f"#{r2:02x}{g2:02x}{b2:02x}"
         return hex_color
 
-    def _create_close_button(self):
-        c = self.cfg
-        close_size = 20
-        self._close_win = tk.Toplevel(self.win)
-        self._close_win.overrideredirect(True)
-        self._close_win.attributes("-topmost", True)
-        cx = c["x"] + c["width"] - close_size - 2
-        cy = c["y"] - close_size + 4
-        self._close_win.geometry(f"{close_size}x{close_size}+{cx}+{cy}")
-        self._close_win.configure(bg="#CC0000")
-
-        btn = tk.Label(self._close_win, text="X",
-                       bg="#CC0000", fg="#FFFFFF",
-                       font=("Helvetica", 11, "bold"),
-                       cursor="hand2")
-        btn.pack(fill="both", expand=True)
-        btn.bind("<Button-1>", self._on_close)
-        btn.bind("<Enter>", lambda e: btn.configure(bg="#FF0000"))
-        btn.bind("<Leave>", lambda e: btn.configure(bg="#CC0000"))
+    def _bind_always(self):
+        self.canvas.tag_bind("close_btn", "<ButtonPress-1>",
+                             lambda e: self._on_close(e))
+        self.canvas.tag_bind("run_btn", "<ButtonPress-1>",
+                             lambda e: self._toggle_run(e))
 
     def _on_close(self, event=None):
         self._mode = None
@@ -445,18 +439,6 @@ class RegionOverlay:
             self.on_delete(self.cfg["id"])
         self.destroy()
         return "break"
-
-    def _position_close_button(self):
-        if self._close_win is None:
-            return
-        c = self.cfg
-        close_size = 20
-        cx = c["x"] + c["width"] - close_size - 2
-        cy = c["y"] - close_size + 4
-        try:
-            self._close_win.geometry(f"{close_size}x{close_size}+{cx}+{cy}")
-        except Exception:
-            pass
 
     def _toggle_run(self, event=None):
         if self._run_stop:
@@ -536,12 +518,6 @@ class RegionOverlay:
 
     def destroy(self):
         self._stop_run_loop()
-        if self._close_win:
-            try:
-                self._close_win.destroy()
-            except Exception:
-                pass
-            self._close_win = None
         if self.win:
             try:
                 self.win.destroy()
@@ -573,8 +549,6 @@ class RegionOverlay:
                              lambda e: self._open_detail())
         self.canvas.tag_bind("label_text", "<Double-Button-1>",
                              lambda e: self._open_detail())
-        self.canvas.tag_bind("run_btn", "<ButtonPress-1>",
-                             lambda e: self._toggle_run(e))
 
     def _unbind_edit(self):
         self.canvas.unbind("<ButtonPress-1>")
@@ -585,7 +559,6 @@ class RegionOverlay:
         self.canvas.tag_unbind("resize_handle", "<ButtonRelease-1>")
         self.canvas.tag_unbind("label_bg", "<Double-Button-1>")
         self.canvas.tag_unbind("label_text", "<Double-Button-1>")
-        self.canvas.tag_unbind("run_btn", "<ButtonPress-1>")
 
     def _open_detail(self):
         if self.on_delete:
@@ -621,7 +594,6 @@ class RegionOverlay:
         self.cfg["x"] = nx
         self.cfg["y"] = ny
         self.win.geometry(f"+{nx}+{ny}")
-        self._position_close_button()
 
     def _stop_move(self, event):
         if self._mode in ("move", "resize"):
@@ -651,7 +623,6 @@ class RegionOverlay:
                               self.cfg.get("color", "#FF4444"),
                               self.cfg.get("label", "?"))
         self._bind_edit()
-        self._position_close_button()
 
 
 class RegionManager:
