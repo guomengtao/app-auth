@@ -247,6 +247,68 @@ async function handleVisitorTrend(days) {
   };
 }
 
+async function handleIpCompare() {
+  var records = await redis.lrange("stats:recent", 0, 49).catch(function () { return []; });
+  var ipLookup = null;
+  try { ipLookup = require("../../lib/ip-lookup"); } catch (e) {}
+
+  var ipMap = {};
+  for (var i = 0; i < records.length; i++) {
+    try {
+      var obj = typeof records[i] === "string" ? JSON.parse(records[i]) : records[i];
+      if (obj.ip && !ipMap[obj.ip] && !(ipLookup && ipLookup.isPrivateOrInvalid(obj.ip))) {
+        ipMap[obj.ip] = {
+          ip: obj.ip,
+          firstSeen: obj.t || 0,
+          page: obj.p || "/",
+          country: obj.c || "",
+          city: obj.ci || "",
+        };
+      }
+    } catch (e) {}
+  }
+
+  var ips = Object.keys(ipMap);
+  var list = [];
+
+  for (var j = 0; j < ips.length; j++) {
+    var ip = ips[j];
+    var entry = Object.assign({}, ipMap[ip]);
+
+    if (ipLookup) {
+      var individual = await ipLookup.getIpIndividualResults(redis, ip);
+      entry.results = individual.map(function(r) {
+        return {
+          source: r.source || "unknown",
+          country: r.country || "",
+          region: r.region || "",
+          city: r.city || "",
+          isp: r.isp || "",
+          org: r.org || "",
+          asn: r.asn || "",
+          lat: r.lat || 0,
+          lon: r.lon || 0,
+        };
+      });
+      if (entry.results.length === 0) {
+        entry.results = [{ source: "no-data", country: "-", region: "-", city: "-", isp: "-" }];
+      }
+    } else {
+      entry.results = [{ source: "no-data", country: "-", region: "-", city: "-", isp: "-" }];
+    }
+
+    list.push(entry);
+  }
+
+  list.sort(function(a, b) { return b.firstSeen - a.firstSeen; });
+
+  return {
+    success: true,
+    ips: list,
+    sources: ipLookup ? ipLookup.IP_APIS.map(function(a) { return a.name; }) : [],
+  };
+}
+
 async function handleVisitorRecent() {
   var records = await redis.lrange("stats:recent", 0, 49).catch(function () { return []; });
   var ipLookup = null;
@@ -331,6 +393,9 @@ module.exports = async (req, res) => {
     }
     if (section === "visitor-recent") {
       return res.json(await handleVisitorRecent());
+    }
+    if (section === "ip-compare") {
+      return res.json(await handleIpCompare());
     }
 
     if (section === "trends") {

@@ -1241,6 +1241,62 @@
       background: rgba(99,102,241,0.06);
     }
 
+    .visitor-sub-tab {
+      padding: 6px 14px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 0.78rem;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all 0.15s;
+      font-weight: 500;
+    }
+    .visitor-sub-tab.active {
+      background: var(--card);
+      color: var(--ink);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      font-weight: 600;
+    }
+    .visitor-sub-tab:hover:not(.active) {
+      color: var(--ink);
+    }
+
+    .ip-compare-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.75rem;
+    }
+    .ip-compare-table th {
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 2px solid var(--line);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      white-space: nowrap;
+    }
+    .ip-compare-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+    .ip-compare-table tr:hover td {
+      background: var(--row-hover);
+    }
+    .ip-col-source {
+      font-weight: 600;
+      color: #6366f1;
+      font-size: 0.72rem;
+      white-space: nowrap;
+    }
+    .ip-col-empty {
+      color: var(--muted);
+      font-style: italic;
+    }
+
     .record-detail {
       background: var(--row-hover);
       padding: 16px 20px;
@@ -3483,6 +3539,10 @@
           <div class="panel" id="panel-visitors">
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap">
               <span style="font-weight:700;font-size:0.95rem">访客统计</span>
+              <div style="display:flex;gap:4px;background:var(--line);padding:3px;border-radius:8px">
+                <button id="visitorSubTab0" class="visitor-sub-tab active" onclick="switchVisitorSubTab('recent')">最近访客</button>
+                <button id="visitorSubTab1" class="visitor-sub-tab" onclick="switchVisitorSubTab('ip-compare')">IP 对比</button>
+              </div>
               <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
                 <select id="visitorDays" style="padding:6px 10px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:0.8rem">
                   <option value="3">近3天</option>
@@ -3504,9 +3564,13 @@
                 <div id="visitorTopPages" style="font-size:0.82rem"></div>
               </div>
             </div>
-            <div style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px">
+            <div id="visitorRecentSection" style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px">
               <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">最近访客</div>
               <div id="visitorRecent"></div>
+            </div>
+            <div id="visitorIpCompareSection" style="display:none;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px">
+              <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">IP 多源对比</div>
+              <div id="visitorIpCompare"></div>
             </div>
           </div>
 
@@ -8812,6 +8876,85 @@
         }
       }).catch(function(e) {
         overviewEl.innerHTML = '<div style="color:#dc2626">Error: ' + escapeHtml(e.message) + '</div>';
+      });
+    }
+
+    function switchVisitorSubTab(sub) {
+      var recentSec = document.getElementById('visitorRecentSection');
+      var ipCompareSec = document.getElementById('visitorIpCompareSection');
+      var tab0 = document.getElementById('visitorSubTab0');
+      var tab1 = document.getElementById('visitorSubTab1');
+
+      if (sub === 'recent') {
+        if (recentSec) recentSec.style.display = '';
+        if (ipCompareSec) ipCompareSec.style.display = 'none';
+        if (tab0) tab0.classList.add('active');
+        if (tab1) tab1.classList.remove('active');
+      } else {
+        if (recentSec) recentSec.style.display = 'none';
+        if (ipCompareSec) ipCompareSec.style.display = '';
+        if (tab0) tab0.classList.remove('active');
+        if (tab1) tab1.classList.add('active');
+        loadIpCompare();
+      }
+    }
+
+    function loadIpCompare() {
+      var el = document.getElementById('visitorIpCompare');
+      if (!el) return;
+      el.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:20px">加载 IP 对比数据...</div>';
+
+      api('/api/admin/stats?section=ip-compare').catch(function() { return null; }).then(function(data) {
+        if (!data || !data.success || !data.ips || data.ips.length === 0) {
+          el.innerHTML = '<div style="color:var(--muted);font-size:0.8rem;padding:20px">暂无 IP 数据（等待 Cron 任务执行或暂无访客）</div>';
+          return;
+        }
+
+        var sources = data.sources || [];
+        var sourceNames = sources.length > 0 ? sources : ["ip-api", "ip-sb", "ipinfo", "ipwhois", "ipapi-is"];
+
+        var html = '<table class="ip-compare-table"><thead><tr>';
+        html += '<th>IP Address</th>';
+        html += '<th>First Seen</th>';
+        html += '<th>Vercel</th>';
+        for (var s = 0; s < sourceNames.length; s++) {
+          html += '<th>' + escapeHtml(sourceNames[s]) + '</th>';
+        }
+        html += '</tr></thead><tbody>';
+
+        for (var i = 0; i < data.ips.length; i++) {
+          var ip = data.ips[i];
+          var results = ip.results || [];
+          var numApis = Math.max(sourceNames.length, results.length);
+
+          html += '<tr>';
+          html += '<td style="font-family:monospace;color:#6366f1;font-weight:600;white-space:nowrap">' + escapeHtml(ip.ip) + '</td>';
+          html += '<td style="font-size:0.72rem;color:var(--muted);white-space:nowrap">' + (ip.firstSeen ? new Date(ip.firstSeen).toLocaleString() : '-') + '</td>';
+          html += '<td style="font-size:0.72rem">' + escapeHtml([ip.country, ip.city].filter(Boolean).join(' ') || '-') + '</td>';
+
+          for (var j = 0; j < numApis; j++) {
+            var r = results.length > j ? results[j] : null;
+            if (r && r.source !== 'no-data') {
+              var addr = [r.country, r.region, r.city].filter(function(x) { return x && x !== r.region; }).filter(Boolean).join(' ');
+              if (!addr) {
+                addr = [r.country, r.region, r.city].filter(Boolean).join(' ');
+              }
+              var ispShort = (r.isp || r.org || '').slice(0, 40);
+              html += '<td><div style="font-size:0.73rem">' + escapeHtml(addr || '-') + '</div>';
+              if (ispShort) html += '<div style="font-size:0.62rem;color:#8b5cf6;margin-top:2px">' + escapeHtml(ispShort) + '</div>';
+              html += '</td>';
+            } else {
+              html += '<td><span class="ip-col-empty">-</span></td>';
+            }
+          }
+          html += '</tr>';
+        }
+        html += '</tbody></table>';
+
+        html += '<div style="margin-top:12px;font-size:0.68rem;color:var(--muted)">共 ' + data.ips.length + ' 个独立 IP，数据来源: ' + sourceNames.join(', ') + '</div>';
+        el.innerHTML = html;
+      }).catch(function(e) {
+        el.innerHTML = '<div style="color:#dc2626;font-size:0.8rem;padding:20px">加载失败: ' + escapeHtml(e.message) + '</div>';
       });
     }
 
