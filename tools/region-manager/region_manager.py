@@ -330,11 +330,11 @@ class RegionOverlay:
         self.win = None
         self.canvas = None
         self._close_win = None
-        self._run_btn_win = None
-        self._run_btn_label = None
         self._run_count = 0
         self._run_thread = None
         self._run_stop = True
+        self._btn_y1 = 0
+        self._btn_y2 = 0
         self._create_window()
 
     def _create_window(self):
@@ -358,7 +358,6 @@ class RegionOverlay:
 
         self._draw_everything(w, h, color, label)
         self._create_close_button()
-        self._create_start_button()
         self._start_x = 0
         self._start_y = 0
         self._orig_x = 0
@@ -390,8 +389,25 @@ class RegionOverlay:
                                 fill="#FFFFFF", width=2, tags="resize_handle")
 
         action_name = dict(zip(ACTION_TYPES, ACTION_NAMES)).get(self.cfg.get("action_type", "click"), "点击")
-        self.canvas.create_text(w // 2, h - 8, text=f"[{action_name}]",
+        self.canvas.create_text(w // 2, h - 26, text=f"[{action_name}]",
                                 fill=color, font=("PingFang SC", 8, "bold"), tags="action_label")
+
+        btn_w, btn_h = 56, 20
+        btn_x1 = w // 2 - btn_w // 2
+        btn_y1 = h - btn_h - 2
+        btn_x2 = btn_x1 + btn_w
+        btn_y2 = btn_y1 + btn_h
+        self._btn_y1 = btn_y1
+        self._btn_y2 = btn_y2
+        btn_color = "#FF4444" if not self._run_stop else "#228B22"
+        btn_text = f"{self._run_count} times" if not self._run_stop else "Start"
+        self.canvas.create_rectangle(btn_x1, btn_y1, btn_x2, btn_y2,
+                                     fill=btn_color, outline="#1a6b1a",
+                                     tags=("run_btn", "run_btn_bg"))
+        self.canvas.create_text(btn_x1 + btn_w // 2, btn_y1 + btn_h // 2,
+                                text=btn_text, fill="#FFFFFF",
+                                font=("Helvetica", 9, "bold"),
+                                tags=("run_btn", "run_btn_text"))
 
     @staticmethod
     def _hex_fade(hex_color, alpha):
@@ -443,67 +459,33 @@ class RegionOverlay:
         except Exception:
             pass
 
-    def _create_start_button(self):
-        c = self.cfg
-        btn_w, btn_h = 52, 22
-        self._run_btn_win = tk.Toplevel(self.win)
-        self._run_btn_win.overrideredirect(True)
-        self._run_btn_win.attributes("-topmost", True)
-        cx = c["x"] + c["width"] // 2 - btn_w // 2
-        cy = c["y"] + c["height"] + 4
-        self._run_btn_win.geometry(f"{btn_w}x{btn_h}+{cx}+{cy}")
-        self._run_btn_win.configure(bg="#228B22")
-
-        self._run_btn_label = tk.Label(self._run_btn_win, text="Start",
-                                       bg="#228B22", fg="#FFFFFF",
-                                       font=("Helvetica", 9, "bold"),
-                                       cursor="hand2")
-        self._run_btn_label.pack(fill="both", expand=True)
-        self._run_btn_label.bind("<Button-1>", self._toggle_run)
-        self._run_btn_label.bind("<Enter>",
-            lambda e: self._run_btn_label.configure(
-                bg="#FF4444" if not self._run_stop else "#32CD32"))
-        self._run_btn_label.bind("<Leave>",
-            lambda e: self._run_btn_label.configure(
-                bg="#FF4444" if not self._run_stop else "#228B22"))
-
-    def _position_start_button(self):
-        if self._run_btn_win is None:
-            return
-        c = self.cfg
-        btn_w, btn_h = 52, 22
-        cx = c["x"] + c["width"] // 2 - btn_w // 2
-        cy = c["y"] + c["height"] + 4
-        try:
-            self._run_btn_win.geometry(f"{btn_w}x{btn_h}+{cx}+{cy}")
-        except Exception:
-            pass
-
     def _toggle_run(self, event=None):
         if self._run_stop:
             self._start_run_loop()
         else:
             self._stop_run_loop()
+        return "break"
 
     def _start_run_loop(self):
         self._run_stop = False
         self._run_count = 0
-        if self._run_btn_label:
-            self._run_btn_label.configure(text="0 times", bg="#FF4444")
+        self._update_run_button("0 times", "#FF4444")
         self._run_thread = threading.Thread(target=self._run_loop, daemon=True)
         self._run_thread.start()
 
     def _stop_run_loop(self):
         self._run_stop = True
-        if self._run_btn_label:
-            self._run_btn_label.configure(text="Start", bg="#228B22")
+        self._update_run_button("Start", "#228B22")
+
+    def _update_run_button(self, text, color):
+        try:
+            self.canvas.itemconfigure("run_btn_bg", fill=color)
+            self.canvas.itemconfigure("run_btn_text", text=text)
+        except Exception:
+            pass
 
     def _update_run_count(self):
-        if self._run_btn_label:
-            try:
-                self._run_btn_label.configure(text=f"{self._run_count} times")
-            except Exception:
-                pass
+        self._update_run_button(f"{self._run_count} times", "#FF4444")
 
     def _run_loop(self):
         while not self._run_stop:
@@ -555,13 +537,6 @@ class RegionOverlay:
 
     def destroy(self):
         self._stop_run_loop()
-        if self._run_btn_win:
-            try:
-                self._run_btn_win.destroy()
-            except Exception:
-                pass
-            self._run_btn_win = None
-            self._run_btn_label = None
         if self._close_win:
             try:
                 self._close_win.destroy()
@@ -599,6 +574,8 @@ class RegionOverlay:
                              lambda e: self._open_detail())
         self.canvas.tag_bind("label_text", "<Double-Button-1>",
                              lambda e: self._open_detail())
+        self.canvas.tag_bind("run_btn", "<ButtonPress-1>",
+                             lambda e: self._toggle_run(e))
 
     def _unbind_edit(self):
         self.canvas.unbind("<ButtonPress-1>")
@@ -609,6 +586,7 @@ class RegionOverlay:
         self.canvas.tag_unbind("resize_handle", "<ButtonRelease-1>")
         self.canvas.tag_unbind("label_bg", "<Double-Button-1>")
         self.canvas.tag_unbind("label_text", "<Double-Button-1>")
+        self.canvas.tag_unbind("run_btn", "<ButtonPress-1>")
 
     def _open_detail(self):
         if self.on_delete:
@@ -645,7 +623,6 @@ class RegionOverlay:
         self.cfg["y"] = ny
         self.win.geometry(f"+{nx}+{ny}")
         self._position_close_button()
-        self._position_start_button()
 
     def _stop_move(self, event):
         if self._mode in ("move", "resize"):
@@ -676,7 +653,6 @@ class RegionOverlay:
                               self.cfg.get("label", "?"))
         self._bind_edit()
         self._position_close_button()
-        self._position_start_button()
 
 
 class RegionManager:
