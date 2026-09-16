@@ -1223,6 +1223,24 @@
       padding: 0 !important;
       border-bottom: 2px solid var(--accent) !important;
     }
+
+    .visitor-detail-row { display: none; }
+    .visitor-detail-row.show { display: table-row; }
+    .visitor-detail-row td {
+      padding: 0 !important;
+      border-bottom: 2px solid var(--accent) !important;
+    }
+    .visitor-row {
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .visitor-row:hover {
+      background: var(--row-hover);
+    }
+    .visitor-row.expanded {
+      background: rgba(99,102,241,0.06);
+    }
+
     .record-detail {
       background: var(--row-hover);
       padding: 16px 20px;
@@ -5664,6 +5682,33 @@
       return html;
     }
 
+    function renderVisitorDetail(v) {
+      var html = '<div class="record-detail">';
+
+      html += '<div class="detail-section">';
+      html += '<div class="detail-section-title">Page Info</div>';
+      html += '<table class="detail-table">';
+      html += '<tr><td>Full Path</td><td style="word-break:break-all">' + escapeHtml(v.path || '/') + '</td></tr>';
+      if (v.ref) html += '<tr><td>Referrer</td><td style="word-break:break-all">' + escapeHtml(v.ref) + '</td></tr>';
+      html += '</table></div>';
+
+      html += '<div class="detail-section">';
+      html += '<div class="detail-section-title">Visitor Info</div>';
+      html += '<table class="detail-table">';
+      html += '<tr><td>Hash</td><td style="font-family:monospace">' + escapeHtml(v.hash || '-') + '</td></tr>';
+      var timeStr = v.time ? new Date(v.time).toLocaleString() : '-';
+      html += '<tr><td>Time</td><td>' + timeStr + '</td></tr>';
+      if (v.country) html += '<tr><td>Country</td><td>' + escapeHtml(v.country) + '</td></tr>';
+      if (v.region) html += '<tr><td>Region</td><td>' + escapeHtml(v.region) + '</td></tr>';
+      if (v.city) html += '<tr><td>City</td><td>' + escapeHtml(v.city) + '</td></tr>';
+      if (v.timezone) html += '<tr><td>Timezone</td><td>' + escapeHtml(v.timezone) + '</td></tr>';
+      if (v.ua) html += '<tr><td>User-Agent</td><td style="word-break:break-all;font-size:0.72rem">' + escapeHtml(v.ua) + '</td></tr>';
+      html += '</table></div>';
+
+      html += '</div>';
+      return html;
+    }
+
     async function unbindActivation(activationCode, deviceId, redeemCode) {
       if (!confirm('Unbind device ' + deviceId + ' from activation ' + activationCode + '?\n\nThe redeem code will be freed for use on a different device.')) return;
       var btn = event && event.target;
@@ -5721,6 +5766,23 @@
         row.classList.add('show');
         btn.classList.add('active');
         btn.textContent = 'Hide';
+      }
+    }
+
+    function toggleVisitorDetail(event, row) {
+      event.stopPropagation();
+      var vidx = row.getAttribute('data-vidx');
+      var detailRow = document.getElementById(vidx);
+      if (!detailRow) return;
+      var isOpen = detailRow.classList.contains('show');
+      if (isOpen) {
+        detailRow.classList.remove('show');
+        row.classList.remove('expanded');
+        row.querySelector('td:last-child').textContent = '▼';
+      } else {
+        detailRow.classList.add('show');
+        row.classList.add('expanded');
+        row.querySelector('td:last-child').textContent = '▲';
       }
     }
 
@@ -8668,8 +8730,12 @@
               '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">Time</th>' +
               '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">Location</th>' +
               '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">UA</th>' +
+              '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);width:1%"></th>' +
               '</tr></thead><tbody>' +
-              list.slice(0, 30).map(function(v) {
+              (function() {
+                var rowsHtml = '';
+                var visits = list.slice(0, 30);
+                visits.forEach(function(v, idx) {
                 var t = v.time ? new Date(v.time).toLocaleString() : '-';
                 var uaShort = (v.ua || '').replace(/\(.*?\)/g, '').trim().slice(0, 50);
                 var loc = [];
@@ -8677,12 +8743,19 @@
                 if (v.city) loc.push(v.city);
                 if (v.region && v.city) loc.push(v.region);
                 var locStr = loc.length ? loc.join(' · ') : '-';
-                return '<tr><td style="padding:6px 8px;border-bottom:1px solid var(--line);font-family:monospace;color:#6366f1;font-size:0.75rem">' + escapeHtml(v.hash || '-') + '</td>' +
+                var vidx = 'visitorDetail' + idx;
+                rowsHtml += '<tr class="visitor-row" onclick="toggleVisitorDetail(event, this)" data-vidx="' + vidx + '">' +
+                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-family:monospace;color:#6366f1;font-size:0.75rem">' + escapeHtml(v.hash || '-') + '</td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(v.path || '/') + '</td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:0.75rem">' + t + '</td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-size:0.75rem">' + escapeHtml(locStr) + '</td>' +
-                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:0.72rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(v.ua || '') + '">' + escapeHtml(uaShort) + '</td></tr>';
-              }).join('') +
+                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:0.72rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(v.ua || '') + '">' + escapeHtml(uaShort) + '</td>' +
+                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);text-align:center;color:var(--muted);font-size:0.72rem">▼</td>' +
+                  '</tr>' +
+                  '<tr class="visitor-detail-row" id="' + vidx + '"><td colspan="6">' + renderVisitorDetail(v) + '</td></tr>';
+                });
+                return rowsHtml;
+              })() +
               '</tbody></table>';
           }
         }
