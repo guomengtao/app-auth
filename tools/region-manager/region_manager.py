@@ -347,7 +347,6 @@ class RegionOverlay:
         self.win.geometry(f"{c['width']}x{c['height']}+{c['x']}+{c['y']}")
         self.win.configure(bg="white")
         self.win.configure(background="white")
-        self.win.wm_attributes("-transparent", "white")
 
         color = c.get("color", "#FF4444")
         label = c.get("label", "?")
