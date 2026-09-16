@@ -343,7 +343,6 @@ class RegionOverlay:
         self.win = tk.Toplevel(root)
         self.win.overrideredirect(True)
         self.win.attributes("-topmost", True)
-        self.win.attributes("-alpha", 0.70)
         self.win.geometry(f"{c['width']}x{c['height']}+{c['x']}+{c['y']}")
         self.win.configure(bg="white")
         self.win.configure(background="white")
