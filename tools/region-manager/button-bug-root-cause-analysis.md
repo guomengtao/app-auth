@@ -1,8 +1,8 @@
 # Region Manager 按钮失效根因分析报告
 
-**版本:** v1.5.0  
+**版本:** v1.7.0 (最终稳定版)  
 **日期:** 2026-09-16  
-**状态:** 已定位根因，待修复
+**状态:** ✅ 已修复
 
 ---
 
@@ -315,3 +315,62 @@ def _on_canvas_click(self, event):
 4. 测试所有功能：Start 按钮、关闭按钮、拖动、调整大小
 5. 添加调试日志
 6. 版本号更新至 v1.6.0
+
+---
+
+## 10. v1.7.0 真正根因和最终修复
+
+### 10.1 v1.6.0 坐标判断方案也失败了
+
+v1.6.0 将 `tag_bind` 替换为 `canvas.bind("<ButtonPress-1>", _on_canvas_click)` + 坐标命中测试，但**依然无效**。
+
+这说明问题比 `tag_bind` 更深层：**整个 Canvas widget 都收不到鼠标事件**。
+
+### 10.2 Git 历史对比发现关键差异
+
+| 版本 | 窗口配置 | 事件是否工作 |
+|------|----------|-------------|
+| v1.3.0 | `-alpha 0.70` + `bg="systemTransparent"` | ✅ 工作 |
+| v1.4.0 | `-alpha 0.70` + `bg="white"` + `-transparent "white"` | ⚠️ 短暂工作 |
+| v1.5.0~1.6.0 | 无 `-alpha` + `bg="white"` | ❌ 不工作 |
+| **v1.7.0** | `-alpha 0.70` + `bg="systemTransparent"` | ✅ 工作 |
+
+### 10.3 真正的根因
+
+macOS 上 `overrideredirect(True)` 窗口的事件接收依赖于两个关键属性：
+
+```
+- alpha 必须设置为小于 1.0 的值
+- 背景必须使用 systemTransparent
+```
+
+当这两个条件同时满足时，macOS WindowServer 才会正确向该窗口发送鼠标事件。
+
+缺少其中任何一个条件，overrideredirect 窗口就像"幽灵窗口"——可见但不可交互。
+
+### 10.4 为什么之前移除 `-alpha`？
+
+在 v1.5.0 时，有人报告 `-alpha 0.70` 导致点击穿透，所以移除了。但实际上点击穿透是因为同时使用了 `bg="white"` + `-transparent "white"`。正确的组合是 `-alpha 0.70` + `bg="systemTransparent"`，这个组合不会产生点击穿透。
+
+### 10.5 最终修复（v1.7.0）
+
+```python
+# _create_window() - 关键配置
+self.win.overrideredirect(True)
+self.win.attributes("-topmost", True)
+self.win.attributes("-alpha", 0.70)           # 关键1：设置透明度
+self.win.configure(bg="systemTransparent")    # 关键2：透明背景
+self.win.configure(background="systemTransparent")
+
+self.canvas = tk.Canvas(self.win, width=w, height=h,
+                        bg="systemTransparent", highlightthickness=0)
+```
+
+在 `_draw_everything()` 中先画白色背景矩形：
+```python
+self.canvas.create_rectangle(0, 0, w, h, fill="white", outline="", tags="bg")
+```
+
+### 10.6 总结
+
+所有三个 Bug（Start按钮、关闭按钮、拖动）的终极根因不是代码逻辑问题，而是 **macOS 上 overrideredirect 窗口的配置问题**。正确的配置需要 `systemTransparent` 背景 + `-alpha` 属性配合，才能让窗口接收鼠标事件。坐标判断方案（v1.6.0）方向正确但不够——窗口根本收不到事件时，再好的命中测试也无济于事。
