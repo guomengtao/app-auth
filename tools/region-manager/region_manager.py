@@ -340,16 +340,17 @@ class RegionOverlay:
         self.win = tk.Toplevel(root)
         self.win.overrideredirect(True)
         self.win.attributes("-topmost", True)
+        self.win.attributes("-alpha", 0.70)
         self.win.geometry(f"{c['width']}x{c['height']}+{c['x']}+{c['y']}")
-        self.win.configure(bg="white")
-        self.win.configure(background="white")
+        self.win.configure(bg="systemTransparent")
+        self.win.configure(background="systemTransparent")
 
         color = c.get("color", "#FF4444")
         label = c.get("label", "?")
         w, h = c["width"], c["height"]
 
         self.canvas = tk.Canvas(self.win, width=w, height=h,
-                                bg="white", highlightthickness=0)
+                                bg="systemTransparent", highlightthickness=0)
         self.canvas.pack(fill="both", expand=True)
 
         self._draw_everything(w, h, color, label)
@@ -364,6 +365,7 @@ class RegionOverlay:
     def _draw_everything(self, w, h, color, label):
         self.canvas.delete("all")
 
+        self.canvas.create_rectangle(0, 0, w, h, fill="white", outline="", tags="bg")
         self.canvas.create_rectangle(1, 1, w - 1, h - 1, outline=color, width=2, tags="border")
 
         tag_height = 24
