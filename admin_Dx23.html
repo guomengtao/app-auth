@@ -3278,6 +3278,10 @@
             <div class="toolbar">
               <button class="btn btn-primary" onclick="openCodeModal()">+ 生成兑换码</button>
               <button class="btn btn-outline" onclick="loadCodes()">刷新</button>
+              <div style="position:relative;display:inline-flex;align-items:center">
+                <input type="text" id="codeSearchInput" class="filter-input" placeholder="Search code..." style="width:160px;padding-left:28px;font-size:0.78rem" oninput="onCodeSearchInput()">
+                <span style="position:absolute;left:8px;font-size:0.78rem;color:#94a3b8;pointer-events:none">🔍</span>
+              </div>
               <span class="spacer"></span>
               <button class="btn btn-outline" onclick="openExportModal()">导出 CSV</button>
             </div>
@@ -4351,12 +4355,26 @@
         .catch(function() {});
     }
 
-    function matchCodeFilter(data, filterProductId, filterUsed, filterDuration) {
+    function matchCodeFilter(data, filterProductId, filterUsed, filterDuration, filterSearch) {
       if (filterProductId && filterProductId !== '0000' && data.product_id !== filterProductId) return false;
       if (filterUsed === '1' && !data.used) return false;
       if (filterUsed === '0' && data.used) return false;
       if (filterDuration && String(data.duration_months) !== filterDuration) return false;
+      if (filterSearch) {
+        var q = String(filterSearch).toUpperCase().trim();
+        if (q && String(data.code).toUpperCase().indexOf(q) < 0) return false;
+      }
       return true;
+    }
+
+    var _codeSearchTimer = null;
+
+    function onCodeSearchInput() {
+      if (_codeSearchTimer) clearTimeout(_codeSearchTimer);
+      _codeSearchTimer = setTimeout(function() {
+        codesPage = 1;
+        goCodesPage(0);
+      }, 250);
     }
 
     var _B36 = BigInt(36);
@@ -4940,7 +4958,8 @@
       var pid = document.getElementById('filterProduct').value;
       var used = document.getElementById('filterUsed').value;
       var dur = document.getElementById('filterDuration').value;
-      var hasFilter = pid || used || dur;
+      var search = document.getElementById('codeSearchInput').value;
+      var hasFilter = pid || used || dur || search;
       var filteredEl = document.getElementById('codesFilteredCount');
       if (hasFilter) {
         filteredEl.style.display = 'inline';
@@ -4960,7 +4979,8 @@
       var pid = document.getElementById('filterProduct').value;
       var used = document.getElementById('filterUsed').value;
       var dur = document.getElementById('filterDuration').value;
-      var filtered = _codesCache.filter(function(c) { return matchCodeFilter(c, pid, used, dur); });
+      var search = document.getElementById('codeSearchInput').value;
+      var filtered = _codesCache.filter(function(c) { return matchCodeFilter(c, pid, used, dur, search); });
       filtered.sort(function(a, b) { return (Number(b.created_at) || 0) - (Number(a.created_at) || 0); });
 
       var perPage = parseInt(document.getElementById('codesPerPage').value) || 50;
@@ -4985,6 +5005,7 @@
         var pid = document.getElementById('filterProduct').value;
         var used = document.getElementById('filterUsed').value;
         var dur = document.getElementById('filterDuration').value;
+        var search = document.getElementById('codeSearchInput').value;
         var params = new URLSearchParams();
         if (pid) params.set('product_id', pid);
         if (used) params.set('used', used);
@@ -4994,7 +5015,7 @@
         if (!data.success) throw new Error(data.error || 'API error');
         _codesCache = data.codes || [];
         var filteredCodes = _codesCache.filter(function(c) {
-          return matchCodeFilter(c, pid, used, dur);
+          return matchCodeFilter(c, pid, used, dur, search);
         });
         filteredCodes.sort(function(a, b) {
           return (Number(b.created_at) || 0) - (Number(a.created_at) || 0);
