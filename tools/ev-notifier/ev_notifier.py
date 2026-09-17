@@ -2343,8 +2343,8 @@ function copyText(text) {
         success_count = sum(1 for a in acts if a.get("type") == "new_activation")
         fail_count = sum(1 for a in acts if a.get("type") == "activation_failure")
         today_str = datetime.now().strftime("%Y-%m-%d")
-        today_acts = [a for a in acts if time.strftime(
-            "%Y-%m-%d", time.localtime(a.get("ts", 0)) if a.get("ts") else 0) == today_str]
+        today_acts = [a for a in acts if a.get("ts") and time.strftime(
+            "%Y-%m-%d", time.localtime(a.get("ts"))) == today_str]
 
         stats_html = f"""
         <div class="stats-grid">
