@@ -3362,6 +3362,18 @@
                 <label class="filter-label">兑换码</label>
                 <input type="text" id="filterRecordRedeemCode" class="filter-input" placeholder="例如 1BZR" maxlength="16" onkeydown="if(event.key==='Enter')loadRecords()">
               </div>
+              <div class="filter-group">
+                <label class="filter-label">型号</label>
+                <select id="filterRecordModel" onchange="applyRecordExtraFilter()" class="filter-select">
+                  <option value="">全部型号</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label class="filter-label">版本</label>
+                <select id="filterRecordVersion" onchange="applyRecordExtraFilter()" class="filter-select">
+                  <option value="">全部版本</option>
+                </select>
+              </div>
               <div class="filter-actions">
                 <button class="btn btn-outline" onclick="clearRecordFilter()" style="height:40px;padding:0 16px">清除</button>
                 <button class="btn btn-primary" onclick="loadRecords()" style="height:40px;padding:0 16px">搜索</button>
@@ -5137,6 +5149,7 @@
 
     var _pendingRedeemCode = null;
     var _pendingActivationCode = null;
+    var _lastLoadedRecords = null;
 
     function setStatusFilter(value, btn) {
       var btns = document.querySelectorAll('.filter-seg-btn');
@@ -5159,6 +5172,10 @@
       if (deviceInp) deviceInp.value = '';
       var ipInp = document.getElementById('filterRecordIp');
       if (ipInp) ipInp.value = '';
+      var modelSel = document.getElementById('filterRecordModel');
+      if (modelSel) modelSel.value = '';
+      var verSel = document.getElementById('filterRecordVersion');
+      if (verSel) verSel.value = '';
       var hint = document.getElementById('recordFilterHint');
       if (hint) hint.style.display = 'none';
       var btns = document.querySelectorAll('.filter-seg-btn');
@@ -5166,7 +5183,79 @@
         b.classList.remove('active');
         if (b.getAttribute('data-value') === 'all') b.classList.add('active');
       });
+      _lastLoadedRecords = null;
       loadRecords();
+    }
+
+    function getRecordVersion(rec) {
+      var vi = rec.visitor_info || {};
+      var refUrl = vi.referer || '';
+      var m = refUrl.match(/[&?]r=([^&]+)/);
+      return m ? decodeURIComponent(m[1]) : '';
+    }
+
+    function getRecordModel(rec) {
+      var di = rec.device_info || {};
+      return di.product || di.model || '';
+    }
+
+    function populateModelVersionFilters(records) {
+      var modelCounts = {};
+      var versionCounts = {};
+      records.forEach(function(r) {
+        if (r.status === 'failure') return;
+        var mdl = getRecordModel(r);
+        if (mdl) modelCounts[mdl] = (modelCounts[mdl] || 0) + 1;
+        var ver = getRecordVersion(r);
+        if (ver) versionCounts[ver] = (versionCounts[ver] || 0) + 1;
+      });
+
+      var modelSel = document.getElementById('filterRecordModel');
+      var verSel = document.getElementById('filterRecordVersion');
+      var prevModel = modelSel ? modelSel.value : '';
+      var prevVer = verSel ? verSel.value : '';
+
+      if (modelSel) {
+        var items = Object.keys(modelCounts).sort();
+        modelSel.innerHTML = '<option value="">全部型号 (' + records.filter(function(r) { return r.status !== 'failure'; }).length + ')</option>';
+        items.forEach(function(m) {
+          modelSel.innerHTML += '<option value="' + escapeHtml(m) + '">' + escapeHtml(m) + ' (' + modelCounts[m] + ')</option>';
+        });
+        modelSel.value = prevModel;
+      }
+      if (verSel) {
+        var vItems = Object.keys(versionCounts).sort(function(a, b) { return (parseFloat(b) || 0) - (parseFloat(a) || 0); });
+        verSel.innerHTML = '<option value="">全部版本 (' + records.filter(function(r) { return r.status !== 'failure'; }).length + ')</option>';
+        vItems.forEach(function(v) {
+          verSel.innerHTML += '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + ' (' + versionCounts[v] + ')</option>';
+        });
+        verSel.value = prevVer;
+      }
+    }
+
+    function applyRecordExtraFilter() {
+      if (!_lastLoadedRecords) return;
+      var modelSel = document.getElementById('filterRecordModel');
+      var verSel = document.getElementById('filterRecordVersion');
+      var filterModel = modelSel ? modelSel.value : '';
+      var filterVer = verSel ? verSel.value : '';
+
+      var filtered = _lastLoadedRecords.filter(function(r) {
+        if (filterModel) {
+          if (r.status === 'failure') return false;
+          if (getRecordModel(r) !== filterModel) return false;
+        }
+        if (filterVer) {
+          if (r.status === 'failure') return false;
+          if (getRecordVersion(r) !== filterVer) return false;
+        }
+        return true;
+      });
+
+      var tableDiv = document.getElementById('recordsTable');
+      if (tableDiv) {
+        tableDiv.innerHTML = renderRecordsTable(filtered, null, null, '');
+      }
     }
 
     function openRecordForRedeemCode(redeemCode) {
@@ -5181,6 +5270,10 @@
       if (inp) inp.value = rc;
       var sel = document.getElementById('filterRecordProduct');
       if (sel) sel.value = '';
+      var modelSel = document.getElementById('filterRecordModel');
+      if (modelSel) modelSel.value = '';
+      var verSel = document.getElementById('filterRecordVersion');
+      if (verSel) verSel.value = '';
       var btns = document.querySelectorAll('.filter-seg-btn');
       btns.forEach(function(b) {
         b.classList.remove('active');
@@ -5193,8 +5286,9 @@
       var hint = document.getElementById('recordFilterHint');
       if (hint) {
         hint.style.display = 'block';
-        hint.innerHTML = 'Filter: Redeem <span class="mono" style="font-weight:700;color:#4c51bf">' + escapeHtml(rc) + '</span> — loading...';
+        hint.innerHTML = '筛选: 兑换码 <span class="mono" style="font-weight:700;color:#4c51bf">' + escapeHtml(rc) + '</span> — 加载中...';
       }
+      _lastLoadedRecords = null;
       switchTab('records');
     }
 
@@ -5259,24 +5353,45 @@
           return (Number(b.generated_at) || 0) - (Number(a.generated_at) || 0);
         });
 
+        _lastLoadedRecords = allRecords;
+        populateModelVersionFilters(allRecords);
+
+        var modelSel = document.getElementById('filterRecordModel');
+        var verSel = document.getElementById('filterRecordVersion');
+        var filterModel = modelSel ? modelSel.value : '';
+        var filterVer = verSel ? verSel.value : '';
+        var displayRecords = allRecords.filter(function(r) {
+          if (filterModel) {
+            if (r.status === 'failure') return false;
+            if (getRecordModel(r) !== filterModel) return false;
+          }
+          if (filterVer) {
+            if (r.status === 'failure') return false;
+            if (getRecordVersion(r) !== filterVer) return false;
+          }
+          return true;
+        });
+
         if (hint) {
-          var hasFilter = rc || deviceId || ip || (status && status !== 'all');
+          var hasFilter = rc || deviceId || ip || (status && status !== 'all') || filterModel || filterVer;
           if (hasFilter) {
-            var foundCount = allRecords.length;
+            var foundCount = displayRecords.length;
             var parts = [];
-            if (rc) parts.push('Redeem: <span class="mono" style="font-weight:700;color:#4c51bf">' + escapeHtml(rc) + '</span>');
-            if (deviceId) parts.push('Device: <span class="mono" style="font-weight:700;color:#4c51bf">' + escapeHtml(deviceId) + '</span>');
+            if (rc) parts.push('兑换码: <span class="mono" style="font-weight:700;color:#4c51bf">' + escapeHtml(rc) + '</span>');
+            if (deviceId) parts.push('设备: <span class="mono" style="font-weight:700;color:#4c51bf">' + escapeHtml(deviceId) + '</span>');
             if (ip) parts.push('IP: <span class="mono" style="font-weight:700;color:#4c51bf">' + escapeHtml(ip) + '</span>');
-            if (status && status !== 'all') parts.push('Status: <b>' + (status === 'failure' ? 'Failed' : 'Success') + '</b>');
+            if (status && status !== 'all') parts.push('状态: <b>' + (status === 'failure' ? '失败' : '成功') + '</b>');
+            if (filterModel) parts.push('型号: <b>' + escapeHtml(filterModel) + '</b>');
+            if (filterVer) parts.push('版本: <b>' + escapeHtml(filterVer) + '</b>');
             hint.style.display = 'block';
-            hint.innerHTML = 'Filter: ' + parts.join(', ') + ' — <b>' + foundCount + '</b> results.';
+            hint.innerHTML = '筛选: ' + parts.join(', ') + ' — <b>' + foundCount + '</b> 条结果。';
           } else {
             hint.style.display = 'none';
             hint.innerHTML = '';
           }
         }
 
-        var html = renderRecordsTable(allRecords, highlightRc, highlightAc, rc);
+        var html = renderRecordsTable(displayRecords, highlightRc, highlightAc, rc);
         document.getElementById('recordsTable').innerHTML = html;
 
         if (highlightRc || highlightAc) {
@@ -5921,11 +6036,16 @@
     }
 
     function formatActivationCode(code) {
-      var s = String(code || '');
-      if (s.length === 18) {
-        return s.slice(0, 6) + ' ' + s.slice(6, 12) + ' ' + s.slice(12, 18);
+      var s = String(code || '').replace(/\s/g, '');
+      var digits = s.replace(/\D/g, '');
+      if (digits.length > 16) digits = digits.slice(0, 16);
+      if (digits.length >= 12) {
+        return digits.slice(0, 6) + ' ' + digits.slice(6, 12) + ' ' + digits.slice(12);
       }
-      return s;
+      if (digits.length >= 6) {
+        return digits.slice(0, 6) + ' ' + digits.slice(6);
+      }
+      return digits;
     }
 
     function escapeJs(str) {
