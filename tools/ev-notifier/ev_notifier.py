@@ -7,7 +7,7 @@ try:
 except ImportError:
     redis = None
 
-VERSION = "v2.2.11"
+VERSION = "v2.2.12"
 
 try:
     from AppKit import (NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyRegular,
@@ -80,6 +80,7 @@ _recovery_count_today = 0
 _missing_count = 0
 _last_poll_detail = None
 _last_sync_result = None
+_focus_redeem = None
 
 
 def load_env():
@@ -785,13 +786,13 @@ def _build_order_list():
     msgs = load_messages()
     orders = []
     # Build activated redeem codes set from activation records
-    activated_redeems = set()
+    activated_redeems = {}
     for m in msgs:
         if m.get("type") == "new_activation":
             p = m.get("payload", {}) or {}
             rc = p.get("redeem_code", "") or ""
             if rc:
-                activated_redeems.add(rc)
+                activated_redeems[rc] = True
     for m in msgs:
         if m.get("type") != "new_order":
             continue
@@ -802,6 +803,7 @@ def _build_order_list():
         redeem = p.get("redeem_code", "") or "-"
         activation = p.get("activation_code", "") or ""
         out_trade_no = p.get("out_trade_no", "") or ""
+        user_name = p.get("user_name", "") or ""
         # A paid order is always successful. activation_code is a separate step.
         # Mark as success if we have basic order data.
         has_trade_no = bool(out_trade_no)
@@ -820,6 +822,7 @@ def _build_order_list():
             "status": status,
             "activation": activation,
             "trade_no": out_trade_no,
+            "user_name": user_name,
             "activated": is_activated,
         })
     return orders
@@ -1760,8 +1763,15 @@ class WebNavDelegate(NSObject):
                     pass
             elif "nav=" in url_str and self._dashboard:
                 try:
-                    page_id = url_str.split("nav=")[1]
-                    self._dashboard._switch_to(page_id)
+                    import re
+                    match = re.search(r'nav=(\w+)', url_str)
+                    if match:
+                        page_id = match.group(1)
+                        focus_redeem_match = re.search(r'focus-redeem=([^&]+)', url_str)
+                        if focus_redeem_match:
+                            global _focus_redeem
+                            _focus_redeem = focus_redeem_match.group(1)
+                        self._dashboard._switch_to(page_id)
                 except Exception:
                     pass
             elif "order-sync" in url_str and self._dashboard:
@@ -2325,11 +2335,14 @@ function copyText(text) {
             status_label = "已付款" if status == "success" else "未付款"
             status_html = f'<span class="badge {status_class}">{status_label}</span>'
             activated = o.get("activated", False)
-            activated_badge = '<span class="badge badge-success" style="font-size:10px;padding:1px 6px;">Yes</span>' if activated else '<span class="badge badge-fail" style="font-size:10px;padding:1px 6px;">No</span>'
+            user_name_safe = _safe_str(o.get("user_name", ""))
+            redeem_escaped = redeem_safe.replace("'", "\\'")
+            activated_badge = '<a href="ev://nav=activations&amp;focus-redeem=' + redeem_escaped + '" style="text-decoration:none" onclick="event.stopPropagation()"><span class="badge badge-success" style="font-size:10px;padding:1px 6px;cursor:pointer">Yes</span></a>' if activated else '<span class="badge badge-fail" style="font-size:10px;padding:1px 6px;">No</span>'
             rowId = "order" + str(idx)
             rows += (
                 '<tr class="accordion-row" id="row-' + rowId + '" data-status="' + status + '" data-activated="' + str(activated).lower() + '" data-time="' + date_str + '" data-product="' + product_safe + '" data-redeem="' + redeem_safe + '" data-amount="' + f'{amt:.2f}' + '" onclick="toggleRowDetail(\'' + rowId + '\')">'
                 '<td><span class="expand-icon">▶</span> ' + t + '</td>'
+                '<td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + user_name_safe + '">' + (user_name_safe or "-") + '</td>'
                 '<td>' + product_safe + '</td>'
                 '<td class="amount">' + amt_display + '</td>'
                 '<td style="font-family:monospace">' + redeem_safe + '</td>'
@@ -2339,6 +2352,8 @@ function copyText(text) {
             detail_html = '<div class="detail-card">'
             detail_html += '<div class="detail-section"><div class="detail-section-title">订单详情</div><table class="detail-table">'
             detail_html += '<tr><td>产品</td><td>' + product_safe + '</td></tr>'
+            if user_name_safe:
+                detail_html += '<tr><td>用户</td><td>' + user_name_safe + '</td></tr>'
             detail_html += '<tr><td>金额</td><td>' + amt_display + '</td></tr>'
             if trade_no_safe:
                 detail_html += '<tr><td>交易号</td><td style="font-family:monospace;font-size:11px;">' + trade_no_safe + '</td></tr>'
@@ -2348,10 +2363,10 @@ function copyText(text) {
             detail_html += '<tr><td>已激活</td><td>' + activated_badge + '</td></tr>'
             detail_html += '<tr><td>状态</td><td>' + status_html + '</td></tr>'
             detail_html += '</table></div></div>'
-            rows += '<tr class="detail-expand" id="detail-' + rowId + '"><td colspan="6">' + detail_html + '</td></tr>\n'
+            rows += '<tr class="detail-expand" id="detail-' + rowId + '"><td colspan="7">' + detail_html + '</td></tr>\n'
             idx += 1
         if not rows:
-            rows = ('<tr><td colspan="6" style="text-align:center;padding:60px">'
+            rows = ('<tr><td colspan="7" style="text-align:center;padding:60px">'
                     '<div class="empty-state" style="padding:0">'
                     '<div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/></svg></div>'
                     '<div class="empty-title">暂无订单</div>'
@@ -2368,7 +2383,7 @@ function copyText(text) {
             else:
                 sync_result_html = f'<div style="margin-top:12px;padding:10px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;color:#166534;font-size:13px">Synced at {sync_time}: {sync_total} orders total, {sync_new} new orders</div>'
 
-        table = f'<div class="panel"><div class="panel-header"><div class="panel-title"><div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>订单列表</div><a class="btn" href="ev://order-sync" onclick="this.style.opacity=&#39;0.6&#39;;this.textContent=&#39;Syncing...&#39;;setTimeout(function(){{location.reload()}},3000)" style="margin-left:8px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>Sync Orders</a></div>{filter_html}<div class="table-wrap"><table><thead><tr><th>时间</th><th>产品</th><th>金额</th><th>兑换码</th><th>已激活</th><th>状态</th></tr></thead><tbody id="orderTableBody">{rows}</tbody></table></div></div>'
+        table = f'<div class="panel"><div class="panel-header"><div class="panel-title"><div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>订单列表</div><a class="btn" href="ev://order-sync" onclick="this.style.opacity=&#39;0.6&#39;;this.textContent=&#39;Syncing...&#39;;setTimeout(function(){{location.reload()}},3000)" style="margin-left:8px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>Sync Orders</a></div>{filter_html}<div class="table-wrap"><table><thead><tr><th>时间</th><th>用户</th><th>产品</th><th>金额</th><th>兑换码</th><th>已激活</th><th>状态</th></tr></thead><tbody id="orderTableBody">{rows}</tbody></table></div></div>'
         return stats_html + sync_result_html + filter_toggle_btn + table
 
     def _html_activations(self):
@@ -2695,7 +2710,30 @@ function copyText(text) {
           <th>设备ID</th><th>版本</th><th>型号</th><th>状态</th>
         </tr></thead><tbody>{rows}</tbody></table></div>"""
 
-        return stats_html + toggle_btn + filter_html + table
+        focus_script = ""
+        global _focus_redeem
+        if _focus_redeem:
+            focus_script = '<script>window.__focusRedeem=' + json.dumps(_focus_redeem) + ';</script>'
+            _focus_redeem = None
+
+        return stats_html + toggle_btn + filter_html + table + focus_script + """<script>
+(function checkFocusRedeem() {
+  var rc = window.__focusRedeem;
+  if (!rc) return;
+  window.__focusRedeem = null;
+  var rows = document.querySelectorAll("#actTable tbody tr.accordion-row");
+  for (var i = 0; i < rows.length; i++) {
+    var rr = rows[i];
+    if (rr.getAttribute("data-redeem") === rc) {
+      setTimeout(function() {
+        rr.scrollIntoView({ behavior: "smooth", block: "center" });
+        rr.click();
+      }, 300);
+      break;
+    }
+  }
+})();
+</script>"""
 
     def _html_trend(self):
         dates, counts, amounts = _build_trend_data(30)
