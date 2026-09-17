@@ -7,7 +7,7 @@ try:
 except ImportError:
     redis = None
 
-VERSION = "v2.2.10"
+VERSION = "v2.2.11"
 
 try:
     from AppKit import (NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyRegular,
@@ -784,6 +784,14 @@ def _normalize_amount(amount_raw):
 def _build_order_list():
     msgs = load_messages()
     orders = []
+    # Build activated redeem codes set from activation records
+    activated_redeems = set()
+    for m in msgs:
+        if m.get("type") == "new_activation":
+            p = m.get("payload", {}) or {}
+            rc = p.get("redeem_code", "") or ""
+            if rc:
+                activated_redeems.add(rc)
     for m in msgs:
         if m.get("type") != "new_order":
             continue
@@ -801,6 +809,8 @@ def _build_order_list():
         has_amount = amount > 0
         is_success = has_trade_no or has_redeem or has_amount
         status = "success" if is_success else "failed"
+        # Cross-reference: check if this order's redeem_code was used in an activation
+        is_activated = redeem in activated_redeems if has_redeem else False
         orders.append({
             "time": m.get("time", ""),
             "ts": m.get("ts", 0),
@@ -810,6 +820,7 @@ def _build_order_list():
             "status": status,
             "activation": activation,
             "trade_no": out_trade_no,
+            "activated": is_activated,
         })
     return orders
 
@@ -2133,6 +2144,8 @@ function copyText(text) {
         today_amount = sum(o.get("amount", 0) for o in today_orders)
         success_count = sum(1 for o in orders if o.get("status") == "success")
         failed_count = sum(1 for o in orders if o.get("status") == "failed")
+        activated_count = sum(1 for o in orders if o.get("activated"))
+        not_activated_count = total_count - activated_count
 
         stats_html = f"""
         <div class="stats-grid">
@@ -2160,8 +2173,13 @@ function copyText(text) {
         <div class="filter-bar" id="orderFilterBar" style="display:none;align-items:center;gap:10px;padding:12px 0;flex-wrap:wrap;">
           <select id="filterStatus" onchange="applyOrderFilter()" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff;outline:none;cursor:pointer;">
             <option value="all">All</option>
-            <option value="success">Activation OK</option>
-            <option value="failed">Activation Fail</option>
+            <option value="success">Paid</option>
+            <option value="failed">Unpaid</option>
+          </select>
+          <select id="filterActivated" onchange="applyOrderFilter()" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff;outline:none;cursor:pointer;">
+            <option value="all">Activated: All</option>
+            <option value="true">Activated</option>
+            <option value="false">Not Activated</option>
           </select>
           <select id="filterTime" onchange="onTimePresetChange()" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff;outline:none;cursor:pointer;">
             <option value="all">All Time</option>
@@ -2220,6 +2238,7 @@ function copyText(text) {
         }
         function applyOrderFilter() {
           var status = document.getElementById('filterStatus').value;
+          var activated = document.getElementById('filterActivated').value;
           var time = document.getElementById('filterTime').value;
           var dateFrom = document.getElementById('filterDateFrom').value;
           var dateTo = document.getElementById('filterDateTo').value;
@@ -2234,11 +2253,13 @@ function copyText(text) {
           rows.forEach(function(row) {
             var show = true;
             var rowStatus = row.getAttribute('data-status');
+            var rowActivated = row.getAttribute('data-activated');
             var rowTime = row.getAttribute('data-time');
             var rowProduct = (row.getAttribute('data-product') || '').toLowerCase();
             var rowRedeem = (row.getAttribute('data-redeem') || '').toUpperCase();
             var rowAmt = parseFloat(row.getAttribute('data-amount'));
             if (status !== 'all' && rowStatus !== status) show = false;
+            if (activated !== 'all' && rowActivated !== activated) show = false;
             if (time === 'today' && rowTime !== ds.today) show = false;
             if (time === 'yesterday' && rowTime !== ds.yesterday) show = false;
             if (time === 'week' && rowTime < ds.week) show = false;
@@ -2260,6 +2281,7 @@ function copyText(text) {
         }
         function resetOrderFilter() {
           document.getElementById('filterStatus').value = 'all';
+          document.getElementById('filterActivated').value = 'all';
           document.getElementById('filterTime').value = 'all';
           document.getElementById('filterDateFrom').value = '';
           document.getElementById('filterDateTo').value = '';
@@ -2302,13 +2324,16 @@ function copyText(text) {
             status_class = "badge-success" if status == "success" else "badge-fail"
             status_label = "已付款" if status == "success" else "未付款"
             status_html = f'<span class="badge {status_class}">{status_label}</span>'
+            activated = o.get("activated", False)
+            activated_badge = '<span class="badge badge-success" style="font-size:10px;padding:1px 6px;">Yes</span>' if activated else '<span class="badge badge-fail" style="font-size:10px;padding:1px 6px;">No</span>'
             rowId = "order" + str(idx)
             rows += (
-                '<tr class="accordion-row" id="row-' + rowId + '" data-status="' + status + '" data-time="' + date_str + '" data-product="' + product_safe + '" data-redeem="' + redeem_safe + '" data-amount="' + f'{amt:.2f}' + '" onclick="toggleRowDetail(\'' + rowId + '\')">'
+                '<tr class="accordion-row" id="row-' + rowId + '" data-status="' + status + '" data-activated="' + str(activated).lower() + '" data-time="' + date_str + '" data-product="' + product_safe + '" data-redeem="' + redeem_safe + '" data-amount="' + f'{amt:.2f}' + '" onclick="toggleRowDetail(\'' + rowId + '\')">'
                 '<td><span class="expand-icon">▶</span> ' + t + '</td>'
                 '<td>' + product_safe + '</td>'
                 '<td class="amount">' + amt_display + '</td>'
                 '<td style="font-family:monospace">' + redeem_safe + '</td>'
+                '<td>' + activated_badge + '</td>'
                 '<td>' + status_html + '</td></tr>\n'
             )
             detail_html = '<div class="detail-card">'
@@ -2320,12 +2345,13 @@ function copyText(text) {
             detail_html += '<tr><td>兑换码</td><td class="code">' + redeem_safe + '</td></tr>'
             if activation_safe:
                 detail_html += '<tr><td>激活码</td><td class="code">' + activation_safe + '</td><td style="color:#64748b;font-size:11px;">用户已激活设备</td></tr>'
+            detail_html += '<tr><td>已激活</td><td>' + activated_badge + '</td></tr>'
             detail_html += '<tr><td>状态</td><td>' + status_html + '</td></tr>'
             detail_html += '</table></div></div>'
-            rows += '<tr class="detail-expand" id="detail-' + rowId + '"><td colspan="5">' + detail_html + '</td></tr>\n'
+            rows += '<tr class="detail-expand" id="detail-' + rowId + '"><td colspan="6">' + detail_html + '</td></tr>\n'
             idx += 1
         if not rows:
-            rows = ('<tr><td colspan="5" style="text-align:center;padding:60px">'
+            rows = ('<tr><td colspan="6" style="text-align:center;padding:60px">'
                     '<div class="empty-state" style="padding:0">'
                     '<div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/></svg></div>'
                     '<div class="empty-title">暂无订单</div>'
@@ -2342,7 +2368,7 @@ function copyText(text) {
             else:
                 sync_result_html = f'<div style="margin-top:12px;padding:10px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;color:#166534;font-size:13px">Synced at {sync_time}: {sync_total} orders total, {sync_new} new orders</div>'
 
-        table = f'<div class="panel"><div class="panel-header"><div class="panel-title"><div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>订单列表</div><a class="btn" href="ev://order-sync" onclick="this.style.opacity=&#39;0.6&#39;;this.textContent=&#39;Syncing...&#39;;setTimeout(function(){{location.reload()}},3000)" style="margin-left:8px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>Sync Orders</a></div>{filter_html}<div class="table-wrap"><table><thead><tr><th>时间</th><th>产品</th><th>金额</th><th>兑换码</th><th>状态</th></tr></thead><tbody id="orderTableBody">{rows}</tbody></table></div></div>'
+        table = f'<div class="panel"><div class="panel-header"><div class="panel-title"><div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>订单列表</div><a class="btn" href="ev://order-sync" onclick="this.style.opacity=&#39;0.6&#39;;this.textContent=&#39;Syncing...&#39;;setTimeout(function(){{location.reload()}},3000)" style="margin-left:8px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>Sync Orders</a></div>{filter_html}<div class="table-wrap"><table><thead><tr><th>时间</th><th>产品</th><th>金额</th><th>兑换码</th><th>已激活</th><th>状态</th></tr></thead><tbody id="orderTableBody">{rows}</tbody></table></div></div>'
         return stats_html + sync_result_html + filter_toggle_btn + table
 
     def _html_activations(self):
@@ -2393,6 +2419,8 @@ function copyText(text) {
           <input id="actFilterProduct" type="text" placeholder="Product name..." oninput="applyActFilter()" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;outline:none;width:160px;" />
           <input id="actFilterDevice" type="text" placeholder="Device ID..." oninput="applyActFilter()" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;outline:none;width:150px;" />
           <input id="actFilterRedeem" type="text" placeholder="Redeem code..." oninput="applyActFilter()" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;outline:none;width:140px;" />
+          <input id="actFilterVersion" type="text" placeholder="Version..." oninput="applyActFilter()" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;outline:none;width:120px;" />
+          <input id="actFilterModel" type="text" placeholder="Model..." oninput="applyActFilter()" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;outline:none;width:140px;" />
           <button onclick="resetActFilter()" style="padding:6px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:12px;background:#f9fafb;cursor:pointer;color:#6b7280;">Reset</button>
           <span id="actFilterResult" style="font-size:12px;color:#6b7280;margin-left:4px;font-weight:500;"></span>
         </div>
@@ -2411,6 +2439,8 @@ function copyText(text) {
           var p = (document.getElementById("actFilterProduct").value || "").toLowerCase();
           var d = (document.getElementById("actFilterDevice").value || "").toLowerCase();
           var r = (document.getElementById("actFilterRedeem").value || "").toLowerCase();
+          var v = (document.getElementById("actFilterVersion").value || "").toLowerCase();
+          var m = (document.getElementById("actFilterModel").value || "").toLowerCase();
           var rows = document.querySelectorAll("#actTable tbody tr");
           var vis = 0, total = 0;
           rows.forEach(function(rr) {
@@ -2420,6 +2450,8 @@ function copyText(text) {
             var pp = (rr.getAttribute("data-product") || "").toLowerCase();
             var dd = (rr.getAttribute("data-device") || "").toLowerCase();
             var rd = (rr.getAttribute("data-redeem") || "").toLowerCase();
+            var vv = (rr.getAttribute("data-version") || "").toLowerCase();
+            var mm = (rr.getAttribute("data-model") || "").toLowerCase();
             if (t === "today") {
               var n = new Date();
               var td = n.getFullYear() + "-" + (n.getMonth() + 1).toString().padStart(2, "0") + "-" + n.getDate().toString().padStart(2, "0");
@@ -2440,6 +2472,8 @@ function copyText(text) {
             if (p && pp.indexOf(p) < 0) show = false;
             if (d && dd.indexOf(d) < 0) show = false;
             if (r && rd.indexOf(r) < 0) show = false;
+            if (v && vv.indexOf(v) < 0) show = false;
+            if (m && mm.indexOf(m) < 0) show = false;
             rr.style.display = show ? "" : "none";
             var dtRow = document.getElementById('detail-' + rr.id.replace('row-', ''));
             if (dtRow) { dtRow.style.display = show ? "" : "none"; if (!show) dtRow.classList.remove('show'); }
@@ -2448,7 +2482,7 @@ function copyText(text) {
           document.getElementById("actFilterResult").textContent = vis + "/" + total + " shown";
         }
         function resetActFilter() {
-          ["actFilterTime", "actFilterFrom", "actFilterTo", "actFilterProduct", "actFilterDevice", "actFilterRedeem"].forEach(function(id) {
+          ["actFilterTime", "actFilterFrom", "actFilterTo", "actFilterProduct", "actFilterDevice", "actFilterRedeem", "actFilterVersion", "actFilterModel"].forEach(function(id) {
             var el = document.getElementById(id);
             if (el.tagName === "INPUT") el.value = "";
             else el.value = "all";
@@ -2513,7 +2547,7 @@ function copyText(text) {
 
             rowId = "act" + str(aidx)
             rows += (
-                '<tr class="accordion-row" id="row-' + rowId + '" data-time="' + date_str + '" data-product="' + _safe_str(product) + '" data-device="' + _safe_str(device) + '" data-redeem="' + _safe_str(redeem_code) + '" onclick="toggleRowDetail(\'' + rowId + '\')">'
+                '<tr class="accordion-row" id="row-' + rowId + '" data-time="' + date_str + '" data-product="' + _safe_str(product) + '" data-device="' + _safe_str(device) + '" data-redeem="' + _safe_str(redeem_code) + '" data-version="' + _safe_str(versionVal) + '" data-model="' + _safe_str(modelName) + '" onclick="toggleRowDetail(\'' + rowId + '\')">'
                 '<td><span class="expand-icon">▶</span> ' + _safe_str(t) + '</td>'
                 '<td>' + _safe_str(product) + '</td>'
                 '<td style="font-family:monospace;font-size:12px;">' + _safe_str(act_code[:16] if act_code else "") + '</td>'
