@@ -1,10 +1,31 @@
 #!/bin/bash
 # 构建 EvNotifier.app 桌面应用
 # 运行后生成 EvNotifier.app，双击即可启动，不显示在 Dock 栏
+# 每次构建自动将版本号第三位 +1
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# ---- Auto-increment version (third digit +1) ----
+PY_FILE="$SCRIPT_DIR/ev_notifier.py"
+CURRENT_VER=$(grep -E '^VERSION\s*=' "$PY_FILE" | head -1 | sed 's/.*"v\(.*\)"/\1/')
+if [[ "$CURRENT_VER" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    MAJOR="${BASH_REMATCH[1]}"
+    MINOR="${BASH_REMATCH[2]}"
+    PATCH="${BASH_REMATCH[3]}"
+    NEW_PATCH=$((PATCH + 1))
+    NEW_VER="v${MAJOR}.${MINOR}.${NEW_PATCH}"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "s/^VERSION = \"v${MAJOR}\.${MINOR}\.${PATCH}\"/VERSION = \"${NEW_VER}\"/" "$PY_FILE"
+    else
+        sed -i "s/^VERSION = \"v${MAJOR}\.${MINOR}\.${PATCH}\"/VERSION = \"${NEW_VER}\"/" "$PY_FILE"
+    fi
+    echo "  版本号: ${CURRENT_VER} → ${NEW_VER}"
+else
+    echo "  ⚠️  无法解析版本号: ${CURRENT_VER}"
+fi
+
 APP_NAME="EvNotifier"
 APP_DIR="$SCRIPT_DIR/$APP_NAME.app"
 CONTENTS_DIR="$APP_DIR/Contents"
