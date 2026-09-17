@@ -1684,7 +1684,8 @@ tr:hover td { background: linear-gradient(90deg, #f8fafc, #f1f5f9); }
 .detail-table { width:100%;border-collapse:collapse;font-size:12px; }
 .detail-table td { padding:4px 12px 4px 0;border:none !important;background:transparent !important; }
 .detail-table td:first-child { color:var(--text-secondary);width:110px;white-space:nowrap;font-weight:500; }
-.detail-table td:last-child { color:var(--text);word-break:break-all; }
+.detail-table td:nth-child(2) { color:var(--text);word-break:break-all; }
+.detail-table td:nth-child(3) { color:#64748b;font-size:11px;font-style:italic;width:180px;white-space:normal;line-height:1.5; }
 .detail-table .code { font-family:monospace;font-size:11px;background:#f0f4ff;padding:2px 6px;border-radius:4px; }
 
 .copy-btn { font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:#fff;cursor:pointer;color:var(--text-secondary);margin-left:6px;white-space:nowrap; }
@@ -2512,46 +2513,125 @@ function copyText(text) {
                 '<td>' + status_html + '</td></tr>\n'
             )
 
+            # Build the full activation URL
+            fullUrl = vi.get("url", "") or ""
+            if not fullUrl:
+                host = vi.get("host", "") or ""
+                refPath = refUrl.split("?")[0] if "?" in refUrl else refUrl
+                if host:
+                    fullUrl = "https://" + host + "/activate.html" + ("?deviceId=" + _safe_str(device) if device else "")
+            urlForDisplay = fullUrl
+
+            # Parse URL query parameters for explanation
+            parsed_url = urllib.parse.urlparse(urlForDisplay) if urlForDisplay.startswith(("http://", "https://")) else None
+            url_query = urllib.parse.parse_qs(parsed_url.query) if parsed_url and parsed_url.query else {}
+            param_explanations = []
+            for qk, qv in url_query.items():
+                qv_str = qv[0] if qv else ""
+                if qk == "deviceId":
+                    param_explanations.append(f"<div style='margin-top:2px;font-size:11px;color:#475569;'><code style='background:#e2e8f0;padding:1px 5px;border-radius:3px;font-size:10px;'>{qk}</code> = <code style='background:#e2e8f0;padding:1px 5px;border-radius:3px;font-size:10px;'>{_safe_str(qv_str[:20])}</code> &mdash; Device unique identifier (pre-filled from device)</div>")
+                elif qk == "r":
+                    param_explanations.append(f"<div style='margin-top:2px;font-size:11px;color:#475569;'><code style='background:#e2e8f0;padding:1px 5px;border-radius:3px;font-size:10px;'>{qk}</code> = <code style='background:#e2e8f0;padding:1px 5px;border-radius:3px;font-size:10px;'>{_safe_str(qv_str[:20])}</code> &mdash; App version identifier</div>")
+                elif qk == "utm_source":
+                    param_explanations.append(f"<div style='margin-top:2px;font-size:11px;color:#475569;'><code style='background:#e2e8f0;padding:1px 5px;border-radius:3px;font-size:10px;'>{qk}</code> = <code style='background:#e2e8f0;padding:1px 5px;border-radius:3px;font-size:10px;'>{_safe_str(qv_str[:20])}</code> &mdash; UTM marketing source</div>")
+                elif qk == "utm_medium":
+                    param_explanations.append(f"<div style='margin-top:2px;font-size:11px;color:#475569;'><code style='background:#e2e8f0;padding:1px 5px;border-radius:3px;font-size:10px;'>{qk}</code> = <code style='background:#e2e8f0;padding:1px 5px;border-radius:3px;font-size:10px;'>{_safe_str(qv_str[:20])}</code> &mdash; UTM marketing medium</div>")
+                elif qk == "utm_campaign":
+                    param_explanations.append(f"<div style='margin-top:2px;font-size:11px;color:#475569;'><code style='background:#e2e8f0;padding:1px 5px;border-radius:3px;font-size:10px;'>{qk}</code> = <code style='background:#e2e8f0;padding:1px 5px;border-radius:3px;font-size:10px;'>{_safe_str(qv_str[:20])}</code> &mdash; UTM marketing campaign</div>")
+                else:
+                    param_explanations.append(f"<div style='margin-top:2px;font-size:11px;color:#475569;'><code style='background:#e2e8f0;padding:1px 5px;border-radius:3px;font-size:10px;'>{qk}</code> = <code style='background:#e2e8f0;padding:1px 5px;border-radius:3px;font-size:10px;'>{_safe_str(qv_str[:20])}</code></div>")
+
             detail_html = '<div class="detail-card">'
+
+            # --- Activation URL Section ---
+            detail_html += '<div class="detail-section"><div class="detail-section-title">Activation URL</div>'
+            detail_html += '<div style="background:#f1f5f9;border-radius:8px;padding:10px 14px;font-family:monospace;font-size:12px;word-break:break-all;line-height:1.6;margin-top:4px;">'
+            if urlForDisplay:
+                detail_html += '<div style="margin-bottom:6px;font-weight:600;color:#1e293b;">Link:</div>'
+                detail_html += '<div style="margin-bottom:8px;"><a href="' + _safe_str(urlForDisplay).replace('"', '&quot;') + '" target="_blank" style="color:#2563eb;text-decoration:underline;font-size:12px;">' + _safe_str(urlForDisplay) + '</a>'
+                detail_html += ' <button class="copy-btn" onclick="event.stopPropagation();copyText(\'' + _safe_str(urlForDisplay).replace("'", "\\'") + '\')" style="font-size:10px;padding:2px 8px;">Copy</button></div>'
+                if param_explanations:
+                    detail_html += '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0;"><div style="font-weight:600;color:#475569;font-size:11px;margin-bottom:4px;">Query Parameters:</div>'
+                    for pe in param_explanations:
+                        detail_html += pe
+                    detail_html += '</div>'
+            if refUrl:
+                detail_html += '<div style="color:#64748b;font-size:11px;margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0;">Referrer: <span style="color:#334155;">' + _safe_str(refUrl[:120]) + '</span></div>'
+            detail_html += '</div></div>'
+
+            # --- Failure Info ---
             if isFailure or reason:
-                detail_html += '<div class="detail-section"><div class="detail-section-title" style="color:#ef4444;">失败信息</div><table class="detail-table">'
-                detail_html += '<tr><td>原因</td><td style="color:#ef4444;font-weight:600;">' + _safe_str(reason or "Unknown") + '</td></tr>'
+                detail_html += '<div class="detail-section"><div class="detail-section-title" style="color:#ef4444;">Failure Info</div><table class="detail-table">'
+                detail_html += '<tr><td>Reason</td><td style="color:#ef4444;font-weight:600;">' + _safe_str(reason or "Unknown") + '</td></tr>'
                 detail_html += '</table></div>'
+
+            # --- Field Explanation Table ---
+            detail_html += '<div class="detail-section"><div class="detail-section-title">Field Breakdown</div><table class="detail-table">'
+            if device:
+                detail_html += '<tr><td>Device ID</td><td style="font-family:monospace;font-size:12px;">' + _safe_str(device) + '</td><td style="color:#64748b;font-size:11px;">Unique identifier of the wearable device</td></tr>'
+            if product:
+                detail_html += '<tr><td>Product</td><td>' + _safe_str(product) + '</td><td style="color:#64748b;font-size:11px;">Product/SKU identifier</td></tr>'
+            if act_code:
+                detail_html += '<tr><td>Activation Code</td><td style="font-family:monospace;font-size:12px;">' + _safe_str(act_code) + '</td><td style="color:#64748b;font-size:11px;">18-digit code used to activate the device</td></tr>'
+            if redeem_code:
+                detail_html += '<tr><td>Redeem Code</td><td style="font-family:monospace;font-size:12px;">' + _safe_str(redeem_code) + '</td><td style="color:#64748b;font-size:11px;">4-digit coupon code for activation</td></tr>'
+            if months:
+                detail_html += '<tr><td>Duration</td><td>' + _safe_str(months_display or str(months)) + '</td><td style="color:#64748b;font-size:11px;">Validity period of the activation</td></tr>'
+            if source:
+                detail_html += '<tr><td>Source</td><td>' + _safe_str(source) + '</td><td style="color:#64748b;font-size:11px;">Activation source (user/reuse/sync)</td></tr>'
+            detail_html += '</table></div>'
+
+            # --- Device Info ---
             if di:
-                detail_html += '<div class="detail-section"><div class="detail-section-title">设备信息</div><table class="detail-table">'
-                if di.get("model"): detail_html += '<tr><td>型号</td><td>' + _safe_str(di["model"]) + '</td></tr>'
-                if di.get("product"): detail_html += '<tr><td>产品</td><td>' + _safe_str(di["product"]) + '</td></tr>'
-                if di.get("osVersionCode"): detail_html += '<tr><td>系统版本</td><td>' + _safe_str(di["osVersionCode"]) + '</td></tr>'
-                if di.get("platformVersionCode"): detail_html += '<tr><td>平台版本</td><td>' + _safe_str(di["platformVersionCode"]) + '</td></tr>'
-                if di.get("deviceType"): detail_html += '<tr><td>类型</td><td>' + _safe_str(di["deviceType"]) + '</td></tr>'
+                detail_html += '<div class="detail-section"><div class="detail-section-title">Device Info</div><table class="detail-table">'
+                if di.get("model"): detail_html += '<tr><td>Model</td><td>' + _safe_str(di["model"]) + '</td><td style="color:#64748b;font-size:11px;">Device model number</td></tr>'
+                if di.get("product"): detail_html += '<tr><td>Product Name</td><td>' + _safe_str(di["product"]) + '</td><td style="color:#64748b;font-size:11px;">Product marketing name</td></tr>'
+                if di.get("osVersionCode"): detail_html += '<tr><td>OS Version</td><td>' + _safe_str(di["osVersionCode"]) + '</td><td style="color:#64748b;font-size:11px;">Firmware/OS version on device</td></tr>'
+                if di.get("platformVersionCode"): detail_html += '<tr><td>Platform Ver.</td><td>' + _safe_str(di["platformVersionCode"]) + '</td><td style="color:#64748b;font-size:11px;">Platform SDK version</td></tr>'
+                if di.get("deviceType"): detail_html += '<tr><td>Device Type</td><td>' + _safe_str(di["deviceType"]) + '</td><td style="color:#64748b;font-size:11px;">Category: band/watch/ring</td></tr>'
                 screen = ""
                 if di.get("screenShape"):
                     screen = di["screenShape"]
                     if di.get("screenWidth") and di.get("screenHeight"):
                         screen += " (" + str(di["screenWidth"]) + "x" + str(di["screenHeight"]) + ")"
-                if screen: detail_html += '<tr><td>屏幕</td><td>' + _safe_str(screen) + '</td></tr>'
-                if di.get("apiLevel"): detail_html += '<tr><td>API Level</td><td>' + _safe_str(di["apiLevel"]) + '</td></tr>'
-                if di.get("language"): detail_html += '<tr><td>语言</td><td>' + _safe_str(di["language"]) + '</td></tr>'
+                if screen: detail_html += '<tr><td>Screen</td><td>' + _safe_str(screen) + '</td><td style="color:#64748b;font-size:11px;">Screen shape & resolution</td></tr>'
+                if di.get("apiLevel"): detail_html += '<tr><td>API Level</td><td>' + _safe_str(di["apiLevel"]) + '</td><td style="color:#64748b;font-size:11px;">Firmware API version</td></tr>'
+                if di.get("language"): detail_html += '<tr><td>Language</td><td>' + _safe_str(di["language"]) + '</td><td style="color:#64748b;font-size:11px;">Device UI language setting</td></tr>'
                 detail_html += '</table></div>'
+
+            # --- Visitor / Browser Info ---
             if vi:
-                detail_html += '<div class="detail-section"><div class="detail-section-title">浏览器信息</div><table class="detail-table">'
-                if vi.get("ip"): detail_html += '<tr><td>IP</td><td>' + _safe_str(vi["ip"]) + '</td></tr>'
-                if vi.get("os"): detail_html += '<tr><td>OS</td><td>' + _safe_str(vi["os"]) + '</td></tr>'
-                if vi.get("browser"): detail_html += '<tr><td>浏览器</td><td>' + _safe_str(vi["browser"]) + '</td></tr>'
-                if vi.get("device"): detail_html += '<tr><td>设备类型</td><td>' + _safe_str(vi["device"]) + '</td></tr>'
-                if vi.get("language"): detail_html += '<tr><td>语言</td><td>' + _safe_str(vi["language"]) + '</td></tr>'
+                detail_html += '<div class="detail-section"><div class="detail-section-title">Visitor Info</div><table class="detail-table">'
+                if vi.get("ip"):
+                    detail_html += '<tr><td>IP Address</td><td style="font-family:monospace;font-size:12px;font-weight:600;color:#1e293b;">' + _safe_str(vi["ip"]) + '</td><td style="color:#64748b;font-size:11px;">Client IP address (geo location source)</td></tr>'
+                if vi.get("os"):
+                    detail_html += '<tr><td>OS</td><td>' + _safe_str(vi["os"]) + '</td><td style="color:#64748b;font-size:11px;">Operating system of the visitor</td></tr>'
+                if vi.get("browser"):
+                    detail_html += '<tr><td>Browser</td><td>' + _safe_str(vi["browser"]) + '</td><td style="color:#64748b;font-size:11px;">Web browser used for activation</td></tr>'
+                if vi.get("device"):
+                    detail_html += '<tr><td>Device Type</td><td>' + _safe_str(vi["device"]) + '</td><td style="color:#64748b;font-size:11px;">Desktop / Mobile / Tablet</td></tr>'
+                if vi.get("language"):
+                    detail_html += '<tr><td>Language</td><td>' + _safe_str(vi["language"]) + '</td><td style="color:#64748b;font-size:11px;">Browser language preference (Accept-Language)</td></tr>'
+                if vi.get("time"):
+                    local_time = vi["time"]
+                    detail_html += '<tr><td>Event Time</td><td>' + _safe_str(local_time) + '</td><td style="color:#64748b;font-size:11px;">ISO timestamp of the request</td></tr>'
+                if vi.get("origin"):
+                    detail_html += '<tr><td>Origin</td><td style="font-family:monospace;font-size:11px;">' + _safe_str(vi["origin"]) + '</td><td style="color:#64748b;font-size:11px;">Request origin header (CORS)</td></tr>'
                 if refUrl:
-                    detail_html += '<tr><td>Referer</td><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + _safe_str(refUrl).replace('"', '&quot;') + '">'
+                    detail_html += '<tr><td>Referer</td><td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:monospace;font-size:11px;" title="' + _safe_str(refUrl).replace('"', '&quot;') + '">'
                     detail_html += _safe_str(refUrl[:80])
                     if len(refUrl) > 80:
                         detail_html += '...'
-                    detail_html += '<button class="copy-btn" onclick="event.stopPropagation();copyText(\'' + _safe_str(refUrl).replace("'", "\\'") + '\')">复制</button>'
-                    detail_html += '</td></tr>'
+                    detail_html += ' <button class="copy-btn" onclick="event.stopPropagation();copyText(\'' + _safe_str(refUrl).replace("'", "\\'") + '\')" style="font-size:10px;padding:2px 6px;">Copy</button>'
+                    detail_html += '</td><td style="color:#64748b;font-size:11px;">Referring page URL</td></tr>'
                 if vi.get("userAgent"):
-                    ua_short = _safe_str(vi["userAgent"][:100])
-                    if len(vi["userAgent"]) > 100:
+                    ua_full = _safe_str(vi["userAgent"])
+                    ua_short = ua_full[:120]
+                    if len(ua_full) > 120:
                         ua_short += "..."
-                    detail_html += '<tr><td>User-Agent</td><td>' + ua_short + '</td></tr>'
+                    detail_html += '<tr><td>User-Agent</td><td style="font-family:monospace;font-size:10px;max-width:300px;word-break:break-all;line-height:1.5;"><span title="' + ua_full.replace('"', '&quot;') + '">' + ua_short + '</span>'
+                    detail_html += ' <button class="copy-btn" onclick="event.stopPropagation();copyText(\'' + ua_full.replace("'", "\\'") + '\')" style="font-size:10px;padding:2px 6px;">Copy</button>'
+                    detail_html += '</td><td style="color:#64748b;font-size:11px;">Raw User-Agent string (browser fingerprint)</td></tr>'
                 detail_html += '</table></div>'
             detail_html += '</div>'
             rows += '<tr class="detail-expand" id="detail-' + rowId + '"><td colspan="8">' + detail_html + '</td></tr>\n'

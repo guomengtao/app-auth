@@ -180,6 +180,8 @@ module.exports = async (req, res) => {
       source: "user",
       ip: visitorInfo ? visitorInfo.ip : "",
       user_agent: visitorInfo ? visitorInfo.userAgent : "",
+      visitor_info: visitorInfo || {},
+      device_info: deviceInfo || {},
     }).catch(function () {});
     res.setHeader("Retry-After", Math.ceil(ipCheck.retryAfterMs / 1000));
     return res.status(429).json({ success: false, error: ipCheck.reason, debug: { visitor: visitorInfo, notification: buildNotificationStatus(ipNotifyResult), reason: ipCheck.reason } });
@@ -208,6 +210,8 @@ module.exports = async (req, res) => {
         source: "user",
         ip: visitorInfo ? visitorInfo.ip : "",
         user_agent: visitorInfo ? visitorInfo.userAgent : "",
+        visitor_info: visitorInfo || {},
+        device_info: deviceInfo || {},
       }).catch(function () {});
       return res.status(400).json({ success: false, error: deviceCheck.error, debug: { visitor: visitorInfo, notification: buildNotificationStatus(deviceNotifyResult), reason: deviceCheck.error } });
     }
@@ -230,6 +234,8 @@ module.exports = async (req, res) => {
         source: "user",
         ip: visitorInfo ? visitorInfo.ip : "",
         user_agent: visitorInfo ? visitorInfo.userAgent : "",
+        visitor_info: visitorInfo || {},
+        device_info: deviceInfo || {},
       }).catch(function () {});
       return res.status(400).json({ success: false, error: codeCheck.error, debug: { visitor: visitorInfo, notification: buildNotificationStatus(codeNotifyResult), reason: codeCheck.error } });
     }
@@ -254,6 +260,8 @@ module.exports = async (req, res) => {
         source: "user",
         ip: visitorInfo ? visitorInfo.ip : "",
         user_agent: visitorInfo ? visitorInfo.userAgent : "",
+        visitor_info: visitorInfo || {},
+        device_info: deviceInfo || {},
       }).catch(function () {});
       res.setHeader("Retry-After", Math.ceil(deviceCheck2.retryAfterMs / 1000));
       return res.status(429).json({ success: false, error: deviceCheck2.reason, debug: { visitor: visitorInfo, notification: buildNotificationStatus(device2NotifyResult), reason: deviceCheck2.reason } });
@@ -279,6 +287,8 @@ module.exports = async (req, res) => {
         source: "user",
         ip: visitorInfo ? visitorInfo.ip : "",
         user_agent: visitorInfo ? visitorInfo.userAgent : "",
+        visitor_info: visitorInfo || {},
+        device_info: deviceInfo || {},
       }).catch(function () {});
       return res.status(400).json({ success: false, error: "兑换码不存在或尚未同步到服务器，请在管理后台同步后重试", debug: { visitor: visitorInfo, notification: buildNotificationStatus(codeNotFoundResult), reason: "兑换码不存在" } });
     }
@@ -301,6 +311,8 @@ module.exports = async (req, res) => {
         source: "user",
         ip: visitorInfo ? visitorInfo.ip : "",
         user_agent: visitorInfo ? visitorInfo.userAgent : "",
+        visitor_info: visitorInfo || {},
+        device_info: deviceInfo || {},
       }).catch(function () {});
       console.error("Activate: invalid redeem payload", typeof codeData, codeData);
       return res.status(500).json({ success: false, error: "兑换码数据已损坏，请联系管理员", debug: { visitor: visitorInfo, notification: buildNotificationStatus(corruptNotifyResult), reason: "兑换码数据已损坏" } });
@@ -325,6 +337,8 @@ module.exports = async (req, res) => {
         source: "user",
         ip: visitorInfo ? visitorInfo.ip : "",
         user_agent: visitorInfo ? visitorInfo.userAgent : "",
+        visitor_info: visitorInfo || {},
+        device_info: deviceInfo || {},
       }).catch(function () {});
       console.error("Activate: bad product/duration", info.product_id, info.duration_months);
       return res.status(500).json({
@@ -429,6 +443,8 @@ module.exports = async (req, res) => {
         source: "user",
         ip: visitorInfo ? visitorInfo.ip : "",
         user_agent: visitorInfo ? visitorInfo.userAgent : "",
+        visitor_info: visitorInfo || {},
+        device_info: deviceInfo || {},
       }).catch(function () {});
       return res.status(400).json({
         success: false,
@@ -522,6 +538,8 @@ module.exports = async (req, res) => {
       source: "user",
       ip: visitorInfo ? visitorInfo.ip : "",
       user_agent: visitorInfo ? visitorInfo.userAgent : "",
+      visitor_info: visitorInfo || {},
+      device_info: deviceInfo || {},
     }).catch(function () {});
 
     rateLimit.clearDeviceRateLimit(device).catch(function () {});
@@ -552,6 +570,8 @@ module.exports = async (req, res) => {
       source: "user",
       ip: visitorInfo ? visitorInfo.ip : "",
       user_agent: visitorInfo ? visitorInfo.userAgent : "",
+      visitor_info: visitorInfo || {},
+      device_info: deviceInfo || {},
     }).catch(function () {});
 
     return res.status(500).json({ success: false, error: msg, debug: { visitor: visitorInfo, notification: buildNotificationStatus(catchNotifyResult), reason: msg } });
