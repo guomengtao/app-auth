@@ -9099,6 +9099,7 @@
 
         if (rc && rc.success) {
           var list = rc.visitors || [];
+          window._cachedVisitorData = list;
           if (list.length === 0) {
             recentEl.innerHTML = '<div style="color:var(--muted);font-size:0.8rem">暂无访客记录</div>';
           } else {
@@ -9171,60 +9172,102 @@
     function loadIpCompare() {
       var el = document.getElementById('visitorIpCompare');
       if (!el) return;
-      el.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:20px">加载 IP 对比数据...</div>';
 
-      api('/api/admin/health?section=stats&sub=ip-compare').catch(function() { return null; }).then(function(data) {
-        if (!data || !data.success || !data.ips || data.ips.length === 0) {
-          el.innerHTML = '<div style="color:var(--muted);font-size:0.8rem;padding:20px">暂无 IP 数据（等待 Cron 任务执行或暂无访客）</div>';
+      // 1. Extract IPs from already-loaded visitor data
+      var visitorData = window._cachedVisitorData || [];
+      var ipSet = {};
+      visitorData.forEach(function(v) {
+        if (v.ip && !/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|::1$)/.test(v.ip)) {
+          ipSet[v.ip] = true;
+        }
+      });
+      var ips = Object.keys(ipSet);
+
+      if (ips.length === 0) {
+        el.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:20px">暂无访客 IP 数据</div>';
+        return;
+      }
+
+      // 2. Check localStorage cache (24h for same IP batch)
+      var cacheKey = 'ip_lookup_' + ips.sort().join('_');
+      var cached = null;
+      try {
+        var raw = localStorage.getItem(cacheKey);
+        if (raw) {
+          var parsed = JSON.parse(raw);
+          if (parsed.expires > Date.now()) cached = parsed.data;
+        }
+      } catch(e) {}
+
+      if (cached) {
+        renderIpCompareTable(el, cached.results, cached.sources);
+        return;
+      }
+
+      // 3. No cache - AJAX to new on-demand endpoint
+      el.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:20px">正在查询 IP 归属地（' + ips.length + ' 个 IP）...</div>';
+
+      api('/api/admin/health?section=ip-lookup-once', {
+        method: 'POST',
+        body: JSON.stringify({ ips: ips }),
+        headers: { 'Content-Type': 'application/json' },
+      }).then(function(data) {
+        if (!data || !data.success) {
+          el.innerHTML = '<div style="color:#dc2626;font-size:0.85rem;padding:20px">查询失败</div>';
           return;
         }
-
-        var sources = data.sources || [];
-        var sourceNames = sources.length > 0 ? sources : ["ip-api", "ip-sb", "ipinfo", "ipwhois", "ipapi-is"];
-
-        var html = '<table class="ip-compare-table"><thead><tr>';
-        html += '<th>IP Address</th>';
-        html += '<th>First Seen</th>';
-        html += '<th>Vercel</th>';
-        for (var s = 0; s < sourceNames.length; s++) {
-          html += '<th>' + escapeHtml(sourceNames[s]) + '</th>';
-        }
-        html += '</tr></thead><tbody>';
-
-        for (var i = 0; i < data.ips.length; i++) {
-          var ip = data.ips[i];
-          var results = ip.results || [];
-          var numApis = Math.max(sourceNames.length, results.length);
-
-          html += '<tr>';
-          html += '<td style="font-family:monospace;color:#6366f1;font-weight:600;white-space:nowrap">' + escapeHtml(ip.ip) + '</td>';
-          html += '<td style="font-size:0.72rem;color:var(--muted);white-space:nowrap">' + (ip.firstSeen ? new Date(ip.firstSeen).toLocaleString() : '-') + '</td>';
-          html += '<td style="font-size:0.72rem">' + escapeHtml([ip.country, ip.city].filter(Boolean).join(' ') || '-') + '</td>';
-
-          for (var j = 0; j < numApis; j++) {
-            var r = results.length > j ? results[j] : null;
-            if (r && r.source !== 'no-data') {
-              var addr = [r.country, r.region, r.city].filter(function(x) { return x && x !== r.region; }).filter(Boolean).join(' ');
-              if (!addr) {
-                addr = [r.country, r.region, r.city].filter(Boolean).join(' ');
-              }
-              var ispShort = (r.isp || r.org || '').slice(0, 40);
-              html += '<td><div style="font-size:0.73rem">' + escapeHtml(addr || '-') + '</div>';
-              if (ispShort) html += '<div style="font-size:0.62rem;color:#8b5cf6;margin-top:2px">' + escapeHtml(ispShort) + '</div>';
-              html += '</td>';
-            } else {
-              html += '<td><span class="ip-col-empty">-</span></td>';
-            }
-          }
-          html += '</tr>';
-        }
-        html += '</tbody></table>';
-
-        html += '<div style="margin-top:12px;font-size:0.68rem;color:var(--muted)">共 ' + data.ips.length + ' 个独立 IP，数据来源: ' + sourceNames.join(', ') + '</div>';
-        el.innerHTML = html;
+        // 4. Cache in localStorage for fast re-open
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify({
+            expires: Date.now() + 86400000,
+            data: { results: data.results, sources: data.sources },
+          }));
+        } catch(e) {}
+        renderIpCompareTable(el, data.results, data.sources);
       }).catch(function(e) {
-        el.innerHTML = '<div style="color:#dc2626;font-size:0.8rem;padding:20px">加载失败: ' + escapeHtml(e.message) + '</div>';
+        el.innerHTML = '<div style="color:#dc2626;font-size:0.85rem;padding:20px">查询失败: ' + escapeHtml(e.message) + '</div>';
       });
+    }
+
+    function renderIpCompareTable(el, results, sources) {
+      var sourceNames = (sources || []).length > 0
+        ? sources
+        : ["ip-api", "ip-sb", "ipinfo", "ipwhois", "ipapi-is"];
+
+      var html = '<table class="ip-compare-table"><thead><tr>';
+      html += '<th>IP Address</th>';
+      html += '<th>Status</th>';
+      for (var s = 0; s < sourceNames.length; s++) {
+        html += '<th>' + escapeHtml(sourceNames[s]) + '</th>';
+      }
+      html += '</tr></thead><tbody>';
+
+      for (var i = 0; i < results.length; i++) {
+        var item = results[i];
+        var apiResults = item.results || [];
+
+        html += '<tr>';
+        html += '<td style="font-family:monospace;color:#6366f1;font-weight:600;white-space:nowrap">' + escapeHtml(item.ip) + '</td>';
+        html += '<td style="font-size:0.72rem">' + (item.fromCache ? '缓存' : '实时') + '</td>';
+
+        for (var j = 0; j < sourceNames.length; j++) {
+          var r = apiResults.length > j ? apiResults[j] : null;
+          if (r && r.source !== 'no-data') {
+            var addr = [r.country, r.region, r.city].filter(Boolean).join(' ');
+            var ispShort = (r.isp || r.org || '').slice(0, 40);
+            html += '<td><div style="font-size:0.73rem">' + escapeHtml(addr || '-') + '</div>';
+            if (ispShort) html += '<div style="font-size:0.62rem;color:#8b5cf6;margin-top:2px">' + escapeHtml(ispShort) + '</div>';
+            html += '</td>';
+          } else {
+            html += '<td><span class="ip-col-empty">-</span></td>';
+          }
+        }
+        html += '</tr>';
+      }
+      html += '</tbody></table>';
+
+      html += '<div style="margin-top:12px;font-size:0.68rem;color:var(--muted)">共 ' + results.length + ' 个独立 IP，数据来源: ' + sourceNames.join(', ') + '</div>';
+      el.innerHTML = html;
     }
 
     function drawVisitorChart(tr) {

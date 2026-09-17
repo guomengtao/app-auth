@@ -107,17 +107,7 @@ var DEFAULT_TASKS = [
     createdAt: Date.now(),
     updatedAt: Date.now(),
   },
-  {
-    id: "ip-lookup",
-    name: "IP 归属地查询",
-    description: "每天凌晨2点查询访客 IP 的 ISP/ASN/经纬度（Hobby 计划每日限1次 Cron）",
-    schedule: "0 2 * * *",
-    enabled: true,
-    vercelPath: "/api/admin/health?section=ip-lookup&cron=1",
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-];
+  ];
 
 async function getTaskConfigs() {
   var raw = await redis.get(CRON_CONFIG_KEY);
@@ -2254,6 +2244,125 @@ if ((isCron || isCronBackup) && isBackup) {
     }
   }
 
+  // AJAX on-demand IP lookup - called from admin panel when opening "IP Compare" tab
+  // Replaces previous cron-based approach, stores results in Supabase
+  if (req.query && req.query.section === "ip-lookup-once") {
+    if (req.method !== "POST") {
+      res.setHeader("Allow", "POST");
+      return res.status(405).json({ success: false, error: "Use POST" });
+    }
+    try {
+      var body = req.body;
+      if (typeof body === "string") { try { body = JSON.parse(body); } catch (_) {} }
+      body = body || {};
+      var ips = body.ips || [];
+      if (!Array.isArray(ips) || ips.length === 0) {
+        return res.json({ success: true, results: [] });
+      }
+
+      var ipLookup = require("../../lib/ip-lookup");
+      var ipStore = require("../../lib/ip-lookup-store");
+      var results = [];
+
+      for (var i = 0; i < ips.length; i++) {
+        var ip = ips[i];
+        if (ipLookup.isPrivateOrInvalid(ip)) continue;
+
+        // 1. Check Supabase cache first
+        var stored = await ipStore.getFromStore(ip);
+        if (stored) {
+          var rawData = [];
+          try { rawData = typeof stored.raw_data === "string" ? JSON.parse(stored.raw_data) : (stored.raw_data || []); } catch (e) {}
+          results.push({
+            ip: ip,
+            fromCache: true,
+            results: rawData.map(function(r) {
+              return {
+                source: r.source || "cache",
+                country: r.country || stored.country || "",
+                region: r.region || stored.region || "",
+                city: r.city || stored.city || "",
+                isp: r.isp || stored.isp || "",
+                org: r.org || stored.org || "",
+                asn: r.asn || stored.asn || "",
+                lat: r.lat || stored.lat || 0,
+                lon: r.lon || stored.lon || 0,
+              };
+            }),
+          });
+          continue;
+        }
+
+        // 2. No cache - query APIs (Chinese priority via lang=zh-CN)
+        var individual = await ipLookup.getIpIndividualResults(null, ip);
+        if (!individual || individual.length === 0) {
+          results.push({
+            ip: ip,
+            results: [{ source: "no-data", country: "-", region: "-", city: "-", isp: "-" }],
+          });
+          continue;
+        }
+
+        // 3. Merge results from all APIs
+        var merged = {
+          country: "", region: "", city: "", isp: "", org: "",
+          asn: "", lat: 0, lon: 0, timezone: "", source: "",
+        };
+        if (individual.length > 0) {
+          var first = individual[0];
+          merged.country = first.country || "";
+          merged.region = first.region || "";
+          merged.city = first.city || "";
+          merged.isp = first.isp || "";
+          merged.org = first.org || "";
+          merged.asn = first.asn || "";
+          merged.lat = first.lat || 0;
+          merged.lon = first.lon || 0;
+          merged.timezone = first.timezone || "";
+          merged.source = first.source || "";
+          for (var j = 1; j < individual.length; j++) {
+            var r2 = individual[j];
+            if (!merged.isp && r2.isp) merged.isp = r2.isp;
+            if (!merged.org && r2.org) merged.org = r2.org;
+            if (!merged.asn && r2.asn) merged.asn = r2.asn;
+            if (!merged.lat && r2.lat) { merged.lat = r2.lat; merged.lon = r2.lon; }
+            merged.source += "+" + r2.source;
+          }
+        }
+
+        // 4. Save to Supabase for future lookups
+        ipStore.saveToStore(ip, merged, individual);
+
+        results.push({
+          ip: ip,
+          fromCache: false,
+          results: individual.map(function(r) {
+            return {
+              source: r.source || "unknown",
+              country: r.country || "",
+              region: r.region || "",
+              city: r.city || "",
+              isp: r.isp || "",
+              org: r.org || "",
+              asn: r.asn || "",
+              lat: r.lat || 0,
+              lon: r.lon || 0,
+            };
+          }),
+        });
+      }
+
+      return res.json({
+        success: true,
+        results: results,
+        sources: ipLookup.IP_APIS.map(function(a) { return a.name; }),
+      });
+    } catch (e) {
+      console.error("[ip-lookup-once] error:", e);
+      return res.status(500).json({ success: false, error: (e && e.message) || String(e) });
+    }
+  }
+
   if (req.query && req.query.section === "cron-tasks") {
     if (req.method === "GET") {
       try {
@@ -2858,36 +2967,26 @@ if ((isCron || isCronBackup) && isBackup) {
       }
 
       async function handleIpCompare2() {
+        // Legacy: no longer called from frontend, kept for backwards compatibility
+        // Frontend now uses section=ip-lookup-once directly
         var records = await redis.lrange("stats:recent", 0, 49).catch(function() { return []; });
-        var ipLookup = null;
-        try { ipLookup = require("../../lib/ip-lookup"); } catch (e) {}
         var ipMap = {};
         for (var i = 0; i < records.length; i++) {
           try {
             var obj = typeof records[i] === "string" ? JSON.parse(records[i]) : records[i];
-            if (obj.ip && !ipMap[obj.ip] && !(ipLookup && ipLookup.isPrivateOrInvalid(obj.ip))) {
+            if (obj.ip && !ipMap[obj.ip]) {
               ipMap[obj.ip] = { ip: obj.ip, firstSeen: obj.t || 0, page: obj.p || "/", country: obj.c || "", city: obj.ci || "" };
             }
           } catch (e) {}
         }
         var ips = Object.keys(ipMap);
-        var list = [];
-        for (var j = 0; j < ips.length; j++) {
-          var ip = ips[j];
-          var entry = Object.assign({}, ipMap[ip]);
-          if (ipLookup) {
-            var individual = await ipLookup.getIpIndividualResults(redis, ip);
-            entry.results = individual.map(function(r) {
-              return { source: r.source || "unknown", country: r.country || "", region: r.region || "", city: r.city || "", isp: r.isp || "", org: r.org || "", asn: r.asn || "", lat: r.lat || 0, lon: r.lon || 0 };
-            });
-            if (entry.results.length === 0) { entry.results = [{ source: "no-data", country: "-", region: "-", city: "-", isp: "-" }]; }
-          } else {
-            entry.results = [{ source: "no-data", country: "-", region: "-", city: "-", isp: "-" }];
-          }
-          list.push(entry);
-        }
+        var list = ips.map(function(ip) {
+          return Object.assign({}, ipMap[ip], {
+            results: [{ source: "no-data", country: "-", region: "-", city: "-", isp: "-" }],
+          });
+        });
         list.sort(function(a, b) { return b.firstSeen - a.firstSeen; });
-        return { success: true, ips: list, sources: ipLookup ? ipLookup.IP_APIS.map(function(a) { return a.name; }) : [] };
+        return { success: true, ips: list, sources: [] };
       }
 
       var sub = req.query && req.query.sub;
