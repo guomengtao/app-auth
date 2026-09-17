@@ -599,6 +599,22 @@ def handle_message(msg):
             lines.append(f"Referrer: {referrer[:80]}")
         lines.append(ts_label)
         body = "\n".join(lines)
+    elif mtype == "activation_failure":
+        product = p.get("product_name", "") or ""
+        reason = p.get("reason", "") or p.get("error", "") or ""
+        redeem = p.get("redeem_code", "") or ""
+        device = p.get("device_id", "") or ""
+        title = "Activation Failed"
+        subtitle = product or "Unknown"
+        lines = []
+        if redeem:
+            lines.append(f"Redeem: {redeem}")
+        if reason:
+            lines.append(f"Reason: {reason[:80]}")
+        if device:
+            lines.append(f"Device: {device[:16]}")
+        lines.append(ts_label)
+        body = "\n".join(lines)
     else:
         body = json.dumps(p, ensure_ascii=False, indent=2)[:200]
     print(f"[{ts_label}] {title} | {subtitle}")
@@ -734,9 +750,19 @@ def _format_message_detail(m):
     elif mtype == "test_curl":
         detail = json.dumps(p, ensure_ascii=False)[:100]
         type_label = "Test"
-    else:
-        detail = json.dumps(p, ensure_ascii=False)[:100]
-        type_label = "Other"
+    elif mtype == "activation_failure":
+        product = p.get("product_name", "") or ""
+        reason = p.get("reason", "") or p.get("error", "") or ""
+        redeem = p.get("redeem_code", "") or ""
+        device = p.get("device_id", "") or ""
+        detail = f"{product}"
+        if redeem:
+            detail += f" | {redeem}"
+        if reason:
+            detail += f" | {reason[:40]}"
+        if device:
+            detail += f" | {device[:16]}"
+        type_label = "Activation"
     return type_label, detail
 
 
@@ -1240,6 +1266,7 @@ body {
 
 .stat-icon.blue { background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #2563eb; }
 .stat-icon.green { background: linear-gradient(135deg, #d1fae5, #a7f3d0); color: #059669; }
+.stat-icon.emerald { background: linear-gradient(135deg, #d1fae5, #a7f3d0); color: #059669; }
 .stat-icon.orange { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #d97706; }
 .stat-icon.purple { background: linear-gradient(135deg, #ede9fe, #ddd6fe); color: #7c3aed; }
 .stat-icon.red { background: linear-gradient(135deg, #fee2e2, #fecaca); color: #dc2626; }
@@ -1640,6 +1667,28 @@ tr:hover td { background: linear-gradient(90deg, #f8fafc, #f1f5f9); }
 .message-table tr:hover td { background:#f8fafc; }
 .td-time { color:var(--text-secondary); font-size:12px !important; white-space:nowrap; }
 .td-type { text-align:center; }
+
+.accordion-row { cursor:pointer; }
+.accordion-row:hover td { background:#f0f7ff; }
+.accordion-row .expand-icon { display:inline-block;width:18px;text-align:center;font-size:10px;color:var(--text-tertiary);transition:transform 0.2s; }
+.accordion-row.open .expand-icon { transform:rotate(90deg); }
+
+.detail-expand { display:none; }
+.detail-expand.show { display:table-row; }
+.detail-expand td { padding:0 !important; border-bottom:2px solid var(--accent) !important; background:#fafbff; }
+
+.detail-card { padding:14px 20px; }
+.detail-section { margin-bottom:14px; }
+.detail-section:last-child { margin-bottom:0; }
+.detail-section-title { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--accent);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid rgba(59,130,246,.15); }
+.detail-table { width:100%;border-collapse:collapse;font-size:12px; }
+.detail-table td { padding:4px 12px 4px 0;border:none !important;background:transparent !important; }
+.detail-table td:first-child { color:var(--text-secondary);width:110px;white-space:nowrap;font-weight:500; }
+.detail-table td:last-child { color:var(--text);word-break:break-all; }
+.detail-table .code { font-family:monospace;font-size:11px;background:#f0f4ff;padding:2px 6px;border-radius:4px; }
+
+.copy-btn { font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:#fff;cursor:pointer;color:var(--text-secondary);margin-left:6px;white-space:nowrap; }
+.copy-btn:hover { background:var(--accent);color:#fff;border-color:var(--accent); }
 """
 
 _TYPE_STYLES = {
@@ -1976,10 +2025,29 @@ p{color:#6b7280;font-size:14px;margin-top:16px}
     def _html_wrap(self, content, title, subtitle="", scripts=""):
         sidebar = self._sidebar_html()
         topbar = self._topbar_html(title, subtitle)
+        common_js = """<script>
+function toggleRowDetail(rowId) {
+  var row = document.getElementById('detail-'+rowId);
+  var toggle = document.getElementById('row-'+rowId);
+  if (!row) return;
+  if (row.classList.contains('show')) {
+    row.classList.remove('show');
+    if (toggle) toggle.classList.remove('open');
+  } else {
+    row.classList.add('show');
+    if (toggle) toggle.classList.add('open');
+  }
+}
+function copyText(text) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(function() { }).catch(function() { });
+  }
+}
+</script>"""
         return f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>{_DASH_CSS}</style></head>
-<body><div class="layout">{sidebar}<div class="main">{topbar}<div class="content">{content}</div></div></div>{scripts}</body></html>"""
+<body><div class="layout">{sidebar}<div class="main">{topbar}<div class="content">{content}</div></div></div>{common_js}{scripts}</body></html>"""
 
     def _html_messages(self):
         received_data = load_received()
@@ -2175,6 +2243,8 @@ p{color:#6b7280;font-size:14px;margin-top:16px}
             if (!isNaN(amtMin) && rowAmt < amtMin) show = false;
             if (!isNaN(amtMax) && rowAmt > amtMax) show = false;
             row.style.display = show ? '' : 'none';
+            var detailRow = document.getElementById('detail-' + row.id.replace('row-', ''));
+            if (detailRow) { detailRow.style.display = show ? '' : 'none'; if (!show) detailRow.classList.remove('show'); }
             if (show) { visible++; totalAmt += rowAmt; }
           });
           document.getElementById('filterResult').textContent = visible+'/'+rows.length+' orders, sum CNY'+totalAmt.toFixed(2);
@@ -2209,6 +2279,7 @@ p{color:#6b7280;font-size:14px;margin-top:16px}
         """
 
         rows = ""
+        idx = 0
         for o in orders[:200]:
             t = o.get("time", "")[-16:] if len(o.get("time", "")) >= 16 else o.get("time", "")
             date_str = o.get("time", "")[:10] if len(o.get("time", "")) >= 10 else ""
@@ -2216,14 +2287,31 @@ p{color:#6b7280;font-size:14px;margin-top:16px}
             amt_display = f"CNY{amt:.2f}"
             product_safe = _safe_str(o.get("product", "-"))
             redeem_safe = _safe_str(o.get("redeem", "-"))
+            activation_safe = _safe_str(o.get("activation", ""))
             status = o.get("status", "failed")
             status_class = "badge-success" if status == "success" else "badge-fail"
-            status_label = "Success" if status == "success" else "Failed"
+            status_label = "成功" if status == "success" else "失败"
             status_html = f'<span class="badge {status_class}">{status_label}</span>'
-            rows += (f'<tr data-status="{status}" data-time="{date_str}" data-product="{product_safe}" data-redeem="{redeem_safe}" data-amount="{amt:.2f}">'
-                     f'<td>{t}</td><td>{product_safe}</td>'
-                     f'<td class="amount">{amt_display}</td><td>{redeem_safe}</td>'
-                     f'<td>{status_html}</td></tr>\n')
+            rowId = "order" + str(idx)
+            rows += (
+                '<tr class="accordion-row" id="row-' + rowId + '" data-status="' + status + '" data-time="' + date_str + '" data-product="' + product_safe + '" data-redeem="' + redeem_safe + '" data-amount="' + f'{amt:.2f}' + '" onclick="toggleRowDetail(\'' + rowId + '\')">'
+                '<td><span class="expand-icon">▶</span> ' + t + '</td>'
+                '<td>' + product_safe + '</td>'
+                '<td class="amount">' + amt_display + '</td>'
+                '<td style="font-family:monospace">' + redeem_safe + '</td>'
+                '<td>' + status_html + '</td></tr>\n'
+            )
+            detail_html = '<div class="detail-card">'
+            detail_html += '<div class="detail-section"><div class="detail-section-title">订单详情</div><table class="detail-table">'
+            detail_html += '<tr><td>产品</td><td>' + product_safe + '</td></tr>'
+            detail_html += '<tr><td>金额</td><td>' + amt_display + '</td></tr>'
+            detail_html += '<tr><td>兑换码</td><td class="code">' + redeem_safe + '</td></tr>'
+            if activation_safe:
+                detail_html += '<tr><td>激活码</td><td class="code">' + activation_safe + '</td></tr>'
+            detail_html += '<tr><td>状态</td><td>' + status_html + '</td></tr>'
+            detail_html += '</table></div></div>'
+            rows += '<tr class="detail-expand" id="detail-' + rowId + '"><td colspan="5">' + detail_html + '</td></tr>\n'
+            idx += 1
         if not rows:
             rows = ('<tr><td colspan="5" style="text-align:center;padding:60px">'
                     '<div class="empty-state" style="padding:0">'
@@ -2246,12 +2334,14 @@ p{color:#6b7280;font-size:14px;margin-top:16px}
         return stats_html + sync_result_html + filter_toggle_btn + table
 
     def _html_activations(self):
-        """Activation records page - list new_activation messages."""
+        """Activation records page - list new_activation and activation_failure messages."""
         messages = load_messages()
-        acts = [m for m in messages if m.get("type") == "new_activation"]
+        acts = [m for m in messages if m.get("type") in ("new_activation", "activation_failure")]
         acts.sort(key=lambda x: x.get("ts", 0), reverse=True)
 
         total_count = len(acts)
+        success_count = sum(1 for a in acts if a.get("type") == "new_activation")
+        fail_count = sum(1 for a in acts if a.get("type") == "activation_failure")
         today_str = datetime.now().strftime("%Y-%m-%d")
         today_acts = [a for a in acts if time.strftime(
             "%Y-%m-%d", time.localtime(a.get("ts", 0)) if a.get("ts") else 0) == today_str]
@@ -2260,11 +2350,19 @@ p{color:#6b7280;font-size:14px;margin-top:16px}
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
-            <div class="stat-body"><div class="stat-value">{total_count}</div><div class="stat-label">Total Activations</div></div>
+            <div class="stat-body"><div class="stat-value">{total_count}</div><div class="stat-label">All Activations</div></div>
           </div>
           <div class="stat-card">
             <div class="stat-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
             <div class="stat-body"><div class="stat-value">{len(today_acts)}</div><div class="stat-label">Today</div></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon emerald"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+            <div class="stat-body"><div class="stat-value">{success_count}</div><div class="stat-label">Success</div></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
+            <div class="stat-body"><div class="stat-value">{fail_count}</div><div class="stat-label">Failed</div></div>
           </div>
         </div>"""
 
@@ -2331,6 +2429,8 @@ p{color:#6b7280;font-size:14px;margin-top:16px}
             if (d && dd.indexOf(d) < 0) show = false;
             if (r && rd.indexOf(r) < 0) show = false;
             rr.style.display = show ? "" : "none";
+            var dtRow = document.getElementById('detail-' + rr.id.replace('row-', ''));
+            if (dtRow) { dtRow.style.display = show ? "" : "none"; if (!show) dtRow.classList.remove('show'); }
             if (show) vis++;
           });
           document.getElementById("actFilterResult").textContent = vis + "/" + total + " shown";
@@ -2362,6 +2462,7 @@ p{color:#6b7280;font-size:14px;margin-top:16px}
         toggle_btn = '<button id="actFilterToggle" onclick="toggleActFilter()" style="padding:6px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:12px;background:#fff;cursor:pointer;color:#6b7280;display:inline-flex;align-items:center;gap:4px;margin-bottom:4px;">Show Filters</button>'
 
         rows = ""
+        aidx = 0
         for a in acts:
             ts = a.get("ts", 0)
             p = a.get("payload", {}) or {}
@@ -2378,17 +2479,83 @@ p{color:#6b7280;font-size:14px;margin-top:16px}
                 months_display = f"{m // 12}y" if m >= 12 and m % 12 == 0 else f"{m}m" if m else ""
             except Exception:
                 months_display = str(months) if months else ""
-            success = p.get("success", True)
-            status_html = '<span class="badge badge-success">Success</span>' if success else '<span class="badge badge-fail">Failed</span>'
+            isFailure = a.get("type") == "activation_failure"
+            success = p.get("success", not isFailure)
+            reason = p.get("reason", "") or p.get("error", "") or ""
+            status_html = '<span class="badge badge-success">成功</span>' if (success and not isFailure) else '<span class="badge badge-fail">失败</span>'
 
-            rows += (f'<tr data-time="{date_str}" data-product="{product}" data-device="{device}" data-redeem="{redeem_code}">'
-                     f'<td>{t}</td><td>{product}</td>'
-                     f'<td style="font-family:monospace;font-size:12px;">{act_code}</td>'
-                     f'<td>{redeem_code}</td>'
-                     f'<td style="font-family:monospace;font-size:11px;">{device}</td>'
-                     f'<td>{months_display}</td>'
-                     f'<td>{source}</td>'
-                     f'<td>{status_html}</td></tr>\n')
+            di = p.get("device_info", {}) or {}
+            vi = p.get("visitor_info", {}) or {}
+            refUrl = vi.get("referer", "") or p.get("referer", "") or ""
+            rMatch = None
+            import re as _re
+            try: rMatch = _re.search(r'[&?]r=([^&]+)', refUrl)
+            except: pass
+            versionVal = rMatch.group(1) if rMatch else ""
+            try:
+                from urllib.parse import unquote
+                versionVal = unquote(versionVal)
+            except:
+                pass
+            modelName = di.get("product", "") or di.get("model", "") or ""
+
+            rowId = "act" + str(aidx)
+            rows += (
+                '<tr class="accordion-row" id="row-' + rowId + '" data-time="' + date_str + '" data-product="' + _safe_str(product) + '" data-device="' + _safe_str(device) + '" data-redeem="' + _safe_str(redeem_code) + '" onclick="toggleRowDetail(\'' + rowId + '\')">'
+                '<td><span class="expand-icon">▶</span> ' + _safe_str(t) + '</td>'
+                '<td>' + _safe_str(product) + '</td>'
+                '<td style="font-family:monospace;font-size:12px;">' + _safe_str(act_code[:16] if act_code else "") + '</td>'
+                '<td>' + _safe_str(redeem_code) + '</td>'
+                '<td style="font-family:monospace;font-size:11px;">' + _safe_str(device[:16] if device else "") + '</td>'
+                '<td>' + _safe_str(versionVal) + '</td>'
+                '<td>' + _safe_str(modelName) + '</td>'
+                '<td>' + status_html + '</td></tr>\n'
+            )
+
+            detail_html = '<div class="detail-card">'
+            if isFailure or reason:
+                detail_html += '<div class="detail-section"><div class="detail-section-title" style="color:#ef4444;">失败信息</div><table class="detail-table">'
+                detail_html += '<tr><td>原因</td><td style="color:#ef4444;font-weight:600;">' + _safe_str(reason or "Unknown") + '</td></tr>'
+                detail_html += '</table></div>'
+            if di:
+                detail_html += '<div class="detail-section"><div class="detail-section-title">设备信息</div><table class="detail-table">'
+                if di.get("model"): detail_html += '<tr><td>型号</td><td>' + _safe_str(di["model"]) + '</td></tr>'
+                if di.get("product"): detail_html += '<tr><td>产品</td><td>' + _safe_str(di["product"]) + '</td></tr>'
+                if di.get("osVersionCode"): detail_html += '<tr><td>系统版本</td><td>' + _safe_str(di["osVersionCode"]) + '</td></tr>'
+                if di.get("platformVersionCode"): detail_html += '<tr><td>平台版本</td><td>' + _safe_str(di["platformVersionCode"]) + '</td></tr>'
+                if di.get("deviceType"): detail_html += '<tr><td>类型</td><td>' + _safe_str(di["deviceType"]) + '</td></tr>'
+                screen = ""
+                if di.get("screenShape"):
+                    screen = di["screenShape"]
+                    if di.get("screenWidth") and di.get("screenHeight"):
+                        screen += " (" + str(di["screenWidth"]) + "x" + str(di["screenHeight"]) + ")"
+                if screen: detail_html += '<tr><td>屏幕</td><td>' + _safe_str(screen) + '</td></tr>'
+                if di.get("apiLevel"): detail_html += '<tr><td>API Level</td><td>' + _safe_str(di["apiLevel"]) + '</td></tr>'
+                if di.get("language"): detail_html += '<tr><td>语言</td><td>' + _safe_str(di["language"]) + '</td></tr>'
+                detail_html += '</table></div>'
+            if vi:
+                detail_html += '<div class="detail-section"><div class="detail-section-title">浏览器信息</div><table class="detail-table">'
+                if vi.get("ip"): detail_html += '<tr><td>IP</td><td>' + _safe_str(vi["ip"]) + '</td></tr>'
+                if vi.get("os"): detail_html += '<tr><td>OS</td><td>' + _safe_str(vi["os"]) + '</td></tr>'
+                if vi.get("browser"): detail_html += '<tr><td>浏览器</td><td>' + _safe_str(vi["browser"]) + '</td></tr>'
+                if vi.get("device"): detail_html += '<tr><td>设备类型</td><td>' + _safe_str(vi["device"]) + '</td></tr>'
+                if vi.get("language"): detail_html += '<tr><td>语言</td><td>' + _safe_str(vi["language"]) + '</td></tr>'
+                if refUrl:
+                    detail_html += '<tr><td>Referer</td><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + _safe_str(refUrl).replace('"', '&quot;') + '">'
+                    detail_html += _safe_str(refUrl[:80])
+                    if len(refUrl) > 80:
+                        detail_html += '...'
+                    detail_html += '<button class="copy-btn" onclick="event.stopPropagation();copyText(\'' + _safe_str(refUrl).replace("'", "\\'") + '\')">复制</button>'
+                    detail_html += '</td></tr>'
+                if vi.get("userAgent"):
+                    ua_short = _safe_str(vi["userAgent"][:100])
+                    if len(vi["userAgent"]) > 100:
+                        ua_short += "..."
+                    detail_html += '<tr><td>User-Agent</td><td>' + ua_short + '</td></tr>'
+                detail_html += '</table></div>'
+            detail_html += '</div>'
+            rows += '<tr class="detail-expand" id="detail-' + rowId + '"><td colspan="8">' + detail_html + '</td></tr>\n'
+            aidx += 1
 
         if not rows:
             rows = ('<tr><td colspan="8" style="text-align:center;padding:60px">'
@@ -2399,8 +2566,8 @@ p{color:#6b7280;font-size:14px;margin-top:16px}
                     '</div></td></tr>')
 
         table = f"""<div class="table-wrap"><table id="actTable"><thead><tr>
-          <th>Time</th><th>Product</th><th>Activation Code</th><th>Redeem Code</th>
-          <th>Device</th><th>Months</th><th>Source</th><th>Status</th>
+          <th>时间</th><th>产品</th><th>激活码</th><th>兑换码</th>
+          <th>设备ID</th><th>版本</th><th>型号</th><th>状态</th>
         </tr></thead><tbody>{rows}</tbody></table></div>"""
 
         return stats_html + toggle_btn + filter_html + table
@@ -2527,6 +2694,7 @@ document.addEventListener('DOMContentLoaded',function(){{
             </div>"""
 
         rows = ""
+        vidx = 0
         for v in visitors[:100]:
             t = _safe_str(v.get("time", "")[-16:] if len(v.get("time", "")) >= 16 else v.get("time", ""))
             host = _safe_str(v.get("hostname", "") or "")
@@ -2549,11 +2717,52 @@ document.addEventListener('DOMContentLoaded',function(){{
             if v.get("utm_campaign", ""):
                 utm_tags += f'<span class="utm-tag">{camp}</span>'
 
-            rows += (f'<tr><td>{t}</td>'
-                     f'<td><div>{url_display}</div>{utm_tags}</td>'
-                     f'<td><span class="device-tag {device}">{_safe_str(device)}</span></td>'
-                     f'<td>{ip}</td>'
-                     f'<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{host_safe}">{host_safe}</td></tr>\n')
+            rowId = "visitor" + str(vidx)
+            rows += ('<tr class="accordion-row" id="row-' + rowId + '" onclick="toggleRowDetail(\'' + rowId + '\')">'
+                     '<td><span class="expand-icon">▶</span> ' + t + '</td>'
+                     '<td><div>' + url_display + '</div>' + utm_tags + '</td>'
+                     '<td><span class="device-tag ' + device + '">' + _safe_str(device) + '</span></td>'
+                     '<td>' + ip + '</td>'
+                     '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + host_safe + '">' + host_safe + '</td></tr>\n')
+
+            detail_html = '<div class="detail-card">'
+            detail_html += '<div class="detail-section"><div class="detail-section-title">页面信息</div><table class="detail-table">'
+            detail_html += '<tr><td>主机</td><td>' + host + '</td></tr>'
+            detail_html += '<tr><td>路径</td><td>' + path + '</td></tr>'
+            if v.get("title"): detail_html += '<tr><td>标题</td><td>' + _safe_str(v["title"]) + '</td></tr>'
+            detail_html += '</table></div>'
+
+            detail_html += '<div class="detail-section"><div class="detail-section-title">访客信息</div><table class="detail-table">'
+            detail_html += '<tr><td>IP地址</td><td>' + ip + '</td></tr>'
+            detail_html += '<tr><td>设备类型</td><td>' + _safe_str(v.get("device", "Unknown")) + '</td></tr>'
+            if v.get("os"): detail_html += '<tr><td>操作系统</td><td>' + _safe_str(v["os"]) + '</td></tr>'
+            if v.get("browser"): detail_html += '<tr><td>浏览器</td><td>' + _safe_str(v["browser"]) + '</td></tr>'
+            if v.get("language"): detail_html += '<tr><td>语言</td><td>' + _safe_str(v["language"]) + '</td></tr>'
+            if v.get("screen"): detail_html += '<tr><td>屏幕</td><td>' + _safe_str(v["screen"]) + '</td></tr>'
+            if v.get("country"): detail_html += '<tr><td>国家</td><td>' + _safe_str(v["country"]) + '</td></tr>'
+            if v.get("region"): detail_html += '<tr><td>地区</td><td>' + _safe_str(v["region"]) + '</td></tr>'
+            if v.get("utm_source"): detail_html += '<tr><td>UTM Source</td><td>' + _safe_str(v["utm_source"]) + '</td></tr>'
+            if v.get("utm_medium"): detail_html += '<tr><td>UTM Medium</td><td>' + _safe_str(v["utm_medium"]) + '</td></tr>'
+            if v.get("utm_campaign"): detail_html += '<tr><td>UTM Campaign</td><td>' + _safe_str(v["utm_campaign"]) + '</td></tr>'
+            detail_html += '</table></div>'
+
+            refUrl = v.get("referrer", "") or ""
+            if refUrl:
+                detail_html += '<div class="detail-section"><div class="detail-section-title">来源信息</div><table class="detail-table">'
+                refShort = _safe_str(refUrl[:100]) + ("..." if len(refUrl) > 100 else "")
+                detail_html += '<tr><td>Referer</td><td style="word-break:break-all">' + refShort + '</td></tr>'
+                if v.get("referrer_host"): detail_html += '<tr><td>来源主机</td><td>' + _safe_str(v["referrer_host"]) + '</td></tr>'
+                detail_html += '</table></div>'
+
+            if v.get("user_agent"):
+                ua = _safe_str(v["user_agent"])
+                detail_html += '<div class="detail-section"><div class="detail-section-title">User-Agent</div>'
+                detail_html += '<div style="font-size:11px;color:var(--text-secondary);word-break:break-all;max-height:80px;overflow-y:auto">' + ua + '</div>'
+                detail_html += '</div>'
+
+            detail_html += '</div>'
+            rows += '<tr class="detail-expand" id="detail-' + rowId + '"><td colspan="5">' + detail_html + '</td></tr>\n'
+            vidx += 1
 
         if not rows:
             rows = ('<tr><td colspan="5"><div class="empty-state">'
