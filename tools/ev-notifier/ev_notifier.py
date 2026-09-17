@@ -793,7 +793,14 @@ def _build_order_list():
         amount = _normalize_amount(amount_raw)
         redeem = p.get("redeem_code", "") or "-"
         activation = p.get("activation_code", "") or ""
-        status = "success" if activation else "failed"
+        out_trade_no = p.get("out_trade_no", "") or ""
+        # A paid order is always successful. activation_code is a separate step.
+        # Mark as success if we have basic order data.
+        has_trade_no = bool(out_trade_no)
+        has_redeem = bool(redeem and redeem != "-")
+        has_amount = amount > 0
+        is_success = has_trade_no or has_redeem or has_amount
+        status = "success" if is_success else "failed"
         orders.append({
             "time": m.get("time", ""),
             "ts": m.get("ts", 0),
@@ -802,6 +809,7 @@ def _build_order_list():
             "redeem": redeem,
             "status": status,
             "activation": activation,
+            "trade_no": out_trade_no,
         })
     return orders
 
@@ -2289,9 +2297,10 @@ function copyText(text) {
             product_safe = _safe_str(o.get("product", "-"))
             redeem_safe = _safe_str(o.get("redeem", "-"))
             activation_safe = _safe_str(o.get("activation", ""))
+            trade_no_safe = _safe_str(o.get("trade_no", ""))
             status = o.get("status", "failed")
             status_class = "badge-success" if status == "success" else "badge-fail"
-            status_label = "成功" if status == "success" else "失败"
+            status_label = "已付款" if status == "success" else "未付款"
             status_html = f'<span class="badge {status_class}">{status_label}</span>'
             rowId = "order" + str(idx)
             rows += (
@@ -2306,9 +2315,11 @@ function copyText(text) {
             detail_html += '<div class="detail-section"><div class="detail-section-title">订单详情</div><table class="detail-table">'
             detail_html += '<tr><td>产品</td><td>' + product_safe + '</td></tr>'
             detail_html += '<tr><td>金额</td><td>' + amt_display + '</td></tr>'
+            if trade_no_safe:
+                detail_html += '<tr><td>交易号</td><td style="font-family:monospace;font-size:11px;">' + trade_no_safe + '</td></tr>'
             detail_html += '<tr><td>兑换码</td><td class="code">' + redeem_safe + '</td></tr>'
             if activation_safe:
-                detail_html += '<tr><td>激活码</td><td class="code">' + activation_safe + '</td></tr>'
+                detail_html += '<tr><td>激活码</td><td class="code">' + activation_safe + '</td><td style="color:#64748b;font-size:11px;">用户已激活设备</td></tr>'
             detail_html += '<tr><td>状态</td><td>' + status_html + '</td></tr>'
             detail_html += '</table></div></div>'
             rows += '<tr class="detail-expand" id="detail-' + rowId + '"><td colspan="5">' + detail_html + '</td></tr>\n'
