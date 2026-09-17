@@ -3328,7 +3328,7 @@ document.addEventListener('DOMContentLoaded',function(){{
     def _build_current_html(self):
         page = self._current_page
 
-        tab_ids = ["messages", "orders", "visitors", "trend", "devices", "polls", "logs", "settings"]
+        tab_ids = ["messages", "orders", "activations", "visitors", "trend", "devices", "polls", "logs", "settings"]
         tab_html = ""
         for tid in tab_ids:
             if tid == page:
