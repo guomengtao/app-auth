@@ -463,7 +463,7 @@
     })();
 
     (function(){
-      xhrFetch('/api/version')
+      xhrFetch('/api/admin/health?section=version')
         .then(function(res) { return res.json(); })
         .then(function(v) {
           var el = document.getElementById('version-text');

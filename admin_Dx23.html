@@ -4736,7 +4736,7 @@
     }
 
     function logout() {
-      window.location.href = '/api/admin/me?action=logout&redirect=' + encodeURIComponent('/login_aXs12.html?logout=1');
+      window.location.href = '/api/admin/health?section=me&action=logout&redirect=' + encodeURIComponent('/login_aXs12.html?logout=1');
     }
 
     async function loadStats() {
@@ -4748,7 +4748,7 @@
 
         var results = await Promise.allSettled([
           api('/api/admin/products'),
-          api('/api/admin/stats')
+          api('/api/admin/health?section=stats')
         ]);
 
         var productResult = results[0];
@@ -4780,7 +4780,7 @@
       if (!days) days = 7;
 
       try {
-        var res = await fetch('/api/admin/stats?section=trends&days=' + days, { credentials: 'include' });
+        var res = await fetch('/api/admin/health?section=stats&sub=trends&days=' + days, { credentials: 'include' });
         var data = await res.json();
         if (!data.success) return;
 
@@ -6912,7 +6912,7 @@
       if (detailEl) detailEl.innerHTML = '';
 
       try {
-        var resp = await fetch('/api/admin/me?action=test-email', {
+        var resp = await fetch('/api/admin/health?section=me&action=test-email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
@@ -7579,7 +7579,7 @@
     function displayUserInfo() {
       var el = document.getElementById('sidebarUserEmail');
       if (!el) return;
-      fetch('/api/admin/me')
+      fetch('/api/admin/health?section=me')
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (data && data.success) {
@@ -9041,9 +9041,9 @@
       if (recentEl) recentEl.innerHTML = '<div style="color:var(--muted);font-size:0.85rem">加载中...</div>';
 
       Promise.all([
-        api('/api/admin/stats?section=visitor-overview').catch(function() { return null; }),
-        api('/api/admin/stats?section=visitor-trend&days=' + days).catch(function() { return null; }),
-        api('/api/admin/stats?section=visitor-recent').catch(function() { return null; }),
+        api('/api/admin/health?section=stats&sub=visitor-overview').catch(function() { return null; }),
+        api('/api/admin/health?section=stats&sub=visitor-trend&days=' + days).catch(function() { return null; }),
+        api('/api/admin/health?section=stats&sub=visitor-recent').catch(function() { return null; }),
       ]).then(function(results) {
         var ov = results[0];
         var tr = results[1];
@@ -9172,7 +9172,7 @@
       if (!el) return;
       el.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:20px">加载 IP 对比数据...</div>';
 
-      api('/api/admin/stats?section=ip-compare').catch(function() { return null; }).then(function(data) {
+      api('/api/admin/health?section=stats&sub=ip-compare').catch(function() { return null; }).then(function(data) {
         if (!data || !data.success || !data.ips || data.ips.length === 0) {
           el.innerHTML = '<div style="color:var(--muted);font-size:0.8rem;padding:20px">暂无 IP 数据（等待 Cron 任务执行或暂无访客）</div>';
           return;

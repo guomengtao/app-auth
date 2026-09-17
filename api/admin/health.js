@@ -2510,6 +2510,420 @@ if ((isCron || isCronBackup) && isBackup) {
     return verifySwitch(req, res);
   }
 
+  // === Merged from api/version.js ===
+  if (req.query && req.query.section === "version") {
+    var fs = require("fs");
+    var path = require("path");
+    try {
+      var raw = fs.readFileSync(path.join(__dirname, "..", "..", "version.json"), "utf-8");
+      var data = JSON.parse(raw);
+      return res.status(200).json(data);
+    } catch (e) {
+      return res.status(200).json({ version: "0.0.0", patch: 0 });
+    }
+  }
+
+  // === Merged from api/admin/me.js ===
+  if (req.query && req.query.section === "me") {
+    var { parseCookies: parseCookies2, verify: verify2 } = require("../../lib/auth");
+
+    function parseBody2(req) {
+      var body = req.body;
+      if (body == null || body === "") return {};
+      if (typeof body === "string") {
+        try { return JSON.parse(body); } catch (e) { return {}; }
+      }
+      return body;
+    }
+
+    var action = req.query && req.query.action;
+
+    if (action === "logout") {
+      res.setHeader("Set-Cookie", [
+        "token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0",
+        "_vercel_jwt=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
+      ]);
+
+      if (req.method === "GET") {
+        var redirectTo = req.query && req.query.redirect
+          ? decodeURIComponent(req.query.redirect)
+          : "/login_aXs12.html?logout=1";
+        res.writeHead(302, { Location: redirectTo });
+        return res.end();
+      }
+
+      return res.json({ success: true });
+    }
+
+    if (req.method === "POST" && (action === "test-email" || (req.body && typeof req.body === "object" && req.body.action === "test-email"))) {
+      var body2 = parseBody2(req);
+      var smtpSettings = body2.action === "test-email" ? body2 : {};
+      try {
+        var result = await notify.sendTestEmail(smtpSettings);
+        if (result.success) {
+          return res.json(result);
+        } else {
+          return res.status(500).json(result);
+        }
+      } catch (e) {
+        return res.status(500).json({ success: false, error: e.message || "Failed to send test email" });
+      }
+    }
+
+    var cookies = parseCookies2(req.headers.cookie || "");
+
+    var vercelJwt = cookies["_vercel_jwt"];
+    if (vercelJwt) {
+      try {
+        var parts = vercelJwt.split(".");
+        if (parts.length === 3) {
+          var payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+          return res.json({
+            success: true,
+            email: payload.email || "",
+            name: payload.name || "",
+            provider: "vercel"
+          });
+        }
+      } catch (e) {}
+    }
+
+    var token = cookies["token"];
+    if (token) {
+      var payload = verify2(token);
+      if (payload) {
+        return res.json({
+          success: true,
+          email: payload.email || payload.username || "",
+          name: payload.name || "",
+          provider: payload.provider || "token"
+        });
+      }
+    }
+
+    return res.status(401).json({ success: false, error: "Not authenticated" });
+  }
+
+  // === Merged from api/admin/stats.js ===
+  if (req.query && req.query.section === "stats") {
+    var auth2 = requireAuth(req);
+    if (!auth2.authorized) {
+      return res.status(auth2.status).json({ success: false, error: auth2.error });
+    }
+
+    if (req.method !== "GET") {
+      return res.status(405).json({ success: false, error: "Method not allowed" });
+    }
+
+    try {
+      var USED_COUNTER_KEY = "auth:counter:used_redeem_codes";
+
+      async function handleStats2() {
+        var [totalProducts, totalRedeemCodes, totalActivations, usedCountCached] = await Promise.all([
+          redis.hlen("auth:products"),
+          redis.scard("auth:redeem_codes"),
+          redis.scard("auth:activation_codes"),
+          redis.get(USED_COUNTER_KEY),
+        ]);
+
+        var usedCount = parseInt(usedCountCached, 10);
+        if (!Number.isFinite(usedCount) || usedCount < 0) {
+          usedCount = 0;
+          var cursor = "0";
+          var guard = 0;
+          do {
+            var codes = await redis.sscan("auth:redeem_codes", cursor, { count: 500 });
+            var nextCursor = Array.isArray(codes) ? String(codes[0] ?? "0") : String(codes?.cursor ?? "0");
+            var keys = Array.isArray(codes) ? (codes[1] || []) : (codes?.keys || []);
+            cursor = nextCursor;
+            if (keys.length > 0) {
+              var pipeline = redis.pipeline();
+              keys.forEach(function(code) { pipeline.get("auth:redeem:" + code); });
+              var results = await pipeline.exec();
+              usedCount += (results || []).filter(function(r) {
+                var data = r;
+                if (typeof data === "string") { try { data = JSON.parse(data); } catch (e) { return false; } }
+                return data && data.used;
+              }).length;
+            }
+            guard++;
+          } while (cursor !== "0" && guard < 500);
+
+          try { await redis.set(USED_COUNTER_KEY, String(usedCount), { ex: 300 }); } catch (e) { console.error("Failed to cache used count:", e); }
+        }
+
+        return {
+          success: true,
+          stats: {
+            totalProducts: totalProducts,
+            totalRedeemCodes: totalRedeemCodes,
+            usedRedeemCodes: usedCount,
+            unusedRedeemCodes: Math.max(0, (totalRedeemCodes || 0) - usedCount),
+            totalActivations: totalActivations,
+          },
+        };
+      }
+
+      async function handleTrends2(days) {
+        var now = Date.now();
+        var dayMs = 24 * 60 * 60 * 1000;
+        var startTs = now - days * dayMs;
+
+        var dateSlots = [];
+        for (var d = 0; d < days; d++) {
+          var slotDate = new Date(now - (days - 1 - d) * dayMs);
+          var dateKey = slotDate.toISOString().slice(0, 10);
+          dateSlots.push({ date: dateKey, ts: slotDate.getTime() });
+        }
+
+        function getDateKey(ts) { return new Date(ts).toISOString().slice(0, 10); }
+
+        var orderMap = {};
+        var activationMap = {};
+        dateSlots.forEach(function(s) { orderMap[s.date] = { count: 0, revenue: 0 }; activationMap[s.date] = { count: 0 }; });
+
+        var orderKeys = [];
+        try { var processedSet = await redis.smembers("afdian:processed"); if (processedSet && processedSet.length) { orderKeys = processedSet; } } catch (e) {}
+
+        var BATCH = 200;
+        for (var i = 0; i < orderKeys.length; i += BATCH) {
+          var batch = orderKeys.slice(i, i + BATCH);
+          var pipeline2 = redis.pipeline();
+          batch.forEach(function(key) { pipeline2.get("afdian:order:" + key); });
+          var results2 = await pipeline2.exec();
+          if (results2 && results2.length) {
+            for (var j = 0; j < results2.length; j++) {
+              var raw = results2[j];
+              if (!raw) continue;
+              try {
+                var order = typeof raw === "string" ? JSON.parse(raw) : raw;
+                var orderTs = order.created_at;
+                if (!orderTs) continue;
+                if (orderTs < startTs) continue;
+                var dk = getDateKey(orderTs);
+                var slot = orderMap[dk];
+                if (!slot) continue;
+                slot.count++;
+                var amt = parseFloat(order.total_amount) || 0;
+                slot.revenue += amt;
+              } catch (e) {}
+            }
+          }
+        }
+
+        var activationKeys = [];
+        try { activationKeys = await redis.smembers("auth:activation_codes"); } catch (e) {}
+
+        for (var k = 0; k < activationKeys.length; k += BATCH) {
+          var abatch = activationKeys.slice(k, k + BATCH);
+          var apipeline = redis.pipeline();
+          abatch.forEach(function(code2) { apipeline.get("auth:activation:" + code2); });
+          var aresults = await apipeline.exec();
+          if (aresults && aresults.length) {
+            for (var m = 0; m < aresults.length; m++) {
+              var araw = aresults[m];
+              if (!araw) continue;
+              try {
+                var act = typeof araw === "string" ? JSON.parse(araw) : araw;
+                var actTs = act.generated_at;
+                if (!actTs) continue;
+                if (actTs < startTs) continue;
+                var adk = getDateKey(actTs);
+                var aslot = activationMap[adk];
+                if (!aslot) continue;
+                aslot.count++;
+              } catch (e) {}
+            }
+          }
+        }
+
+        var totalKeys = 0;
+        try {
+          var counts = await Promise.all([
+            redis.scard("auth:redeem_codes").catch(function() { return 0; }),
+            redis.scard("auth:activation_codes").catch(function() { return 0; }),
+            redis.scard("afdian:processed").catch(function() { return 0; }),
+            redis.hlen("auth:products").catch(function() { return 0; }),
+          ]);
+          totalKeys = counts.reduce(function(a, b) { return a + b; }, 0);
+        } catch (e) { totalKeys = 0; }
+
+        var orders = dateSlots.map(function(s) { return orderMap[s.date]; });
+        var activations = dateSlots.map(function(s) { return activationMap[s.date]; });
+
+        return {
+          success: true,
+          days: days,
+          labels: dateSlots.map(function(s) { return s.date.slice(5); }),
+          orders: orders,
+          activations: activations,
+          summary: {
+            totalOrders: orders.reduce(function(acc, o) { return acc + o.count; }, 0),
+            totalRevenue: orders.reduce(function(acc, o) { return acc + o.revenue; }, 0),
+            totalActivations: activations.reduce(function(acc, a) { return acc + a.count; }, 0),
+            currentDbKeys: totalKeys,
+          },
+        };
+      }
+
+      function todayKey(ts) {
+        var d = new Date(ts || Date.now());
+        var y = d.getUTCFullYear();
+        var m = String(d.getUTCMonth() + 1).padStart(2, "0");
+        var day = String(d.getUTCDate()).padStart(2, "0");
+        return y + "-" + m + "-" + day;
+      }
+
+      async function handleVisitorOverview2() {
+        var today = todayKey();
+        var yesterday = todayKey(Date.now() - 24 * 60 * 60 * 1000);
+
+        var result = await Promise.all([
+          redis.scard("stats:uv:" + today).catch(function() { return 0; }),
+          redis.get("stats:pv:" + today).catch(function() { return null; }),
+          redis.scard("stats:uv:" + yesterday).catch(function() { return 0; }),
+          redis.get("stats:pv:" + yesterday).catch(function() { return null; }),
+          redis.zrange("stats:pages:" + today, 0, -1, { withScores: true }).catch(function() { return []; }),
+        ]);
+
+        var todayUv = result[0] || 0;
+        var todayPv = parseInt(result[1], 10) || 0;
+        var ydUv = result[2] || 0;
+        var ydPv = parseInt(result[3], 10) || 0;
+        var pagesRaw = result[4] || [];
+
+        var topPages = [];
+        for (var i = 0; i < pagesRaw.length; i += 2) {
+          topPages.push({ path: pagesRaw[i], hits: parseInt(pagesRaw[i + 1], 10) || 0 });
+        }
+        topPages.sort(function(a, b) { return b.hits - a.hits; });
+        topPages = topPages.slice(0, 5);
+
+        return { success: true, today: { uv: todayUv, pv: todayPv }, yesterday: { uv: ydUv, pv: ydPv }, topPages: topPages };
+      }
+
+      async function handleVisitorTrend2(days) {
+        days = Math.max(1, Math.min(days, 30));
+        var labels = [], uvData = [], pvData = [];
+        for (var i = days - 1; i >= 0; i--) {
+          var d2 = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+          var dk = todayKey(d2.getTime());
+          labels.push(dk.slice(5));
+          var uv = await redis.scard("stats:uv:" + dk).catch(function() { return 0; });
+          var pvRaw = await redis.get("stats:pv:" + dk).catch(function() { return null; });
+          uvData.push(uv || 0);
+          pvData.push(parseInt(pvRaw, 10) || 0);
+        }
+        return { success: true, days: days, labels: labels, uv: uvData, pv: pvData };
+      }
+
+      async function handleVisitorRecent2() {
+        var records = await redis.lrange("stats:recent", 0, 49).catch(function() { return []; });
+        var ipLookup = null;
+        try { ipLookup = require("../../lib/ip-lookup"); } catch (e) {}
+        var ipSet = {};
+        for (var i = 0; i < records.length; i++) {
+          try {
+            var obj = typeof records[i] === "string" ? JSON.parse(records[i]) : records[i];
+            if (obj.ip && ipLookup && !ipLookup.isPrivateOrInvalid(obj.ip)) { ipSet[obj.ip] = true; }
+          } catch (e) {}
+        }
+        var ipDetails = {};
+        if (ipLookup && Object.keys(ipSet).length > 0) {
+          var ips = Object.keys(ipSet);
+          var cacheKeys = ips.map(function(ip) { return "ip:detail:" + ip.replace(/[^a-fA-F0-9:.]/g, "_"); });
+          var cachedResults = await redis.mget(cacheKeys).catch(function() { return []; });
+          for (var j = 0; j < ips.length; j++) {
+            if (cachedResults && cachedResults[j]) { try { ipDetails[ips[j]] = JSON.parse(cachedResults[j]); } catch (e) {} }
+          }
+        }
+        var list = [];
+        for (var i = 0; i < records.length; i++) {
+          try {
+            var obj = typeof records[i] === "string" ? JSON.parse(records[i]) : records[i];
+            var entry = {
+              hash: obj.h || "", path: obj.p || "/", ua: obj.u || "", ref: obj.r || "",
+              time: obj.t || 0, country: obj.c || "", region: obj.rg || "", city: obj.ci || "",
+              timezone: obj.tz || "", ip: obj.ip || "",
+            };
+            var detail = ipDetails[obj.ip];
+            if (detail) {
+              entry.isp = detail.isp || ""; entry.org = detail.org || ""; entry.asn = detail.asn || "";
+              entry.lat = detail.lat || 0; entry.lon = detail.lon || 0; entry.ipSource = detail.source || "";
+            }
+            list.push(entry);
+          } catch (e) {}
+        }
+        return { success: true, visitors: list };
+      }
+
+      async function handleIpCompare2() {
+        var records = await redis.lrange("stats:recent", 0, 49).catch(function() { return []; });
+        var ipLookup = null;
+        try { ipLookup = require("../../lib/ip-lookup"); } catch (e) {}
+        var ipMap = {};
+        for (var i = 0; i < records.length; i++) {
+          try {
+            var obj = typeof records[i] === "string" ? JSON.parse(records[i]) : records[i];
+            if (obj.ip && !ipMap[obj.ip] && !(ipLookup && ipLookup.isPrivateOrInvalid(obj.ip))) {
+              ipMap[obj.ip] = { ip: obj.ip, firstSeen: obj.t || 0, page: obj.p || "/", country: obj.c || "", city: obj.ci || "" };
+            }
+          } catch (e) {}
+        }
+        var ips = Object.keys(ipMap);
+        var list = [];
+        for (var j = 0; j < ips.length; j++) {
+          var ip = ips[j];
+          var entry = Object.assign({}, ipMap[ip]);
+          if (ipLookup) {
+            var individual = await ipLookup.getIpIndividualResults(redis, ip);
+            entry.results = individual.map(function(r) {
+              return { source: r.source || "unknown", country: r.country || "", region: r.region || "", city: r.city || "", isp: r.isp || "", org: r.org || "", asn: r.asn || "", lat: r.lat || 0, lon: r.lon || 0 };
+            });
+            if (entry.results.length === 0) { entry.results = [{ source: "no-data", country: "-", region: "-", city: "-", isp: "-" }]; }
+          } else {
+            entry.results = [{ source: "no-data", country: "-", region: "-", city: "-", isp: "-" }];
+          }
+          list.push(entry);
+        }
+        list.sort(function(a, b) { return b.firstSeen - a.firstSeen; });
+        return { success: true, ips: list, sources: ipLookup ? ipLookup.IP_APIS.map(function(a) { return a.name; }) : [] };
+      }
+
+      var sub = req.query && req.query.sub;
+
+      if (sub === "visitor-overview") {
+        return res.json(await handleVisitorOverview2());
+      }
+      if (sub === "visitor-trend") {
+        var vdays = parseInt(req.query && req.query.days, 10) || 7;
+        if (vdays < 1) vdays = 1;
+        if (vdays > 30) vdays = 30;
+        return res.json(await handleVisitorTrend2(vdays));
+      }
+      if (sub === "visitor-recent") {
+        return res.json(await handleVisitorRecent2());
+      }
+      if (sub === "ip-compare") {
+        return res.json(await handleIpCompare2());
+      }
+      if (sub === "trends") {
+        var days = parseInt(req.query && req.query.days, 10) || 7;
+        if (days < 1) days = 1;
+        if (days > 90) days = 90;
+        return res.json(await handleTrends2(days));
+      }
+
+      return res.json(await handleStats2());
+    } catch (error) {
+      console.error("Stats error:", error);
+      var msg = "Internal server error";
+      if (error && error.code === "PG_ENV_MISSING") { msg = "Server database (Postgres) not configured, contact admin"; }
+      else if (error && /connection|ECONNREFUSED|ENOTFOUND/i.test(String(error.message || ""))) { msg = "Server database connection failed, try again later or contact admin"; }
+      return res.status(500).json({ success: false, error: msg });
+    }
+  }
+
   if (req.method !== "GET") {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
