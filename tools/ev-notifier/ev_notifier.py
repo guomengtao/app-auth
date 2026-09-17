@@ -7,7 +7,11 @@ try:
 except ImportError:
     redis = None
 
-VERSION = "v2.2.12"
+VERSION = "v2.3.0"
+
+# Delivery callback configuration
+CALLBACK_BASE_URL = "https://app-auth.gudq.com"
+CLIENT_ID = None  # Will be set on first run
 
 try:
     from AppKit import (NSApplication, NSApplicationActivationPolicyAccessory, NSApplicationActivationPolicyRegular,
@@ -530,6 +534,47 @@ def notify_macos(title, subtitle, body, sound=False):
         pass
 
 
+def _delivery_callback(message_id, event="delivered"):
+    """Notify server that a message was delivered/confirmed by the Mac client."""
+    if not message_id:
+        return
+    import socket
+    hostname = socket.gethostname()
+    try:
+        payload = json.dumps({
+            "message_id": message_id,
+            "event": event,
+            "client_id": hostname,
+            "received_at": datetime.now().isoformat()
+        })
+        url = f"{CALLBACK_BASE_URL}/api/message-delivery/callback"
+        fd, tmp = tempfile.mkstemp(suffix=".json", prefix="ev_dc_")
+        try:
+            os.close(fd)
+            subprocess.run([
+                "curl", "-s", "--connect-timeout", "3", "--max-time", "5",
+                "-X", "POST", url,
+                "-H", "Content-Type: application/json",
+                "-d", payload,
+                "-o", tmp
+            ], timeout=10)
+            resp = open(tmp).read().strip()
+            if resp:
+                try:
+                    j = json.loads(resp)
+                    if j.get("success"):
+                        _debug_log(f"Delivery callback OK: {message_id} event={event}")
+                except Exception:
+                    pass
+        finally:
+            try:
+                os.unlink(tmp)
+            except Exception:
+                pass
+    except Exception as e:
+        _debug_log(f"Delivery callback failed: {e}")
+
+
 def handle_message(msg):
     global _last_msg_ts, _new_msg_count, _paused
     if _paused:
@@ -625,6 +670,12 @@ def handle_message(msg):
     if do_popup:
         notify_macos(title, subtitle, body, sound=do_sound)
     store_message(ts, mtype, p)
+
+    # Delivery callback: confirm to server that message was received
+    message_id = msg.get("messageId")
+    if message_id:
+        threading.Thread(target=_delivery_callback, args=(message_id, "delivered"), daemon=True).start()
+
     global _pending_title
     if _new_msg_count:
         _pending_title = f"Ev {VERSION}({_new_msg_count})"

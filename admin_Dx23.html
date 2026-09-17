@@ -3154,6 +3154,7 @@
         <li><a href="javascript:void(0)" onclick="switchTab('quota')" data-tab="quota"><i data-lucide="coins" class="menu-icon"></i><span class="menu-text">额度</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('visitors')" data-tab="visitors"><i data-lucide="users" class="menu-icon"></i><span class="menu-text">访客统计</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('logs')" data-tab="logs"><i data-lucide="scroll-text" class="menu-icon"></i><span class="menu-text">日志</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('delivery')" data-tab="delivery"><i data-lucide="send" class="menu-icon"></i><span class="menu-text">消息投递</span></a></li>
         <li class="menu-separator"><hr></li>
         <li><a href="javascript:void(0)" onclick="switchTab('settings')" data-tab="settings"><i data-lucide="settings" class="menu-icon"></i><span class="menu-text">设置</span></a></li>
       </ul>
@@ -4204,6 +4205,94 @@
               <p style="margin-top:8px;color:var(--muted)">Cron 定时任务：每天凌晨 3:00 (UTC) 自动同步一次。也可点击上方按钮手动同步。</p>
             </div>
           </details>
+        </div>
+
+        <div class="panel" id="panel-delivery">
+          <div class="toolbar">
+            <div>
+              <h2 style="margin:0;display:flex;align-items:center;gap:8px">📨 消息投递</h2>
+              <span class="muted" style="font-size:0.8rem">追踪 Redis 推送消息的投递状态，排查丢通知问题</span>
+            </div>
+            <span class="spacer"></span>
+            <div style="display:flex;align-items:center;gap:12px">
+              <div style="display:flex;align-items:center;gap:4px">
+                <label style="font-size:0.75rem;color:var(--muted)">状态：</label>
+                <select id="deliveryFilterStatus" class="filter-select" style="font-size:0.78rem;padding:4px 8px" onchange="loadDeliveryMessages()">
+                  <option value="">全部</option>
+                  <option value="pending">待投递</option>
+                  <option value="published">已发布</option>
+                  <option value="delivered">已送达</option>
+                  <option value="confirmed">已确认</option>
+                  <option value="failed">失败</option>
+                </select>
+              </div>
+              <div style="display:flex;align-items:center;gap:4px">
+                <label style="font-size:0.75rem;color:var(--muted)">类型：</label>
+                <select id="deliveryFilterType" class="filter-select" style="font-size:0.78rem;padding:4px 8px" onchange="loadDeliveryMessages()">
+                  <option value="">全部</option>
+                  <option value="new_activation">激活</option>
+                  <option value="new_order">订单</option>
+                  <option value="page_visit">访问</option>
+                  <option value="activation_failure">失败</option>
+                </select>
+              </div>
+              <button class="btn btn-outline" onclick="loadDeliveryMessages()">🔄 刷新</button>
+              <button class="btn btn-sm" onclick="loadDeliveryStats()" style="font-size:0.75rem">📊 统计</button>
+            </div>
+          </div>
+
+          <div id="deliveryStats" style="display:none;margin-bottom:16px">
+            <div class="stats-bar">
+              <div class="stat-card" style="border-left:3px solid #3b82f6">
+                <div class="number" id="deliveryStatTotal">-</div>
+                <div class="label">7天总数</div>
+              </div>
+              <div class="stat-card" style="border-left:3px solid #f59e0b">
+                <div class="number" id="deliveryStatPending">-</div>
+                <div class="label">待投递</div>
+              </div>
+              <div class="stat-card" style="border-left:3px solid #3b82f6">
+                <div class="number" id="deliveryStatPublished">-</div>
+                <div class="label">已发布</div>
+              </div>
+              <div class="stat-card" style="border-left:3px solid #10b981">
+                <div class="number" id="deliveryStatDelivered">-</div>
+                <div class="label">已送达 ✓</div>
+              </div>
+              <div class="stat-card" style="border-left:3px solid #8b5cf6">
+                <div class="number" id="deliveryStatConfirmed">-</div>
+                <div class="label">已确认 ✓✓</div>
+              </div>
+              <div class="stat-card" style="border-left:3px solid #ef4444">
+                <div class="number" id="deliveryStatFailed">-</div>
+                <div class="label">失败 ✗</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:100px">时间</th>
+                  <th style="width:90px">类型</th>
+                  <th style="width:70px">状态</th>
+                  <th>内容</th>
+                  <th style="width:90px">关联</th>
+                  <th style="width:160px">时间线</th>
+                </tr>
+              </thead>
+              <tbody id="deliveryTable">
+                <tr><td colspan="6" class="empty">加载中...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div style="margin-top:16px;display:flex;justify-content:center;align-items:center;gap:12px;font-size:0.82rem">
+            <button class="btn btn-sm" onclick="deliveryPage=Math.max(0,deliveryPage-1);loadDeliveryMessages()">‹ 上一页</button>
+            <span id="deliveryPageInfo" style="color:var(--muted)">第 1 页</span>
+            <button class="btn btn-sm" onclick="deliveryPage++;loadDeliveryMessages()">下一页 ›</button>
+          </div>
         </div>
 
       </main>
@@ -9214,6 +9303,103 @@
       ctx.fillRect(legX + 44, padT - 6, 10, 10);
       ctx.fillStyle = '#334155';
       ctx.fillText('PV', legX + 58, padT + 3);
+    }
+
+    var deliveryPage = 0;
+    var deliveryLimit = 50;
+
+    function loadDeliveryMessages() {
+      var status = document.getElementById('deliveryFilterStatus').value;
+      var type = document.getElementById('deliveryFilterType').value;
+      var params = 'action=query&limit=' + deliveryLimit + '&offset=' + (deliveryPage * deliveryLimit);
+      if (status) params += '&status=' + encodeURIComponent(status);
+      if (type) params += '&type=' + encodeURIComponent(type);
+
+      var tbody = document.getElementById('deliveryTable');
+      if (!tbody) return;
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">加载中...</td></tr>';
+
+      fetch('/api/message-delivery/query?' + params, { credentials: 'include' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data.success) { tbody.innerHTML = '<tr><td colspan="6" class="empty">查询失败</td></tr>'; return; }
+          var rows = data.rows || [];
+          var total = data.total || 0;
+          var html = '';
+          if (rows.length === 0) {
+            html = '<tr><td colspan="6" class="empty">暂无消息投递记录</td></tr>';
+          } else {
+            for (var i = 0; i < rows.length; i++) {
+              var r = rows[i];
+              var timeStr = r.created_at ? new Date(r.created_at).toLocaleString() : '-';
+              var typeLabel = r.message_type || '-';
+              var statusLabel = '-';
+              var statusColor = '#94a3b8';
+              if (r.status === 'pending') { statusLabel = '⏳ 待投递'; statusColor = '#f59e0b'; }
+              else if (r.status === 'published') { statusLabel = '📤 已发布'; statusColor = '#3b82f6'; }
+              else if (r.status === 'delivered') { statusLabel = '✅ 已送达'; statusColor = '#10b981'; }
+              else if (r.status === 'confirmed') { statusLabel = '✅✓ 已确认'; statusColor = '#8b5cf6'; }
+              else if (r.status === 'failed') { statusLabel = '❌ 失败'; statusColor = '#ef4444'; }
+
+              var payloadStr = '-';
+              try {
+                var p = typeof r.payload === 'string' ? JSON.parse(r.payload) : (r.payload || {});
+                var keys = Object.keys(p);
+                if (keys.length > 0) {
+                  payloadStr = keys.slice(0, 3).map(function(k) { return k + '=' + (typeof p[k] === 'string' ? p[k].substring(0, 20) : JSON.stringify(p[k]).substring(0, 20)); }).join(', ');
+                }
+                if (keys.length > 3) payloadStr += '...';
+              } catch(e) { payloadStr = String(r.payload || '-').substring(0, 60); }
+
+              var related = r.related_code || r.related_device || '-';
+
+              var timeline = '';
+              var parts = [];
+              if (r.created_at) parts.push('🕐' + new Date(r.created_at).toLocaleTimeString());
+              if (r.published_at) parts.push('📤' + new Date(r.published_at).toLocaleTimeString());
+              if (r.delivered_at) parts.push('✅' + new Date(r.delivered_at).toLocaleTimeString());
+              if (r.confirmed_at) parts.push('✓' + new Date(r.confirmed_at).toLocaleTimeString());
+              timeline = parts.join(' → ') || '-';
+
+              html += '<tr>';
+              html += '<td style="font-size:0.72rem;white-space:nowrap">' + escapeHtml(timeStr) + '</td>';
+              html += '<td style="font-size:0.75rem"><code>' + escapeHtml(typeLabel) + '</code></td>';
+              html += '<td><span style="color:' + statusColor + ';font-weight:600;font-size:0.72rem">' + statusLabel + '</span></td>';
+              html += '<td style="font-size:0.72rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(payloadStr) + '">' + escapeHtml(payloadStr) + '</td>';
+              html += '<td style="font-size:0.72rem;font-family:monospace">' + escapeHtml(related) + '</td>';
+              html += '<td style="font-size:0.62rem;white-space:nowrap">' + timeline + '</td>';
+              html += '</tr>';
+            }
+          }
+          tbody.innerHTML = html;
+          var totalPages = Math.max(1, Math.ceil(total / deliveryLimit));
+          document.getElementById('deliveryPageInfo').textContent = '第 ' + (deliveryPage + 1) + '/' + totalPages + ' 页（共 ' + total + ' 条）';
+        })
+        .catch(function(e) {
+          tbody.innerHTML = '<tr><td colspan="6" class="empty" style="color:#dc2626">加载失败: ' + escapeHtml(e.message) + '</td></tr>';
+        });
+    }
+
+    function loadDeliveryStats() {
+      var statsEl = document.getElementById('deliveryStats');
+      if (!statsEl) return;
+      var showing = statsEl.style.display !== 'none';
+      if (showing) { statsEl.style.display = 'none'; return; }
+      statsEl.style.display = '';
+
+      fetch('/api/message-delivery/query?action=stats', { credentials: 'include' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data.success || !data.stats) return;
+          var s = data.stats;
+          document.getElementById('deliveryStatTotal').textContent = s.total || 0;
+          document.getElementById('deliveryStatPending').textContent = s.pending || 0;
+          document.getElementById('deliveryStatPublished').textContent = s.published || 0;
+          document.getElementById('deliveryStatDelivered').textContent = s.delivered || 0;
+          document.getElementById('deliveryStatConfirmed').textContent = s.confirmed || 0;
+          document.getElementById('deliveryStatFailed').textContent = s.failed || 0;
+        })
+        .catch(function() {});
     }
 
     (function autoTrackAdmin() {
