@@ -9311,7 +9311,7 @@
     function loadDeliveryMessages() {
       var status = document.getElementById('deliveryFilterStatus').value;
       var type = document.getElementById('deliveryFilterType').value;
-      var params = 'action=query&limit=' + deliveryLimit + '&offset=' + (deliveryPage * deliveryLimit);
+      var params = 'section=delivery-query&limit=' + deliveryLimit + '&offset=' + (deliveryPage * deliveryLimit);
       if (status) params += '&status=' + encodeURIComponent(status);
       if (type) params += '&type=' + encodeURIComponent(type);
 
@@ -9319,7 +9319,7 @@
       if (!tbody) return;
       tbody.innerHTML = '<tr><td colspan="6" class="empty">加载中...</td></tr>';
 
-      fetch('/api/message-delivery?' + params, { credentials: 'include' })
+      fetch('/api/admin/health?' + params, { credentials: 'include' })
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (!data.success) { tbody.innerHTML = '<tr><td colspan="6" class="empty">查询失败</td></tr>'; return; }
@@ -9387,7 +9387,7 @@
       if (showing) { statsEl.style.display = 'none'; return; }
       statsEl.style.display = '';
 
-      fetch('/api/message-delivery?action=stats', { credentials: 'include' })
+      fetch('/api/admin/health?section=delivery-query&action=stats', { credentials: 'include' })
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (!data.success || !data.stats) return;

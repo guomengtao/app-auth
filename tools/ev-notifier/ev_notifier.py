@@ -547,7 +547,7 @@ def _delivery_callback(message_id, event="delivered"):
             "client_id": hostname,
             "received_at": datetime.now().isoformat()
         })
-        url = f"{CALLBACK_BASE_URL}/api/message-delivery"
+        url = f"{CALLBACK_BASE_URL}/api/admin/health?section=delivery-callback"
         fd, tmp = tempfile.mkstemp(suffix=".json", prefix="ev_dc_")
         try:
             os.close(fd)

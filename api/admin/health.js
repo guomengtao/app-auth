@@ -2447,6 +2447,69 @@ if ((isCron || isCronBackup) && isBackup) {
     return verifySwitch(req, res);
   }
 
+  // === Message delivery callback (POST from EvNotifier) ===
+  if (req.query && req.query.section === "delivery-callback") {
+    if (req.method !== "POST") {
+      return res.status(405).json({ success: false, error: "Use POST" });
+    }
+    var md = null;
+    try { md = require("../../lib/message-delivery"); } catch(e) {
+      return res.status(500).json({ success: false, error: "message-delivery module not available" });
+    }
+    var body = req.body || {};
+    var message_id = body.message_id;
+    var event = body.event;
+    if (!message_id || !event) {
+      return res.status(400).json({ success: false, error: "Missing message_id or event" });
+    }
+    if (event !== "delivered" && event !== "confirmed") {
+      return res.status(400).json({ success: false, error: "Invalid event" });
+    }
+    try {
+      if (event === "delivered") { await md.markDelivered(message_id, body.client_id || null); }
+      else if (event === "confirmed") { await md.markConfirmed(message_id); }
+      return res.json({ success: true, message_id: message_id, event: event });
+    } catch (e) {
+      console.error("[health:delivery-callback] error:", e.message || e);
+      return res.status(500).json({ success: false, error: e.message || "Internal error" });
+    }
+  }
+
+  // === Message delivery query (GET from admin panel) ===
+  if (req.query && req.query.section === "delivery-query") {
+    if (req.method !== "GET") {
+      return res.status(405).json({ success: false, error: "Use GET" });
+    }
+    var md = null;
+    try { md = require("../../lib/message-delivery"); } catch(e) {
+      return res.status(500).json({ success: false, error: "message-delivery module not available" });
+    }
+    try {
+      var { status, type, source, code, limit, offset, action } = req.query;
+      if (action === "stats") {
+        var stats = await md.getStats();
+        return res.json({ success: true, stats: stats });
+      }
+      if (action === "undelivered") {
+        var hours = parseInt(req.query.hours || "24", 10);
+        var messages = await md.getUndelivered(hours);
+        return res.json({ success: true, messages: messages });
+      }
+      var result = await md.queryMessages({
+        status: status || null,
+        type: type || null,
+        source: source || null,
+        code: code || null,
+        limit: limit ? parseInt(limit, 10) : 50,
+        offset: offset ? parseInt(offset, 10) : 0
+      });
+      return res.json({ success: true, rows: result.rows, total: result.total });
+    } catch (e) {
+      console.error("[health:delivery-query] error:", e.message || e);
+      return res.status(500).json({ success: false, error: e.message || "Internal error" });
+    }
+  }
+
   if (req.method !== "GET") {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
