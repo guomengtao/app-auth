@@ -683,7 +683,7 @@ if ((isCron || isCronBackup) && isBackup) {
         return res.json({ success: true, stats: stats });
       }
       if (action === "undelivered") {
-        var hours = parseInt(req.query.hours || "24", 10);
+        var hours = parseInt(req.query.hours || "168", 10);
         var messages = await md.getUndelivered(hours);
         return res.json({ success: true, messages: messages });
       }

@@ -574,6 +574,63 @@ def _delivery_callback(message_id, event="delivered"):
         _debug_log(f"Delivery callback failed: {e}")
 
 
+def _startup_recovery():
+    """Fetch undelivered messages from last 7 days and re-process them."""
+    _debug_log("Startup recovery: checking for missed messages...")
+    try:
+        url = f"{CALLBACK_BASE_URL}/api/admin/health?section=delivery-query&action=undelivered&hours=168"
+        fd, tmp = tempfile.mkstemp(suffix=".json", prefix="ev_rcv_")
+        try:
+            os.close(fd)
+            subprocess.run(["curl", "-s", "--connect-timeout", "5", "--max-time", "10", url, "-o", tmp], timeout=15)
+            resp = open(tmp).read().strip()
+        finally:
+            try:
+                os.unlink(tmp)
+            except Exception:
+                pass
+        if not resp:
+            _debug_log("Startup recovery: no response from server")
+            return
+        data = json.loads(resp)
+        if not data.get("success"):
+            _debug_log(f"Startup recovery: API returned error")
+            return
+        messages = data.get("messages", [])
+        if not messages:
+            _debug_log("Startup recovery: no missed messages")
+            return
+        _debug_log(f"Startup recovery: found {len(messages)} missed messages")
+        for msg in messages:
+            try:
+                payload = msg.get("payload", {})
+                if isinstance(payload, str):
+                    try:
+                        payload = json.loads(payload)
+                    except Exception:
+                        payload = {}
+                created = msg.get("created_at", "")
+                ts = 0
+                if created:
+                    try:
+                        ts = int(datetime.fromisoformat(created.replace("Z", "+00:00")).timestamp())
+                    except Exception:
+                        ts = int(time.time())
+                recovered_msg = {
+                    "ts": ts,
+                    "type": msg.get("message_type", "unknown"),
+                    "payload": payload,
+                    "messageId": msg.get("message_id"),
+                }
+                handle_message(recovered_msg)
+                _debug_log(f"Startup recovery: re-processed {msg.get('message_type')} ({msg.get('message_id')})")
+            except Exception as e:
+                _debug_log(f"Startup recovery: failed to re-process message: {e}")
+        _debug_log(f"Startup recovery: completed, recovered {len(messages)} messages")
+    except Exception as e:
+        _debug_log(f"Startup recovery failed: {e}")
+
+
 def handle_message(msg):
     global _last_msg_ts, _new_msg_count, _paused
     if _paused:
@@ -710,6 +767,7 @@ def redis_loop():
             pubsub.subscribe("auth:push_channel")
             _status = "connected"
             reconnect_delay = 1
+            threading.Thread(target=_startup_recovery, daemon=True).start()
             print("Ev SUBSCRIBE OK, waiting for messages...")
             for message in pubsub.listen():
                 if message.get("type") != "message":
