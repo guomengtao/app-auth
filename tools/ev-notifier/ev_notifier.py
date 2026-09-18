@@ -3661,7 +3661,11 @@ class EvNotifier(rumps.App):
 
     @rumps.timer(2)
     def _update_title(self, _):
-        pass
+        if _new_msg_count > 0:
+            badge = min(_new_msg_count, 99)
+            self.title = f"Ev {VERSION} ({badge})"
+        else:
+            self.title = f"Ev {VERSION}"
 
     def run(self, **options):
         import rumps as _r

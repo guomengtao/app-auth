@@ -513,37 +513,36 @@ module.exports = async (req, res) => {
       months: months,
     });
 
-    // Return response immediately, background notifications
+    // Send response first, then background notifications
     res.json({ success: true, activationCode: activationCode, debug: { visitor: visitorInfo, notification: "background", productId: productId, months: months } });
 
-    process.nextTick(function() {
-      notify.sendActivationNotification(req, {
-        redeemCode: code,
-        activationCode: activationCode,
-        productId: productId,
-        deviceId: device,
-        months: months,
-        deviceInfo: deviceInfo,
-        source: "user",
-      }).catch(function (e) {
-        console.error("[activate] Notification failed:", e.message);
-      });
-
-      notify.pushNotification("new_activation", {
-        redeem_code: code,
-        activation_code: activationCode,
-        product_id: productId,
-        device_id: device,
-        months: months,
-        source: "user",
-        ip: visitorInfo ? visitorInfo.ip : "",
-        user_agent: visitorInfo ? visitorInfo.userAgent : "",
-        visitor_info: visitorInfo || {},
-        device_info: deviceInfo || {},
-      }).catch(function () {});
-
-      rateLimit.clearDeviceRateLimit(device).catch(function () {});
+    // Fire-and-forget notifications (Vercel keeps the function alive until return)
+    notify.sendActivationNotification(req, {
+      redeemCode: code,
+      activationCode: activationCode,
+      productId: productId,
+      deviceId: device,
+      months: months,
+      deviceInfo: deviceInfo,
+      source: "user",
+    }).catch(function (e) {
+      console.error("[activate] Email failed:", e.message);
     });
+
+    notify.pushNotification("new_activation", {
+      redeem_code: code,
+      activation_code: activationCode,
+      product_id: productId,
+      device_id: device,
+      months: months,
+      source: "user",
+      ip: visitorInfo ? visitorInfo.ip : "",
+      user_agent: visitorInfo ? visitorInfo.userAgent : "",
+      visitor_info: visitorInfo || {},
+      device_info: deviceInfo || {},
+    }).catch(function () {});
+
+    rateLimit.clearDeviceRateLimit(device).catch(function () {});
   } catch (error) {
     console.error("Activate error:", error && error.message ? error.message : error, error);
     var msg = "服务器内部错误，请稍后重试";
@@ -554,29 +553,28 @@ module.exports = async (req, res) => {
     }
     saveFailureRecord(msg, rawDeviceId, rawRedeemCode, "", "", visitorInfo, deviceInfo);
 
-    // Return error immediately, background notifications
+    // Send error first, then background notifications
     res.status(500).json({ success: false, error: msg, debug: { visitor: visitorInfo, notification: "background", reason: msg } });
 
-    process.nextTick(function() {
-      notify.sendActivationFailure(req, {
-        reason: msg,
-        redeemCode: rawRedeemCode || "",
-        deviceId: rawDeviceId || "",
-        productId: "",
-        months: "",
-        source: "user",
-      }).catch(function () {});
+    // Fire-and-forget (Vercel keeps the function alive until return)
+    notify.sendActivationFailure(req, {
+      reason: msg,
+      redeemCode: rawRedeemCode || "",
+      deviceId: rawDeviceId || "",
+      productId: "",
+      months: "",
+      source: "user",
+    }).catch(function () {});
 
-      notify.pushNotification("activation_failure", {
-        reason: msg,
-        redeem_code: rawRedeemCode || "",
-        device_id: rawDeviceId || "",
-        source: "user",
-        ip: visitorInfo ? visitorInfo.ip : "",
-        user_agent: visitorInfo ? visitorInfo.userAgent : "",
-        visitor_info: visitorInfo || {},
-        device_info: deviceInfo || {},
-      }).catch(function () {});
-    });
+    notify.pushNotification("activation_failure", {
+      reason: msg,
+      redeem_code: rawRedeemCode || "",
+      device_id: rawDeviceId || "",
+      source: "user",
+      ip: visitorInfo ? visitorInfo.ip : "",
+      user_agent: visitorInfo ? visitorInfo.userAgent : "",
+      visitor_info: visitorInfo || {},
+      device_info: deviceInfo || {},
+    }).catch(function () {});
   }
 };
