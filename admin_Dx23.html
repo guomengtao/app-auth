@@ -6050,7 +6050,7 @@
         html += '<div class="detail-section">';
         html += '<div class="detail-section-title">IP Details</div>';
         html += '<table class="detail-table">';
-        if (v.ip) html += '<tr><td>IP Address</td><td style="font-family:monospace">' + escapeHtml(v.ip) + '</td></tr>';
+        if (v.ip) html += '<tr><td>IP Address</td><td style="font-family:monospace"><a href="javascript:void(0)" onclick="showIpCompare(\'' + escapeJs(v.ip) + '\')" style="color:#6366f1;text-decoration:none;font-weight:600">' + escapeHtml(v.ip) + '</a></td></tr>';
         if (v.isp) html += '<tr><td>ISP</td><td>' + escapeHtml(v.isp) + '</td></tr>';
         if (v.org && v.org !== v.isp) html += '<tr><td>Organization</td><td>' + escapeHtml(v.org) + '</td></tr>';
         if (v.asn) html += '<tr><td>ASN</td><td style="font-family:monospace">AS' + escapeHtml(v.asn) + '</td></tr>';
@@ -9103,10 +9103,18 @@
           if (list.length === 0) {
             recentEl.innerHTML = '<div style="color:var(--muted);font-size:0.8rem">暂无访客记录</div>';
           } else {
-            recentEl.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:0.82rem">' +
+            var filterNotice = '';
+          if (window._visitorFilterIp) {
+            filterNotice = '<div style="margin-bottom:10px;padding:8px 12px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;font-size:0.82rem;display:flex;align-items:center;justify-content:space-between">' +
+              '<span>Filtering by IP: <strong style="font-family:monospace;color:#6366f1">' + escapeHtml(window._visitorFilterIp) + '</strong></span>' +
+              '<span onclick="window._visitorFilterIp=null;loadVisitors()" style="cursor:pointer;color:#6366f1;font-weight:600;font-size:0.75rem">[Clear]</span>' +
+              '</div>';
+          }
+          recentEl.innerHTML = filterNotice + '<table style="width:100%;border-collapse:collapse;font-size:0.82rem">' +
               '<thead><tr style="color:var(--muted);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.5px">' +
               '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">Hash</th>' +
               '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">Page</th>' +
+              '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">IP</th>' +
               '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">Time</th>' +
               '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">Location</th>' +
               '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">UA</th>' +
@@ -9114,7 +9122,9 @@
               '</tr></thead><tbody>' +
               (function() {
                 var rowsHtml = '';
-                var visits = list.slice(0, 30);
+                var filterIp = window._visitorFilterIp;
+                var filtered = filterIp ? list.filter(function(x) { return x.ip === filterIp; }) : list;
+                var visits = filtered.slice(0, 30);
                 visits.forEach(function(v, idx) {
                 var t = v.time ? new Date(v.time).toLocaleString() : '-';
                 var uaShort = (v.ua || '').replace(/\(.*?\)/g, '').trim().slice(0, 50);
@@ -9127,17 +9137,18 @@
                 var vidx = 'visitorDetail' + idx;
                 rowsHtml += '<tr class="visitor-row" onclick="toggleVisitorDetail(event, this)" data-vidx="' + vidx + '">' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-family:monospace;color:#6366f1;font-size:0.75rem">' + escapeHtml(v.hash || '-') + '</td>' +
-                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(v.path || '/') + '">' +
+                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(v.path || '/') + '">' +
                   '<span style="display:inline-flex;align-items:center;gap:4px;max-width:100%">' +
-                  '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;max-width:110px">' + escapeHtml(v.path || '/') + '</span>' +
-                  '<span class="copy-url-btn" onclick="event.stopPropagation();copyPageUrl(\'' + escapeJs(v.path || '/') + '\')" title="复制 URL" style="cursor:pointer;flex-shrink:0;font-size:0.7rem;opacity:0.4;transition:opacity 0.15s">📋</span>' +
+                  '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;max-width:90px">' + escapeHtml(v.path || '/') + '</span>' +
+                  '<span class="copy-url-btn" onclick="event.stopPropagation();copyPageUrl(\'' + escapeJs(v.path || '/') + '\')" title="Copy URL" style="cursor:pointer;flex-shrink:0;font-size:0.65rem;opacity:0.4;transition:opacity 0.15s">Copy</span>' +
                   '</span></td>' +
+                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-family:monospace;font-size:0.72rem;white-space:nowrap"><a href="javascript:void(0)" onclick="event.stopPropagation();showIpCompare(\'' + escapeJs(v.ip) + '\')" style="color:#6366f1;text-decoration:none;font-weight:600">' + escapeHtml(v.ip) + '</a></td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:0.75rem">' + t + '</td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-size:0.75rem">' + escapeHtml(locStr) + ispHint + '</td>' +
-                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:0.72rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(v.ua || '') + '">' + escapeHtml(uaShort) + '</td>' +
+                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:0.72rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(v.ua || '') + '">' + escapeHtml(uaShort) + '</td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);text-align:center;color:var(--muted);font-size:0.72rem">▼</td>' +
                   '</tr>' +
-                  '<tr class="visitor-detail-row" id="' + vidx + '"><td colspan="6">' + renderVisitorDetail(v) + '</td></tr>';
+                  '<tr class="visitor-detail-row" id="' + vidx + '"><td colspan="7">' + renderVisitorDetail(v) + '</td></tr>';
                 });
                 return rowsHtml;
               })() +
@@ -9169,23 +9180,50 @@
       }
     }
 
+    // Cross-linking: click IP in visitor records -> show IP Compare for that IP
+    function showIpCompare(ip) {
+      window._ipCompareFilter = ip;
+      switchVisitorSubTab('ip-compare');
+    }
+
+    // Cross-linking: click IP in IP Compare table -> filter visitor records by that IP
+    function showVisitorFilter(ip) {
+      window._visitorFilterIp = ip;
+      window._visitorFilterIp; // force re-filter on load
+      switchVisitorSubTab('recent');
+      if (typeof loadVisitors === 'function') loadVisitors();
+    }
+
     function loadIpCompare() {
       var el = document.getElementById('visitorIpCompare');
       if (!el) return;
 
-      // 1. Extract IPs from already-loaded visitor data
-      var visitorData = window._cachedVisitorData || [];
-      var ipSet = {};
-      visitorData.forEach(function(v) {
-        if (v.ip && !/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|::1$)/.test(v.ip)) {
-          ipSet[v.ip] = true;
-        }
-      });
-      var ips = Object.keys(ipSet);
+      var filterNotice = '';
+      var ips = [];
 
-      if (ips.length === 0) {
-        el.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:20px">暂无访客 IP 数据</div>';
-        return;
+      // Single IP mode (clicked from visitor records)
+      if (window._ipCompareFilter) {
+        ips = [window._ipCompareFilter];
+        filterNotice = '<div style="margin-bottom:10px;padding:8px 12px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;font-size:0.82rem;display:flex;align-items:center;justify-content:space-between">' +
+          '<span>IP Details: <strong style="font-family:monospace;color:#6366f1">' + escapeHtml(ips[0]) + '</strong></span>' +
+          '<span onclick="window._ipCompareFilter=null;loadIpCompare()" style="cursor:pointer;color:#6366f1;font-weight:600;font-size:0.75rem">[Back to all]</span>' +
+          '</div>';
+        window._ipCompareFilter = null;
+      } else {
+        // Default mode: extract IPs from visitor data
+        var visitorData = window._cachedVisitorData || [];
+        var ipSet = {};
+        visitorData.forEach(function(v) {
+          if (v.ip && !/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|::1$)/.test(v.ip)) {
+            ipSet[v.ip] = true;
+          }
+        });
+        ips = Object.keys(ipSet);
+
+        if (ips.length === 0) {
+          el.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:20px">暂无访客 IP 数据</div>';
+          return;
+        }
       }
 
       // 2. Check localStorage cache (24h for same IP batch)
@@ -9200,12 +9238,12 @@
       } catch(e) {}
 
       if (cached) {
-        renderIpCompareTable(el, cached.results, cached.sources);
+        renderIpCompareTable(el, filterNotice, cached.results, cached.sources);
         return;
       }
 
       // 3. No cache - AJAX to new on-demand endpoint
-      el.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:20px">正在查询 IP 归属地（' + ips.length + ' 个 IP）...</div>';
+      el.innerHTML = filterNotice + '<div style="color:var(--muted);font-size:0.85rem;padding:20px">正在查询 IP 归属地（' + ips.length + ' 个 IP）...</div>';
 
       api('/api/admin/health?section=ip-lookup-once', {
         method: 'POST',
@@ -9213,7 +9251,7 @@
         headers: { 'Content-Type': 'application/json' },
       }).then(function(data) {
         if (!data || !data.success) {
-          el.innerHTML = '<div style="color:#dc2626;font-size:0.85rem;padding:20px">查询失败</div>';
+          el.innerHTML = filterNotice + '<div style="color:#dc2626;font-size:0.85rem;padding:20px">查询失败</div>';
           return;
         }
         // 4. Cache in localStorage for fast re-open
@@ -9223,13 +9261,13 @@
             data: { results: data.results, sources: data.sources },
           }));
         } catch(e) {}
-        renderIpCompareTable(el, data.results, data.sources);
+        renderIpCompareTable(el, filterNotice, data.results, data.sources);
       }).catch(function(e) {
-        el.innerHTML = '<div style="color:#dc2626;font-size:0.85rem;padding:20px">查询失败: ' + escapeHtml(e.message) + '</div>';
+        el.innerHTML = filterNotice + '<div style="color:#dc2626;font-size:0.85rem;padding:20px">查询失败: ' + escapeHtml(e.message) + '</div>';
       });
     }
 
-    function renderIpCompareTable(el, results, sources) {
+    function renderIpCompareTable(el, filterNotice, results, sources) {
       var sourceNames = (sources || []).length > 0
         ? sources
         : ["ip-api", "ip-sb", "ipinfo", "ipwhois", "ipapi-is"];
@@ -9247,7 +9285,7 @@
         var apiResults = item.results || [];
 
         html += '<tr>';
-        html += '<td style="font-family:monospace;color:#6366f1;font-weight:600;white-space:nowrap">' + escapeHtml(item.ip) + '</td>';
+        html += '<td style="font-family:monospace;color:#6366f1;font-weight:600;white-space:nowrap"><a href="javascript:void(0)" onclick="showVisitorFilter(\'' + escapeJs(item.ip) + '\')" style="color:#6366f1;text-decoration:none">' + escapeHtml(item.ip) + '</a></td>';
         html += '<td style="font-size:0.72rem">' + (item.fromCache ? '缓存' : '实时') + '</td>';
 
         for (var j = 0; j < sourceNames.length; j++) {
@@ -9267,7 +9305,7 @@
       html += '</tbody></table>';
 
       html += '<div style="margin-top:12px;font-size:0.68rem;color:var(--muted)">共 ' + results.length + ' 个独立 IP，数据来源: ' + sourceNames.join(', ') + '</div>';
-      el.innerHTML = html;
+      el.innerHTML = filterNotice + html;
     }
 
     function drawVisitorChart(tr) {
