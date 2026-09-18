@@ -1,5 +1,5 @@
 """Ev Notifier v2.2.8 - PUB/SUB broadcast, zero polling, auto-restart, error logging"""
-import atexit, json, os, re, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib
+import atexit, json, os, re, shutil, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib
 from datetime import datetime, timedelta
 
 try:
@@ -7,7 +7,7 @@ try:
 except ImportError:
     redis = None
 
-VERSION = "v2.3.0"
+VERSION = "v2.3.1"
 
 # Delivery callback configuration
 CALLBACK_BASE_URL = "https://app-auth.gudq.com"
@@ -187,8 +187,9 @@ def save_messages(data):
 
 def store_message(ts, mtype, payload):
     msgs = load_messages()
+    lt = _safe_localtime(ts)
     entry = {
-        "time": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts)) if ts else "",
+        "time": time.strftime("%Y-%m-%d %H:%M:%S", lt) if lt else "",
         "type": mtype,
         "payload": payload,
     }
@@ -241,9 +242,10 @@ def store_visitor(ts, payload):
         elif "mobile" in ua_lower:
             device_type = "Mobile"
 
+    lt = _safe_localtime(ts)
     entry = {
         "ts": ts or int(time.time()),
-        "time": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts)) if ts else time.strftime("%Y-%m-%d %H:%M:%S"),
+        "time": time.strftime("%Y-%m-%d %H:%M:%S", lt) if lt else time.strftime("%Y-%m-%d %H:%M:%S"),
         "url": raw_url,
         "hostname": hostname,
         "path": path,
@@ -417,20 +419,28 @@ def check_integrity(day_data):
     return max(0, total - local_cnt)
 
 
-def _debug_log(msg):
+def _safe_localtime(ts):
+    if not ts:
+        return None
     try:
-        entry = {"time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "msg": str(msg)}
-        logs = []
-        try:
-            with open(DEBUG_LOG_FILE, "r") as f:
-                logs = json.load(f)
-        except Exception:
-            logs = []
-        logs.append(entry)
-        if len(logs) > 200:
-            logs = logs[-200:]
-        with open(DEBUG_LOG_FILE, "w") as f:
-            json.dump(logs, f, indent=2)
+        if isinstance(ts, (int, float)):
+            return time.localtime(int(ts))
+        if isinstance(ts, str):
+            try:
+                return time.localtime(int(ts))
+            except (ValueError, OverflowError):
+                try:
+                    return datetime.fromisoformat(ts.replace("Z", "+00:00")).timetuple()
+                except Exception:
+                    return None
+        return time.localtime(int(ts))
+    except Exception:
+        return None
+
+
+def _run_and_ignore_timeout(cmd, timeout=5):
+    try:
+        subprocess.run(cmd, timeout=timeout, capture_output=True)
     except Exception:
         pass
 
@@ -523,21 +533,32 @@ def do_recovery_poll(last_id):
 def notify_macos(title, subtitle, body, sound=False):
     try:
         msg = f"{subtitle}\n{body}" if body else subtitle
-        cmd = ["terminal-notifier", "-title", title, "-message", msg]
-        if sound:
-            cmd.extend(["-sound", "default"])
-        r = subprocess.run(cmd, capture_output=True, timeout=5)
-        if r.returncode != 0:
-            _debug_log(f"terminal-notifier failed rc={r.returncode} stderr={r.stderr.decode()[:200]}, falling back to osascript")
-            safe_title = title.replace('"', "'").replace("\\", "\\\\")
-            safe_body = (subtitle + "\n" + body).replace('"', "'").replace("\\", "\\\\")
-            script = f'display notification "{safe_body}" with title "{safe_title}"'
-            r2 = subprocess.run(["osascript", "-e", script], capture_output=True, timeout=5)
-            _debug_log(f"notify_macos osascript fallback: rc={r2.returncode}")
-        else:
-            _debug_log(f"notify_macos terminal-notifier OK")
+        terminal_notifier = shutil.which("terminal-notifier")
+        if terminal_notifier:
+            cmd = [terminal_notifier, "-title", title, "-message", msg]
+            if sound:
+                cmd.extend(["-sound", "default"])
+            r = subprocess.run(cmd, capture_output=True, timeout=5)
+            if r.returncode != 0:
+                _debug_log(f"terminal-notifier failed rc={r.returncode}, falling back to osascript")
+                _osascript_notify(title, subtitle, body)
+            else:
+                _debug_log(f"notify_macos terminal-notifier OK")
+            return
+        _osascript_notify(title, subtitle, body)
     except Exception as e:
         _debug_log(f"notify_macos EXCEPTION: {e}")
+        try:
+            _osascript_notify(title, subtitle, body)
+        except Exception:
+            pass
+
+
+def _osascript_notify(title, subtitle, body):
+    safe_title = title.replace('"', "'").replace("\\", "\\\\")
+    safe_body = (subtitle + "\n" + body).replace('"', "'").replace("\\", "\\\\")
+    script = f'display notification "{safe_body}" with title "{safe_title}"'
+    subprocess.run(["osascript", "-e", script], capture_output=True, timeout=5)
 
 
 def _delivery_callback(message_id, event="delivered"):
@@ -653,7 +674,8 @@ def handle_message(msg):
         _seen_ids.clear()
     _last_msg_ts = ts
     _new_msg_count += 1
-    ts_label = time.strftime("%H:%M:%S", time.localtime(ts)) if ts else ""
+    lt = _safe_localtime(ts)
+    ts_label = time.strftime("%H:%M:%S", lt) if lt else ""
     title = f"New {mtype}"
     subtitle = ts_label
     body = ""
@@ -782,8 +804,7 @@ def handle_message(msg):
             voice_text = "收到测试消息"
         else:
             voice_text = f"{title}, {subtitle}".replace("[", "").replace("]", "")
-        threading.Thread(target=lambda: subprocess.run(["say", "-v", "Tingting", voice_text], timeout=5, capture_output=True), daemon=True).start()
-    store_message(ts, mtype, p)
+        threading.Thread(target=lambda: _run_and_ignore_timeout(["say", "-v", "Tingting", voice_text]), daemon=True).start()
 
     # Delivery callback: confirm to server that message was received
     message_id = msg.get("messageId")
@@ -2546,8 +2567,11 @@ function copyText(text) {
         success_count = sum(1 for a in acts if a.get("type") == "new_activation")
         fail_count = sum(1 for a in acts if a.get("type") == "activation_failure")
         today_str = datetime.now().strftime("%Y-%m-%d")
-        today_acts = [a for a in acts if a.get("ts") and time.strftime(
-            "%Y-%m-%d", time.localtime(a.get("ts"))) == today_str]
+        today_acts = []
+        for a in acts:
+            lt = _safe_localtime(a.get("ts"))
+            if lt and time.strftime("%Y-%m-%d", lt) == today_str:
+                today_acts.append(a)
 
         stats_html = f"""
         <div class="stats-grid">
@@ -2677,8 +2701,9 @@ function copyText(text) {
         for a in acts:
             ts = a.get("ts", 0)
             p = a.get("payload", {}) or {}
-            t = time.strftime("%Y-%m-%d %H:%M", time.localtime(ts)) if ts else "-"
-            date_str = time.strftime("%Y-%m-%d", time.localtime(ts)) if ts else ""
+            lt = _safe_localtime(ts)
+            t = time.strftime("%Y-%m-%d %H:%M", lt) if lt else "-"
+            date_str = time.strftime("%Y-%m-%d", lt) if lt else ""
             product = p.get("product_name", "") or f"#{p.get('product_id', '')}"
             device = p.get("device_id", "")
             act_code = p.get("activation_code", "")
@@ -3294,7 +3319,7 @@ document.addEventListener('DOMContentLoaded',function(){{
         elif ntype == "sound":
             threading.Thread(target=lambda: subprocess.run(["afplay", "/System/Library/Sounds/Ping.aiff"], timeout=2), daemon=True).start()
         elif ntype == "voice":
-            threading.Thread(target=lambda: subprocess.run(["say", "-v", "Ting-Ting", "语音播报功能正常，这是一条中文语音测试"], timeout=5, capture_output=True), daemon=True).start()
+            threading.Thread(target=lambda: _run_and_ignore_timeout(["say", "-v", "Ting-Ting", "语音播报功能正常，这是一条中文语音测试"]), daemon=True).start()
         _debug_log(f"test_notify: {ntype}")
 
     def _html_logs(self):
@@ -3777,38 +3802,46 @@ class EvNotifier(rumps.App):
 
     @rumps.clicked("打开面板")
     def open_dashboard(self, _):
-        _debug_log("open_dashboard clicked")
-        self._dash.show()
+        try:
+            _debug_log("open_dashboard clicked")
+            self._dash.show()
+        except Exception as e:
+            _debug_log(f"open_dashboard ERROR: {e}")
 
     @rumps.clicked("暂停/恢复")
     def toggle_pause(self, _):
-        global _paused
-        _paused = not _paused
-        state = "已暂停" if _paused else "已恢复"
-        rumps.notification(f"Ev {VERSION}", "", state, sound=False)
+        try:
+            global _paused
+            _paused = not _paused
+            state = "已暂停" if _paused else "已恢复"
+            rumps.notification(f"Ev {VERSION}", "", state, sound=False)
+        except Exception as e:
+            _debug_log(f"toggle_pause ERROR: {e}")
 
     @rumps.clicked("状态")
     def status_btn(self, _):
-        ts_str = (time.strftime("%H:%M:%S", time.localtime(_last_msg_ts)) if _last_msg_ts else "无")
-        status_str = "Online" if _status == "connected" else ("Reconnecting" if "retry" in _status else "Offline")
-        text = (f"Status: {status_str}\nMessages today: {_new_msg_count}\nLast message: {ts_str}")
-        rumps.alert(f"Ev {VERSION}", text)
+        try:
+            lt = _safe_localtime(_last_msg_ts)
+            ts_str = time.strftime("%H:%M:%S", lt) if lt else "无"
+            status_str = "Online" if _status == "connected" else ("Reconnecting" if "retry" in _status else "Offline")
+            text = (f"Status: {status_str}\nMessages today: {_new_msg_count}\nLast message: {ts_str}")
+            rumps.alert(f"Ev {VERSION}", text)
+        except Exception as e:
+            _debug_log(f"status_btn ERROR: {e}")
 
     @rumps.clicked("调试日志")
     def debug_log_btn(self, _):
         try:
-            with open(DEBUG_LOG_FILE, "r") as f:
-                logs = json.load(f)
+            with open(os.path.expanduser("~/.ev_debug.log"), "r") as f:
+                lines_raw = f.readlines()
         except Exception:
-            logs = []
-        if not logs:
+            lines_raw = []
+        if not lines_raw:
             rumps.alert("调试日志", "暂无日志")
             return
-        lines = []
-        for entry in logs[-30:]:
-            lines.append(f"{entry['time']}  {entry['msg']}")
+        lines = [line.rstrip("\n") for line in lines_raw[-30:]]
         text = "\n".join(lines)
-        rumps.alert(f"调试日志 (最近{min(30, len(logs))}条)", text[:800])
+        rumps.alert(f"调试日志 (最近{min(30, len(lines_raw))}条)", text[:800])
 
 
 def main():
