@@ -3151,6 +3151,7 @@
         <li><a href="javascript:void(0)" onclick="switchTab('decrypt')" data-tab="decrypt"><i data-lucide="search" class="menu-icon"></i><span class="menu-text">解密验证</span></a></li>
         <li class="menu-separator"><hr></li>
         <li><a href="javascript:void(0)" onclick="switchTab('afdian-orders')" data-tab="afdian-orders"><i data-lucide="heart" class="menu-icon"></i><span class="menu-text">爱发电订单</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('purchase-logs')" data-tab="purchase-logs"><i data-lucide="mouse-pointer-click" class="menu-icon"></i><span class="menu-text">购买点击日志</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('quota')" data-tab="quota"><i data-lucide="coins" class="menu-icon"></i><span class="menu-text">额度</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('visitors')" data-tab="visitors"><i data-lucide="users" class="menu-icon"></i><span class="menu-text">访客统计</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('logs')" data-tab="logs"><i data-lucide="scroll-text" class="menu-icon"></i><span class="menu-text">日志</span></a></li>
@@ -4210,6 +4211,103 @@
           </details>
         </div>
 
+        <!-- Purchase Logs / Go Links Panel -->
+        <div class="panel" id="panel-purchase-logs">
+          <div class="toolbar">
+            <div>
+              <h2 style="margin:0;display:flex;align-items:center;gap:8px">🔗 购买点击日志</h2>
+              <span class="muted" style="font-size:0.8rem">管理 <code>/go/&lt;slug&gt;</code> 跳转短链，查看点击来源、时间分布与最近访客</span>
+            </div>
+            <span class="spacer"></span>
+            <button class="btn btn-primary" onclick="openGoLinkForm()">
+              <i data-lucide="plus" style="width:14px;height:14px"></i> 新建短链
+            </button>
+            <button class="btn btn-outline" onclick="loadPurchaseLogs()">🔄 刷新</button>
+          </div>
+
+          <div class="stats-bar" style="margin-bottom:16px">
+            <div class="stat-card">
+              <div class="number" id="goStatTotalLinks">-</div>
+              <div class="label">短链总数</div>
+            </div>
+            <div class="stat-card">
+              <div class="number" id="goStatTodayClicks">-</div>
+              <div class="label">今日点击</div>
+            </div>
+            <div class="stat-card">
+              <div class="number" id="goStatWeekClicks">-</div>
+              <div class="label">7 天总点击</div>
+            </div>
+            <div class="stat-card">
+              <div class="number" id="goStatEnabled">-</div>
+              <div class="label">启用中</div>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>slug（短链）</th>
+                  <th>中文名</th>
+                  <th>英文名</th>
+                  <th>目标 URL</th>
+                  <th>状态</th>
+                  <th>7天点击</th>
+                  <th>最后修改</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="goLinksTable">
+                <tr><td colspan="8" class="empty">加载中...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <details class="help-banner" style="margin-top:24px" open>
+            <summary>最近 7 天点击趋势</summary>
+            <div class="help-body">
+              <div id="goDailyChart" style="display:flex;align-items:flex-end;gap:8px;height:120px;margin-top:8px"></div>
+              <p class="muted" style="font-size:0.78rem;margin-top:6px">数据来源：<code>stats:go:&lt;YYYY-MM-DD&gt;</code>（保留 30 天）</p>
+            </div>
+          </details>
+
+          <details class="help-banner" style="margin-top:16px">
+            <summary>最近 100 条点击明细（按时间倒序）</summary>
+            <div class="help-body">
+              <div class="table-wrap" style="margin-top:8px">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>时间</th>
+                      <th>slug</th>
+                      <th>IP 国家</th>
+                      <th>城市</th>
+                      <th>设备指纹</th>
+                      <th>来源页</th>
+                      <th>UTM</th>
+                    </tr>
+                  </thead>
+                  <tbody id="goRecentTable">
+                    <tr><td colspan="7" class="empty">加载中...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </details>
+
+          <details class="help-banner" style="margin-top:16px">
+            <summary>使用说明</summary>
+            <div class="help-body">
+              <p><strong>对外链接格式：</strong><code id="go_host_origin">https://app-auth.gudq.com</code><code>/go/&lt;slug&gt;</code></p>
+              <p><strong>接入方法：</strong>把现有的爱发电购买链接 <code>https://ifdian.net/...</code> 替换为 <code>/go/&lt;slug&gt;</code>，用户点击后会被 302 透明地跳转到真实购买地址。</p>
+              <p><strong>目标 URL 仅后台可见：</strong>前端用户访问 <code>/go/&lt;slug&gt;</code> 时只能看到跳转结果，不会泄漏原始地址。</p>
+              <p><strong>Slug 命名建议：</strong>使用 <code>kebab-case</code>，例如 <code>ev-timetable</code>、<code>miband-tool</code>。</p>
+              <p style="margin-top:8px"><strong>数据保留：</strong>配置变更不影响历史统计；删除短链后明细仍保留 30 天。</p>
+            </div>
+          </details>
+        </div>
+
         <div class="panel" id="panel-delivery">
           <div class="toolbar">
             <div>
@@ -4625,6 +4723,7 @@
       health: { title: '服务器状态', sub: '检测 Postgres / 鉴权 / 激活链路是否正常' },
       'vercel-logs': { title: 'Vercel日志', sub: '部署事件与函数运行日志（Vercel API）' },
       'logs': { title: '系统日志', sub: 'Vercel部署事件 · 邮件发送记录 · 爱发电私信日志' },
+      'purchase-logs': { title: '购买点击日志', sub: '管理 /go/* 跳转短链，查看各链接点击来源与时间分布' },
       settings: { title: '设置', sub: '外观 · 数据 · 安全 · 邮件 · 备份恢复' }
     };
 
@@ -4686,6 +4785,7 @@
       if (tab === 'settings') initSettingsPanel();
       if (tab === 'direct-activate') initDirectActivate();
       if (tab === 'afdian-orders') loadAfdianOrders();
+      if (tab === 'purchase-logs') loadPurchaseLogs();
       if (tab === 'visitors') loadVisitors();
       if (tab === 'delivery') loadDeliveryMessages();
       
@@ -9575,6 +9675,293 @@
         }
       } catch (e) {}
     })();
+
+    // ==================== Purchase Logs / Go Links ====================
+    var _goLinksCache = [];
+    var _goStatsCache = null;
+
+    function originBase() {
+      var el = document.getElementById('go_host_origin');
+      if (el && el.textContent) return el.textContent;
+      try { return window.location.origin; } catch (e) { return ''; }
+    }
+
+    function fmtDate(ts) {
+      if (!ts) return '-';
+      try { return new Date(ts).toLocaleString('zh-CN'); } catch (e) { return String(ts); }
+    }
+
+    function fmtDay(ts) { return fmtDate(ts); }
+
+    function shortUrl(slug) {
+      return originBase() + '/go/' + slug;
+    }
+
+    async function loadPurchaseLogs() {
+      var tableBody = document.getElementById('goLinksTable');
+      if (tableBody) tableBody.innerHTML = '<tr><td colspan="8" class="empty">加载中...</td></tr>';
+
+      try {
+        var [listRes, statsRes] = await Promise.all([
+          api('/api/admin/go-links'),
+          api('/api/admin/go-links?action=stats'),
+        ]);
+
+        var items = (listRes && listRes.items) || [];
+        var stats = (statsRes && statsRes.stats) || { today_clicks: 0, daily: [], recent: [] };
+        _goLinksCache = items;
+        _goStatsCache = stats;
+
+        // 汇总
+        document.getElementById('goStatTotalLinks').textContent = items.length;
+        document.getElementById('goStatTodayClicks').textContent = stats.today_clicks || 0;
+        var weekSum = (stats.daily || []).reduce(function (s, d) { return s + (d.clicks || 0); }, 0);
+        document.getElementById('goStatWeekClicks').textContent = weekSum;
+        document.getElementById('goStatEnabled').textContent = items.filter(function (it) { return it.enabled !== false; }).length;
+
+        // 链接表
+        if (items.length === 0) {
+          tableBody.innerHTML = '<tr><td colspan="8" class="empty">还没有短链，点击右上角「新建短链」开始</td></tr>';
+        } else {
+          tableBody.innerHTML = items.map(function (it) {
+            var slug = escapeHtml(it.slug || '');
+            var nameZh = escapeHtml(it.name_zh || '-');
+            var nameEn = escapeHtml(it.name_en || '-');
+            var target = escapeHtml(it.target_url || '');
+            var status = it.enabled !== false
+              ? '<span style="color:#16a34a;font-weight:600">●启用</span>'
+              : '<span style="color:#94a3b8">○已停用</span>';
+            var week7 = weekClicksOf(slug, stats);
+            var updatedAt = fmtDate(it.updated_at || it.created_at || 0);
+            return '<tr>' +
+              '<td><code style="font-weight:600">' + slug + '</code><br><span style="font-size:0.7rem;color:#64748b">' + escapeHtml(shortUrl(it.slug)) + '</span></td>' +
+              '<td>' + nameZh + '</td>' +
+              '<td><code style="font-size:0.78rem">' + nameEn + '</code></td>' +
+              '<td><a href="' + target + '" target="_blank" rel="noopener" style="font-size:0.78rem;color:var(--accent);word-break:break-all">' + target + '</a></td>' +
+              '<td>' + status + '</td>' +
+              '<td>' + week7 + '</td>' +
+              '<td style="font-size:0.78rem;color:#64748b">' + updatedAt + '</td>' +
+              '<td style="white-space:nowrap">' +
+                '<button class="btn btn-outline" title="复制短链" onclick="copyGoLink(\'' + escapeJs(it.slug) + '\')" style="padding:3px 8px;font-size:0.75rem;margin-right:4px">📋</button>' +
+                '<button class="btn btn-outline" title="编辑" onclick="openGoLinkForm(\'' + escapeJs(it.slug) + '\')" style="padding:3px 8px;font-size:0.75rem;margin-right:4px">✎</button>' +
+                '<button class="btn btn-outline" title="切换启用" onclick="toggleGoLink(\'' + escapeJs(it.slug) + '\')" style="padding:3px 8px;font-size:0.75rem;margin-right:4px">' + (it.enabled !== false ? '⏸' : '▶') + '</button>' +
+                '<button class="btn btn-outline" title="删除" onclick="deleteGoLink(\'' + escapeJs(it.slug) + '\')" style="padding:3px 8px;font-size:0.75rem;color:#dc2626">🗑</button>' +
+              '</td>' +
+            '</tr>';
+          }).join('');
+        }
+
+        // 7 天柱状图
+        renderGoDailyChart(stats.daily || []);
+
+        // 最近明细
+        renderGoRecent(stats.recent || []);
+      } catch (e) {
+        console.error('loadPurchaseLogs failed:', e);
+        if (tableBody) tableBody.innerHTML = '<tr><td colspan="8" class="empty" style="color:#dc2626">加载失败：' + escapeHtml(e.message || String(e)) + '</td></tr>';
+      }
+    }
+
+    function weekClicksOf(slug, stats) {
+      // stats.recent 是按时间倒序的 100 条明细；粗略统计 7 天内 slug 命中数
+      // 简化版：直接用 stats.daily 之外的明细计数
+      if (!stats.recent) return 0;
+      var n = 0;
+      for (var i = 0; i < stats.recent.length; i++) {
+        if (stats.recent[i].slug === slug) n++;
+      }
+      return n;
+    }
+
+    function renderGoDailyChart(daily) {
+      var box = document.getElementById('goDailyChart');
+      if (!box) return;
+      if (!daily || daily.length === 0) {
+        box.innerHTML = '<span class="muted" style="font-size:0.78rem">暂无数据</span>';
+        return;
+      }
+      var max = 0;
+      daily.forEach(function (d) { if (d.clicks > max) max = d.clicks; });
+      if (max === 0) max = 1;
+      box.innerHTML = daily.map(function (d) {
+        var h = Math.max(2, Math.round((d.clicks / max) * 110));
+        var label = (d.date || '').slice(5);
+        return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">' +
+          '<div style="font-size:0.7rem;color:#475569;font-weight:600">' + d.clicks + '</div>' +
+          '<div style="width:100%;height:' + h + 'px;background:linear-gradient(180deg,#3b82f6,#1e40af);border-radius:4px 4px 0 0;min-height:2px"></div>' +
+          '<div style="font-size:0.65rem;color:#94a3b8">' + escapeHtml(label) + '</div>' +
+        '</div>';
+      }).join('');
+    }
+
+    function renderGoRecent(recent) {
+      var box = document.getElementById('goRecentTable');
+      if (!box) return;
+      if (!recent || recent.length === 0) {
+        box.innerHTML = '<tr><td colspan="7" class="empty">暂无点击记录</td></tr>';
+        return;
+      }
+      box.innerHTML = recent.slice(0, 100).map(function (r) {
+        var ts = fmtDay(r.t);
+        var slug = escapeHtml(r.slug || '-');
+        var c = escapeHtml(r.c || '-');
+        var city = escapeHtml(r.ci || '-');
+        var v = escapeHtml((r.v || '-').slice(0, 8));
+        var ref = r.r ? escapeHtml(r.r.slice(0, 60)) : '<span style="color:#94a3b8">直接访问</span>';
+        var utm = [];
+        if (r.utm_source) utm.push('src:' + escapeHtml(r.utm_source));
+        if (r.utm_medium) utm.push('med:' + escapeHtml(r.utm_medium));
+        if (r.utm_campaign) utm.push('cmp:' + escapeHtml(r.utm_campaign));
+        var utmHtml = utm.length ? utm.join(' · ') : '<span style="color:#94a3b8">-</span>';
+        return '<tr>' +
+          '<td style="font-size:0.78rem;color:#64748b;white-space:nowrap">' + ts + '</td>' +
+          '<td><code style="font-size:0.78rem">' + slug + '</code></td>' +
+          '<td>' + c + '</td>' +
+          '<td style="font-size:0.78rem">' + city + '</td>' +
+          '<td style="font-family:monospace;font-size:0.78rem">' + v + '</td>' +
+          '<td style="font-size:0.75rem;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + ref + '</td>' +
+          '<td style="font-size:0.75rem">' + utmHtml + '</td>' +
+        '</tr>';
+      }).join('');
+    }
+
+    function openGoLinkForm(slug) {
+      var existing = null;
+      if (slug) {
+        for (var i = 0; i < _goLinksCache.length; i++) {
+          if (_goLinksCache[i].slug === slug) { existing = _goLinksCache[i]; break; }
+        }
+      }
+      var isEdit = !!existing;
+
+      var targetVal = existing ? existing.target_url : 'https://ifdian.net/item/';
+      var nameZhVal = existing ? (existing.name_zh || '') : '';
+      var nameEnVal = existing ? (existing.name_en || '') : '';
+      var noteVal = existing ? (existing.note || '') : '';
+      var enabledVal = existing ? (existing.enabled !== false) : true;
+      var slugVal = existing ? existing.slug : '';
+
+      var html = '<div style="position:fixed;inset:0;background:rgba(15,23,42,0.55);display:flex;align-items:center;justify-content:center;z-index:9999" id="goLinkModal">' +
+        '<div style="background:#fff;border-radius:12px;padding:24px;width:480px;max-width:90vw;box-shadow:0 30px 80px rgba(0,0,0,0.3)">' +
+          '<h3 style="margin:0 0 16px;font-size:1.05rem">' + (isEdit ? '✎ 编辑短链' : '➕ 新建短链') + '</h3>' +
+          '<div style="margin-bottom:10px">' +
+            '<label style="display:block;font-size:0.78rem;color:#64748b;margin-bottom:4px">Slug（短链标识，创建后不可修改）</label>' +
+            '<input id="goFormSlug" type="text" class="setting-input" value="' + escapeHtml(slugVal) + '" ' + (isEdit ? 'disabled' : 'placeholder="例如：ev-timetable"') + ' style="width:100%;font-family:monospace">' +
+            '<div style="font-size:0.7rem;color:#94a3b8;margin-top:2px">小写字母、数字、中划线，1~64 位</div>' +
+          '</div>' +
+          '<div style="margin-bottom:10px">' +
+            '<label style="display:block;font-size:0.78rem;color:#64748b;margin-bottom:4px">中文名</label>' +
+            '<input id="goFormNameZh" type="text" class="setting-input" value="' + escapeHtml(nameZhVal) + '" placeholder="例如：下载 EV 课程表" style="width:100%">' +
+          '</div>' +
+          '<div style="margin-bottom:10px">' +
+            '<label style="display:block;font-size:0.78rem;color:#64748b;margin-bottom:4px">英文名</label>' +
+            '<input id="goFormNameEn" type="text" class="setting-input" value="' + escapeHtml(nameEnVal) + '" placeholder="例如：Download EV Timetable" style="width:100%">' +
+          '</div>' +
+          '<div style="margin-bottom:10px">' +
+            '<label style="display:block;font-size:0.78rem;color:#64748b;margin-bottom:4px">目标 URL（爱发电/任意 https 链接）</label>' +
+            '<input id="goFormTarget" type="text" class="setting-input" value="' + escapeHtml(targetVal) + '" placeholder="https://ifdian.net/item/..." style="width:100%;font-family:monospace;font-size:0.85rem">' +
+          '</div>' +
+          '<div style="margin-bottom:10px">' +
+            '<label style="display:block;font-size:0.78rem;color:#64748b;margin-bottom:4px">备注（可选）</label>' +
+            '<input id="goFormNote" type="text" class="setting-input" value="' + escapeHtml(noteVal) + '" placeholder="例如：EV 课程表应用页购买链接" style="width:100%">' +
+          '</div>' +
+          '<div style="margin-bottom:16px">' +
+            '<label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer">' +
+              '<input id="goFormEnabled" type="checkbox" ' + (enabledVal ? 'checked' : '') + '> 启用此短链' +
+            '</label>' +
+          '</div>' +
+          '<div style="display:flex;justify-content:flex-end;gap:8px">' +
+            '<button class="btn btn-outline" onclick="document.getElementById(\'goLinkModal\').remove()">取消</button>' +
+            '<button class="btn btn-primary" onclick="saveGoLink(' + (isEdit ? 'true' : 'false') + ')">' + (isEdit ? '保存修改' : '创建短链') + '</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+      var wrap = document.createElement('div');
+      wrap.innerHTML = html;
+      document.body.appendChild(wrap.firstChild);
+    }
+
+    async function saveGoLink(isEdit) {
+      var slug = (document.getElementById('goFormSlug').value || '').trim().toLowerCase();
+      var nameZh = (document.getElementById('goFormNameZh').value || '').trim();
+      var nameEn = (document.getElementById('goFormNameEn').value || '').trim();
+      var target = (document.getElementById('goFormTarget').value || '').trim();
+      var note = (document.getElementById('goFormNote').value || '').trim();
+      var enabled = document.getElementById('goFormEnabled').checked;
+
+      if (!slug) { showToast('Slug 不能为空', 'error'); return; }
+      if (!/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(slug)) { showToast('Slug 格式不正确', 'error'); return; }
+      if (!target) { showToast('目标 URL 不能为空', 'error'); return; }
+
+      try {
+        var payload = { slug: slug, name_zh: nameZh, name_en: nameEn, target_url: target, note: note, enabled: enabled };
+        var res = isEdit
+          ? await api('/api/admin/go-links', { method: 'PUT', body: payload })
+          : await api('/api/admin/go-links', { method: 'POST', body: payload });
+        if (res && res.success) {
+          showToast(isEdit ? '已更新' : '已创建', 'success');
+          var modal = document.getElementById('goLinkModal');
+          if (modal) modal.remove();
+          loadPurchaseLogs();
+        } else {
+          showToast((res && res.error) || '保存失败', 'error');
+        }
+      } catch (e) {
+        showToast('保存失败：' + e.message, 'error');
+      }
+    }
+
+    async function toggleGoLink(slug) {
+      var item = null;
+      for (var i = 0; i < _goLinksCache.length; i++) {
+        if (_goLinksCache[i].slug === slug) { item = _goLinksCache[i]; break; }
+      }
+      if (!item) return;
+      try {
+        var res = await api('/api/admin/go-links', {
+          method: 'PUT',
+          body: { slug: slug, enabled: !(item.enabled !== false) },
+        });
+        if (res && res.success) {
+          showToast(item.enabled !== false ? '已停用' : '已启用', 'success');
+          loadPurchaseLogs();
+        } else {
+          showToast((res && res.error) || '操作失败', 'error');
+        }
+      } catch (e) {
+        showToast('操作失败：' + e.message, 'error');
+      }
+    }
+
+    async function deleteGoLink(slug) {
+      if (!confirm('确认删除短链「' + slug + '」？\\n\\n删除后将停止跳转（返回 404），历史点击明细仍可查看 30 天。')) return;
+      try {
+        var res = await api('/api/admin/go-links?slug=' + encodeURIComponent(slug), { method: 'DELETE' });
+        if (res && res.success) {
+          showToast('已删除', 'success');
+          loadPurchaseLogs();
+        } else {
+          showToast((res && res.error) || '删除失败', 'error');
+        }
+      } catch (e) {
+        showToast('删除失败：' + e.message, 'error');
+      }
+    }
+
+    async function copyGoLink(slug) {
+      var url = shortUrl(slug);
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(url);
+        } else {
+          var ta = document.createElement('textarea');
+          ta.value = url; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+        }
+        showToast('已复制：' + url, 'success');
+      } catch (e) {
+        prompt('复制失败，请手动复制：', url);
+      }
+    }
   </script>
 
 </body>
