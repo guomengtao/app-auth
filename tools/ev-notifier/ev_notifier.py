@@ -7,7 +7,7 @@ try:
 except ImportError:
     redis = None
 
-VERSION = "v2.3.1"
+VERSION = "v2.3.2"
 
 # Delivery callback configuration
 CALLBACK_BASE_URL = "https://app-auth.gudq.com"
@@ -2838,7 +2838,8 @@ function copyText(text) {
             if vi:
                 detail_html += '<div class="detail-section"><div class="detail-section-title">Visitor Info</div><table class="detail-table">'
                 if vi.get("ip"):
-                    detail_html += '<tr><td>IP Address</td><td style="font-family:monospace;font-size:12px;font-weight:600;color:#1e293b;">' + _safe_str(vi["ip"]) + '</td><td style="color:#64748b;font-size:11px;">Client IP address (geo location source)</td></tr>'
+                    ip_safe = _safe_str(vi["ip"])
+                    detail_html += '<tr><td>IP Address</td><td style="font-family:monospace;font-size:12px;font-weight:600;color:#1e293b;">' + ip_safe + ' <button class="geo-btn" onclick="event.stopPropagation();lookupGeo(\'' + ip_safe + '\', this)" style="font-size:10px;padding:2px 6px;margin-left:4px;cursor:pointer;border:1px solid #93c5fd;border-radius:4px;background:#dbeafe;color:#1d4ed8;">Geo</button><span class="geo-result" style="display:block;margin-top:4px;font-size:11px;font-weight:normal;color:#6b7280;"></span></td><td style="color:#64748b;font-size:11px;">Client IP address - click Geo to lookup location</td></tr>'
                 if vi.get("os"):
                     detail_html += '<tr><td>OS</td><td>' + _safe_str(vi["os"]) + '</td><td style="color:#64748b;font-size:11px;">Operating system of the visitor</td></tr>'
                 if vi.get("browser"):
@@ -2892,6 +2893,39 @@ function copyText(text) {
             _focus_redeem = None
 
         return stats_html + toggle_btn + filter_html + table + focus_script + """<script>
+function lookupGeo(ip, btn) {
+  var resultEl = btn.parentElement.querySelector('.geo-result');
+  if (!resultEl) return;
+  resultEl.textContent = 'Loading...';
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', 'http://ip-api.com/json/' + encodeURIComponent(ip) + '?fields=status,country,regionName,city,isp,org,query', true);
+  xhr.timeout = 5000;
+  xhr.onload = function() {
+    try {
+      var data = JSON.parse(xhr.responseText);
+      if (data.status === 'success') {
+        var parts = [];
+        if (data.country) parts.push(data.country);
+        if (data.regionName) parts.push(data.regionName);
+        if (data.city && data.city !== data.regionName) parts.push(data.city);
+        if (data.isp) parts.push(data.isp);
+        resultEl.textContent = parts.join(', ') || 'Unknown';
+        resultEl.style.color = '#059669';
+        btn.textContent = '✓ Geo';
+        btn.style.background = '#d1fae5';
+        btn.style.borderColor = '#6ee7b7';
+        btn.style.color = '#059669';
+      } else {
+        resultEl.textContent = 'Lookup failed: ' + (data.message || 'unknown');
+      }
+    } catch(e) {
+      resultEl.textContent = 'Lookup failed';
+    }
+  };
+  xhr.onerror = function() { resultEl.textContent = 'Network error'; };
+  xhr.ontimeout = function() { resultEl.textContent = 'Timeout'; };
+  xhr.send();
+}
 (function checkFocusRedeem() {
   var rc = window.__focusRedeem;
   if (!rc) return;
