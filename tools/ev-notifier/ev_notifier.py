@@ -79,7 +79,6 @@ _new_msg_count = 0
 _paused = False
 _seen_ids = set()
 _app_ref = None
-_pending_title = None
 _recovery_count_today = 0
 _missing_count = 0
 _last_poll_detail = None
@@ -676,12 +675,6 @@ def handle_message(msg):
     if message_id:
         threading.Thread(target=_delivery_callback, args=(message_id, "delivered"), daemon=True).start()
 
-    global _pending_title
-    if _new_msg_count:
-        _pending_title = f"Ev {VERSION}({_new_msg_count})"
-    else:
-        _pending_title = f"Ev {VERSION}"
-
 
 def _recalc_missing():
     data = load_received()
@@ -692,7 +685,7 @@ def _recalc_missing():
 
 
 def redis_loop():
-    global _status, _new_msg_count, _pending_title
+    global _status, _new_msg_count
     reconnect_delay = 1
     from urllib.parse import urlparse
     redis_host = urlparse(REST_API_URL).hostname
@@ -702,7 +695,6 @@ def redis_loop():
     while True:
         try:
             _status = "connecting"
-            _pending_title = f"Ev {VERSION} 连接中..."
             r = redis.Redis(
                 host=redis_host,
                 port=6379,
@@ -718,13 +710,6 @@ def redis_loop():
             pubsub.subscribe("auth:push_channel")
             _status = "connected"
             reconnect_delay = 1
-            recalc_missing = _recalc_missing()
-            if recalc_missing > 0:
-                _pending_title = f"Ev {VERSION}({_new_msg_count}) ⚠{recalc_missing}"
-            elif _new_msg_count:
-                _pending_title = f"Ev {VERSION}({_new_msg_count})"
-            else:
-                _pending_title = f"Ev {VERSION}"
             print("Ev SUBSCRIBE OK, waiting for messages...")
             for message in pubsub.listen():
                 if message.get("type") != "message":
@@ -744,17 +729,9 @@ def redis_loop():
                 msg_id = str(msg.get("ts", ""))
                 handle_message(msg)
                 record_message(msg_id, idx=idx, total_daily=total_daily, date_str=msg_date)
-                recalc_missing = _recalc_missing()
-                if recalc_missing > 0:
-                    _pending_title = f"Ev {VERSION}({_new_msg_count}) ⚠{recalc_missing}"
-                elif _new_msg_count:
-                    _pending_title = f"Ev {VERSION}({_new_msg_count})"
-                else:
-                    _pending_title = f"Ev {VERSION}"
         except Exception as e:
             print(f"SUBSCRIBE error: {e}, retrying in {reconnect_delay}s...")
             _status = f"retry({reconnect_delay}s)"
-            _pending_title = f"Ev {VERSION} 重试({reconnect_delay}s)..."
             time.sleep(reconnect_delay)
             reconnect_delay = min(reconnect_delay * 2, 30)
 
@@ -3352,8 +3329,6 @@ document.addEventListener('DOMContentLoaded',function(){{
             global _new_msg_count, _seen_ids
             _new_msg_count = 0
             _seen_ids.clear()
-            global _pending_title
-            _pending_title = f"Ev {VERSION}"
         self._refresh_content()
 
     def _sync_orders(self):
@@ -3616,9 +3591,7 @@ class EvNotifier(rumps.App):
 
     @rumps.timer(2)
     def _update_title(self, _):
-        global _pending_title
-        if _pending_title is not None and self.title != _pending_title:
-            self.title = _pending_title
+        pass
 
     def run(self, **options):
         import rumps as _r
@@ -3662,132 +3635,11 @@ class EvNotifier(rumps.App):
         state = "已暂停" if _paused else "已恢复"
         rumps.notification(f"Ev {VERSION}", "", state, sound=False)
 
-    @rumps.clicked("重置计数")
-    def reset_count(self, _):
-        global _new_msg_count, _seen_ids
-        _new_msg_count = 0
-        _seen_ids.clear()
-        rumps.notification(f"Ev {VERSION}", "", "计数已重置", sound=False)
-
-    @rumps.clicked("手动恢复")
-    def manual_recovery(self, _):
-        global _missing_count, _pending_title, _new_msg_count
-        _debug_log("manual_recovery clicked")
-        try:
-            self.manual_recovery.title = "恢复中…"
-        except Exception:
-            pass
-        real_missing = _recalc_missing()
-        _debug_log(f"recalc_missing={real_missing}, stale _missing_count={_missing_count}")
-        if real_missing <= 0:
-            rumps.notification(f"Ev {VERSION}", "", "无丢失消息", sound=False)
-            try:
-                self.manual_recovery.title = "手动恢复"
-            except Exception:
-                pass
-            return
-        last_id = load_last_id()
-        _debug_log(f"last_id={last_id}")
-        if not last_id:
-            rumps.notification(f"Ev {VERSION}", "", "无法获取 last_id", sound=False)
-            try:
-                self.manual_recovery.title = "手动恢复"
-            except Exception:
-                pass
-            return
-        rumps.notification(f"Ev {VERSION}", "", f"开始恢复 {real_missing} 条...", sound=False)
-        try:
-            new_last_id = do_recovery_poll(last_id)
-        except Exception as e:
-            _debug_log(f"manual_recovery failed: {e}")
-            rumps.notification(f"Ev {VERSION}", "", "连接失败，请检查网络后重试", sound=False)
-            try:
-                self.manual_recovery.title = "手动恢复"
-            except Exception:
-                pass
-            return
-        if new_last_id:
-            save_last_id(new_last_id)
-        after_missing = _recalc_missing()
-        if after_missing > 0:
-            _pending_title = f"Ev {VERSION}({_new_msg_count}) ⚠{after_missing}"
-            rumps.notification(f"Ev {VERSION}", "", f"恢复完成，已恢复 {real_missing - after_missing} 条，剩余 {after_missing} 条", sound=False)
-            try:
-                self.manual_recovery.title = f"手动恢复({after_missing})"
-            except Exception:
-                pass
-        else:
-            _pending_title = f"Ev {VERSION}({_new_msg_count})"
-            rumps.notification(f"Ev {VERSION}", "", "已全部恢复 ✓", sound=False)
-            try:
-                self.manual_recovery.title = "手动恢复"
-            except Exception:
-                pass
-
-    @rumps.clicked("全量扫描")
-    def deep_scan(self, _):
-        global _missing_count, _pending_title, _new_msg_count
-        _debug_log("deep_scan clicked")
-        try:
-            self.deep_scan.title = "扫描中…"
-        except Exception:
-            pass
-        rumps.notification(f"Ev {VERSION}", "", "开始全量扫描...", sound=False)
-        try:
-            new_last_id = do_recovery_poll("-")
-        except Exception as e:
-            _debug_log(f"deep_scan failed: {e}")
-            rumps.notification(f"Ev {VERSION}", "", "连接失败，请检查网络后重试", sound=False)
-            try:
-                self.deep_scan.title = "全量扫描"
-            except Exception:
-                pass
-            return
-        if new_last_id:
-            save_last_id(new_last_id)
-        after_missing = _recalc_missing()
-        if after_missing > 0:
-            _pending_title = f"Ev {VERSION}({_new_msg_count}) ⚠{after_missing}"
-            rumps.notification(f"Ev {VERSION}", "", f"扫描完成，剩余 {after_missing} 条丢失", sound=False)
-            try:
-                self.deep_scan.title = f"全量扫描({after_missing})"
-            except Exception:
-                pass
-        else:
-            _pending_title = f"Ev {VERSION}({_new_msg_count})"
-            rumps.notification(f"Ev {VERSION}", "", "全量扫描完成 ✓", sound=False)
-            try:
-                self.deep_scan.title = "全量扫描"
-            except Exception:
-                pass
-
-    @rumps.clicked("拉取日志")
-    def view_poll_log(self, _):
-        try:
-            data = load_poll_log()
-            today = datetime.now().strftime("%Y-%m-%d")
-            today_data = data.get(today, {})
-            today_polls = today_data.get("total_polls_today", 0)
-            month_total = sum(len(d.get("polls", [])) for d in data.values())
-            lines = []
-            for date_str in sorted(data.keys(), reverse=True)[:7]:
-                entry = data[date_str]
-                for p in entry.get("polls", []):
-                    if p.get("type") != "manual":
-                        continue
-                    lines.append(f"{date_str} {p['time']}  恢复={p.get('recovered',0)}  原因={p.get('reason','')}")
-            if not lines:
-                lines.append("无恢复记录")
-            text = "\n".join(lines)
-            rumps.alert(f"拉取日志 | 今日: {today_polls} | 本月: {month_total}", text[:500])
-        except Exception as e:
-            rumps.alert("错误", str(e))
-
     @rumps.clicked("状态")
     def status_btn(self, _):
         ts_str = (time.strftime("%H:%M:%S", time.localtime(_last_msg_ts)) if _last_msg_ts else "无")
-        status_str = "已连接" if _status == "connected" else "未连接"
-        text = (f"状态: {status_str}\n今日消息: {_new_msg_count}\n恢复次数: {_recovery_count_today}\n最后消息: {ts_str}")
+        status_str = "Online" if _status == "connected" else ("Reconnecting" if "retry" in _status else "Offline")
+        text = (f"Status: {status_str}\nMessages today: {_new_msg_count}\nLast message: {ts_str}")
         rumps.alert(f"Ev {VERSION}", text)
 
     @rumps.clicked("调试日志")
