@@ -7,7 +7,7 @@ try:
 except ImportError:
     redis = None
 
-VERSION = "v2.3.3"
+VERSION = "v2.3.4"
 
 # Delivery callback configuration
 CALLBACK_BASE_URL = "https://app-auth.gudq.com"
@@ -1952,9 +1952,29 @@ class WebNavDelegate(NSObject):
             listener.use()
 
 
+DEBUG_LOG_FILE = os.path.expanduser("~/.ev_debug.log")
+DEBUG_LOG_MAX_LINES = 2000
+DEBUG_LOG_KEEP_LINES = 1000
+
 def _debug_log(msg):
-    with open(os.path.expanduser("~/.ev_debug.log"), "a") as f:
-        f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')}] {msg}\n")
+    log_path = DEBUG_LOG_FILE
+    try:
+        with open(log_path, "a") as f:
+            f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')}] {msg}\n")
+    except Exception:
+        pass
+    _rotate_debug_log(log_path)
+
+
+def _rotate_debug_log(log_path):
+    try:
+        with open(log_path, "r") as f:
+            lines = f.readlines()
+        if len(lines) > DEBUG_LOG_MAX_LINES:
+            with open(log_path, "w") as f:
+                f.writelines(lines[-DEBUG_LOG_KEEP_LINES:])
+    except Exception:
+        pass
 
 
 def load_error_log():
