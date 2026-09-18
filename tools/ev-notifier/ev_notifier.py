@@ -7,7 +7,7 @@ try:
 except ImportError:
     redis = None
 
-VERSION = "v2.3.2"
+VERSION = "v2.3.3"
 
 # Delivery callback configuration
 CALLBACK_BASE_URL = "https://app-auth.gudq.com"
@@ -785,7 +785,7 @@ def handle_message(msg):
     if nsettings.get("popup", True):
         notify_macos(title, subtitle, body, sound=False)
     if nsettings.get("sound", True):
-        threading.Thread(target=lambda: subprocess.run(["afplay", "/System/Library/Sounds/Ping.aiff"], timeout=3), daemon=True).start()
+        threading.Thread(target=lambda: _run_and_ignore_timeout(["afplay", "/System/Library/Sounds/Ping.aiff"], timeout=3), daemon=True).start()
     if nsettings.get("voice", True) and mtype != "page_visit":
         if mtype == "new_order":
             u = p.get("user_name", "") or p.get("customer_name", "") or ""
@@ -3351,7 +3351,7 @@ document.addEventListener('DOMContentLoaded',function(){{
         if ntype == "popup":
             threading.Thread(target=lambda: notify_macos("测试通知", "弹窗通知功能正常", "这是一条测试弹窗消息"), daemon=True).start()
         elif ntype == "sound":
-            threading.Thread(target=lambda: subprocess.run(["afplay", "/System/Library/Sounds/Ping.aiff"], timeout=2), daemon=True).start()
+            threading.Thread(target=lambda: _run_and_ignore_timeout(["afplay", "/System/Library/Sounds/Ping.aiff"], timeout=2), daemon=True).start()
         elif ntype == "voice":
             threading.Thread(target=lambda: _run_and_ignore_timeout(["say", "-v", "Ting-Ting", "语音播报功能正常，这是一条中文语音测试"]), daemon=True).start()
         _debug_log(f"test_notify: {ntype}")
