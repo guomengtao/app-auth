@@ -160,7 +160,7 @@ def load_notify_settings():
         with open(NOTIFY_SETTINGS_FILE, "r") as f:
             return json.load(f)
     except Exception:
-        return {"popup": True, "sound": True}
+        return {"popup": True, "sound": True, "voice": True}
 
 
 def save_notify_settings(settings):
@@ -737,6 +737,9 @@ def handle_message(msg):
     do_sound = nsettings.get("sound", True)
     if do_popup:
         notify_macos(title, subtitle, body, sound=do_sound)
+    if nsettings.get("voice", True):
+        voice_text = f"{title}, {subtitle}".replace("[", "").replace("]", "")
+        threading.Thread(target=lambda: subprocess.run(["say", voice_text], timeout=3, capture_output=True), daemon=True).start()
     store_message(ts, mtype, p)
 
     # Delivery callback: confirm to server that message was received
@@ -3340,6 +3343,10 @@ document.addEventListener('DOMContentLoaded',function(){{
         sound_color = "var(--green)" if sound_on else "var(--text-tertiary)"
         sound_label = "ON" if sound_on else "OFF"
         sound_url = "ev://setting=sound"
+        voice_on = nsettings.get("voice", True)
+        voice_color = "var(--green)" if voice_on else "var(--text-tertiary)"
+        voice_label = "ON" if voice_on else "OFF"
+        voice_url = "ev://setting=voice"
 
         body = f"""
         <div class="settings-group">
@@ -3364,6 +3371,16 @@ document.addEventListener('DOMContentLoaded',function(){{
                 <div style="display:flex;align-items:center;gap:10px;">
                   <span style="font-size:11px;font-weight:600;color:{sound_color};">{sound_label}</span>
                   <a class="btn" href="{sound_url}">切换</a>
+                </div>
+              </div>
+              <div class="settings-row">
+                <div>
+                  <div class="settings-row-label">语音播报</div>
+                  <div class="settings-row-desc">收到新消息时用语音朗读标题</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <span style="font-size:11px;font-weight:600;color:{voice_color};">{voice_label}</span>
+                  <a class="btn" href="{voice_url}">切换</a>
                 </div>
               </div>
             </div>
