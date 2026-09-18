@@ -1,21 +1,26 @@
-// api/go.js — 跳转下载链接（点击统计 + 透明跳转到爱发电）
+// api/go.js — jump download link (click stats + transparent redirect to afdian)
 //
-// 用法：
-//   1) 短链：/api/go?slug=ev-timetable        （开发态直接调用）
-//   2) 短链：/go/ev-timetable                  （生产态通过 vercel rewrite 转发）
+// Usage:
+//   1) Short link: /api/go?slug=ev-timetable        (dev mode)
+//   2) Short link: /go/ev-timetable                 (prod via vercel rewrite)
 //
-// 数据存储：
+// Data storage:
 //   HASH  go:mapping    slug -> JSON {target_url, enabled, name_zh, name_en, note}
-//   KEY   stats:go:<today>             当日总点击数（incr）
-//   KEY   stats:go:<today>:<slug>       当日单 slug 点击数（incr）
-//   LIST  stats:go:recent              最近 100 条点击明细（lpush + ltrim）
+//   KEY   stats:go:<today>              daily total click count (incr)
+//   KEY   stats:go:<today>:<slug>       daily per-slug click count (incr)
+//   LIST  stats:go:recent               last 100 click details (lpush + ltrim)
 //
-// 错误响应：
+//   Also writes to shared visitor stats:
+//   KEY   stats:pv:<today>              INCR (shared with website visitors)
+//   ZSET  stats:pages:<today>           ZINCRBY (shared with website visitors)
+//   LIST  stats:recent                  LPUSH visitor-format record (shared)
+//
+// Error response:
 //   400 invalid slug
 //   404 slug not found
 //   410 slug disabled
 //   500 redis error
-//   200 OK（302 跳转）
+//   200 OK (302 redirect)
 
 var redis = require("../lib/redis");
 
@@ -91,6 +96,58 @@ function notEnabled(res, slug) {
   );
 }
 
+// --- stream notification push (purchase_click → ev-notifier) --------
+
+async function pushPurchaseClick(entry, record, ts, dateKey) {
+  var upstashUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "";
+  var upstashToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || "";
+  if (!upstashUrl || !upstashToken) {
+    console.log("[go:stream] no Upstash config, skip purchase_click push");
+    return;
+  }
+  var msg = {
+    ts: Math.floor(ts / 1000),
+    type: "purchase_click",
+    payload: {
+      slug: record.slug,
+      name_zh: entry.name_zh || "",
+      name_en: entry.name_en || "",
+      target_url: entry.target_url || "",
+      ip: record.ip,
+      country: record.c,
+      region: record.rg,
+      city: record.ci,
+      referrer: record.r,
+      user_agent: record.u,
+      utm_source: record.utm_source,
+      utm_medium: record.utm_medium,
+      utm_campaign: record.utm_campaign,
+      visitor_hash: record.v,
+      date: dateKey
+    }
+  };
+  var dataStr = JSON.stringify(msg);
+  var baseUrl = upstashUrl.replace(/\/$/, "");
+  try {
+    var xaddUrl = baseUrl + "/xadd/auth:notifications:stream/*/data/" + encodeURIComponent(dataStr);
+    var r = await fetch(xaddUrl, {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + upstashToken },
+      signal: AbortSignal.timeout(5000),
+    });
+    console.log("[go:stream] XADD:", r.status);
+    var pubUrl = baseUrl + "/publish/auth:push_channel/" + encodeURIComponent(dataStr);
+    var pubR = await fetch(pubUrl, {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + upstashToken },
+      signal: AbortSignal.timeout(3000),
+    });
+    console.log("[go:stream] PUBLISH:", pubR.status);
+  } catch (err) {
+    console.error("[go:stream] push error:", err.message);
+  }
+}
+
 // --- handler ---------------------------------------------------------------
 
 module.exports = async (req, res) => {
@@ -159,7 +216,25 @@ module.exports = async (req, res) => {
       redis.ltrim("stats:go:recent", 0, 99).catch(function () { return null; }),
       redis.pexpire("stats:go:recent", VISITOR_TTL * 1000).catch(function () {}),
     ];
-    // 不 await —— 即使统计失败也立刻跳
+    // Also write to shared visitor stats (PV + pages + recent)
+    tasks.push(redis.incr("stats:pv:" + dateKey).catch(function () { return null; }));
+    tasks.push(redis.pexpire("stats:pv:" + dateKey, VISITOR_TTL * 1000).catch(function () {}));
+    tasks.push(redis.zincrby("stats:pages:" + dateKey, 1, "/go/" + slug).catch(function () { return null; }));
+    tasks.push(redis.pexpire("stats:pages:" + dateKey, VISITOR_TTL * 1000).catch(function () {}));
+    // Write to shared recent visitors list (visitor-format record)
+    var visitorRecord = {
+      h: vHash, p: "/go/" + slug, u: ua, r: ref,
+      t: ts, c: country, rg: region, ci: city, ip: ip,
+      source: "go-link", slug: slug
+    };
+    tasks.push(redis.lpush("stats:recent", JSON.stringify(visitorRecord)).catch(function () { return null; }));
+    tasks.push(redis.ltrim("stats:recent", 0, 99).catch(function () { return null; }));
+    tasks.push(redis.pexpire("stats:recent", VISITOR_TTL * 1000).catch(function () {}));
+    // Push purchase_click notification to ev-notifier stream
+    pushPurchaseClick(entry, record, ts, dateKey).catch(function (e) {
+      console.error("[go] pushPurchaseClick failed:", e && e.message ? e.message : e);
+    });
+    // fire-and-forget: stats failure never blocks redirect
     Promise.all(tasks).catch(function (e) {
       console.error("[go] stats write failed:", e && e.message ? e.message : e);
     });

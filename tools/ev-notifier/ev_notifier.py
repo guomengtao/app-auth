@@ -522,15 +522,22 @@ def do_recovery_poll(last_id):
 
 def notify_macos(title, subtitle, body, sound=False):
     try:
-        safe_title = title.replace('"', "'")
-        safe_body = (subtitle + "\n" + body).replace('"', "'")
+        msg = f"{subtitle}\n{body}" if body else subtitle
+        cmd = ["terminal-notifier", "-title", title, "-message", msg]
         if sound:
-            script = f'display notification "{safe_body}" with title "{safe_title}" sound name "default"'
-        else:
+            cmd.extend(["-sound", "default"])
+        r = subprocess.run(cmd, capture_output=True, timeout=5)
+        if r.returncode != 0:
+            _debug_log(f"terminal-notifier failed rc={r.returncode} stderr={r.stderr.decode()[:200]}, falling back to osascript")
+            safe_title = title.replace('"', "'").replace("\\", "\\\\")
+            safe_body = (subtitle + "\n" + body).replace('"', "'").replace("\\", "\\\\")
             script = f'display notification "{safe_body}" with title "{safe_title}"'
-        subprocess.run(["osascript", "-e", script], timeout=3)
-    except Exception:
-        pass
+            r2 = subprocess.run(["osascript", "-e", script], capture_output=True, timeout=5)
+            _debug_log(f"notify_macos osascript fallback: rc={r2.returncode}")
+        else:
+            _debug_log(f"notify_macos terminal-notifier OK")
+    except Exception as e:
+        _debug_log(f"notify_macos EXCEPTION: {e}")
 
 
 def _delivery_callback(message_id, event="delivered"):
@@ -686,9 +693,12 @@ def handle_message(msg):
         product = p.get("product_name", "") or p.get("plan_title", "")
         amount = _normalize_amount(p.get("total_amount") or p.get("amount") or 0)
         amount_str = f"CNY{amount:.2f}" if amount else ""
+        user_name = p.get("user_name", "") or p.get("customer_name", "") or ""
         title = "New Order"
         subtitle = product
         lines = [f"Amount: {amount_str}"] if amount_str else []
+        if user_name:
+            lines.insert(0, f"User: {user_name}")
         redeem_code = p.get("redeem_code", "")
         if redeem_code:
             lines.append(f"Redeem: {redeem_code}")
@@ -729,17 +739,50 @@ def handle_message(msg):
             lines.append(f"Channel: {channel}")
         lines.append(ts_label)
         body = "\n".join(lines)
+    elif mtype == "purchase_click":
+        slug = p.get("slug", "")
+        name_zh = p.get("name_zh", "") or p.get("name_en", "") or slug
+        ip = p.get("ip", "")
+        country = p.get("country", "")
+        utm = p.get("utm_source", "") or ""
+        title = "Purchase Click"
+        subtitle = name_zh
+        lines = [f"Slug: /go/{slug}"]
+        if ip:
+            lines.append(f"IP: {ip}")
+        if country:
+            lines.append(f"Country: {country}")
+        if utm:
+            lines.append(f"UTM: {utm}")
+        lines.append(ts_label)
+        body = "\n".join(lines)
     else:
         body = json.dumps(p, ensure_ascii=False, indent=2)[:200]
     print(f"[{ts_label}] {title} | {subtitle}")
     nsettings = load_notify_settings()
-    do_popup = nsettings.get("popup", True)
-    do_sound = nsettings.get("sound", True)
-    if do_popup:
-        notify_macos(title, subtitle, body, sound=do_sound)
-    if nsettings.get("voice", True):
-        voice_text = f"{title}, {subtitle}".replace("[", "").replace("]", "")
-        threading.Thread(target=lambda: subprocess.run(["say", voice_text], timeout=3, capture_output=True), daemon=True).start()
+    if nsettings.get("popup", True):
+        notify_macos(title, subtitle, body, sound=False)
+    if nsettings.get("sound", True):
+        threading.Thread(target=lambda: subprocess.run(["afplay", "/System/Library/Sounds/Ping.aiff"], timeout=3), daemon=True).start()
+    if nsettings.get("voice", True) and mtype != "page_visit":
+        if mtype == "new_order":
+            u = p.get("user_name", "") or p.get("customer_name", "") or ""
+            a = _normalize_amount(p.get("total_amount") or p.get("amount") or 0)
+            voice_text = f"收到新订单，用户{u}，金额CNY{a:.2f}" if a else f"收到新订单，用户{u}"
+        elif mtype == "new_activation":
+            prod = p.get("product_name", "") or ""
+            voice_text = f"新设备激活：{prod}" if prod else "新设备激活"
+        elif mtype == "activation_failure":
+            prod = p.get("product_name", "") or ""
+            voice_text = f"激活失败：{prod}" if prod else "激活失败"
+        elif mtype == "purchase_click":
+            name_zh = p.get("name_zh", "") or p.get("slug", "")
+            voice_text = f"收到购买点击，{name_zh}" if name_zh else "收到购买点击"
+        elif mtype == "test_curl":
+            voice_text = "收到测试消息"
+        else:
+            voice_text = f"{title}, {subtitle}".replace("[", "").replace("]", "")
+        threading.Thread(target=lambda: subprocess.run(["say", "-v", "Tingting", voice_text], timeout=5, capture_output=True), daemon=True).start()
     store_message(ts, mtype, p)
 
     # Delivery callback: confirm to server that message was received
@@ -1877,6 +1920,12 @@ class WebNavDelegate(NSObject):
                     pass
             elif "order-sync" in url_str and self._dashboard:
                 self._dashboard._sync_orders()
+            elif "test-notify=" in url_str and self._dashboard:
+                try:
+                    ntype = url_str.split("test-notify=")[1]
+                    self._dashboard._test_notify(ntype)
+                except Exception:
+                    pass
             listener.ignore()
         else:
             listener.use()
@@ -3239,6 +3288,15 @@ document.addEventListener('DOMContentLoaded',function(){{
         _debug_log(f"notify setting: {key}={settings[key]}")
         self._refresh_content()
 
+    def _test_notify(self, ntype):
+        if ntype == "popup":
+            threading.Thread(target=lambda: notify_macos("测试通知", "弹窗通知功能正常", "这是一条测试弹窗消息"), daemon=True).start()
+        elif ntype == "sound":
+            threading.Thread(target=lambda: subprocess.run(["afplay", "/System/Library/Sounds/Ping.aiff"], timeout=2), daemon=True).start()
+        elif ntype == "voice":
+            threading.Thread(target=lambda: subprocess.run(["say", "-v", "Ting-Ting", "语音播报功能正常，这是一条中文语音测试"], timeout=5, capture_output=True), daemon=True).start()
+        _debug_log(f"test_notify: {ntype}")
+
     def _html_logs(self):
         data = load_error_log()
         all_entries = []
@@ -3361,6 +3419,7 @@ document.addEventListener('DOMContentLoaded',function(){{
                 <div style="display:flex;align-items:center;gap:10px;">
                   <span style="font-size:11px;font-weight:600;color:{popup_color};">{popup_label}</span>
                   <a class="btn" href="{popup_url}">切换</a>
+                  <a class="btn" href="ev://test-notify=popup" style="background:#3b82f6;color:#fff;border-color:#3b82f6;">测试</a>
                 </div>
               </div>
               <div class="settings-row">
@@ -3371,6 +3430,7 @@ document.addEventListener('DOMContentLoaded',function(){{
                 <div style="display:flex;align-items:center;gap:10px;">
                   <span style="font-size:11px;font-weight:600;color:{sound_color};">{sound_label}</span>
                   <a class="btn" href="{sound_url}">切换</a>
+                  <a class="btn" href="ev://test-notify=sound" style="background:#3b82f6;color:#fff;border-color:#3b82f6;">测试</a>
                 </div>
               </div>
               <div class="settings-row">
@@ -3381,6 +3441,7 @@ document.addEventListener('DOMContentLoaded',function(){{
                 <div style="display:flex;align-items:center;gap:10px;">
                   <span style="font-size:11px;font-weight:600;color:{voice_color};">{voice_label}</span>
                   <a class="btn" href="{voice_url}">切换</a>
+                  <a class="btn" href="ev://test-notify=voice" style="background:#3b82f6;color:#fff;border-color:#3b82f6;">测试</a>
                 </div>
               </div>
             </div>

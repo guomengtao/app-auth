@@ -3151,7 +3151,6 @@
         <li><a href="javascript:void(0)" onclick="switchTab('decrypt')" data-tab="decrypt"><i data-lucide="search" class="menu-icon"></i><span class="menu-text">解密验证</span></a></li>
         <li class="menu-separator"><hr></li>
         <li><a href="javascript:void(0)" onclick="switchTab('afdian-orders')" data-tab="afdian-orders"><i data-lucide="heart" class="menu-icon"></i><span class="menu-text">爱发电订单</span></a></li>
-        <li><a href="javascript:void(0)" onclick="switchTab('purchase-logs')" data-tab="purchase-logs"><i data-lucide="mouse-pointer-click" class="menu-icon"></i><span class="menu-text">购买点击日志</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('quota')" data-tab="quota"><i data-lucide="coins" class="menu-icon"></i><span class="menu-text">额度</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('visitors')" data-tab="visitors"><i data-lucide="users" class="menu-icon"></i><span class="menu-text">访客统计</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('logs')" data-tab="logs"><i data-lucide="scroll-text" class="menu-icon"></i><span class="menu-text">日志</span></a></li>
@@ -4143,12 +4142,17 @@
           </div>
         </div>
 
-        <!-- Afdian Orders Panel -->
+        <!-- Afdian Orders Panel (with sub-tabs) -->
         <div class="panel" id="panel-afdian-orders">
           <div class="toolbar">
             <div>
-              <h2 style="margin:0;display:flex;align-items:center;gap:8px">💖 爱发电订单</h2>
-              <span class="muted" style="font-size:0.8rem">管理爱发电赞助订单，手动同步并查看激活码生成记录</span>
+              <h2 style="margin:0;display:flex;align-items:center;gap:8px" id="afdianOrdersTitle">💖 爱发电订单</h2>
+              <span class="muted" style="font-size:0.8rem" id="afdianOrdersSub">管理爱发电赞助订单，手动同步并查看激活码生成记录</span>
+            </div>
+            <span class="spacer"></span>
+            <div style="display:flex;gap:4px;background:var(--line);padding:3px;border-radius:8px" id="afdianSubTabs">
+              <button id="afdianSubTabOrders" class="visitor-sub-tab active" onclick="switchAfdianSubTab('orders')">📋 订单列表</button>
+              <button id="afdianSubTabPurchase" class="visitor-sub-tab" onclick="switchAfdianSubTab('purchase')">🔗 购买点击日志</button>
             </div>
             <span class="spacer"></span>
             <button class="btn btn-primary" onclick="syncAfdianOrders()" id="afdianSyncBtn">
@@ -4158,6 +4162,8 @@
             <button class="btn btn-outline" onclick="loadAfdianOrders()">🔄 刷新列表</button>
           </div>
 
+          <!-- Sub-tab: Orders -->
+          <div id="afdian-sub-orders">
           <div id="afdianSyncStatus" style="margin-bottom:12px;padding:10px 14px;border-radius:8px;font-size:0.82rem;display:none"></div>
 
           <div class="stats-bar" style="margin-bottom:16px">
@@ -4209,22 +4215,15 @@
               <p style="margin-top:8px;color:var(--muted)">Cron 定时任务：每天凌晨 3:00 (UTC) 自动同步一次。也可点击上方按钮手动同步。</p>
             </div>
           </details>
-        </div>
+          </div><!-- /afdian-sub-orders -->
 
-        <!-- Purchase Logs / Go Links Panel -->
-        <div class="panel" id="panel-purchase-logs">
-          <div class="toolbar">
-            <div>
-              <h2 style="margin:0;display:flex;align-items:center;gap:8px">🔗 购买点击日志</h2>
-              <span class="muted" style="font-size:0.8rem">管理 <code>/go/&lt;slug&gt;</code> 跳转短链，查看点击来源、时间分布与最近访客</span>
-            </div>
-            <span class="spacer"></span>
+          <!-- Sub-tab: Purchase Click Logs -->
+          <div id="afdian-sub-purchase" style="display:none">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
             <button class="btn btn-primary" onclick="openGoLinkForm()">
               <i data-lucide="plus" style="width:14px;height:14px"></i> 新建短链
             </button>
-            <button class="btn btn-outline" onclick="loadPurchaseLogs()">🔄 刷新</button>
           </div>
-
           <div class="stats-bar" style="margin-bottom:16px">
             <div class="stat-card">
               <div class="number" id="goStatTotalLinks">-</div>
@@ -4306,6 +4305,7 @@
               <p style="margin-top:8px"><strong>数据保留：</strong>配置变更不影响历史统计；删除短链后明细仍保留 30 天。</p>
             </div>
           </details>
+          </div><!-- /afdian-sub-purchase -->
         </div>
 
         <div class="panel" id="panel-delivery">
@@ -4784,8 +4784,7 @@
       }
       if (tab === 'settings') initSettingsPanel();
       if (tab === 'direct-activate') initDirectActivate();
-      if (tab === 'afdian-orders') loadAfdianOrders();
-      if (tab === 'purchase-logs') loadPurchaseLogs();
+      if (tab === 'afdian-orders') { switchAfdianSubTab('orders'); }
       if (tab === 'visitors') loadVisitors();
       if (tab === 'delivery') loadDeliveryMessages();
       
@@ -9344,6 +9343,39 @@
         if (tab0) tab0.classList.remove('active');
         if (tab1) tab1.classList.add('active');
         loadIpCompare();
+      }
+    }
+
+    function switchAfdianSubTab(sub) {
+      var ordersDiv = document.getElementById('afdian-sub-orders');
+      var purchaseDiv = document.getElementById('afdian-sub-purchase');
+      var tabOrders = document.getElementById('afdianSubTabOrders');
+      var tabPurchase = document.getElementById('afdianSubTabPurchase');
+      var titleEl = document.getElementById('afdianOrdersTitle');
+      var subEl = document.getElementById('afdianOrdersSub');
+      var syncBtn = document.getElementById('afdianSyncBtn');
+      var refreshBtn = document.querySelector('#panel-afdian-orders .btn-outline');
+
+      if (sub === 'purchase') {
+        if (ordersDiv) ordersDiv.style.display = 'none';
+        if (purchaseDiv) purchaseDiv.style.display = '';
+        if (tabOrders) tabOrders.classList.remove('active');
+        if (tabPurchase) tabPurchase.classList.add('active');
+        if (titleEl) titleEl.innerHTML = '🔗 购买点击日志';
+        if (subEl) subEl.textContent = '管理 /go/<slug> 跳转短链，查看点击来源、时间分布与最近访客';
+        if (syncBtn) syncBtn.style.display = 'none';
+        if (refreshBtn) refreshBtn.setAttribute('onclick', 'loadPurchaseLogs()');
+        loadPurchaseLogs();
+      } else {
+        if (ordersDiv) ordersDiv.style.display = '';
+        if (purchaseDiv) purchaseDiv.style.display = 'none';
+        if (tabOrders) tabOrders.classList.add('active');
+        if (tabPurchase) tabPurchase.classList.remove('active');
+        if (titleEl) titleEl.innerHTML = '💖 爱发电订单';
+        if (subEl) subEl.textContent = '管理爱发电赞助订单，手动同步并查看激活码生成记录';
+        if (syncBtn) syncBtn.style.display = '';
+        if (refreshBtn) refreshBtn.setAttribute('onclick', 'loadAfdianOrders()');
+        loadAfdianOrders();
       }
     }
 
