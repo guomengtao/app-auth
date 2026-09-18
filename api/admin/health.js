@@ -3012,6 +3012,58 @@ if ((isCron || isCronBackup) && isBackup) {
         if (days > 90) days = 90;
         return res.json(await handleTrends2(days));
       }
+      if (sub === "channels") {
+        try {
+          var channelCounts = {};
+          var total = 0;
+          var BATCH = 200;
+          var actKeys = await redis.smembers("auth:activation_codes").catch(function() { return []; });
+          for (var ci = 0; ci < actKeys.length; ci += BATCH) {
+            var cbatch = actKeys.slice(ci, ci + BATCH);
+            var cpipeline = redis.pipeline();
+            cbatch.forEach(function(k) { cpipeline.get("auth:activation:" + k); });
+            var cresults = await cpipeline.exec().catch(function() { return []; });
+            if (cresults && cresults.length) {
+              for (var cj = 0; cj < cresults.length; cj++) {
+                var craw = cresults[cj];
+                if (!craw) continue;
+                try {
+                  var rec = typeof craw === "string" ? JSON.parse(craw) : craw;
+                  total++;
+                  var ch = rec.device_info && rec.device_info.source ? rec.device_info.source : "__unknown__";
+                  channelCounts[ch] = (channelCounts[ch] || 0) + 1;
+                } catch (_) {}
+              }
+            }
+          }
+          var failKeys = await redis.smembers("auth:activation_failures").catch(function() { return []; });
+          for (var fi = 0; fi < failKeys.length; fi += BATCH) {
+            var fbatch = failKeys.slice(fi, fi + BATCH);
+            var fpipeline = redis.pipeline();
+            fbatch.forEach(function(k) { fpipeline.get(k); });
+            var fresults = await fpipeline.exec().catch(function() { return []; });
+            if (fresults && fresults.length) {
+              for (var fj = 0; fj < fresults.length; fj++) {
+                var fraw = fresults[fj];
+                if (!fraw) continue;
+                try {
+                  var frec = typeof fraw === "string" ? JSON.parse(fraw) : fraw;
+                  total++;
+                  var fch = frec.device_info && frec.device_info.source ? frec.device_info.source : "__unknown__";
+                  channelCounts[fch] = (channelCounts[fch] || 0) + 1;
+                } catch (_) {}
+              }
+            }
+          }
+          var channels = Object.keys(channelCounts).map(function(ch) {
+            return { channel: ch, count: channelCounts[ch] };
+          });
+          channels.sort(function(a, b) { return b.count - a.count; });
+          return res.json({ success: true, total: total, channels: channels });
+        } catch (e) {
+          return res.status(500).json({ success: false, error: e.message });
+        }
+      }
 
       return res.json(await handleStats2());
     } catch (error) {

@@ -3385,6 +3385,9 @@
               </div>
             </div>
             <div id="recordFilterHint" style="display:none;margin-bottom:8px;font-size:0.85rem;color:#667eea"></div>
+            <div id="channelStatsCard" style="margin-bottom:12px;display:none">
+              <div class="stats-bar" id="channelStatsBar"></div>
+            </div>
             <div class="table-wrap" id="recordsTable"></div>
           </div>
 
@@ -5505,6 +5508,8 @@
         var html = renderRecordsTable(displayRecords, highlightRc, highlightAc, rc);
         document.getElementById('recordsTable').innerHTML = html;
 
+        loadChannelStats();
+
         if (highlightRc || highlightAc) {
           setTimeout(function() {
             var el = document.querySelector('#recordsTable tr.record-row-hl');
@@ -5521,12 +5526,12 @@
 
     function renderRecordsTable(allRecords, highlightRc, highlightAc, rc) {
       allRecords = allRecords || [];
-      var tableHtml = '<table><thead><tr><th>状态</th><th>激活码</th><th>兑换码</th><th style="max-width:80px">设备ID</th><th>产品</th><th>版本号</th><th>手环型号</th><th>激活时间</th><th>到期时间</th><th style="width:60px">操作</th></tr></thead><tbody>';
+      var tableHtml = '<table><thead><tr><th>状态</th><th>激活码</th><th>兑换码</th><th style="max-width:80px">设备ID</th><th>渠道</th><th>产品</th><th>版本号</th><th>手环型号</th><th>激活时间</th><th>到期时间</th><th style="width:60px">操作</th></tr></thead><tbody>';
       if (allRecords.length === 0) {
         var emptyReason = rc
           ? 'No records found for redeem code "' + rc + '".'
           : 'No activation records.';
-        tableHtml += '<tr><td colspan="10" class="empty">' + escapeHtml(emptyReason) + '</td></tr>';
+        tableHtml += '<tr><td colspan="11" class="empty">' + escapeHtml(emptyReason) + '</td></tr>';
       } else {
         allRecords.forEach(function(r, idx) {
           var isFailure = r.status === 'failure';
@@ -5600,6 +5605,12 @@
           }
           tableHtml += '<td>' + rcCell + '</td>';
           tableHtml += '<td>' + deviceCell + '</td>';
+          var ch = (di && di.source) || '';
+          if (ch) {
+            tableHtml += '<td><span class="channel-badge" style="font-size:0.72rem;background:#e8f5e9;color:#2e7d32;padding:1px 6px;border-radius:4px;white-space:nowrap">' + escapeHtml(ch) + '</span></td>';
+          } else {
+            tableHtml += '<td style="color:#aaa;font-size:0.75rem">-</td>';
+          }
           tableHtml += '<td>' + escapeHtml(r.product_id || '') + '</td>';
           tableHtml += '<td style="font-size:0.78rem">' + versionCell + '</td>';
           tableHtml += '<td style="font-size:0.78rem">' + modelCell + '</td>';
@@ -5613,7 +5624,7 @@
           }
           tableHtml += '<td>' + actionCell + '</td>';
           tableHtml += '</tr>';
-          tableHtml += '<tr class="record-detail-row" id="detailRow' + idx + '"><td colspan="10">' + renderRecordDetail(r) + '</td></tr>';
+          tableHtml += '<tr class="record-detail-row" id="detailRow' + idx + '"><td colspan="11">' + renderRecordDetail(r) + '</td></tr>';
         });
       }
       tableHtml += '</tbody></table>';
@@ -5937,10 +5948,32 @@
       var isFailure = r.status === 'failure';
       var hasDevice = di.model || di.product || di.deviceType;
       var hasVisitor = vi.ip || vi.os || vi.browser;
+      var hasChannel = di.source;
 
-      if (!hasDevice && !hasVisitor && !isFailure) return '<span style="color:#aaa">No detail</span>';
+      if (!hasDevice && !hasVisitor && !isFailure && !hasChannel) return '<span style="color:#aaa">No detail</span>';
 
       var html = '<div class="record-detail">';
+
+      if (hasChannel) {
+        var channelParts = (di.source || '').split('-');
+        var platformMap = { t: '米坛', q: '轻腕', g: 'GitHub' };
+        var deviceMap = { '9p': '手环9 Pro', '10': '手环10', '10p': '手环10 Pro', '9': '手环9', b9: '手环9(小)', s4: 'Watch S4', w: 'Watch' };
+        var typeMap = { d: '讨论帖', r: '资源页' };
+        html += '<div class="detail-section">';
+        html += '<div class="detail-section-title">Channel Source</div>';
+        html += '<table class="detail-table">';
+        html += '<tr><td>Channel</td><td><span class="channel-badge" style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:4px;font-weight:600">' + escapeHtml(di.source) + '</span></td></tr>';
+        if (channelParts.length >= 1 && platformMap[channelParts[0]]) {
+          html += '<tr><td>Platform</td><td>' + platformMap[channelParts[0]] + '</td></tr>';
+        }
+        if (channelParts.length >= 2 && deviceMap[channelParts[1]]) {
+          html += '<tr><td>Device</td><td>' + deviceMap[channelParts[1]] + '</td></tr>';
+        }
+        if (channelParts.length >= 3 && typeMap[channelParts[2]]) {
+          html += '<tr><td>Post Type</td><td>' + typeMap[channelParts[2]] + '</td></tr>';
+        }
+        html += '</table></div>';
+      }
 
       if (isFailure) {
         html += '<div class="detail-section">';
@@ -5984,6 +6017,40 @@
 
       html += '</div>';
       return html;
+    }
+
+    function loadChannelStats() {
+      var card = document.getElementById('channelStatsCard');
+      var bar = document.getElementById('channelStatsBar');
+      if (!card || !bar) return;
+      api('/api/admin/health?section=stats&sub=channels').then(function(data) {
+        if (!data || !data.success || !data.channels || data.channels.length === 0) {
+          card.style.display = 'none';
+          return;
+        }
+        var html = '';
+        var maxCount = data.channels[0] ? data.channels[0].count : 1;
+        data.channels.forEach(function(ch) {
+          var pct = (ch.count / maxCount * 100).toFixed(0);
+          var label = ch.channel === '__unknown__' ? 'Unknown' : ch.channel;
+          html += '<div class="stat-card" style="border-left:3px solid #10b981;min-width:80px;padding:6px 10px">';
+          html += '<div class="label" style="font-size:0.7rem;white-space:nowrap">' + escapeHtml(label) + '</div>';
+          html += '<div class="number" style="font-size:1rem;margin-top:2px">' + ch.count + '</div>';
+          html += '<div style="margin-top:2px;height:3px;background:#e5e7eb;border-radius:2px;overflow:hidden">';
+          html += '<div style="height:100%;width:' + pct + '%;background:#10b981;border-radius:2px"></div></div>';
+          html += '</div>';
+        });
+        if (data.total > 0) {
+          html += '<div class="stat-card" style="border-left:3px solid #6b7280;min-width:60px;padding:6px 10px">';
+          html += '<div class="label" style="font-size:0.7rem">Total</div>';
+          html += '<div class="number" style="font-size:1rem;margin-top:2px">' + data.total + '</div>';
+          html += '</div>';
+        }
+        bar.innerHTML = html;
+        card.style.display = 'block';
+      }).catch(function() {
+        card.style.display = 'none';
+      });
     }
 
     function renderVisitorDetail(v) {

@@ -663,8 +663,12 @@ def handle_message(msg):
         redeem_code = p.get("redeem_code", "")
         device = p.get("device_id", "")
         src = p.get("source", "")
+        device_info = p.get("device_info", {}) or {}
+        channel = device_info.get("source", "") or p.get("channel", "")
         title = "New Device Activated"
         subtitle = f"{product} {months}".strip()
+        if channel:
+            subtitle += f" [{channel}]"
         lines = []
         if act_code:
             lines.append(f"Activation: {act_code}")
@@ -674,6 +678,8 @@ def handle_message(msg):
             lines.append(f"Device: {device}")
         if src:
             lines.append(f"Source: {src}")
+        if channel:
+            lines.append(f"Channel: {channel}")
         lines.append(ts_label)
         body = "\n".join(lines)
     elif mtype == "new_order":
@@ -706,8 +712,12 @@ def handle_message(msg):
         reason = p.get("reason", "") or p.get("error", "") or ""
         redeem = p.get("redeem_code", "") or ""
         device = p.get("device_id", "") or ""
+        device_info = p.get("device_info", {}) or {}
+        channel = device_info.get("source", "") or p.get("channel", "")
         title = "Activation Failed"
         subtitle = product or "Unknown"
+        if channel:
+            subtitle += f" [{channel}]"
         lines = []
         if redeem:
             lines.append(f"Redeem: {redeem}")
@@ -715,6 +725,8 @@ def handle_message(msg):
             lines.append(f"Reason: {reason[:80]}")
         if device:
             lines.append(f"Device: {device[:16]}")
+        if channel:
+            lines.append(f"Channel: {channel}")
         lines.append(ts_label)
         body = "\n".join(lines)
     else:
