@@ -26,7 +26,7 @@ function visitorTodayKey(ts) {
 
 async function handleVisitorTrack(req, res) {
   try {
-    var ipCheck = await rateLimit.checkIpRateLimit(req);
+    var ipCheck = await rateLimit.checkVisitorIpRateLimit(req);
     if (ipCheck.blocked) {
       return res.status(429).json({ success: false, error: ipCheck.reason });
     }
@@ -513,9 +513,11 @@ module.exports = async (req, res) => {
       months: months,
     });
 
-    var notifyResult = null;
-    try {
-      notifyResult = await notify.sendActivationNotification(req, {
+    // Return response immediately, background notifications
+    res.json({ success: true, activationCode: activationCode, debug: { visitor: visitorInfo, notification: "background", productId: productId, months: months } });
+
+    process.nextTick(function() {
+      notify.sendActivationNotification(req, {
         redeemCode: code,
         activationCode: activationCode,
         productId: productId,
@@ -523,28 +525,25 @@ module.exports = async (req, res) => {
         months: months,
         deviceInfo: deviceInfo,
         source: "user",
+      }).catch(function (e) {
+        console.error("[activate] Notification failed:", e.message);
       });
-    } catch (e) {
-      console.error("[activate] Notification failed:", e.message);
-      notifyResult = { sent: false, error: e.message };
-    }
 
-    await notify.pushNotification("new_activation", {
-      redeem_code: code,
-      activation_code: activationCode,
-      product_id: productId,
-      device_id: device,
-      months: months,
-      source: "user",
-      ip: visitorInfo ? visitorInfo.ip : "",
-      user_agent: visitorInfo ? visitorInfo.userAgent : "",
-      visitor_info: visitorInfo || {},
-      device_info: deviceInfo || {},
-    }).catch(function () {});
+      notify.pushNotification("new_activation", {
+        redeem_code: code,
+        activation_code: activationCode,
+        product_id: productId,
+        device_id: device,
+        months: months,
+        source: "user",
+        ip: visitorInfo ? visitorInfo.ip : "",
+        user_agent: visitorInfo ? visitorInfo.userAgent : "",
+        visitor_info: visitorInfo || {},
+        device_info: deviceInfo || {},
+      }).catch(function () {});
 
-    rateLimit.clearDeviceRateLimit(device).catch(function () {});
-
-    return res.json({ success: true, activationCode: activationCode, debug: { visitor: visitorInfo, notification: (notifyResult && notifyResult.sent) ? "sent" : "failed", productId: productId, months: months } });
+      rateLimit.clearDeviceRateLimit(device).catch(function () {});
+    });
   } catch (error) {
     console.error("Activate error:", error && error.message ? error.message : error, error);
     var msg = "服务器内部错误，请稍后重试";
@@ -554,26 +553,30 @@ module.exports = async (req, res) => {
       msg = "服务器数据库连接失败，请稍后重试或联系管理员";
     }
     saveFailureRecord(msg, rawDeviceId, rawRedeemCode, "", "", visitorInfo, deviceInfo);
-    var catchNotifyResult = await notify.sendActivationFailure(req, {
-      reason: msg,
-      redeemCode: rawRedeemCode || "",
-      deviceId: rawDeviceId || "",
-      productId: "",
-      months: "",
-      source: "user",
-    }).catch(function () {});
 
-    await notify.pushNotification("activation_failure", {
-      reason: msg,
-      redeem_code: rawRedeemCode || "",
-      device_id: rawDeviceId || "",
-      source: "user",
-      ip: visitorInfo ? visitorInfo.ip : "",
-      user_agent: visitorInfo ? visitorInfo.userAgent : "",
-      visitor_info: visitorInfo || {},
-      device_info: deviceInfo || {},
-    }).catch(function () {});
+    // Return error immediately, background notifications
+    res.status(500).json({ success: false, error: msg, debug: { visitor: visitorInfo, notification: "background", reason: msg } });
 
-    return res.status(500).json({ success: false, error: msg, debug: { visitor: visitorInfo, notification: buildNotificationStatus(catchNotifyResult), reason: msg } });
+    process.nextTick(function() {
+      notify.sendActivationFailure(req, {
+        reason: msg,
+        redeemCode: rawRedeemCode || "",
+        deviceId: rawDeviceId || "",
+        productId: "",
+        months: "",
+        source: "user",
+      }).catch(function () {});
+
+      notify.pushNotification("activation_failure", {
+        reason: msg,
+        redeem_code: rawRedeemCode || "",
+        device_id: rawDeviceId || "",
+        source: "user",
+        ip: visitorInfo ? visitorInfo.ip : "",
+        user_agent: visitorInfo ? visitorInfo.userAgent : "",
+        visitor_info: visitorInfo || {},
+        device_info: deviceInfo || {},
+      }).catch(function () {});
+    });
   }
 };

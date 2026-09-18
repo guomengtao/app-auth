@@ -222,6 +222,9 @@
       result.catch = function(cb) { errorCallbacks.push(cb); return result; };
       var xhr = new XMLHttpRequest();
       xhr.open(options.method || 'GET', url, true);
+      if (options.timeout && options.timeout > 0) {
+        xhr.timeout = options.timeout;
+      }
       if (options.headers) {
         for (var k in options.headers) {
           if (options.headers.hasOwnProperty(k)) {
@@ -397,19 +400,32 @@
         return;
       }
 
+      if (!getDeviceIdFromUrl()) {
+        showResult('error', '请通过手环/手表上的二维码打开本页面，直接浏览器打开无法激活');
+        return;
+      }
+
       setLoading(true);
       document.getElementById('result').className = 'result';
 
       var hasDeviceInfo = deviceInfo.model || deviceInfo.product || deviceInfo.deviceType;
-      xhrFetch('/api/activate', {
+      var xhr = xhrFetch('/api/activate', {
         method: 'POST',
+        timeout: 15000,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           deviceId: deviceId,
           redeemCode: code,
           deviceInfo: hasDeviceInfo ? deviceInfo : null
         })
-      }).then(function(res) {
+      });
+      setTimeout(function() {
+        if (document.getElementById('activateBtn').disabled) {
+          showResult('error', '请求超时，请刷新页面重试');
+          setLoading(false);
+        }
+      }, 16000);
+      xhr.then(function(res) {
         var httpStatus = res.status;
         return res.json().then(function(data) {
           console.group('📧 激活请求详情');
