@@ -130,18 +130,24 @@ async function pushPurchaseClick(entry, record, ts, dateKey) {
   var baseUrl = upstashUrl.replace(/\/$/, "");
   try {
     var xaddUrl = baseUrl + "/xadd/auth:notifications:stream/*/data/" + encodeURIComponent(dataStr);
+    var controller = new AbortController();
+    var timer = setTimeout(function() { controller.abort(); }, 5000);
     var r = await fetch(xaddUrl, {
       method: "POST",
       headers: { "Authorization": "Bearer " + upstashToken },
-      signal: AbortSignal.timeout(5000),
+      signal: controller.signal,
     });
+    clearTimeout(timer);
     console.log("[go:stream] XADD:", r.status);
     var pubUrl = baseUrl + "/publish/auth:push_channel/" + encodeURIComponent(dataStr);
+    var controller2 = new AbortController();
+    var timer2 = setTimeout(function() { controller2.abort(); }, 3000);
     var pubR = await fetch(pubUrl, {
       method: "POST",
       headers: { "Authorization": "Bearer " + upstashToken },
-      signal: AbortSignal.timeout(3000),
+      signal: controller2.signal,
     });
+    clearTimeout(timer2);
     console.log("[go:stream] PUBLISH:", pubR.status);
   } catch (err) {
     console.error("[go:stream] push error:", err.message);
