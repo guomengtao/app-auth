@@ -626,6 +626,9 @@ if ((isCron || isCronBackup) && isBackup) {
         title: visitPayload.title || "",
         user_agent: visitUa.substring(0, 200),
         ip: visitIp,
+        country: String(visitHeaders["x-vercel-ip-country"] || "").slice(0, 8),
+        region: String(visitHeaders["x-vercel-ip-country-region"] || "").slice(0, 16),
+        city: String(visitHeaders["x-vercel-ip-city"] || "").slice(0, 40),
       };
 
       console.log("[visit:stream] ========== page_visit push start ==========");

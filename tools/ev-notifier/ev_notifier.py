@@ -730,11 +730,24 @@ def handle_message(msg):
         page = p.get("page", "") or p.get("title", "")
         ip = p.get("ip", "")
         referrer = p.get("referrer", "")
+        country = p.get("country", "")
+        region = p.get("region", "")
+        city = p.get("city", "")
         title = "Page Visit"
         subtitle = page
         lines = []
+        geo_parts = []
+        if country: geo_parts.append(country)
+        if region: geo_parts.append(region)
+        if city: geo_parts.append(city)
+        geo_str = ", ".join(geo_parts) if geo_parts else ""
         if ip:
-            lines.append(f"IP: {ip}")
+            ip_line = f"IP: {ip}"
+            if geo_str:
+                ip_line += f" ({geo_str})"
+            lines.append(ip_line)
+        elif geo_str:
+            lines.append(f"Location: {geo_str}")
         if referrer:
             lines.append(f"Referrer: {referrer[:80]}")
         lines.append(ts_label)
@@ -766,16 +779,29 @@ def handle_message(msg):
         name_zh = p.get("name_zh", "") or p.get("name_en", "") or slug
         ip = p.get("ip", "")
         country = p.get("country", "")
+        region = p.get("region", "")
+        city = p.get("city", "")
         utm = p.get("utm_source", "") or ""
+        ref = p.get("referrer", "") or ""
         title = "Purchase Click"
         subtitle = name_zh
-        lines = [f"Slug: /go/{slug}"]
+        lines = [f"Link: /go/{slug}"]
+        geo_parts = []
+        if country: geo_parts.append(country)
+        if region: geo_parts.append(region)
+        if city: geo_parts.append(city)
+        geo_str = ", ".join(geo_parts) if geo_parts else ""
         if ip:
-            lines.append(f"IP: {ip}")
-        if country:
-            lines.append(f"Country: {country}")
+            ip_line = f"IP: {ip}"
+            if geo_str:
+                ip_line += f" ({geo_str})"
+            lines.append(ip_line)
+        elif geo_str:
+            lines.append(f"Location: {geo_str}")
+        if ref:
+            lines.append(f"Source: {ref[:80]}")
         if utm:
-            lines.append(f"UTM: {utm}")
+            lines.append(f"Channel: {utm}")
         lines.append(ts_label)
         body = "\n".join(lines)
     else:
@@ -909,9 +935,12 @@ def _format_message_detail(m):
     elif mtype == "page_visit":
         page = p.get("page", "") or p.get("title", "") or ""
         ip = p.get("ip", "")
+        city = p.get("city", "")
         detail = page
-        if ip:
-            detail += f" | IP: {ip}"
+        if city:
+            detail += f" | {city}"
+        elif ip:
+            detail += f" | {ip}"
         type_label = "Visit"
     elif mtype == "test_curl":
         detail = json.dumps(p, ensure_ascii=False)[:100]
