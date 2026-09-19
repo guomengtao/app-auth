@@ -694,16 +694,23 @@ if ((isCron || isCronBackup) && isBackup) {
         if (req.method !== "POST") {
           return res.status(405).json({ success: false, error: "Use POST for retry-stuck" });
         }
-        var stuckMessages = await md.getUndelivered(168);
-        var results = [];
-        for (var si = 0; si < stuckMessages.length; si++) {
-          var sm = stuckMessages[si];
+        var body = req.body || {};
+        var targetMessageId = body.message_id || req.query.message_id || null;
+
+        var stuckMessages;
+        if (targetMessageId) {
+          var singleMsg = await md.getByMessageId(targetMessageId);
+          stuckMessages = singleMsg ? [singleMsg] : [];
+        } else {
+          stuckMessages = await md.getUndelivered(168);
+        }
+
+        async function retryOneMessage(sm) {
           try {
             var upstashUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "";
             var upstashToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || "";
             if (!upstashUrl || !upstashToken) {
-              results.push({ message_id: sm.message_id, status: "skipped", reason: "no Upstash config" });
-              continue;
+              return { message_id: sm.message_id, status: "skipped", reason: "no Upstash config" };
             }
             var retryPayload = { ts: Math.floor(Date.now() / 1000), type: sm.message_type, payload: sm.payload, messageId: sm.message_id, retry: true };
             var retryRaw = JSON.stringify(retryPayload);
@@ -725,14 +732,19 @@ if ((isCron || isCronBackup) && isBackup) {
               } catch (pubErr) {
                 console.error("[health:retry-stuck] publish failed for " + sm.message_id + ":", pubErr.message);
               }
-              results.push({ message_id: sm.message_id, status: "retried", type: sm.message_type });
+              return { message_id: sm.message_id, status: "retried", type: sm.message_type };
             } else {
               var rText = await r.text();
-              results.push({ message_id: sm.message_id, status: "failed", reason: "HTTP " + r.status + ": " + rText.substring(0, 100) });
+              return { message_id: sm.message_id, status: "failed", reason: "HTTP " + r.status + ": " + rText.substring(0, 100) };
             }
           } catch (retryErr) {
-            results.push({ message_id: sm.message_id, status: "error", reason: retryErr.message });
+            return { message_id: sm.message_id, status: "error", reason: retryErr.message };
           }
+        }
+
+        var results = [];
+        for (var si = 0; si < stuckMessages.length; si++) {
+          results.push(await retryOneMessage(stuckMessages[si]));
         }
         return res.json({ success: true, retried: results.filter(function(r) { return r.status === "retried"; }).length, total: stuckMessages.length, results: results });
       }

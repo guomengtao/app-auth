@@ -4381,10 +4381,11 @@
                   <th>内容</th>
                   <th style="width:90px">关联</th>
                   <th style="width:160px">时间线</th>
+                  <th style="width:60px">操作</th>
                 </tr>
               </thead>
               <tbody id="deliveryTable">
-                <tr><td colspan="6" class="empty">加载中...</td></tr>
+                <tr><td colspan="7" class="empty">加载中...</td></tr>
               </tbody>
             </table>
           </div>
@@ -9598,17 +9599,17 @@
 
       var tbody = document.getElementById('deliveryTable');
       if (!tbody) return;
-      tbody.innerHTML = '<tr><td colspan="6" class="empty">加载中...</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="empty">加载中...</td></tr>';
 
       fetch('/api/admin/health?' + params, { credentials: 'include' })
         .then(function(r) { return r.json(); })
         .then(function(data) {
-          if (!data.success) { tbody.innerHTML = '<tr><td colspan="6" class="empty">查询失败</td></tr>'; return; }
+          if (!data.success) { tbody.innerHTML = '<tr><td colspan="7" class="empty">查询失败</td></tr>'; return; }
           var rows = data.rows || [];
           var total = data.total || 0;
           var html = '';
           if (rows.length === 0) {
-            html = '<tr><td colspan="6" class="empty">暂无消息投递记录</td></tr>';
+            html = '<tr><td colspan="7" class="empty">暂无消息投递记录</td></tr>';
           } else {
             for (var i = 0; i < rows.length; i++) {
               var r = rows[i];
@@ -9649,6 +9650,11 @@
               html += '<td style="font-size:0.72rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(payloadStr) + '">' + escapeHtml(payloadStr) + '</td>';
               html += '<td style="font-size:0.72rem;font-family:monospace">' + escapeHtml(related) + '</td>';
               html += '<td style="font-size:0.62rem;white-space:nowrap">' + timeline + '</td>';
+              if (r.status === 'pending') {
+                html += '<td><button class="btn btn-sm" style="padding:2px 8px;font-size:0.65rem" onclick="retrySingleMessage(\'' + escapeHtml(r.message_id) + '\', this)" title="重新投递此消息">🔄 重试</button></td>';
+              } else {
+                html += '<td></td>';
+              }
               html += '</tr>';
             }
           }
@@ -9657,7 +9663,42 @@
           document.getElementById('deliveryPageInfo').textContent = '第 ' + (deliveryPage + 1) + '/' + totalPages + ' 页（共 ' + total + ' 条）';
         })
         .catch(function(e) {
-          tbody.innerHTML = '<tr><td colspan="6" class="empty" style="color:#dc2626">加载失败: ' + escapeHtml(e.message) + '</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="7" class="empty" style="color:#dc2626">加载失败: ' + escapeHtml(e.message) + '</td></tr>';
+        });
+    }
+
+    function retrySingleMessage(messageId, btn) {
+      if (!messageId) return;
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳ 投递中...';
+      }
+      fetch('/api/admin/health?section=delivery-query&action=retry-stuck', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message_id: messageId }),
+        credentials: 'include',
+      })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (btn) {
+            if (data.success && data.retried > 0) {
+              btn.textContent = '✅ 已重试';
+              btn.style.background = '#065f46';
+              setTimeout(function() { loadDeliveryMessages(); }, 500);
+            } else {
+              btn.textContent = '❌ 失败';
+              btn.disabled = false;
+              setTimeout(function() { btn.textContent = '🔄 重试'; }, 2000);
+            }
+          }
+        })
+        .catch(function() {
+          if (btn) {
+            btn.textContent = '❌ 网络错误';
+            btn.disabled = false;
+            setTimeout(function() { btn.textContent = '🔄 重试'; }, 2000);
+          }
         });
     }
 
