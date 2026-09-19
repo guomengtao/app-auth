@@ -696,11 +696,16 @@ if ((isCron || isCronBackup) && isBackup) {
         }
         var body = req.body || {};
         var targetMessageId = body.message_id || req.query.message_id || null;
+        console.log("[retry-stuck] raw body keys:", Object.keys(body || {}), "message_id:", targetMessageId);
 
         var stuckMessages;
         if (targetMessageId) {
           var singleMsg = await md.getByMessageId(targetMessageId);
-          stuckMessages = singleMsg ? [singleMsg] : [];
+          console.log("[retry-stuck] getByMessageId for", targetMessageId, ":", singleMsg ? "FOUND type=" + singleMsg.message_type : "NOT FOUND");
+          if (!singleMsg) {
+            return res.json({ success: false, error: "Message not found in database", message_id: targetMessageId });
+          }
+          stuckMessages = [singleMsg];
         } else {
           stuckMessages = await md.getUndelivered(168);
         }
@@ -710,34 +715,41 @@ if ((isCron || isCronBackup) && isBackup) {
             var upstashUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "";
             var upstashToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || "";
             if (!upstashUrl || !upstashToken) {
+              console.log("[retry-stuck] Upstash config missing for", sm.message_id);
               return { message_id: sm.message_id, status: "skipped", reason: "no Upstash config" };
             }
-            var retryPayload = { ts: Math.floor(Date.now() / 1000), type: sm.message_type, payload: sm.payload, messageId: sm.message_id, retry: true };
+            var ts = Math.floor(Date.now() / 1000);
+            var retryPayload = { ts: ts, type: sm.message_type, payload: sm.payload, messageId: sm.message_id, retry: true };
             var retryRaw = JSON.stringify(retryPayload);
             var xaddUrl = upstashUrl.replace(/\/$/, "") + "/xadd/auth:notifications:stream/*/data/" + encodeURIComponent(retryRaw);
+            console.log("[retry-stuck] XADD for", sm.message_id, "type:", sm.message_type);
             var r = await fetch(xaddUrl, {
               method: "POST",
               headers: { "Authorization": "Bearer " + upstashToken },
               signal: AbortSignal.timeout(5000),
             });
             if (r.ok) {
+              console.log("[retry-stuck] XADD OK for", sm.message_id, "status:", r.status);
               await md.markPublished(sm.message_id);
               try {
                 var pubUrl = upstashUrl.replace(/\/$/, "") + "/publish/auth:push_channel/" + encodeURIComponent(retryRaw);
-                await fetch(pubUrl, {
+                var pubR = await fetch(pubUrl, {
                   method: "POST",
                   headers: { "Authorization": "Bearer " + upstashToken },
                   signal: AbortSignal.timeout(3000),
                 });
+                console.log("[retry-stuck] PUBLISH for", sm.message_id, "status:", pubR.status);
               } catch (pubErr) {
-                console.error("[health:retry-stuck] publish failed for " + sm.message_id + ":", pubErr.message);
+                console.error("[retry-stuck] PUBLISH failed for " + sm.message_id + ":", pubErr.message);
               }
-              return { message_id: sm.message_id, status: "retried", type: sm.message_type };
+              return { message_id: sm.message_id, status: "retried", type: sm.message_type, timestamp: ts };
             } else {
               var rText = await r.text();
+              console.log("[retry-stuck] XADD FAILED for", sm.message_id, "status:", r.status, "body:", rText.substring(0, 200));
               return { message_id: sm.message_id, status: "failed", reason: "HTTP " + r.status + ": " + rText.substring(0, 100) };
             }
           } catch (retryErr) {
+            console.log("[retry-stuck] error for", sm.message_id, ":", retryErr.message);
             return { message_id: sm.message_id, status: "error", reason: retryErr.message };
           }
         }

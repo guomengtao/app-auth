@@ -9665,6 +9665,7 @@
 
     function retrySingleMessage(messageId, btn) {
       if (!messageId) return false;
+      var row = btn ? btn.closest('tr') : null;
       if (btn) {
         btn.disabled = true;
         btn.textContent = '⏳ 投递中...';
@@ -9681,9 +9682,22 @@
             if (data.success && data.retried > 0) {
               btn.textContent = '✅ 已重发';
               btn.style.background = '#065f46';
-              setTimeout(function() { loadDeliveryMessages(); }, 500);
+              if (row) {
+                var statusCell = row.cells[2];
+                var timelineCell = row.cells[5];
+                if (statusCell) {
+                  statusCell.innerHTML = '<span style="color:#3b82f6;font-weight:600;font-size:0.72rem">📤 已发布</span>';
+                }
+                if (timelineCell && data.results && data.results[0] && data.results[0].timestamp) {
+                  var publishedTime = new Date(data.results[0].timestamp * 1000).toLocaleTimeString();
+                  var existingTime = timelineCell.textContent || '';
+                  if (existingTime.indexOf('📤') < 0) {
+                    timelineCell.textContent = existingTime + ' 📤' + publishedTime;
+                  }
+                }
+              }
             } else {
-              var reason = (data.results && data.results[0] && data.results[0].reason) || 'unknown';
+              var reason = (data.results && data.results[0] && data.results[0].reason) || (data.error || 'unknown');
               btn.textContent = '❌ 失败';
               btn.title = reason;
               btn.disabled = false;
