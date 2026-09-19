@@ -529,7 +529,7 @@ module.exports = async (req, res) => {
       console.error("[activate] Email failed:", e.message);
     });
 
-    notify.pushNotification("new_activation", {
+    await notify.pushNotification("new_activation", {
       redeem_code: code,
       activation_code: activationCode,
       product_id: productId,
@@ -566,7 +566,7 @@ module.exports = async (req, res) => {
       source: "user",
     }).catch(function () {});
 
-    notify.pushNotification("activation_failure", {
+    await notify.pushNotification("activation_failure", {
       reason: msg,
       redeem_code: rawRedeemCode || "",
       device_id: rawDeviceId || "",

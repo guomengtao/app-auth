@@ -694,21 +694,19 @@ def handle_message(msg):
         src = p.get("source", "")
         device_info = p.get("device_info", {}) or {}
         channel = device_info.get("source", "") or p.get("channel", "")
-        title = "New Device Activated"
+        title = "新设备激活"
         subtitle = f"{product} {months}".strip()
-        if channel:
-            subtitle += f" [{channel}]"
         lines = []
         if act_code:
-            lines.append(f"Activation: {act_code}")
+            lines.append(f"激活码: {act_code}")
         if redeem_code:
-            lines.append(f"Redeem: {redeem_code}")
+            lines.append(f"兑换码: {redeem_code}")
         if device:
-            lines.append(f"Device: {device}")
+            lines.append(f"设备: {device}")
         if src:
-            lines.append(f"Source: {src}")
+            lines.append(f"来源: {src}")
         if channel:
-            lines.append(f"Channel: {channel}")
+            lines.append(f"渠道: {channel}")
         lines.append(ts_label)
         body = "\n".join(lines)
     elif mtype == "new_order":
@@ -716,14 +714,14 @@ def handle_message(msg):
         amount = _normalize_amount(p.get("total_amount") or p.get("amount") or 0)
         amount_str = f"CNY{amount:.2f}" if amount else ""
         user_name = p.get("user_name", "") or p.get("customer_name", "") or ""
-        title = "New Order"
+        title = "新订单"
         subtitle = product
-        lines = [f"Amount: {amount_str}"] if amount_str else []
+        lines = [f"金额: {amount_str}"] if amount_str else []
         if user_name:
-            lines.insert(0, f"User: {user_name}")
+            lines.insert(0, f"用户: {user_name}")
         redeem_code = p.get("redeem_code", "")
         if redeem_code:
-            lines.append(f"Redeem: {redeem_code}")
+            lines.append(f"兑换码: {redeem_code}")
         lines.append(ts_label)
         body = "\n".join(lines)
     elif mtype == "page_visit":
@@ -733,7 +731,7 @@ def handle_message(msg):
         country = p.get("country", "")
         region = p.get("region", "")
         city = p.get("city", "")
-        title = "Page Visit"
+        title = "页面访问"
         subtitle = page
         lines = []
         geo_parts = []
@@ -747,9 +745,9 @@ def handle_message(msg):
                 ip_line += f" ({geo_str})"
             lines.append(ip_line)
         elif geo_str:
-            lines.append(f"Location: {geo_str}")
+            lines.append(f"归属地: {geo_str}")
         if referrer:
-            lines.append(f"Referrer: {referrer[:80]}")
+            lines.append(f"来源: {referrer[:80]}")
         lines.append(ts_label)
         body = "\n".join(lines)
     elif mtype == "activation_failure":
@@ -759,19 +757,19 @@ def handle_message(msg):
         device = p.get("device_id", "") or ""
         device_info = p.get("device_info", {}) or {}
         channel = device_info.get("source", "") or p.get("channel", "")
-        title = "Activation Failed"
+        title = "激活失败"
         subtitle = product or "Unknown"
         if channel:
             subtitle += f" [{channel}]"
         lines = []
         if redeem:
-            lines.append(f"Redeem: {redeem}")
+            lines.append(f"兑换码: {redeem}")
         if reason:
-            lines.append(f"Reason: {reason[:80]}")
+            lines.append(f"原因: {reason[:80]}")
         if device:
-            lines.append(f"Device: {device[:16]}")
+            lines.append(f"设备: {device[:16]}")
         if channel:
-            lines.append(f"Channel: {channel}")
+            lines.append(f"渠道: {channel}")
         lines.append(ts_label)
         body = "\n".join(lines)
     elif mtype == "purchase_click":
@@ -783,9 +781,9 @@ def handle_message(msg):
         city = p.get("city", "")
         utm = p.get("utm_source", "") or ""
         ref = p.get("referrer", "") or ""
-        title = "Purchase Click"
+        title = "购买点击"
         subtitle = name_zh
-        lines = [f"Link: /go/{slug}"]
+        lines = [f"链接: /go/{slug}"]
         geo_parts = []
         if country: geo_parts.append(country)
         if region: geo_parts.append(region)
@@ -797,11 +795,11 @@ def handle_message(msg):
                 ip_line += f" ({geo_str})"
             lines.append(ip_line)
         elif geo_str:
-            lines.append(f"Location: {geo_str}")
+            lines.append(f"归属地: {geo_str}")
         if ref:
-            lines.append(f"Source: {ref[:80]}")
+            lines.append(f"来源页面: {ref[:80]}")
         if utm:
-            lines.append(f"Channel: {utm}")
+            lines.append(f"渠道: {utm}")
         lines.append(ts_label)
         body = "\n".join(lines)
     else:
@@ -925,13 +923,13 @@ def _format_message_detail(m):
             detail += f" | {code}"
         if device:
             detail += f" | {device}"
-        type_label = "Activation"
+        type_label = "激活"
     elif mtype == "new_order":
         product = p.get("product_name", "") or ""
         amount = _normalize_amount(p.get("total_amount") or p.get("amount") or 0)
         amount_str = f" CNY{amount:.2f}" if amount else ""
         detail = f"{product}{amount_str}"
-        type_label = "Order"
+        type_label = "订单"
     elif mtype == "page_visit":
         page = p.get("page", "") or p.get("title", "") or ""
         ip = p.get("ip", "")
@@ -941,10 +939,10 @@ def _format_message_detail(m):
             detail += f" | {city}"
         elif ip:
             detail += f" | {ip}"
-        type_label = "Visit"
+        type_label = "访问"
     elif mtype == "test_curl":
         detail = json.dumps(p, ensure_ascii=False)[:100]
-        type_label = "Test"
+        type_label = "测试"
     elif mtype == "activation_failure":
         product = p.get("product_name", "") or ""
         reason = p.get("reason", "") or p.get("error", "") or ""
@@ -957,7 +955,10 @@ def _format_message_detail(m):
             detail += f" | {reason[:40]}"
         if device:
             detail += f" | {device[:16]}"
-        type_label = "Activation"
+        type_label = "失败"
+    elif mtype == "purchase_click":
+        detail = p.get("name_zh", "") or p.get("slug", "")
+        type_label = "购买"
     return type_label, detail
 
 
@@ -1578,6 +1579,8 @@ body {
 .msg-indicator.type-activate { background: linear-gradient(180deg, #f59e0b, #d97706); }
 .msg-indicator.type-visit { background: linear-gradient(180deg, #8b5cf6, #7c3aed); }
 .msg-indicator.type-recover { background: linear-gradient(180deg, #3b82f6, #2563eb); }
+.msg-indicator.type-fail { background: linear-gradient(180deg, #ef4444, #dc2626); }
+.msg-indicator.type-purchase { background: linear-gradient(180deg, #f97316, #ea580c); }
 .msg-indicator.type-other { background: linear-gradient(180deg, #9ca3af, #6b7280); }
 
 .msg-time {
@@ -1603,6 +1606,8 @@ body {
 .msg-badge.badge-activate { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #b45309; }
 .msg-badge.badge-visit { background: linear-gradient(135deg, #ede9fe, #ddd6fe); color: #6d28d9; }
 .msg-badge.badge-recover { background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #1d4ed8; }
+.msg-badge.badge-fail { background: linear-gradient(135deg, #fee2e2, #fecaca); color: #b91c1c; }
+.msg-badge.badge-purchase { background: linear-gradient(135deg, #fff7ed, #ffedd5); color: #c2410c; }
 .msg-badge.badge-other { background: #f3f4f6; color: #4b5563; }
 
 .msg-detail {
@@ -1909,11 +1914,13 @@ tr:hover td { background: linear-gradient(90deg, #f8fafc, #f1f5f9); }
 """
 
 _TYPE_STYLES = {
-    "Order": ("type-order", "badge-order"),
-    "Activation": ("type-activate", "badge-activate"),
-    "Visit": ("type-visit", "badge-visit"),
+    "订单": ("type-order", "badge-order"),
+    "激活": ("type-activate", "badge-activate"),
+    "失败": ("type-fail", "badge-fail"),
+    "访问": ("type-visit", "badge-visit"),
+    "购买": ("type-purchase", "badge-purchase"),
     "Recovery": ("type-recover", "badge-recover"),
-    "Test": ("type-other", "badge-other"),
+    "测试": ("type-other", "badge-other"),
     "Other": ("type-other", "badge-other"),
 }
 
