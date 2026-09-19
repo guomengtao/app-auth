@@ -1,5 +1,5 @@
-"""Ev Notifier v2.2.8 - PUB/SUB broadcast, zero polling, auto-restart, error logging"""
-import atexit, json, os, re, shutil, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib
+"""Ev Notifier v2.3.5 - PUB/SUB broadcast, zero polling, auto-restart, error logging"""
+import atexit, json, os, queue, re, shutil, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib
 from datetime import datetime, timedelta
 
 try:
@@ -7,7 +7,7 @@ try:
 except ImportError:
     redis = None
 
-VERSION = "v2.3.4"
+VERSION = "v2.3.5"
 
 # Delivery callback configuration
 CALLBACK_BASE_URL = "https://app-auth.gudq.com"
@@ -53,7 +53,6 @@ RECEIVED_FILE = os.path.expanduser("~/.ev_received.json")
 POLL_LOG_FILE = os.path.expanduser("~/.ev_poll_log.json")
 MESSAGES_FILE = os.path.expanduser("~/.ev_messages.json")
 VISITORS_FILE = os.path.expanduser("~/.ev_visitors.json")
-ERROR_LOG_FILE = os.path.expanduser("~/.ev_error_log.json")
 DEBUG_LOG_FILE = os.path.expanduser("~/.ev_debug_log.json")
 
 LAUNCH_AGENT_LABEL = "com.evnotifier.agent"
@@ -185,13 +184,15 @@ def save_messages(data):
         json.dump(data, f, indent=2)
 
 
-def store_message(ts, mtype, payload):
+def store_message(ts, mtype, payload, message_id=None, is_read=False):
     msgs = load_messages()
     lt = _safe_localtime(ts)
     entry = {
         "time": time.strftime("%Y-%m-%d %H:%M:%S", lt) if lt else "",
         "type": mtype,
         "payload": payload,
+        "messageId": message_id or "",
+        "read": is_read,
     }
     msgs.insert(0, entry)
     if len(msgs) > 500:
@@ -199,6 +200,23 @@ def store_message(ts, mtype, payload):
     save_messages(msgs)
     if mtype == "page_visit":
         store_visitor(ts, payload)
+
+
+def mark_all_messages_read():
+    msgs = load_messages()
+    changed = False
+    for m in msgs:
+        if not m.get("read", False):
+            m["read"] = True
+            changed = True
+    if changed:
+        save_messages(msgs)
+    return changed
+
+
+def count_unread():
+    msgs = load_messages()
+    return sum(1 for m in msgs if not m.get("read", False))
 
 
 def load_visitors():
@@ -445,6 +463,26 @@ def _run_and_ignore_timeout(cmd, timeout=5):
         pass
 
 
+_voice_queue = queue.Queue()
+
+def _voice_worker():
+    while True:
+        text = _voice_queue.get()
+        if text is None:
+            break
+        try:
+            subprocess.run(["say", "-v", "Ting-Ting", text], timeout=30, capture_output=True)
+        except Exception:
+            pass
+
+_voice_thread = threading.Thread(target=_voice_worker, daemon=True)
+_voice_thread.start()
+
+def enqueue_voice(voice_text):
+    if voice_text:
+        _voice_queue.put(voice_text)
+
+
 def do_recovery_poll(last_id):
     global _missing_count
     _debug_log(f"RECOVERY start: last_id={last_id}")
@@ -603,7 +641,8 @@ def _delivery_callback(message_id, event="delivered"):
 
 
 def _startup_recovery():
-    """Fetch undelivered messages from last 7 days and re-process them."""
+    """Fetch undelivered messages from last 7 days and re-process them.
+    Only re-process genuinely missed messages; skip re-notification for already-seen ones."""
     _debug_log("Startup recovery: checking for missed messages...")
     try:
         url = f"{CALLBACK_BASE_URL}/api/admin/health?section=delivery-query&action=undelivered&hours=168"
@@ -629,8 +668,25 @@ def _startup_recovery():
             _debug_log("Startup recovery: no missed messages")
             return
         _debug_log(f"Startup recovery: found {len(messages)} missed messages")
+
+        # Load existing messages to avoid re-processing already-stored ones
+        existing_msgs = load_messages()
+        existing_ids = set()
+        for em in existing_msgs:
+            mid = em.get("messageId", "")
+            if mid:
+                existing_ids.add(mid)
+
+        skipped = 0
         for msg in messages:
             try:
+                msg_id = msg.get("message_id", "")
+                # Skip if already stored locally and was already notified
+                if msg_id and msg_id in existing_ids:
+                    skipped += 1
+                    _debug_log(f"Startup recovery: skipping already-stored message {msg_id}")
+                    continue
+
                 payload = msg.get("payload", {})
                 if isinstance(payload, str):
                     try:
@@ -648,32 +704,36 @@ def _startup_recovery():
                     "ts": ts,
                     "type": msg.get("message_type", "unknown"),
                     "payload": payload,
-                    "messageId": msg.get("message_id"),
+                    "messageId": msg_id,
                 }
-                handle_message(recovered_msg)
-                _debug_log(f"Startup recovery: re-processed {msg.get('message_type')} ({msg.get('message_id')})")
+                handle_message(recovered_msg, skip_notify=True)
+                _debug_log(f"Startup recovery: re-processed {msg.get('message_type')} ({msg_id})")
             except Exception as e:
                 _debug_log(f"Startup recovery: failed to re-process message: {e}")
-        _debug_log(f"Startup recovery: completed, recovered {len(messages)} messages")
+        if skipped > 0:
+            _debug_log(f"Startup recovery: skipped {skipped} already-stored messages")
+        _debug_log(f"Startup recovery: completed")
     except Exception as e:
         _debug_log(f"Startup recovery failed: {e}")
 
 
-def handle_message(msg):
+def handle_message(msg, skip_notify=False):
     global _last_msg_ts, _new_msg_count, _paused
     if _paused:
         return
     ts = msg.get("ts", 0)
     mtype = msg.get("type", "unknown")
     p = msg.get("payload", {}) or {}
-    mid = f"{ts}_{mtype}"
+    msg_id = msg.get("messageId", "")
+    mid = msg_id if msg_id else f"{ts}_{mtype}"
     if mid in _seen_ids:
         return
     _seen_ids.add(mid)
     if len(_seen_ids) > _MAX_SEEN:
         _seen_ids.clear()
     _last_msg_ts = ts
-    _new_msg_count += 1
+    if not skip_notify:
+        _new_msg_count += 1
     lt = _safe_localtime(ts)
     ts_label = time.strftime("%H:%M:%S", lt) if lt else ""
     title = f"New {mtype}"
@@ -805,30 +865,88 @@ def handle_message(msg):
     else:
         body = json.dumps(p, ensure_ascii=False, indent=2)[:200]
     print(f"[{ts_label}] {title} | {subtitle}")
-    nsettings = load_notify_settings()
-    if nsettings.get("popup", True):
-        notify_macos(title, subtitle, body, sound=False)
-    if nsettings.get("sound", True):
-        threading.Thread(target=lambda: _run_and_ignore_timeout(["afplay", "/System/Library/Sounds/Ping.aiff"], timeout=3), daemon=True).start()
-    if nsettings.get("voice", True) and mtype != "page_visit":
+
+    # Store message to local file for the message panel
+    store_message(ts, mtype, p, message_id=msg_id, is_read=False)
+
+    if not skip_notify:
+        nsettings = load_notify_settings()
+        if nsettings.get("popup", True):
+            notify_macos(title, subtitle, body, sound=False)
+        if nsettings.get("sound", True):
+            threading.Thread(target=lambda: _run_and_ignore_timeout(["afplay", "/System/Library/Sounds/Ping.aiff"], timeout=3), daemon=True).start()
+    else:
+        nsettings = load_notify_settings()
+
+    if nsettings.get("voice", True) and mtype != "page_visit" and not skip_notify:
         if mtype == "new_order":
             u = p.get("user_name", "") or p.get("customer_name", "") or ""
             a = _normalize_amount(p.get("total_amount") or p.get("amount") or 0)
-            voice_text = f"收到新订单，用户{u}，金额CNY{a:.2f}" if a else f"收到新订单，用户{u}"
+            plan = p.get("plan_title", "") or p.get("product_name", "") or ""
+            city = p.get("city", "") or ""
+            parts = []
+            if plan:
+                voice_text = f"收到新订单：{plan}"
+            else:
+                voice_text = "收到新订单"
+            if u:
+                voice_text += f"，用户{u}"
+            if a:
+                voice_text += f"，CNY{a:.2f}"
+            if city:
+                voice_text += f"，来自{city}"
         elif mtype == "new_activation":
-            prod = p.get("product_name", "") or ""
-            voice_text = f"新设备激活：{prod}" if prod else "新设备激活"
+            prod = p.get("product_name", "") or f"Product #{p.get('product_id', '')}"
+            months = p.get("months", "")
+            duration_str = ""
+            try:
+                m = int(months)
+                duration_str = "永久" if m >= 99 else f"{m}个月"
+            except Exception:
+                pass
+            user_name = p.get("user_name", "") or ""
+            device_info = p.get("device_info", {}) or {}
+            device_model = p.get("device_model", "") or device_info.get("model", "") or device_info.get("product", "") or ""
+            city = p.get("city", "") or ""
+            region = p.get("region", "") or ""
+            country = p.get("country", "") or ""
+            geo_str = city or region or country or ""
+            parts = [f"新设备激活：{prod}"]
+            if duration_str:
+                parts.append(duration_str)
+            if user_name:
+                parts.append(f"用户{user_name}")
+            if device_model:
+                parts.append(f"设备{device_model}")
+            if geo_str:
+                parts.append(f"来自{geo_str}")
+            voice_text = "，".join(parts)
         elif mtype == "activation_failure":
-            prod = p.get("product_name", "") or ""
-            voice_text = f"激活失败：{prod}" if prod else "激活失败"
+            reason = p.get("reason", "") or p.get("error", "") or ""
+            city = p.get("city", "") or ""
+            if reason:
+                voice_text = f"激活失败：{reason[:60]}"
+            else:
+                voice_text = "激活失败"
+            if city:
+                voice_text += f"，来自{city}"
         elif mtype == "purchase_click":
             name_zh = p.get("name_zh", "") or p.get("slug", "")
-            voice_text = f"收到购买点击，{name_zh}" if name_zh else "收到购买点击"
+            slug = p.get("slug", "")
+            city = p.get("city", "") or ""
+            if slug == "ev-timetable" or "timetable" in slug.lower():
+                voice_text = "新用户访问爱发电"
+                if city:
+                    voice_text += f"，来自{city}"
+            else:
+                voice_text = f"收到购买点击，{name_zh}" if name_zh else "收到购买点击"
+                if city:
+                    voice_text += f"，来自{city}"
         elif mtype == "test_curl":
             voice_text = "收到测试消息"
         else:
             voice_text = f"{title}, {subtitle}".replace("[", "").replace("]", "")
-        threading.Thread(target=lambda: _run_and_ignore_timeout(["say", "-v", "Tingting", voice_text]), daemon=True).start()
+        enqueue_voice(voice_text)
 
     # Delivery callback: confirm to server that message was received
     message_id = msg.get("messageId")
@@ -1052,6 +1170,87 @@ def _build_trend_data(days=30):
         counts.append(daily[ds]["count"])
         amounts.append(daily[ds]["amount"])
     return dates, counts, amounts
+
+
+def _build_hourly_data():
+    msgs = load_messages()
+    hours = [0] * 24
+    for m in msgs:
+        if m.get("type") != "new_order":
+            continue
+        t = m.get("time", "")
+        if len(t) >= 13:
+            try:
+                h = int(t[11:13])
+                if 0 <= h < 24:
+                    hours[h] += 1
+            except Exception:
+                pass
+    hour_labels = [f"{h}:00" for h in range(24)]
+    return hour_labels, hours
+
+
+def _build_weekly_data():
+    msgs = load_messages()
+    today = datetime.now().date()
+    monday = today - timedelta(days=today.weekday())
+    sunday = monday + timedelta(days=6)
+    weekdays = [0, 0, 0, 0, 0, 0, 0]
+    weekday_labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    total_all = 0
+    total_week = 0
+    for m in msgs:
+        if m.get("type") != "new_order":
+            continue
+        t = m.get("time", "")
+        if len(t) >= 10:
+            try:
+                dt = datetime.strptime(t[:10], "%Y-%m-%d").date()
+                total_all += 1
+                if monday <= dt <= sunday:
+                    wd = dt.weekday()
+                    weekdays[wd] += 1
+                    total_week += 1
+            except Exception:
+                pass
+    print(f"[weekly] date range: {monday} ~ {sunday}, all orders: {total_all}, this week: {total_week}, by day: {weekdays}")
+    return weekday_labels, weekdays
+
+
+def _build_activation_trend_data(days=30):
+    msgs = load_messages()
+    today = datetime.now().date()
+    daily = {}
+    for i in range(days):
+        d = today - timedelta(days=days - 1 - i)
+        ds = d.strftime("%Y-%m-%d")
+        daily[ds] = {"success": 0, "failed": 0}
+
+    for m in msgs:
+        if m.get("type") not in ("new_activation", "activation_failure"):
+            continue
+        t = m.get("time", "")
+        if len(t) >= 10:
+            ds = t[:10]
+            if ds in daily:
+                p = m.get("payload", {}) or {}
+                if m.get("type") == "new_activation":
+                    success_flag = p.get("success", True)
+                    if success_flag:
+                        daily[ds]["success"] += 1
+                    else:
+                        daily[ds]["failed"] += 1
+                else:
+                    daily[ds]["failed"] += 1
+
+    dates = []
+    success_counts = []
+    failed_counts = []
+    for ds in sorted(daily.keys()):
+        dates.append(ds[5:])
+        success_counts.append(daily[ds]["success"])
+        failed_counts.append(daily[ds]["failed"])
+    return dates, success_counts, failed_counts
 
 
 def _build_visitor_stats():
@@ -1619,6 +1818,91 @@ body {
   word-break: break-all;
 }
 
+.msg-unread { background: linear-gradient(90deg, rgba(59,130,246,0.04), transparent); }
+.msg-unread .msg-detail { font-weight: 500; color: var(--text); }
+.msg-read { opacity: 0.75; }
+.msg-read .msg-detail { color: var(--text-secondary); }
+
+.msg-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 0 8px;
+  border-bottom: 2px solid var(--border-light);
+  margin-bottom: 12px;
+}
+
+.msg-tab {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 16px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.msg-tab:hover {
+  background: var(--border-light);
+  color: var(--text);
+}
+
+.msg-tab.active {
+  background: linear-gradient(135deg, rgba(59,130,246,0.12), rgba(139,92,246,0.1));
+  color: var(--blue);
+  font-weight: 600;
+}
+
+.msg-tab-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--green);
+}
+
+.msg-tab-action:hover {
+  background: #d1fae5;
+  color: #047857;
+}
+
+.msg-card.msg-hidden { display: none; }
+
+.visitor-hidden { display: none; }
+
+.afdian-stats {
+  background: linear-gradient(135deg, rgba(249,115,22,0.08), rgba(234,88,12,0.04));
+  border: 1px solid rgba(249,115,22,0.2);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 8px;
+}
+.afdian-stats-header {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ea580c;
+  margin-bottom: 10px;
+}
+.afdian-stats-grid {
+  display: flex;
+  gap: 24px;
+}
+.afdian-stat-item {
+  text-align: center;
+}
+.afdian-stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+}
+.afdian-stat-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
 /* =================== TABLE =================== */
 .table-wrap { overflow-x: auto; }
 
@@ -1933,7 +2217,6 @@ _MENU = [
     {"id": "devices", "label": "设备", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>', "group": "analytics"},
     {"id": "polls", "label": "轮询统计", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>', "group": "analytics"},
     {"id": "settings", "label": "设置", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>', "group": "system"},
-    {"id": "logs", "label": "错误日志", "icon": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>', "group": "system"},
 ]
 
 _GROUP_LABELS = {
@@ -1983,6 +2266,8 @@ class WebNavDelegate(NSObject):
                     self._dashboard._test_notify(ntype)
                 except Exception:
                     pass
+            elif "mark-read=" in url_str and self._dashboard:
+                self._dashboard._mark_all_read()
             listener.ignore()
         else:
             listener.use()
@@ -2011,60 +2296,6 @@ def _rotate_debug_log(log_path):
                 f.writelines(lines[-DEBUG_LOG_KEEP_LINES:])
     except Exception:
         pass
-
-
-def load_error_log():
-    try:
-        with open(ERROR_LOG_FILE, "r") as f:
-            return json.load(f)
-    except Exception:
-        return {}
-
-
-def save_error_log(data):
-    try:
-        with open(ERROR_LOG_FILE, "w") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-    except Exception:
-        pass
-
-
-def record_error(level, module, type_name, message, traceback_str=None, context=None):
-    date_str = datetime.now().strftime("%Y-%m-%d")
-    data = load_error_log()
-    if date_str not in data:
-        data[date_str] = []
-    entry = {
-        "time": datetime.now().strftime("%H:%M:%S.%f")[:-3],
-        "level": level,
-        "module": module,
-        "type": type_name,
-        "message": message,
-        "traceback": traceback_str,
-        "context": context or {},
-    }
-    data[date_str].append(entry)
-    if len(data[date_str]) > 200:
-        data[date_str] = data[date_str][-200:]
-    save_error_log(data)
-
-
-def _install_error_hook():
-    original_hook = sys.excepthook
-
-    def _global_error_handler(exc_type, exc_value, exc_tb):
-        import traceback
-        tb_str = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-        record_error(
-            level="error",
-            module="unhandled",
-            type_name=exc_type.__name__,
-            message=str(exc_value),
-            traceback_str=tb_str,
-        )
-        original_hook(exc_type, exc_value, exc_tb)
-
-    sys.excepthook = _global_error_handler
 
 
 class DashboardWindow:
@@ -2300,6 +2531,69 @@ function copyText(text) {
     navigator.clipboard.writeText(text).then(function() { }).catch(function() { });
   }
 }
+function filterMessages(filter) {
+  var tabs = document.querySelectorAll('.msg-tab[data-filter]');
+  for (var i = 0; i < tabs.length; i++) {
+    tabs[i].classList.remove('active');
+    if (tabs[i].getAttribute('data-filter') === filter) {
+      tabs[i].classList.add('active');
+    }
+  }
+  var cards = document.querySelectorAll('.msg-card');
+  var visible = 0;
+  for (var j = 0; j < cards.length; j++) {
+    var card = cards[j];
+    if (filter === 'all') {
+      card.classList.remove('msg-hidden');
+      visible++;
+    } else if (filter === 'unread') {
+      if (card.classList.contains('msg-unread')) {
+        card.classList.remove('msg-hidden');
+        visible++;
+      } else {
+        card.classList.add('msg-hidden');
+      }
+    } else if (filter === 'read') {
+      if (card.classList.contains('msg-read')) {
+        card.classList.remove('msg-hidden');
+        visible++;
+      } else {
+        card.classList.add('msg-hidden');
+      }
+    }
+  }
+  var emptyEl = document.getElementById('msg-empty');
+  if (emptyEl) {
+    emptyEl.style.display = visible === 0 ? '' : 'none';
+  }
+}
+function markAllRead() {
+  window.location = 'ev://mark-read=all';
+}
+function filterVisitors(filter) {
+  var tabs = document.querySelectorAll('[data-visitor-filter]');
+  for (var i = 0; i < tabs.length; i++) {
+    if (tabs[i].getAttribute('data-visitor-filter') === filter) {
+      tabs[i].classList.add('active');
+    } else {
+      tabs[i].classList.remove('active');
+    }
+  }
+  var afdianStats = document.getElementById('afdianStats');
+  if (filter === 'afdian') {
+    var rows = document.querySelectorAll('.visitor-all, .visitor-afdian');
+    for (var j = 0; j < rows.length; j++) {
+      rows[j].classList.toggle('visitor-hidden', !rows[j].classList.contains('visitor-afdian'));
+    }
+    if (afdianStats) afdianStats.style.display = 'block';
+  } else {
+    var rows2 = document.querySelectorAll('.visitor-all, .visitor-afdian');
+    for (var k = 0; k < rows2.length; k++) {
+      rows2[k].classList.remove('visitor-hidden');
+    }
+    if (afdianStats) afdianStats.style.display = 'none';
+  }
+}
 </script>"""
         return f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -2307,6 +2601,11 @@ function copyText(text) {
 <body><div class="layout">{sidebar}<div class="main">{topbar}<div class="content">{content}</div></div></div>{common_js}{scripts}</body></html>"""
 
     def _html_messages(self):
+        msgs = load_messages()
+        unread_count = sum(1 for m in msgs if not m.get("read", False))
+        read_count = sum(1 for m in msgs if m.get("read", False))
+        total_count = len(msgs)
+
         received_data = load_received()
         today_str = datetime.now().strftime("%Y-%m-%d")
         today_data = received_data.get(today_str, {})
@@ -2337,26 +2636,38 @@ function copyText(text) {
           </div>
         </div>"""
 
-        msgs = load_messages()
+        msg_tabs = f"""
+        <div class="msg-tabs">
+          <button class="msg-tab" data-filter="all" onclick="filterMessages('all')">All ({total_count})</button>
+          <button class="msg-tab active" data-filter="unread" onclick="filterMessages('unread')">Unread ({unread_count})</button>
+          <button class="msg-tab" data-filter="read" onclick="filterMessages('read')">Read ({read_count})</button>
+          <button class="msg-tab msg-tab-action" onclick="markAllRead()" title="Mark all as read" style="margin-left:auto;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            Mark All Read
+          </button>
+        </div>"""
+
         entries = []
         for m in msgs[:80]:
             type_label, detail = _format_message_detail(m)
             css_cls, badge_cls = _TYPE_STYLES.get(type_label, ("type-other", "badge-other"))
-            entries.append((m.get("time", ""), type_label, detail, css_cls, badge_cls))
+            is_read = m.get("read", False)
+            entries.append((m.get("time", ""), type_label, detail, css_cls, badge_cls, is_read))
 
         polls = load_poll_log()
         for date_str in sorted(polls.keys(), reverse=True):
             for p in polls[date_str].get("polls", []):
                 t = date_str + " " + p.get("time", "")
                 detail = f"Recovered {p.get('recovered', 0)} messages - {p.get('reason', '')}"
-                entries.append((t, "Recovery", detail, "type-recover", "badge-recover"))
+                entries.append((t, "Recovery", detail, "type-recover", "badge-recover", True))
 
         msg_html = ""
-        for t, tp, detail, css_cls, badge_cls in entries[:50]:
+        for t, tp, detail, css_cls, badge_cls, is_read in entries[:50]:
             time_short = _safe_str(t[-16:] if len(t) >= 16 else t)
             detail_safe = _safe_str(detail)
+            read_class = "msg-read" if is_read else "msg-unread"
             msg_html += (
-                f'<div class="msg-card">'
+                f'<div class="msg-card {read_class}">'
                 f'<div class="msg-indicator {css_cls}"></div>'
                 f'<span class="msg-time">{time_short}</span>'
                 f'<span class="msg-badge {badge_cls}">{_safe_str(tp)}</span>'
@@ -2364,12 +2675,12 @@ function copyText(text) {
                 f'</div>\n')
 
         if not msg_html:
-            msg_html = ('<div class="empty-state">'
+            msg_html = ('<div class="empty-state" id="msg-empty">'
                         '<div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="8" x2="17" y2="8"/><line x1="7" y1="12" x2="14" y2="12"/><line x1="7" y1="16" x2="11" y2="16"/></svg></div>'
-                        '<div class="empty-title">暂无消息</div>'
-                        '<div class="empty-desc">等待通知...</div></div>')
+                        '<div class="empty-title">No messages</div>'
+                        '<div class="empty-desc">Waiting for notifications...</div></div>')
 
-        body = f'<div class="panel"><div class="panel-header"><div class="panel-title"><div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>活动流</div></div><div class="msg-list">{msg_html}</div></div>'
+        body = f'<div class="panel"><div class="panel-header"><div class="panel-title"><div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>Activity Stream</div></div>{msg_tabs}<div class="msg-list">{msg_html}</div></div>'
         return body
 
     def _html_orders(self):
@@ -3002,13 +3313,28 @@ function lookupGeo(ip, btn) {
 
     def _html_trend(self):
         dates, counts, amounts = _build_trend_data(30)
+        act_dates, act_success, act_failed = _build_activation_trend_data(30)
         total_orders = sum(counts)
         total_amount = sum(amounts)
+        total_activations = sum(act_success) + sum(act_failed)
+        all_orders = _build_order_list()
+        all_time_total = len(all_orders)
         dates_js = json.dumps(list(dates))
         counts_js = json.dumps(list(counts))
         amounts_js = json.dumps(list(amounts))
+        act_dates_js = json.dumps(list(act_dates))
+        act_success_js = json.dumps(list(act_success))
+        act_failed_js = json.dumps(list(act_failed))
         avg_orders = total_orders / 30 if total_orders else 0
         avg_revenue = total_amount / 30 if total_amount else 0
+
+        hour_labels, hour_data = _build_hourly_data()
+        hour_labels_js = json.dumps(hour_labels)
+        hour_data_js = json.dumps(hour_data)
+
+        wday_labels, wday_data = _build_weekly_data()
+        wday_labels_js = json.dumps(wday_labels)
+        wday_data_js = json.dumps(wday_data)
 
         stats_html = f"""
         <div class="stats-grid">
@@ -3028,6 +3354,14 @@ function lookupGeo(ip, btn) {
             <div class="stat-icon purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
             <div class="stat-body"><div class="stat-value small amount">CNY{avg_revenue:.0f}/day</div><div class="stat-label">日均收入</div></div>
           </div>
+          <div class="stat-card">
+            <div class="stat-icon emerald"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></div>
+            <div class="stat-body"><div class="stat-value">{all_time_total}</div><div class="stat-label">订单总数</div></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+            <div class="stat-body"><div class="stat-value">{total_activations}</div><div class="stat-label">30天激活</div></div>
+          </div>
         </div>"""
 
         js_inject = f"""
@@ -3035,34 +3369,128 @@ function lookupGeo(ip, btn) {
 <script>
 document.addEventListener('DOMContentLoaded',function(){{
   var ctx=document.getElementById('trendChart');
-  if(!ctx)return;
-  new Chart(ctx.getContext('2d'),{{
-    type:'bar',
-    data:{{
-      labels:{dates_js},
-      datasets:[
-        {{label:'Orders',data:{counts_js},backgroundColor:'rgba(42,109,244,0.7)',borderColor:'rgba(42,109,244,1)',borderWidth:1,borderRadius:4,yAxisID:'y'}},
-        {{label:'CNY',data:{amounts_js},type:'line',borderColor:'rgba(239,68,68,1)',backgroundColor:'rgba(239,68,68,0.08)',borderWidth:2.5,pointRadius:4,pointBackgroundColor:'rgba(239,68,68,1)',pointBorderColor:'#fff',pointBorderWidth:2,tension:0.35,fill:true,yAxisID:'y1'}}
-      ]
-    }},
-    options:{{
-      responsive:true,maintainAspectRatio:false,
-      interaction:{{mode:'index',intersect:false}},
-      plugins:{{legend:{{position:'top',labels:{{usePointStyle:true,pointStyleWidth:8,padding:24,font:{{size:12}}}}}}}},
-      scales:{{
-        y:{{type:'linear',position:'left',title:{{display:true,text:'Orders',font:{{size:11}}}},beginAtZero:true,ticks:{{stepSize:1,font:{{size:10}}}},grid:{{color:'rgba(0,0,0,0.04)'}}}},
-        y1:{{type:'linear',position:'right',title:{{display:true,text:'CNY',font:{{size:11}}}},beginAtZero:true,grid:{{drawOnChartArea:false}},ticks:{{font:{{size:10}}}}}}
+  if(ctx) {{
+    new Chart(ctx.getContext('2d'),{{
+      type:'bar',
+      data:{{
+        labels:{dates_js},
+        datasets:[
+          {{label:'Orders',data:{counts_js},backgroundColor:'rgba(42,109,244,0.7)',borderColor:'rgba(42,109,244,1)',borderWidth:1,borderRadius:4,yAxisID:'y'}},
+          {{label:'CNY',data:{amounts_js},type:'line',borderColor:'rgba(239,68,68,1)',backgroundColor:'rgba(239,68,68,0.08)',borderWidth:2.5,pointRadius:4,pointBackgroundColor:'rgba(239,68,68,1)',pointBorderColor:'#fff',pointBorderWidth:2,tension:0.35,fill:true,yAxisID:'y1'}}
+        ]
+      }},
+      options:{{
+        responsive:true,maintainAspectRatio:false,
+        interaction:{{mode:'index',intersect:false}},
+        plugins:{{legend:{{position:'top',labels:{{usePointStyle:true,pointStyleWidth:8,padding:24,font:{{size:12}}}}}}}},
+        scales:{{
+          y:{{type:'linear',position:'left',title:{{display:true,text:'Orders',font:{{size:11}}}},beginAtZero:true,ticks:{{stepSize:1,font:{{size:10}}}},grid:{{color:'rgba(0,0,0,0.04)'}}}},
+          y1:{{type:'linear',position:'right',title:{{display:true,text:'CNY',font:{{size:11}}}},beginAtZero:true,grid:{{drawOnChartArea:false}},ticks:{{font:{{size:10}}}}}}
+        }}
       }}
-    }}
-  }});
+    }});
+  }}
+
+  var ctxH=document.getElementById('hourlyChart');
+  if(ctxH) {{
+    new Chart(ctxH.getContext('2d'),{{
+      type:'bar',
+      data:{{
+        labels:{hour_labels_js},
+        datasets:[{{
+          label:'Orders per hour',
+          data:{hour_data_js},
+          backgroundColor:'rgba(99,102,241,0.7)',
+          borderColor:'rgba(99,102,241,1)',
+          borderWidth:1,
+          borderRadius:3
+        }}]
+      }},
+      options:{{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{{
+          title:{{display:true,text:'24-Hour Order Distribution',font:{{size:14,weight:'bold'}},padding:{{bottom:12}}}},
+          legend:{{display:false}}
+        }},
+        scales:{{
+          y:{{beginAtZero:true,title:{{display:true,text:'Orders',font:{{size:11}}}},ticks:{{stepSize:1,font:{{size:10}}}},grid:{{color:'rgba(0,0,0,0.04)'}}}},
+          x:{{ticks:{{font:{{size:9}},maxRotation:0}},grid:{{display:false}}}}
+        }}
+      }}
+    }});
+  }}
+
+  var ctxW=document.getElementById('weeklyChart');
+  if(ctxW) {{
+    new Chart(ctxW.getContext('2d'),{{
+      type:'bar',
+      data:{{
+        labels:{wday_labels_js},
+        datasets:[{{
+          label:'Orders per day',
+          data:{wday_data_js},
+          backgroundColor:['rgba(99,102,241,0.7)','rgba(99,102,241,0.7)','rgba(99,102,241,0.7)','rgba(99,102,241,0.7)','rgba(99,102,241,0.7)','rgba(249,115,22,0.7)','rgba(239,68,68,0.7)'],
+          borderColor:['rgba(99,102,241,1)','rgba(99,102,241,1)','rgba(99,102,241,1)','rgba(99,102,241,1)','rgba(99,102,241,1)','rgba(249,115,22,1)','rgba(239,68,68,1)'],
+          borderWidth:1,
+          borderRadius:4
+        }}]
+      }},
+      options:{{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{{
+          title:{{display:true,text:'本周订单汇总 (Mon-Sun)',font:{{size:14,weight:'bold'}},padding:{{bottom:12}}}},
+          legend:{{display:false}}
+        }},
+        scales:{{
+          y:{{beginAtZero:true,title:{{display:true,text:'Orders',font:{{size:11}}}},ticks:{{stepSize:1,font:{{size:10}}}},grid:{{color:'rgba(0,0,0,0.04)'}}}},
+          x:{{ticks:{{font:{{size:10}}}},grid:{{display:false}}}}
+        }}
+      }}
+    }});
+  }}
+
+  var ctxA=document.getElementById('activationChart');
+  if(ctxA) {{
+    new Chart(ctxA.getContext('2d'),{{
+      type:'bar',
+      data:{{
+        labels:{act_dates_js},
+        datasets:[
+          {{label:'Activation Success',data:{act_success_js},backgroundColor:'rgba(16,185,129,0.7)',borderColor:'rgba(16,185,129,1)',borderWidth:1,borderRadius:4}},
+          {{label:'Activation Failed',data:{act_failed_js},backgroundColor:'rgba(239,68,68,0.5)',borderColor:'rgba(239,68,68,1)',borderWidth:1,borderRadius:4}}
+        ]
+      }},
+      options:{{
+        responsive:true,maintainAspectRatio:false,
+        interaction:{{mode:'index',intersect:false}},
+        plugins:{{
+          title:{{display:true,text:'Activation Stats (30 days)',font:{{size:14,weight:'bold'}},padding:{{bottom:12}}}},
+          legend:{{position:'top',labels:{{usePointStyle:true,pointStyleWidth:8,padding:24,font:{{size:12}}}}}}
+        }},
+        scales:{{
+          x:{{stacked:true,ticks:{{font:{{size:9}},maxRotation:0}},grid:{{display:false}}}},
+          y:{{stacked:true,beginAtZero:true,title:{{display:true,text:'Activations',font:{{size:11}}}},ticks:{{stepSize:1,font:{{size:10}}}},grid:{{color:'rgba(0,0,0,0.04)'}}}}
+        }}
+      }}
+    }});
+  }}
 }});
 </script>"""
-        chart = f'<div class="chart-wrap"><canvas id="trendChart"></canvas></div>'
-        return stats_html + chart + js_inject
+        chart30 = f'<div class="chart-wrap"><canvas id="trendChart"></canvas></div>'
+        chart_hourly = f'<div class="chart-wrap"><canvas id="hourlyChart"></canvas></div>'
+        chart_weekly = f'<div class="chart-wrap"><canvas id="weeklyChart"></canvas></div>'
+        chart_activation = f'<div class="chart-wrap"><canvas id="activationChart"></canvas></div>'
+        charts_row = f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">{chart_hourly}{chart_weekly}</div>'
+        activation_chart_row = f'<div style="margin-top:16px">{chart_activation}</div>'
+        return stats_html + chart30 + charts_row + activation_chart_row + js_inject
 
     def _html_visitors(self):
         visitors = load_visitors()
         stats = _build_visitor_stats()
+
+        afdian_visitors = [v for v in visitors if (v.get("path", "") or "").startswith("/go/")]
+        afdian_today = sum(1 for v in afdian_visitors if v.get("time", "").startswith(datetime.now().strftime("%Y-%m-%d")))
+        afdian_ips = len(set(v.get("ip", "") for v in afdian_visitors if v.get("ip")))
 
         stats_html = f"""
         <div class="stats-grid">
@@ -3082,6 +3510,31 @@ document.addEventListener('DOMContentLoaded',function(){{
             <div class="stat-icon orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
             <div class="stat-body"><div class="stat-value">{stats['unique_hosts']}</div><div class="stat-label">独立主机</div></div>
           </div>
+        </div>"""
+
+        afdian_stats_html = f"""
+        <div class="afdian-stats" id="afdianStats" style="display:none;">
+          <div class="afdian-stats-header">爱发电访问统计</div>
+          <div class="afdian-stats-grid">
+            <div class="afdian-stat-item">
+              <div class="afdian-stat-value">{len(afdian_visitors)}</div>
+              <div class="afdian-stat-label">爱发电总访问</div>
+            </div>
+            <div class="afdian-stat-item">
+              <div class="afdian-stat-value">{afdian_today}</div>
+              <div class="afdian-stat-label">今日</div>
+            </div>
+            <div class="afdian-stat-item">
+              <div class="afdian-stat-value">{afdian_ips}</div>
+              <div class="afdian-stat-label">独立IP</div>
+            </div>
+          </div>
+        </div>"""
+
+        visitor_tabs = f"""
+        <div class="msg-tabs">
+          <button class="msg-tab active" data-visitor-filter="all" onclick="filterVisitors('all')">全部访问 ({stats['total']})</button>
+          <button class="msg-tab" data-visitor-filter="afdian" onclick="filterVisitors('afdian')">爱发电 ({len(afdian_visitors)})</button>
         </div>"""
 
         top_pages_html = ""
@@ -3124,10 +3577,11 @@ document.addEventListener('DOMContentLoaded',function(){{
         rows = ""
         vidx = 0
         for v in visitors[:100]:
+            path = v.get("path", "") or "/"
+            is_afdian = path.startswith("/go/")
             t = _safe_str(v.get("time", "")[-16:] if len(v.get("time", "")) >= 16 else v.get("time", ""))
             host = _safe_str(v.get("hostname", "") or "")
-            path = _safe_str(v.get("path", "") or "/")
-            url_display = (f'<span class="url-hostname">{host}</span><span class="url-path">{path}</span>' if host else path)
+            url_display = (f'<span class="url-hostname">{host}</span><span class="url-path">{_safe_str(path)}</span>' if host else _safe_str(path))
             ip = _safe_str(v.get("ip", "-") or "-")
             device = v.get("device", "Unknown")
             host_safe = _safe_str(v.get("referrer_host", "") or v.get("referrer", "-") or "-")
@@ -3145,8 +3599,9 @@ document.addEventListener('DOMContentLoaded',function(){{
             if v.get("utm_campaign", ""):
                 utm_tags += f'<span class="utm-tag">{camp}</span>'
 
+            filter_class = "visitor-afdian" if is_afdian else "visitor-all"
             rowId = "visitor" + str(vidx)
-            rows += ('<tr class="accordion-row" id="row-' + rowId + '" onclick="toggleRowDetail(\'' + rowId + '\')">'
+            rows += ('<tr class="accordion-row ' + filter_class + '" id="row-' + rowId + '" onclick="toggleRowDetail(\'' + rowId + '\')">'
                      '<td><span class="expand-icon">▶</span> ' + t + '</td>'
                      '<td><div>' + url_display + '</div>' + utm_tags + '</td>'
                      '<td><span class="device-tag ' + device + '">' + _safe_str(device) + '</span></td>'
@@ -3156,7 +3611,7 @@ document.addEventListener('DOMContentLoaded',function(){{
             detail_html = '<div class="detail-card">'
             detail_html += '<div class="detail-section"><div class="detail-section-title">页面信息</div><table class="detail-table">'
             detail_html += '<tr><td>主机</td><td>' + host + '</td></tr>'
-            detail_html += '<tr><td>路径</td><td>' + path + '</td></tr>'
+            detail_html += '<tr><td>路径</td><td>' + _safe_str(path) + '</td></tr>'
             if v.get("title"): detail_html += '<tr><td>标题</td><td>' + _safe_str(v["title"]) + '</td></tr>'
             detail_html += '</table></div>'
 
@@ -3189,7 +3644,7 @@ document.addEventListener('DOMContentLoaded',function(){{
                 detail_html += '</div>'
 
             detail_html += '</div>'
-            rows += '<tr class="detail-expand" id="detail-' + rowId + '"><td colspan="5">' + detail_html + '</td></tr>\n'
+            rows += '<tr class="detail-expand ' + filter_class + '" id="detail-' + rowId + '"><td colspan="5">' + detail_html + '</td></tr>\n'
             vidx += 1
 
         if not rows:
@@ -3207,7 +3662,7 @@ document.addEventListener('DOMContentLoaded',function(){{
             </div>
           </div>
           <div class="table-wrap">
-            <table>
+            <table id="visitorTable">
               <thead><tr><th>时间</th><th>页面URL</th><th>设备</th><th>IP</th><th>来源</th></tr></thead>
               <tbody>{rows}</tbody>
             </table>
@@ -3215,7 +3670,7 @@ document.addEventListener('DOMContentLoaded',function(){{
         </div>"""
 
         sidebar_right = f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">{top_pages_html}{devices_html}</div>' if (top_pages_html and devices_html) else (top_pages_html or devices_html)
-        body = stats_html + (sidebar_right if sidebar_right else "") + table
+        body = stats_html + afdian_stats_html + visitor_tabs + (sidebar_right if sidebar_right else "") + table
         return body
 
     def _html_devices(self):
@@ -3412,86 +3867,6 @@ document.addEventListener('DOMContentLoaded',function(){{
             threading.Thread(target=lambda: _run_and_ignore_timeout(["say", "-v", "Ting-Ting", "语音播报功能正常，这是一条中文语音测试"]), daemon=True).start()
         _debug_log(f"test_notify: {ntype}")
 
-    def _html_logs(self):
-        data = load_error_log()
-        all_entries = []
-        for date_key in sorted(data.keys(), reverse=True):
-            for entry in data.get(date_key, []):
-                entry["_date"] = date_key
-                all_entries.append(entry)
-
-        all_entries.sort(key=lambda x: x["_date"] + x["time"], reverse=True)
-        total_errors = len(all_entries)
-        today = datetime.now().strftime("%Y-%m-%d")
-        today_errors = len([e for e in all_entries if e["_date"] == today])
-        week_errors = len([e for e in all_entries if e["_date"] >= (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")])
-
-        LEVEL_LABELS = {"error": "错误", "warning": "警告", "info": "信息"}
-        LEVEL_COLORS = {"error": "#dc2626", "warning": "#d97706", "info": "#2563eb"}
-        LEVEL_BG = {"error": "#fef2f2", "warning": "#fffbeb", "info": "#eff6ff"}
-
-        rows_html = ""
-        for e in all_entries[:100]:
-            date_str = e["_date"]
-            level = e.get("level", "error")
-            module = e.get("module", "-")
-            etype = e.get("type", "-")
-            msg = _safe_str(e.get("message", "-"))
-            tb = e.get("traceback", "")
-            time_str = e.get("time", "")
-            color = LEVEL_COLORS.get(level, "#6b7280")
-            bg = LEVEL_BG.get(level, "#f9fafb")
-            label = LEVEL_LABELS.get(level, level)
-
-            tb_html = ""
-            if tb:
-                tb_safe = _safe_str(tb)
-                tb_html = f"""
-                <details style="margin-top:4px">
-                    <summary style="cursor:pointer;color:#6b7280;font-size:12px">Traceback</summary>
-                    <pre style="margin-top:4px;padding:8px;background:#1e1e1e;color:#d4d4d4;border-radius:6px;font-size:11px;overflow-x:auto;max-height:200px;white-space:pre-wrap">{tb_safe}</pre>
-                </details>"""
-
-            rows_html += f"""
-            <div style="padding:10px 0;border-bottom:1px solid #f0f0f0">
-                <div style="display:flex;align-items:center;gap:8px">
-                    <span style="background:{bg};color:{color};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600">{label}</span>
-                    <span style="color:#9ca3af;font-size:12px">{date_str} {time_str}</span>
-                    <span style="color:#6b7280;font-size:12px">[{module}]</span>
-                    <span style="color:#374151;font-size:12px;font-weight:500">{etype}</span>
-                </div>
-                <div style="margin-top:4px;color:#4b5563;font-size:13px;word-break:break-all">{msg}</div>
-                {tb_html}
-            </div>"""
-
-        if not rows_html:
-            rows_html = '<div class="empty-state"><div class="empty-icon">✅</div><div class="empty-title">无错误记录</div><div class="empty-desc">系统运行正常，未捕获到异常</div></div>'
-
-        module_filter_html = ""
-        modules_set = set()
-        for e in all_entries:
-            modules_set.add(e.get("module", "-"))
-
-        return f"""
-        <div class="stats-cards" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
-            <div class="stat-card" style="background:#fef2f2;padding:16px;border-radius:10px;text-align:center">
-                <div style="font-size:28px;font-weight:700;color:#dc2626">{today_errors}</div>
-                <div style="font-size:12px;color:#9ca3af;margin-top:4px">今日错误</div>
-            </div>
-            <div class="stat-card" style="background:#fffbeb;padding:16px;border-radius:10px;text-align:center">
-                <div style="font-size:28px;font-weight:700;color:#d97706">{week_errors}</div>
-                <div style="font-size:12px;color:#9ca3af;margin-top:4px">7 天内错误</div>
-            </div>
-            <div class="stat-card" style="background:#f0f9ff;padding:16px;border-radius:10px;text-align:center">
-                <div style="font-size:28px;font-weight:700;color:#2563eb">{total_errors}</div>
-                <div style="font-size:12px;color:#9ca3af;margin-top:4px">全部错误</div>
-            </div>
-        </div>
-        <div style="padding:0">
-            {rows_html}
-        </div>
-        """
-
     def _html_settings(self):
         auto_status = get_auto_start()
         nsettings = load_notify_settings()
@@ -3592,6 +3967,12 @@ document.addEventListener('DOMContentLoaded',function(){{
             global _new_msg_count, _seen_ids
             _new_msg_count = 0
             _seen_ids.clear()
+        self._refresh_content()
+
+    def _mark_all_read(self):
+        _debug_log("_mark_all_read: marking all messages as read")
+        mark_all_messages_read()
+        self._current_page = "messages"
         self._refresh_content()
 
     def _sync_orders(self):
@@ -3761,7 +4142,6 @@ document.addEventListener('DOMContentLoaded',function(){{
         "trend": "_html_trend",
         "devices": "_html_devices",
         "polls": "_html_polls",
-        "logs": "_html_logs",
         "settings": "_html_settings",
     }
 
@@ -3773,14 +4153,13 @@ document.addEventListener('DOMContentLoaded',function(){{
         "trend": ("走势图", "数据趋势"),
         "devices": ("设备信息", "设备统计"),
         "polls": ("轮询统计", "手动恢复操作日志"),
-        "logs": ("错误日志", "运行错误与异常记录"),
         "settings": ("设置", "应用偏好"),
     }
 
     def _build_current_html(self):
         page = self._current_page
 
-        tab_ids = ["messages", "orders", "activations", "visitors", "trend", "devices", "polls", "logs", "settings"]
+        tab_ids = ["messages", "orders", "activations", "visitors", "trend", "devices", "polls", "settings"]
         tab_html = ""
         for tid in tab_ids:
             if tid == page:
@@ -3793,28 +4172,34 @@ document.addEventListener('DOMContentLoaded',function(){{
 
         title, subtitle = self._PAGE_TITLES.get(page, ("消息中心", ""))
 
-        scripts = """
+        scripts = f"""
 <script>
-(function() {
-    function bindClicks() {
+(function() {{
+    function bindClicks() {{
         var links = document.querySelectorAll('.nav-item[data-tab]');
-        for (var k = 0; k < links.length; k++) {
-            links[k].addEventListener('click', function(e) {
+        for (var k = 0; k < links.length; k++) {{
+            links[k].addEventListener('click', function(e) {{
                 e.preventDefault();
                 e.stopPropagation();
                 var tabId = this.getAttribute('data-tab');
-                if (tabId) {
+                if (tabId) {{
                     window.location = 'ev://nav=' + tabId;
-                }
+                }}
                 return false;
-            });
-        }
-    }
+            }});
+        }}
+    }}
 
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function() {{
         bindClicks();
-    });
-})();
+        if ('{page}' === 'messages') {{
+            filterMessages('unread');
+        }}
+        if ('{page}' === 'visitors') {{
+            filterVisitors('all');
+        }}
+    }});
+}})();
 </script>"""
         return self._html_wrap(tab_html, title, subtitle, scripts=scripts)
 
@@ -3847,6 +4232,11 @@ class EvNotifier(rumps.App):
         _release_pid_lock()
         from AppKit import NSApp
         NSApp.terminate_(None)
+
+    @rumps.clicked("重启")
+    def restart_app(self, _):
+        import sys, os
+        os.execv(sys.executable, [sys.executable] + sys.argv)
 
     def _version_menu(self):
         menu = rumps.MenuItem(f"版本: {VERSION}")
@@ -3936,7 +4326,6 @@ class EvNotifier(rumps.App):
 
 def main():
     global _app_ref
-    _install_error_hook()
     app = EvNotifier()
     _app_ref = app
     print(f"Ev Notifier {VERSION} started: {REST_API_URL}")
@@ -3977,5 +4366,6 @@ if __name__ == "__main__":
     if not _acquire_pid_lock():
         sys.exit(0)
     atexit.register(_release_pid_lock)
+    atexit.register(lambda: _voice_queue.put(None))
     load_env()
     main()

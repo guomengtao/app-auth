@@ -672,8 +672,8 @@ if ((isCron || isCronBackup) && isBackup) {
 
   // === Message delivery query (GET from admin panel) ===
   if (req.query && req.query.section === "delivery-query") {
-    if (req.method !== "GET") {
-      return res.status(405).json({ success: false, error: "Use GET" });
+    if (req.method !== "GET" && req.method !== "POST") {
+      return res.status(405).json({ success: false, error: "Use GET or POST" });
     }
     var md = null;
     try { md = require("../../lib/message-delivery"); } catch(e) {
@@ -689,6 +689,52 @@ if ((isCron || isCronBackup) && isBackup) {
         var hours = parseInt(req.query.hours || "168", 10);
         var messages = await md.getUndelivered(hours);
         return res.json({ success: true, messages: messages });
+      }
+      if (action === "retry-stuck") {
+        if (req.method !== "POST") {
+          return res.status(405).json({ success: false, error: "Use POST for retry-stuck" });
+        }
+        var stuckMessages = await md.getUndelivered(168);
+        var results = [];
+        for (var si = 0; si < stuckMessages.length; si++) {
+          var sm = stuckMessages[si];
+          try {
+            var upstashUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "";
+            var upstashToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || "";
+            if (!upstashUrl || !upstashToken) {
+              results.push({ message_id: sm.message_id, status: "skipped", reason: "no Upstash config" });
+              continue;
+            }
+            var retryPayload = { ts: Math.floor(Date.now() / 1000), type: sm.message_type, payload: sm.payload, messageId: sm.message_id, retry: true };
+            var retryRaw = JSON.stringify(retryPayload);
+            var xaddUrl = upstashUrl.replace(/\/$/, "") + "/xadd/auth:notifications:stream/*/data/" + encodeURIComponent(retryRaw);
+            var r = await fetch(xaddUrl, {
+              method: "POST",
+              headers: { "Authorization": "Bearer " + upstashToken },
+              signal: AbortSignal.timeout(5000),
+            });
+            if (r.ok) {
+              await md.markPublished(sm.message_id);
+              try {
+                var pubUrl = upstashUrl.replace(/\/$/, "") + "/publish/auth:push_channel/" + encodeURIComponent(retryRaw);
+                await fetch(pubUrl, {
+                  method: "POST",
+                  headers: { "Authorization": "Bearer " + upstashToken },
+                  signal: AbortSignal.timeout(3000),
+                });
+              } catch (pubErr) {
+                console.error("[health:retry-stuck] publish failed for " + sm.message_id + ":", pubErr.message);
+              }
+              results.push({ message_id: sm.message_id, status: "retried", type: sm.message_type });
+            } else {
+              var rText = await r.text();
+              results.push({ message_id: sm.message_id, status: "failed", reason: "HTTP " + r.status + ": " + rText.substring(0, 100) });
+            }
+          } catch (retryErr) {
+            results.push({ message_id: sm.message_id, status: "error", reason: retryErr.message });
+          }
+        }
+        return res.json({ success: true, retried: results.filter(function(r) { return r.status === "retried"; }).length, total: stuckMessages.length, results: results });
       }
       var result = await md.queryMessages({
         status: status || null,

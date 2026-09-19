@@ -513,10 +513,31 @@ module.exports = async (req, res) => {
       months: months,
     });
 
-    // Send response first, then background notifications
-    res.json({ success: true, activationCode: activationCode, debug: { visitor: visitorInfo, notification: "background", productId: productId, months: months } });
+    // Push notification must complete BEFORE response to avoid Vercel freezing
+    await notify.pushNotification("new_activation", {
+      redeem_code: code,
+      activation_code: activationCode,
+      product_id: productId,
+      device_id: device,
+      months: months,
+      source: "user",
+      user_name: (info && info.user_name) || "",
+      ip: visitorInfo ? visitorInfo.ip : "",
+      user_agent: visitorInfo ? visitorInfo.userAgent : "",
+      visitor_info: visitorInfo || {},
+      device_info: deviceInfo || {},
+      device_model: (deviceInfo && (deviceInfo.model || deviceInfo.product)) || "",
+      country: String(req.headers["x-vercel-ip-country"] || "").slice(0, 8),
+      region: String(req.headers["x-vercel-ip-country-region"] || "").slice(0, 16),
+      city: String(req.headers["x-vercel-ip-city"] || "").slice(0, 40),
+    }).catch(function (e) {
+      console.error("[activate] Push notification failed:", e.message);
+    });
 
-    // Fire-and-forget notifications (Vercel keeps the function alive until return)
+    // Send response after push completes
+    res.json({ success: true, activationCode: activationCode, debug: { visitor: visitorInfo, notification: "success", productId: productId, months: months } });
+
+    // Background: email notification (fire-and-forget, non-blocking after response)
     notify.sendActivationNotification(req, {
       redeemCode: code,
       activationCode: activationCode,
@@ -529,19 +550,6 @@ module.exports = async (req, res) => {
       console.error("[activate] Email failed:", e.message);
     });
 
-    await notify.pushNotification("new_activation", {
-      redeem_code: code,
-      activation_code: activationCode,
-      product_id: productId,
-      device_id: device,
-      months: months,
-      source: "user",
-      ip: visitorInfo ? visitorInfo.ip : "",
-      user_agent: visitorInfo ? visitorInfo.userAgent : "",
-      visitor_info: visitorInfo || {},
-      device_info: deviceInfo || {},
-    }).catch(function () {});
-
     rateLimit.clearDeviceRateLimit(device).catch(function () {});
   } catch (error) {
     console.error("Activate error:", error && error.message ? error.message : error, error);
@@ -553,19 +561,7 @@ module.exports = async (req, res) => {
     }
     saveFailureRecord(msg, rawDeviceId, rawRedeemCode, "", "", visitorInfo, deviceInfo);
 
-    // Send error first, then background notifications
-    res.status(500).json({ success: false, error: msg, debug: { visitor: visitorInfo, notification: "background", reason: msg } });
-
-    // Fire-and-forget (Vercel keeps the function alive until return)
-    notify.sendActivationFailure(req, {
-      reason: msg,
-      redeemCode: rawRedeemCode || "",
-      deviceId: rawDeviceId || "",
-      productId: "",
-      months: "",
-      source: "user",
-    }).catch(function () {});
-
+    // Push notification must complete BEFORE response to avoid Vercel freezing
     await notify.pushNotification("activation_failure", {
       reason: msg,
       redeem_code: rawRedeemCode || "",
@@ -575,6 +571,19 @@ module.exports = async (req, res) => {
       user_agent: visitorInfo ? visitorInfo.userAgent : "",
       visitor_info: visitorInfo || {},
       device_info: deviceInfo || {},
+    }).catch(function () {});
+
+    // Send response after push completes
+    res.status(500).json({ success: false, error: msg, debug: { visitor: visitorInfo, notification: "background", reason: msg } });
+
+    // Background: email notification (fire-and-forget, non-blocking after response)
+    notify.sendActivationFailure(req, {
+      reason: msg,
+      redeemCode: rawRedeemCode || "",
+      deviceId: rawDeviceId || "",
+      productId: "",
+      months: "",
+      source: "user",
     }).catch(function () {});
   }
 };

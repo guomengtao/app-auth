@@ -23,19 +23,31 @@
 - **只保留一个终端**；开新终端前用 `tmux kill-session` 关闭旧的
 - 高风险命令（`pkill`、`rm`、删除等）→ 直接执行，不需要弹窗确认
 
-## 4. 交互通知（macOS Dialog）
+## 4. 开发完成通知（必须执行）
 
-- 由 AI **自主判断**何时需要弹窗交互（觉得有必要时再弹，不是每次都弹）
+每次开发任务完成后，**必须同时执行**弹窗通知 + 语音播报，不可跳过。
+
+### 4.1 macOS 弹窗通知
+
+- **每次开发完成必须弹窗**，不允许跳过
 - 不要在对话内提示（用户切换 tab 后看不到）
 - **通用文案**（标准化）：
   ```bash
-  res=$(osascript -e 'display dialog "操作已完成，是否需要继续？" buttons {"取消","继续"} default button "继续" with icon caution')
-  if [[ $res == *"继续"* ]]; then
-    echo "User chose continue"
-  else
-    echo "User cancelled"
-  fi
+  osascript -e 'display dialog "开发任务已完成，请查看结果。" buttons {"知道了"} default button "知道了" with icon note'
   ```
+
+### 4.2 语音播报
+
+- **每次开发完成必须语音播报**，使用 macOS `say` 命令
+- 播报内容用中文，简要说明完成了什么
+- 示例：
+  ```bash
+  say "开发任务已完成，请查看结果"
+  ```
+
+### 4.3 执行顺序
+
+先弹窗，再语音播报。每次对话结束（开发任务完成）都必须执行这两个步骤。
 
 ## 5. 代码规范
 
