@@ -9650,11 +9650,7 @@
               html += '<td style="font-size:0.72rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(payloadStr) + '">' + escapeHtml(payloadStr) + '</td>';
               html += '<td style="font-size:0.72rem;font-family:monospace">' + escapeHtml(related) + '</td>';
               html += '<td style="font-size:0.62rem;white-space:nowrap">' + timeline + '</td>';
-              if (r.status === 'pending') {
-                html += '<td><button class="btn btn-sm" style="padding:2px 8px;font-size:0.65rem" onclick="retrySingleMessage(\'' + escapeHtml(r.message_id) + '\', this)" title="重新投递此消息">🔄 重试</button></td>';
-              } else {
-                html += '<td></td>';
-              }
+              html += '<td><button class="btn btn-sm" style="padding:2px 8px;font-size:0.65rem" onclick="retrySingleMessage(\'' + escapeHtml(r.message_id) + '\', this)" title="重新投递此消息">🔄 重发</button></td>';
               html += '</tr>';
             }
           }
