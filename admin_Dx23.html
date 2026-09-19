@@ -9650,7 +9650,7 @@
               html += '<td style="font-size:0.72rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(payloadStr) + '">' + escapeHtml(payloadStr) + '</td>';
               html += '<td style="font-size:0.72rem;font-family:monospace">' + escapeHtml(related) + '</td>';
               html += '<td style="font-size:0.62rem;white-space:nowrap">' + timeline + '</td>';
-              html += '<td><button class="btn btn-sm" style="padding:2px 8px;font-size:0.65rem" onclick="retrySingleMessage(\'' + escapeHtml(r.message_id) + '\', this)" title="重新投递此消息">🔄 重发</button></td>';
+              html += '<td><button type="button" class="btn btn-sm" style="padding:2px 8px;font-size:0.65rem" onclick="event.stopPropagation();retrySingleMessage(\'' + escapeHtml(r.message_id).replace(/'/g, "\\'") + '\', this)" title="重新投递此消息">🔄 重发</button></td>';
               html += '</tr>';
             }
           }
@@ -9664,7 +9664,7 @@
     }
 
     function retrySingleMessage(messageId, btn) {
-      if (!messageId) return;
+      if (!messageId) return false;
       if (btn) {
         btn.disabled = true;
         btn.textContent = '⏳ 投递中...';
@@ -9679,23 +9679,27 @@
         .then(function(data) {
           if (btn) {
             if (data.success && data.retried > 0) {
-              btn.textContent = '✅ 已重试';
+              btn.textContent = '✅ 已重发';
               btn.style.background = '#065f46';
               setTimeout(function() { loadDeliveryMessages(); }, 500);
             } else {
+              var reason = (data.results && data.results[0] && data.results[0].reason) || 'unknown';
               btn.textContent = '❌ 失败';
+              btn.title = reason;
               btn.disabled = false;
-              setTimeout(function() { btn.textContent = '🔄 重试'; }, 2000);
+              setTimeout(function() { btn.textContent = '🔄 重发'; btn.title = '重新投递此消息'; }, 3000);
             }
           }
         })
-        .catch(function() {
+        .catch(function(e) {
           if (btn) {
             btn.textContent = '❌ 网络错误';
+            btn.title = e.message;
             btn.disabled = false;
-            setTimeout(function() { btn.textContent = '🔄 重试'; }, 2000);
+            setTimeout(function() { btn.textContent = '🔄 重发'; btn.title = '重新投递此消息'; }, 3000);
           }
         });
+      return false;
     }
 
     function loadDeliveryStats() {
