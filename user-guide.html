@@ -88,6 +88,25 @@
     }
     .highlight-box strong { color: #c47a00; }
 
+    .warn-box {
+      background: #fff2f0;
+      border: 1px solid #ffa39e;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin: 12px 0;
+      font-size: 0.88rem;
+      color: #8b0000;
+    }
+    .warn-box strong { color: #cf1322; }
+
+    .prereq-step {
+      margin-bottom: 36px;
+      padding: 24px;
+      background: #fffbe6;
+      border-radius: 14px;
+      border-left: 4px solid #faad14;
+    }
+
     .code-box {
       background: #1a1a2e;
       color: #a5d6a7;
@@ -188,26 +207,45 @@
     <div class="header">
       <div class="icon">📱</div>
       <h1>用户激活手册</h1>
-      <p>从下载到手环激活，完整 4 步走</p>
+      <p>从下载到手环激活，完整 5 步走</p>
     </div>
 
-    <!-- Step 1 -->
+    <!-- Step 0: Prerequisites -->
+    <div class="prereq-step">
+      <div class="step-header">
+        <div class="step-num" style="background:#faad14">0</div>
+        <div class="step-title">前置准备（请确认以下条件）</div>
+      </div>
+      <div class="step-body">
+        <ul>
+          <li>一台 <strong>Android 手机</strong>（iPhone 不支持）</li>
+          <li>小米手环/手表已通过「小米运动健康」App 与手机 <strong>蓝牙配对成功</strong></li>
+        </ul>
+        <div class="warn-box">
+          <strong>⚠️ 注意：</strong>手环应用的安装和激活 <strong>必须使用 Android 手机</strong>，iPhone 用户请借用亲友的安卓手机完成。
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 1: Install Astrobox and EV课程表 -->
     <div class="step">
       <div class="step-header">
         <div class="step-num">1</div>
-        <div class="step-title">下载并安装手环 App</div>
+        <div class="step-title">安装 Astrobox，下载 EV课程表</div>
       </div>
       <div class="step-body">
-        <p>点击下方链接下载对应你机型的手环 App。首次打开会自动生成设备 ID（也叫设备码）。</p>
-        <p>
-          <a href="https://www.bandbbs.cn/resources/7778/" class="link-btn" target="_blank" rel="noopener">10 Pro 方屏</a>
-          <a href="https://www.bandbbs.cn/resources/7828/" class="link-btn secondary" target="_blank" rel="noopener">9 Pro 方屏</a>
-          <a href="https://www.bandbbs.cn/resources/7829/" class="link-btn secondary" target="_blank" rel="noopener">9 Pro 胶囊</a>
-          <a href="https://www.bandbbs.cn/resources/7830/" class="link-btn secondary" target="_blank" rel="noopener">S3/S4 圆屏</a>
-          <a href="https://www.bandbbs.cn/resources/7877/" class="link-btn secondary" target="_blank" rel="noopener">10 Pro 胶囊</a>
-        </p>
+        <p>手环应用不能直接下载安装，必须通过 <strong>Astrobox</strong> 推送到手环：</p>
+        <ol style="padding-left:18px;margin-bottom:10px">
+          <li>手机安装 Astrobox：
+            <br><a href="https://astrobox.online/downloads/" class="link-btn" target="_blank" rel="noopener">下载 Astrobox</a>
+          </li>
+          <li>打开 Astrobox → 搜索「<strong>EV课程表</strong>」</li>
+          <li>找到 EV课程表 → 点击「下载」，等待推送到手环</li>
+          <li>推送完成后在手环上打开</li>
+        </ol>
+        <p style="font-size:0.82rem;color:#888">对应机型版本：10 Pro 方屏 · 9 Pro 方屏 · 9 Pro 胶囊 · S3/S4 圆屏 · 10 Pro 胶囊（Astrobox 会自动识别匹配）</p>
         <div class="highlight-box">
-          <strong>💡 提示：</strong>设备 ID 是手环的唯一标识，用于区分不同设备，请妥善保管。
+          <strong>💡 提示：</strong>首次打开 EV课程表，首页会自动显示 <strong>设备 ID</strong>（也叫设备码），请记下这串字符，后续激活会用到。
         </div>
       </div>
     </div>
@@ -216,6 +254,19 @@
     <div class="step">
       <div class="step-header">
         <div class="step-num">2</div>
+        <div class="step-title">查看设备 ID</div>
+      </div>
+      <div class="step-body">
+        <p>手环上打开「EV课程表」→ 首页显示设备 ID：</p>
+        <div class="code-box">设备ID: xxxxxxxxxxxxxxxx</div>
+        <p>这串字符是手环的<strong>唯一标识</strong>，激活码绑定设备 ID，请妥善保管不要泄露。</p>
+      </div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-num">3</div>
         <div class="step-title">购买并获取兑换码</div>
       </div>
       <div class="step-body">
@@ -229,10 +280,10 @@
       </div>
     </div>
 
-    <!-- Step 3 -->
+    <!-- Step 4 -->
     <div class="step">
       <div class="step-header">
-        <div class="step-num">3</div>
+        <div class="step-num">4</div>
         <div class="step-title">在线兑换，获取激活码</div>
       </div>
       <div class="step-body">
@@ -243,7 +294,7 @@
         <p>页面会自动填入你的设备 ID（也可以手动输入），然后：</p>
         <ul>
           <li>确认<strong>设备 ID</strong> 与手环 App 上显示的一致</li>
-          <li>输入 Step 2 收到的 <strong>4 位兑换码</strong></li>
+          <li>输入 Step 3 收到的 <strong>4 位兑换码</strong></li>
           <li>点击「立即激活」</li>
         </ul>
         <div class="highlight-box">
@@ -252,10 +303,10 @@
       </div>
     </div>
 
-    <!-- Step 4 -->
+    <!-- Step 5 -->
     <div class="step">
       <div class="step-header">
-        <div class="step-num">4</div>
+        <div class="step-num">5</div>
         <div class="step-title">输入激活码到手环</div>
       </div>
       <div class="step-body">
@@ -272,6 +323,21 @@
     <div class="divider"></div>
 
     <h2 style="margin-bottom:20px;font-size:1.2rem;color:#1a1a2e;">常见问题</h2>
+
+    <div class="faq">
+      <div class="faq-q">我没有 Android 手机，可以用 iPhone 激活吗？</div>
+      <div class="faq-a">手环应用的安装必须通过 Astrobox（仅支持 Android）。激活码的在线兑换步骤可以用 iPhone 浏览器完成，但推送到手环仍需安卓手机。建议借用亲友的安卓手机操作一次即可。</div>
+    </div>
+
+    <div class="faq">
+      <div class="faq-q">Astrobox 是什么？在哪里下载？</div>
+      <div class="faq-a">Astrobox 是小米手环/手表的第三方应用管理工具，用于安装社区应用（.rpk 格式）。下载地址：<a href="https://astrobox.online/downloads/" target="_blank" rel="noopener">https://astrobox.online/downloads/</a>，也可在酷安搜索「Astrobox」下载。</div>
+    </div>
+
+    <div class="faq">
+      <div class="faq-q">在 Astrobox 里搜不到「EV课程表」怎么办？</div>
+      <div class="faq-a">请确认 Astrobox 是最新版本。如果仍搜不到，可以到米坛社区手动下载对应机型的 .rpk 文件，然后在 Astrobox 中通过「本地安装」导入。或加 QQ 群：936886288 获取帮助。</div>
+    </div>
 
     <div class="faq">
       <div class="faq-q">兑换码输入后提示「已使用」怎么办？</div>
