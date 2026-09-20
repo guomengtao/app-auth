@@ -1195,10 +1195,9 @@ def _build_weekly_data():
     today = datetime.now().date()
     monday = today - timedelta(days=today.weekday())
     sunday = monday + timedelta(days=6)
-    weekdays = [0, 0, 0, 0, 0, 0, 0]
     weekday_labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-    total_all = 0
-    total_week = 0
+    all_time = [0, 0, 0, 0, 0, 0, 0]
+    this_week = [0, 0, 0, 0, 0, 0, 0]
     for m in msgs:
         if m.get("type") != "new_order":
             continue
@@ -1206,15 +1205,17 @@ def _build_weekly_data():
         if len(t) >= 10:
             try:
                 dt = datetime.strptime(t[:10], "%Y-%m-%d").date()
-                total_all += 1
+                wd = dt.weekday()
+                all_time[wd] += 1
                 if monday <= dt <= sunday:
-                    wd = dt.weekday()
-                    weekdays[wd] += 1
-                    total_week += 1
+                    this_week[wd] += 1
             except Exception:
                 pass
-    print(f"[weekly] date range: {monday} ~ {sunday}, all orders: {total_all}, this week: {total_week}, by day: {weekdays}")
-    return weekday_labels, weekdays
+    total_all = sum(all_time)
+    total_week = sum(this_week)
+    print(f"[weekly] all-time by day: {dict(zip(weekday_labels, all_time))}, total={total_all}")
+    print(f"[weekly] this week by day: {dict(zip(weekday_labels, this_week))}, total={total_week}")
+    return weekday_labels, all_time, this_week
 
 
 def _build_activation_trend_data(days=30):
@@ -3332,9 +3333,10 @@ function lookupGeo(ip, btn) {
         hour_labels_js = json.dumps(hour_labels)
         hour_data_js = json.dumps(hour_data)
 
-        wday_labels, wday_data = _build_weekly_data()
+        wday_labels, wday_all_time, wday_this_week = _build_weekly_data()
         wday_labels_js = json.dumps(wday_labels)
-        wday_data_js = json.dumps(wday_data)
+        wday_all_js = json.dumps(wday_all_time)
+        wday_week_js = json.dumps(wday_this_week)
 
         stats_html = f"""
         <div class="stats-grid">
@@ -3426,20 +3428,30 @@ document.addEventListener('DOMContentLoaded',function(){{
       type:'bar',
       data:{{
         labels:{wday_labels_js},
-        datasets:[{{
-          label:'Orders per day',
-          data:{wday_data_js},
-          backgroundColor:['rgba(99,102,241,0.7)','rgba(99,102,241,0.7)','rgba(99,102,241,0.7)','rgba(99,102,241,0.7)','rgba(99,102,241,0.7)','rgba(249,115,22,0.7)','rgba(239,68,68,0.7)'],
-          borderColor:['rgba(99,102,241,1)','rgba(99,102,241,1)','rgba(99,102,241,1)','rgba(99,102,241,1)','rgba(99,102,241,1)','rgba(249,115,22,1)','rgba(239,68,68,1)'],
-          borderWidth:1,
-          borderRadius:4
-        }}]
+        datasets:[
+          {{
+            label:'All-time',
+            data:{wday_all_js},
+            backgroundColor:'rgba(99,102,241,0.35)',
+            borderColor:'rgba(99,102,241,0.6)',
+            borderWidth:1,
+            borderRadius:4
+          }},
+          {{
+            label:'This week',
+            data:{wday_week_js},
+            backgroundColor:['rgba(99,102,241,0.7)','rgba(99,102,241,0.7)','rgba(99,102,241,0.7)','rgba(99,102,241,0.7)','rgba(99,102,241,0.7)','rgba(249,115,22,0.7)','rgba(239,68,68,0.7)'],
+            borderColor:['rgba(99,102,241,1)','rgba(99,102,241,1)','rgba(99,102,241,1)','rgba(99,102,241,1)','rgba(99,102,241,1)','rgba(249,115,22,1)','rgba(239,68,68,1)'],
+            borderWidth:1,
+            borderRadius:4
+          }}
+        ]
       }},
       options:{{
         responsive:true,maintainAspectRatio:false,
         plugins:{{
-          title:{{display:true,text:'本周订单汇总 (Mon-Sun)',font:{{size:14,weight:'bold'}},padding:{{bottom:12}}}},
-          legend:{{display:false}}
+          title:{{display:true,text:'周订单汇总 (All-time + This Week)',font:{{size:14,weight:'bold'}},padding:{{bottom:12}}}},
+          legend:{{position:'top',labels:{{usePointStyle:true,pointStyleWidth:8,padding:16,font:{{size:11}}}}}}
         }},
         scales:{{
           y:{{beginAtZero:true,title:{{display:true,text:'Orders',font:{{size:11}}}},ticks:{{stepSize:1,font:{{size:10}}}},grid:{{color:'rgba(0,0,0,0.04)'}}}},
