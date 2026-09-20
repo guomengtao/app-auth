@@ -207,98 +207,74 @@
     <div class="header">
       <div class="icon">📱</div>
       <h1>用户激活手册</h1>
-      <p>从下载到手环激活，完整 5 步走</p>
+      <p>手环 App 内显示 3 个步骤，照着走就行</p>
     </div>
 
-    <!-- Step 1: Install Astrobox and EV课程表 -->
-    <div class="step">
+    <!-- Astrobox card -->
+    <div class="step" style="border-left-color:#c0c0c0; background:#fafafa;">
       <div class="step-header">
-        <div class="step-num">1</div>
-        <div class="step-title">安装 Astrobox，下载 EV课程表</div>
+        <div class="step-num" style="background:#888">⌚</div>
+        <div class="step-title" style="color:#666">安装 EV课程表到手环</div>
       </div>
       <div class="step-body">
-        <p>手环应用不能直接下载安装，必须通过 <strong>Astrobox</strong> 推送到手环：</p>
+        <p>首次使用需通过 <strong>Astrobox</strong> 推送到手环（只需操作一次）：</p>
         <ol style="padding-left:18px;margin-bottom:10px">
           <li>手机安装 Astrobox：
             <br><a href="https://astrobox.online/downloads/" class="link-btn" target="_blank" rel="noopener">下载 Astrobox</a>
           </li>
           <li>打开 Astrobox → 搜索「<strong>EV课程表</strong>」</li>
-          <li>找到 EV课程表 → 点击「下载」，等待推送到手环</li>
-          <li>推送完成后在手环上打开</li>
+          <li>点击「下载」，等待推送到手环</li>
         </ol>
-        <p style="font-size:0.82rem;color:#888">对应机型版本：10 Pro 方屏 · 9 Pro 方屏 · 9 Pro 胶囊 · S3/S4 圆屏 · 10 Pro 胶囊（Astrobox 会自动识别匹配）</p>
-        <div class="highlight-box">
-          <strong>💡 提示：</strong>首次打开 EV课程表，首页会自动显示 <strong>设备 ID</strong>（也叫设备码），请记下这串字符，后续激活会用到。
-        </div>
+        <p style="font-size:0.82rem;color:#888">支持机型：10 Pro · 9 Pro · 9 · S3/S4（方屏/胶囊/圆屏，Astrobox 自动匹配）</p>
       </div>
     </div>
 
-    <!-- Step 2 -->
+    <!-- Step 1: matches band app Step 1 -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-num">1</div>
+        <div class="step-title">购买高级版兑换码</div>
+      </div>
+      <div class="step-body">
+        <p>手环 App 内「高级版」→ 第 1 步会显示爱发电二维码，手机扫码完成赞助购买。</p>
+        <p>购买后邮箱会收到一个 <strong>4 位兑换码</strong>：</p>
+        <div class="code-box">兑换码示例：ABCD</div>
+        <p>如果没收到：检查邮件垃圾箱，或在爱发电私信作者。</p>
+      </div>
+    </div>
+
+    <!-- Step 2: matches band app Step 2 -->
     <div class="step">
       <div class="step-header">
         <div class="step-num">2</div>
-        <div class="step-title">查看设备 ID</div>
+        <div class="step-title">获取激活码</div>
       </div>
       <div class="step-body">
-        <p>手环上打开「EV课程表」→ 首页显示设备 ID：</p>
-        <div class="code-box">设备ID: xxxxxxxxxxxxxxxx</div>
-        <p>这串字符是手环的<strong>唯一标识</strong>，激活码绑定设备 ID，请妥善保管不要泄露。</p>
-      </div>
-    </div>
-
-    <!-- Step 3 -->
-    <div class="step">
-      <div class="step-header">
-        <div class="step-num">3</div>
-        <div class="step-title">购买并获取兑换码</div>
-      </div>
-      <div class="step-body">
-        <p>前往爱发电（或官方渠道）购买对应产品的赞助，完成后系统会自动发送一封邮件，里面包含一个 <strong>4 位兑换码</strong>。</p>
-        <div class="code-box">兑换码示例：ABCD</div>
-        <p>如果你已在爱发电完成赞助但没收到兑换码邮件，可以：</p>
-        <ul>
-          <li>检查邮件垃圾箱</li>
-          <li>或在爱发电私信作者手动获取</li>
-        </ul>
-      </div>
-    </div>
-
-    <!-- Step 4 -->
-    <div class="step">
-      <div class="step-header">
-        <div class="step-num">4</div>
-        <div class="step-title">在线兑换，获取激活码</div>
-      </div>
-      <div class="step-body">
-        <p>在手机浏览器或电脑上打开激活页面：</p>
-        <p>
-          <a href="/activate.html" class="link-btn">前往激活页面</a>
-        </p>
-        <p>页面会自动填入你的设备 ID（也可以手动输入），然后：</p>
-        <ul>
-          <li>确认<strong>设备 ID</strong> 与手环 App 上显示的一致</li>
-          <li>输入 Step 3 收到的 <strong>4 位兑换码</strong></li>
-          <li>点击「立即激活」</li>
-        </ul>
+        <p>手环 App 第 2 步会显示设备 ID 和一个二维码。</p>
+        <p><strong>手机扫码</strong>，浏览器会自动打开激活页面（已填入你的设备 ID）。</p>
+        <p>在页面中输入 Step 1 拿到的 <strong>4 位兑换码</strong>，点击激活，会生成一段 18 位激活码：</p>
+        <div class="code-box">激活码示例：012345678901234567</div>
         <div class="highlight-box">
-          <strong>⚠️ 注意：</strong>兑换成功后，兑换码作废，不可重复使用。如果换了新设备，请联系作者获取新的兑换码。
+          <strong>💡 提示：</strong>也可以手动打开 <code>/activate.html</code>，输入手环上显示的设备 ID 和兑换码。
         </div>
       </div>
     </div>
 
-    <!-- Step 5 -->
+    <!-- Step 3: matches band app Step 3 -->
     <div class="step">
       <div class="step-header">
-        <div class="step-num">5</div>
+        <div class="step-num">3</div>
         <div class="step-title">输入激活码到手环</div>
       </div>
       <div class="step-body">
-        <p>激活页面会显示一个 <strong>18 位激活码</strong>，把它复制下来：</p>
-        <div class="code-box">激活码示例：012345678901234567</div>
-        <p>打开手环 App → 找到「激活」或「授权」入口 → 粘贴或手动输入这 18 位码 → 确认。</p>
+        <p>回到手环 App 第 3 步，用数字键盘<strong>逐位输入 18 位激活码</strong>。</p>
+        <p>输入完成后点击「验证」。</p>
         <div class="success-box">
           <div class="check">✅</div>
-          <div class="msg">激活成功！手环已解锁完整功能</div>
+          <div class="msg">激活成功！手环升级为高级版</div>
+        </div>
+        <div class="highlight-box">
+          <strong>⚠️ 注意：</strong>每个兑换码只能激活一次。换新设备需联系作者重新获取。
         </div>
       </div>
     </div>
