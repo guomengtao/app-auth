@@ -466,14 +466,23 @@ def _run_and_ignore_timeout(cmd, timeout=5):
 _voice_queue = queue.Queue()
 
 def _voice_worker():
+    # try Chinese voices first, fall back to system default
+    voice_chain = ["Tingting", "Sinji", "Meijia", None]  # None = system default
     while True:
         text = _voice_queue.get()
         if text is None:
             break
-        try:
-            subprocess.run(["say", "-v", "Ting-Ting", text], timeout=30, capture_output=True)
-        except Exception:
-            pass
+        for voice in voice_chain:
+            try:
+                cmd = ["say"]
+                if voice:
+                    cmd.extend(["-v", voice])
+                cmd.append(text)
+                result = subprocess.run(cmd, timeout=30, capture_output=True)
+                if result.returncode == 0:
+                    break
+            except Exception:
+                continue
 
 _voice_thread = threading.Thread(target=_voice_worker, daemon=True)
 _voice_thread.start()
@@ -882,19 +891,12 @@ def handle_message(msg, skip_notify=False):
         if mtype == "new_order":
             u = p.get("user_name", "") or p.get("customer_name", "") or ""
             a = _normalize_amount(p.get("total_amount") or p.get("amount") or 0)
-            plan = p.get("plan_title", "") or p.get("product_name", "") or ""
-            city = p.get("city", "") or ""
-            parts = []
-            if plan:
-                voice_text = f"收到新订单：{plan}"
-            else:
-                voice_text = "收到新订单"
+            parts = ["新订单"]
             if u:
-                voice_text += f"，用户{u}"
+                parts.append(u)
             if a:
-                voice_text += f"，CNY{a:.2f}"
-            if city:
-                voice_text += f"，来自{city}"
+                parts.append(f"{a:.0f}元")
+            voice_text = "，".join(parts)
         elif mtype == "new_activation":
             prod = p.get("product_name", "") or f"Product #{p.get('product_id', '')}"
             months = p.get("months", "")
@@ -3876,7 +3878,7 @@ document.addEventListener('DOMContentLoaded',function(){{
         elif ntype == "sound":
             threading.Thread(target=lambda: _run_and_ignore_timeout(["afplay", "/System/Library/Sounds/Ping.aiff"], timeout=2), daemon=True).start()
         elif ntype == "voice":
-            threading.Thread(target=lambda: _run_and_ignore_timeout(["say", "-v", "Ting-Ting", "语音播报功能正常，这是一条中文语音测试"]), daemon=True).start()
+            threading.Thread(target=lambda: _run_and_ignore_timeout(["say", "-v", "Tingting", "语音播报功能正常，这是一条中文语音测试"]), daemon=True).start()
         _debug_log(f"test_notify: {ntype}")
 
     def _html_settings(self):
@@ -4229,12 +4231,22 @@ class EvNotifier(rumps.App):
         ensure_auto_start()
         self.menu.add(self._version_menu())
         try:
-            from AppKit import NSApp, NSApplicationActivationPolicyAccessory
-            NSApp.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
+            self.menu.add(rumps.separator)
+        except Exception:
+            pass
+        restart_menu = rumps.MenuItem("重启")
+        restart_menu.add(rumps.MenuItem("重启 VS Code", callback=self.restart_vscode))
+        restart_menu.add(rumps.MenuItem("重启 AIOT IDE", callback=self.restart_aiot_ide))
+        restart_menu.add(rumps.separator)
+        restart_menu.add(rumps.MenuItem("重启 Ev Notifier", callback=self.restart_self))
+        self.menu.add(restart_menu)
+        try:
+            self.menu.add(rumps.separator)
         except Exception:
             pass
         try:
-            self.menu.add(rumps.separator)
+            from AppKit import NSApp, NSApplicationActivationPolicyAccessory
+            NSApp.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
         except Exception:
             pass
 
@@ -4245,10 +4257,32 @@ class EvNotifier(rumps.App):
         from AppKit import NSApp
         NSApp.terminate_(None)
 
-    @rumps.clicked("重启")
-    def restart_app(self, _):
+    def restart_self(self, _):
         import sys, os
         os.execv(sys.executable, [sys.executable] + sys.argv)
+
+    def restart_vscode(self, _):
+        threading.Thread(target=self._do_force_restart,
+                         args=("Visual Studio Code", "Visual Studio Code"),
+                         daemon=True).start()
+
+    def restart_aiot_ide(self, _):
+        threading.Thread(target=self._do_force_restart,
+                         args=("AIOT IDE", "AIOT IDE"),
+                         daemon=True).start()
+
+    def _do_force_restart(self, app_name, open_target):
+        subprocess.run(["osascript", "-e",
+                        f'tell application "{app_name}" to quit'],
+                       capture_output=True)
+        time.sleep(1)
+        subprocess.run(["pkill", "-9", "-i", app_name],
+                       capture_output=True)
+        time.sleep(5)
+        subprocess.run(["open", "-a", open_target],
+                       capture_output=True)
+        rumps.notification("Ev Notifier", f"{app_name} restarted", "",
+                           sound=False)
 
     def _version_menu(self):
         menu = rumps.MenuItem(f"版本: {VERSION}")

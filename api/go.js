@@ -23,6 +23,8 @@
 //   200 OK (302 redirect)
 
 var redis = require("../lib/redis");
+var md = null;
+try { md = require("../lib/message-delivery"); } catch(e) { console.log("[go] message-delivery not available"); }
 
 // --- helpers ---------------------------------------------------------------
 
@@ -105,9 +107,39 @@ async function pushPurchaseClick(entry, record, ts, dateKey) {
     console.log("[go:stream] no Upstash config, skip purchase_click push");
     return;
   }
+  var msgId = null;
+  if (md) {
+    try {
+      msgId = await md.createMessageDelivery({
+        messageType: "purchase_click",
+        payload: {
+          slug: record.slug,
+          name_zh: entry.name_zh || "",
+          name_en: entry.name_en || "",
+          target_url: entry.target_url || "",
+          ip: record.ip,
+          country: record.c,
+          region: record.rg,
+          city: record.ci,
+          referrer: record.r,
+          user_agent: record.u,
+          utm_source: record.utm_source,
+          utm_medium: record.utm_medium,
+          utm_campaign: record.utm_campaign,
+          visitor_hash: record.v,
+          date: dateKey
+        },
+        source: "go-link",
+        channel: "auth:push_channel"
+      });
+    } catch (e) {
+      console.error("[go] createMessageDelivery failed:", e.message);
+    }
+  }
   var msg = {
     ts: Math.floor(ts / 1000),
     type: "purchase_click",
+    messageId: msgId || "",
     payload: {
       slug: record.slug,
       name_zh: entry.name_zh || "",
@@ -139,6 +171,9 @@ async function pushPurchaseClick(entry, record, ts, dateKey) {
     });
     clearTimeout(timer);
     console.log("[go:stream] XADD:", r.status);
+    if (r.ok && msgId && md) {
+      try { await md.markPublished(msgId); } catch(e) { console.error("[go] markPublished failed:", e.message); }
+    }
     var pubUrl = baseUrl + "/publish/auth:push_channel/" + encodeURIComponent(dataStr);
     var controller2 = new AbortController();
     var timer2 = setTimeout(function() { controller2.abort(); }, 3000);

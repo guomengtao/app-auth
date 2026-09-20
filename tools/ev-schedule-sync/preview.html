@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>EV 课程表同步器 | AstroBox 插件预览</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0f;color:#e0e0e0;max-width:420px;margin:0 auto;min-height:100vh;overflow-x:hidden}
+.header{background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);padding:28px 20px 24px;border-bottom:1px solid #2a2a40}
+.header h1{font-size:22px;font-weight:700;color:#fff;margin-bottom:6px}
+.header .sub{font-size:13px;color:#888;font-weight:400}
+.card{background:#14141f;margin:12px 16px;border-radius:14px;border:1px solid #222;overflow:hidden}
+.card-header{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid #1e1e2c;cursor:pointer}
+.card-header .icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.card-header .info{flex:1}
+.card-header .title{font-size:15px;font-weight:600;color:#fff}
+.card-header .desc{font-size:12px;color:#666;margin-top:2px}
+.icon-import{background:rgba(33,150,243,.15);color:#2196F3}
+.icon-school{background:rgba(76,175,80,.15);color:#4CAF50}
+.icon-export{background:rgba(255,152,0,.15);color:#FF9800}
+.arrow{color:#444;font-size:14px}
+
+.screen{display:none;padding:0 16px 20px}
+.screen.active{display:block}
+.screen-title{font-size:18px;font-weight:700;color:#fff;padding:20px 0 12px}
+.back-row{display:flex;align-items:center;gap:8px;color:#2196F3;font-size:14px;padding:16px 0 0;cursor:pointer}
+.back-row:hover{color:#64B5F6}
+
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:13px;color:#999;margin-bottom:6px}
+.form-group input,.form-group select{width:100%;padding:12px;background:#1a1a2a;border:1px solid #333;border-radius:10px;color:#fff;font-size:14px;outline:none}
+.form-group select{appearance:none}
+.form-group input:focus,.form-group select:focus{border-color:#2196F3}
+
+.course-item{display:flex;align-items:center;gap:12px;padding:14px;background:#1a1a2a;border-radius:10px;margin-bottom:8px;border-left:4px solid #2196F3}
+.course-item .dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.course-item .ci-info{flex:1}
+.course-item .ci-name{font-size:14px;font-weight:600;color:#fff}
+.course-item .ci-meta{font-size:12px;color:#777;margin-top:3px}
+.course-count{font-size:13px;color:#4CAF50;padding:8px 0}
+
+.btn{display:block;width:100%;padding:14px;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;text-align:center;margin-bottom:10px;transition:all .2s}
+.btn-primary{background:#2196F3;color:#fff}
+.btn-primary:hover{background:#1976D2}
+.btn-secondary{background:#2a2a3a;color:#aaa}
+.btn-secondary:hover{background:#333}
+.btn-success{background:#4CAF50;color:#fff}
+.btn-danger{background:rgba(244,67,54,.2);color:#F44336}
+
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-sg{background:rgba(33,150,243,.15);color:#2196F3}
+.badge-wu{background:rgba(156,39,176,.15);color:#9C27B0}
+.badge-sl{background:rgba(76,175,80,.15);color:#4CAF50}
+.badge-cses{background:rgba(255,152,0,.15);color:#FF9800}
+.badge-ev{background:rgba(244,67,54,.15);color:#F44336}
+
+.result-box{background:#1a2a1a;border:1px solid #2d5a2d;border-radius:12px;padding:16px;margin:16px 0}
+.result-box .check{color:#4CAF50;font-size:24px}
+
+.file-zone{border:2px dashed #333;border-radius:14px;padding:40px 20px;text-align:center;cursor:pointer;margin:16px 0;transition:all .2s}
+.file-zone:hover{border-color:#2196F3;background:rgba(33,150,243,.05)}
+.file-zone .icon-big{font-size:40px;margin-bottom:10px}
+.file-zone .text{font-size:14px;color:#888}
+.file-zone .hint{font-size:11px;color:#555;margin-top:6px}
+.file-selected{background:rgba(76,175,80,.08);border-color:#4CAF50}
+</style>
+</head>
+<body>
+
+<!-- ==================== 主页 ==================== -->
+<div id="page-main" class="screen active">
+  <div class="header">
+    <h1>EV 课程表同步器</h1>
+    <div class="sub">导入 / 导出 课程表</div>
+  </div>
+
+  <div class="card" onclick="goTo('import')">
+    <div class="card-header">
+      <div class="icon icon-import">📥</div>
+      <div class="info">
+        <div class="title">从文件导入</div>
+        <div class="desc">JSON / WakeUp / sgschedule / StarLink / CSES</div>
+      </div>
+      <div class="arrow">›</div>
+    </div>
+  </div>
+
+  <div class="card" onclick="goTo('school')">
+    <div class="card-header">
+      <div class="icon icon-school">🏫</div>
+      <div class="info">
+        <div class="title">从教务系统导入</div>
+        <div class="desc">自动从学校教务系统获取课程表</div>
+      </div>
+      <div class="arrow">›</div>
+    </div>
+  </div>
+
+  <div class="card" onclick="goTo('export')">
+    <div class="card-header">
+      <div class="icon icon-export">📤</div>
+      <div class="info">
+        <div class="title">导出课程表</div>
+        <div class="desc">导出为 EV 课程表 / sgschedule 格式</div>
+      </div>
+      <div class="arrow">›</div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 导入页 ==================== -->
+<div id="page-import" class="screen">
+  <div class="back-row" onclick="goTo('main')">‹ 返回</div>
+  <div class="screen-title">导入课程表</div>
+  
+  <div id="detected-format" style="display:none">
+    <div style="font-size:13px;color:#888;margin-bottom:4px">检测到的格式：</div>
+    <span id="format-badge" class="badge" style="margin-bottom:12px"></span>
+  </div>
+
+  <div class="file-zone" id="file-zone" onclick="simulateImport()">
+    <div class="icon-big">📂</div>
+    <div class="text">点击选择课程表文件</div>
+    <div class="hint">支持：JSON、WakeUp、sgschedule、StarLink、CSES</div>
+  </div>
+
+  <div class="form-group">
+    <label>目标课程表名称</label>
+    <input type="text" id="schedule-name" placeholder="例如：2026年春季学期">
+  </div>
+
+  <div class="form-group">
+    <label>导入模式</label>
+    <select>
+      <option>创建新课程表</option>
+      <option>合并到已有课程表</option>
+    </select>
+  </div>
+
+  <div id="course-preview" style="display:none">
+    <div class="course-count" id="course-count"></div>
+    <div id="course-list"></div>
+  </div>
+
+  <button class="btn btn-primary" onclick="simulateImportRun()">导入到 Band</button>
+  <button class="btn btn-secondary" onclick="goTo('main')">取消</button>
+</div>
+
+<!-- ==================== 教务导入页 ==================== -->
+<div id="page-school" class="screen">
+  <div class="back-row" onclick="goTo('main')">‹ 返回</div>
+  <div class="screen-title">教务系统导入</div>
+
+  <div class="form-group">
+    <label>学校</label>
+    <select>
+      <option>选择你的学校...</option>
+      <option>北京大学</option>
+      <option>清华大学</option>
+      <option>浙江大学</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label>学号</label>
+    <input type="text" placeholder="输入学号">
+  </div>
+
+  <div class="form-group">
+    <label>密码</label>
+    <input type="password" placeholder="教务系统密码">
+  </div>
+
+  <button class="btn btn-primary" onclick="alert('教务系统导入需要 AstroBox Host Transport API，在 AstroBox 运行时内可用。')">登录并拉取</button>
+  <button class="btn btn-secondary" onclick="goTo('main')">取消</button>
+</div>
+
+<!-- ==================== 导出页 ==================== -->
+<div id="page-export" class="screen">
+  <div class="back-row" onclick="goTo('main')">‹ 返回</div>
+  <div class="screen-title">导出课程表</div>
+
+  <div class="form-group">
+    <label>导出格式</label>
+    <select id="export-format" onchange="updateExportPreview()">
+      <option value="evschedule">EV 课程表 (.json)</option>
+      <option value="sgschedule">sgschedule / 时光 (.json)</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label>学期开始日期</label>
+    <input type="date" value="2026-03-02">
+  </div>
+
+  <div class="form-group">
+    <label>总周数</label>
+    <input type="number" value="20" min="1" max="30">
+  </div>
+
+  <button class="btn btn-primary" onclick="simulateExport()">导出</button>
+  <button class="btn btn-secondary" onclick="goTo('main')">取消</button>
+</div>
+
+<!-- ==================== 结果页 ==================== -->
+<div id="page-result" class="screen">
+  <div class="back-row" onclick="goTo('main')">‹ 返回</div>
+  <div class="screen-title">导入成功</div>
+
+  <div class="result-box">
+    <div class="check">✅</div>
+    <div style="font-size:15px;font-weight:600;color:#fff;margin-top:8px" id="result-summary"></div>
+    <div style="font-size:13px;color:#888;margin-top:4px" id="result-format"></div>
+  </div>
+
+  <div id="result-course-list"></div>
+
+  <button class="btn btn-success" onclick="alert('已推送到 Band！（需要 AstroBox 互联 API）')">推送到 Band</button>
+  <button class="btn btn-secondary" onclick="goTo('main')">返回主页</button>
+</div>
+
+<!-- ==================== 错误页 ==================== -->
+<div id="page-error" class="screen">
+  <div class="back-row" onclick="goTo('main')">‹ 返回</div>
+  <div class="screen-title" style="color:#F44336">导入失败</div>
+  <div id="error-msg" style="color:#aaa;font-size:14px;line-height:1.6"></div>
+  <div style="margin-top:20px">
+    <button class="btn btn-primary" onclick="goTo('import')">重试</button>
+    <button class="btn btn-secondary" onclick="goTo('main')">返回主页</button>
+  </div>
+</div>
+
+<script>
+// ===== 演示数据 =====
+const SAMPLES = [
+  {
+    name: '高等数学', teacher: '张教授',
+    location: 'A楼101', day: 1, start: '08:00', end: '09:40',
+    weeks: 16, type: '全部', color: '#2196F3', format: 'sgschedule'
+  },
+  {
+    name: '大学英语', teacher: '李教授',
+    location: 'B楼205', day: 2, start: '10:05', end: '10:50',
+    weeks: 8, type: '全部', color: '#E91E63', format: 'sgschedule'
+  },
+  {
+    name: '线性代数', teacher: '王教授',
+    location: '数学楼301', day: 3, start: '14:00', end: '15:40',
+    weeks: 16, type: '全部', color: '#9C27B0', format: 'wakeup'
+  },
+  {
+    name: '物理实验', teacher: '陈教授',
+    location: '物理实验室102', day: 5, start: '08:00', end: '10:30',
+    weeks: 6, type: '单周', color: '#673AB7', format: 'wakeup'
+  },
+  {
+    name: '数据结构', teacher: '刘教授',
+    location: '计算机楼201', day: 4, start: '08:00', end: '09:40',
+    weeks: 16, type: '全部', color: '#4CAF50', format: 'starlink'
+  },
+  {
+    name: '数据库系统', teacher: '黄教授',
+    location: '计算机实验室305', day: 3, start: '10:05', end: '11:40',
+    weeks: 16, type: '全部', color: '#FF9800', format: 'cses'
+  },
+  {
+    name: '操作系统', teacher: '赵教授',
+    location: '计算机楼401', day: 2, start: '14:00', end: '15:40',
+    weeks: 16, type: '全部', color: '#FF5722', format: 'evschedule'
+  }
+];
+
+const FORMAT_COLORS = {sgschedule:'sg',wakeup:'wu',starlink:'sl',cses:'cses',evschedule:'ev'};
+const FORMAT_NAMES = {sgschedule:'sgschedule（时光）',wakeup:'WakeUp',starlink:'StarLink',cses:'CSES',evschedule:'EV 课程表'};
+
+function goTo(page) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+function simulateImport() {
+  var zone = document.getElementById('file-zone');
+  zone.classList.add('file-selected');
+  zone.innerHTML = '<div class="icon-big">✅</div><div class="text" style="color:#fff">已选择 schedule_sample.json</div><div class="hint">从 5 种格式中检测到 7 门课程</div>';
+
+  document.getElementById('detected-format').style.display = 'block';
+  var badge = document.getElementById('format-badge');
+  badge.textContent = 'sgschedule（时光课程表）';
+  badge.className = 'badge badge-sg';
+
+  var preview = document.getElementById('course-preview');
+  preview.style.display = 'block';
+  document.getElementById('course-count').textContent = '待导入 7 门课程：';
+  var list = document.getElementById('course-list');
+  list.innerHTML = '';
+  SAMPLES.forEach(function(c) {
+    list.innerHTML += '<div class="course-item">' +
+      '<div class="dot" style="background:' + c.color + '"></div>' +
+      '<div class="ci-info">' +
+        '<div class="ci-name">' + c.name + '</div>' +
+        '<div class="ci-meta">周' + c.day + ' ' + c.start + '-' + c.end + ' | ' + c.location + ' | ' + c.weeks + '周 | ' + c.type + ' | <span class="badge badge-' + FORMAT_COLORS[c.format] + '">' + c.format + '</span></div>' +
+      '</div>' +
+    '</div>';
+  });
+}
+
+function simulateImportRun() {
+  var list = document.getElementById('result-course-list');
+  list.innerHTML = '';
+  SAMPLES.forEach(function(c) {
+    list.innerHTML += '<div class="course-item">' +
+      '<div class="dot" style="background:' + c.color + '"></div>' +
+      '<div class="ci-info">' +
+        '<div class="ci-name">' + c.name + '</div>' +
+        '<div class="ci-meta">周' + c.day + ' ' + c.start + '-' + c.end + ' | ' + c.location + ' | ' + c.teacher + '</div>' +
+      '</div>' +
+    '</div>';
+  });
+  document.getElementById('result-summary').textContent = '成功导入 7 门课程';
+  document.getElementById('result-format').textContent = '来源格式：sgschedule（时光课程表）';
+  goTo('result');
+}
+
+function simulateExport() {
+  var fmt = document.getElementById('export-format').value;
+  var name = fmt === 'evschedule' ? 'EV 课程表 (.json)' : 'sgschedule (.json)';
+  alert('已导出 ' + name + '\n\n成功导出 7 门课程。\n\n文件名: schedule_export_' + fmt + '.json');
+}
+
+function updateExportPreview() {}
+</script>
+</body>
+</html>

@@ -26,28 +26,26 @@
 ## 4. 开发完成通知（必须执行）
 
 每次开发任务完成后，**必须同时执行**弹窗通知 + 语音播报，不可跳过。
+详见 [mac_notification.md](.trae/rules/mac_notification.md)。
 
-### 4.1 macOS 弹窗通知
+### 4.1 完整命令模板
 
-- **每次开发完成必须弹窗**，不允许跳过
-- 不要在对话内提示（用户切换 tab 后看不到）
-- **通用文案**（标准化）：
-  ```bash
-  osascript -e 'display dialog "开发任务已完成，请查看结果。" buttons {"知道了"} default button "知道了" with icon note'
-  ```
+```bash
+osascript -e 'display notification "简述本次改动" with title "app-auth · 已改好"' ; say -v Tingting "简述本次改动"
+```
 
-### 4.2 语音播报
+- 弹窗用 `display notification`（通知中心），不用 `display dialog`（阻塞弹窗）
+- 语音用 `say -v Tingting`（中文普通话）
+- 中间用 `;` 连接：即使弹窗失败，语音也会播放
 
-- **每次开发完成必须语音播报**，使用 macOS `say` 命令
-- 播报内容用中文，简要说明完成了什么
-- 示例：
-  ```bash
-  say "开发任务已完成，请查看结果"
-  ```
+### 4.2 每次对话结束时
 
-### 4.3 执行顺序
+替换命令中的三处文案：
+1. 弹窗正文 → `display notification "..."` 内
+2. 弹窗标题 → `with title "..."` 内
+3. 语音文本 → `say -v Tingting "..."` 内
 
-先弹窗，再语音播报。每次对话结束（开发任务完成）都必须执行这两个步骤。
+先弹窗，再语音播报，两个命令都要执行。
 
 ## 5. 代码规范
 
