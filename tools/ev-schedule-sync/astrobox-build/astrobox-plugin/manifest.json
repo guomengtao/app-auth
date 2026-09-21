@@ -1,13 +1,13 @@
 {
   "name": "EV 课程表同步器",
   "icon": "icon.png",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "导入导出课程表 - 支持 WakeUp、sgschedule、StarLink、CSES、EV 课程表格式",
   "author": "EV Team",
   "website": "https://github.com/guomengtao/app-auth",
   "entry": "ev-schedule-sync.wasm",
   "wasi_version": 2,
-  "api_level": 3,
+  "api_level": 1,
   "permissions": [
     "network",
     "fs"
