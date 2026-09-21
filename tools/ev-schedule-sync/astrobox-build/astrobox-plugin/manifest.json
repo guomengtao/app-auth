@@ -7,7 +7,7 @@
   "website": "https://github.com/guomengtao/app-auth",
   "entry": "ev-schedule-sync.wasm",
   "wasi_version": 2,
-  "api_level": 3,
+  "api_level": 1,
   "permissions": ["network", "fs"],
   "additional_files": []
 }
