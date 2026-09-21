@@ -4,6 +4,64 @@ var { validateRedeemCode, validateDeviceId } = require("../lib/validate");
 var quota = require("../lib/quota");
 var rateLimit = require("../lib/rate-limit");
 var notify = require("../lib/notify");
+var CITY_ZH_MAP = {
+  "Beijing": "北京", "Shanghai": "上海", "Guangzhou": "广州",
+  "Shenzhen": "深圳", "Hangzhou": "杭州", "Chengdu": "成都",
+  "Wuhan": "武汉", "Nanjing": "南京", "Zibo": "淄博",
+  "Qingdao": "青岛", "Jinan": "济南", "Tianjin": "天津",
+  "Chongqing": "重庆", "Suzhou": "苏州", "Xian": "西安",
+  "Changsha": "长沙", "Zhengzhou": "郑州", "Dalian": "大连",
+  "Xiamen": "厦门", "Fuzhou": "福州", "Kunming": "昆明",
+  "Hefei": "合肥", "Shenyang": "沈阳", "Dongguan": "东莞",
+  "Wuxi": "无锡", "Ningbo": "宁波", "Foshan": "佛山",
+  "Harbin": "哈尔滨", "Shijiazhuang": "石家庄", "Nanchang": "南昌",
+  "Taiyuan": "太原", "Guiyang": "贵阳", "Lanzhou": "兰州",
+  "Hohhot": "呼和浩特", "Urumqi": "乌鲁木齐", "Lhasa": "拉萨",
+  "Yinchuan": "银川", "Xining": "西宁", "Haikou": "海口",
+  "Zhuhai": "珠海", "Zhongshan": "中山", "Huizhou": "惠州",
+  "Yangzhou": "扬州", "Wenzhou": "温州", "Nantong": "南通",
+  "Luoyang": "洛阳", "Weifang": "潍坊", "Yantai": "烟台",
+  "Quanzhou": "泉州", "Shaoxing": "绍兴", "Jiaxing": "嘉兴",
+};
+
+var REGION_ZH_MAP = {
+  "Beijing": "北京", "Shanghai": "上海", "Tianjin": "天津",
+  "Chongqing": "重庆", "Shandong": "山东", "Guangdong": "广东",
+  "Zhejiang": "浙江", "Jiangsu": "江苏", "Sichuan": "四川",
+  "Hubei": "湖北", "Fujian": "福建", "Hunan": "湖南",
+  "Henan": "河南", "Hebei": "河北", "Liaoning": "辽宁",
+  "Shaanxi": "陕西", "Yunnan": "云南", "Anhui": "安徽",
+  "Jiangxi": "江西", "Guangxi": "广西", "Shanxi": "山西",
+  "Guizhou": "贵州", "Hainan": "海南", "Jilin": "吉林",
+  "Heilongjiang": "黑龙江", "Gansu": "甘肃", "Xinjiang": "新疆",
+  "Inner Mongolia": "内蒙古", "Ningxia": "宁夏", "Qinghai": "青海",
+  "Tibet": "西藏", "Hong Kong": "香港", "Macau": "澳门", "Taiwan": "台湾",
+};
+
+function resolveChineseCity(cityEn, regionEn) {
+  var cityZh = CITY_ZH_MAP[cityEn] || "";
+  var regionZh = REGION_ZH_MAP[regionEn] || "";
+  if (cityZh) {
+    return regionZh && regionZh !== cityZh ? regionZh + " " + cityZh : cityZh;
+  }
+  if (regionZh) {
+    return cityEn ? regionZh + " " + cityEn : regionZh;
+  }
+  return cityEn || "";
+}
+
+function getGeoFields(req) {
+  var country = String(req.headers["x-vercel-ip-country"] || "").slice(0, 8);
+  var region = String(req.headers["x-vercel-ip-country-region"] || "").slice(0, 16);
+  var city = String(req.headers["x-vercel-ip-city"] || "").slice(0, 40);
+  var cityZh = resolveChineseCity(city, region);
+  return {
+    country: country,
+    region: region,
+    city: city,
+    city_zh: cityZh,
+  };
+}
 
 var VISITOR_TTL = 7 * 24 * 60 * 60;
 
@@ -161,6 +219,7 @@ module.exports = async (req, res) => {
   var rawRedeemCode = body.redeemCode;
   var deviceInfo = body.deviceInfo || null;
   var visitorInfo = notify.collectRequestInfo(req);
+  var geo = getGeoFields(req);
 
   var ipCheck = await rateLimit.checkIpRateLimit(req);
   if (ipCheck.blocked) {
@@ -527,9 +586,10 @@ module.exports = async (req, res) => {
       visitor_info: visitorInfo || {},
       device_info: deviceInfo || {},
       device_model: (deviceInfo && (deviceInfo.model || deviceInfo.product)) || "",
-      country: String(req.headers["x-vercel-ip-country"] || "").slice(0, 8),
-      region: String(req.headers["x-vercel-ip-country-region"] || "").slice(0, 16),
-      city: String(req.headers["x-vercel-ip-city"] || "").slice(0, 40),
+      country: geo.country,
+      region: geo.region,
+      city: geo.city,
+      city_zh: geo.city_zh,
     }).catch(function (e) {
       console.error("[activate] Push notification failed:", e.message);
     });

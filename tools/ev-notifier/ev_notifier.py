@@ -1,4 +1,4 @@
-"""Ev Notifier v2.3.5 - PUB/SUB broadcast, zero polling, auto-restart, error logging"""
+"""Ev Notifier - PUB/SUB broadcast, zero polling, auto-restart, error logging"""
 import atexit, json, os, queue, re, shutil, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib
 from datetime import datetime, timedelta
 
@@ -7,7 +7,15 @@ try:
 except ImportError:
     redis = None
 
-VERSION = "v2.3.5"
+def _load_version():
+    try:
+        _vf = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.json")
+        with open(_vf, "r") as f:
+            return "v" + json.load(f)["version"]
+    except Exception:
+        return "v0.0.0"
+
+VERSION = _load_version()
 
 # Delivery callback configuration
 CALLBACK_BASE_URL = "https://app-auth.gudq.com"
@@ -159,7 +167,7 @@ def load_notify_settings():
         with open(NOTIFY_SETTINGS_FILE, "r") as f:
             return json.load(f)
     except Exception:
-        return {"popup": True, "sound": True, "voice": True}
+        return {"popup": True, "sound": True, "voice": True, "visitor_voice": True}
 
 
 def save_notify_settings(settings):
@@ -887,7 +895,9 @@ def handle_message(msg, skip_notify=False):
     else:
         nsettings = load_notify_settings()
 
-    if nsettings.get("voice", True) and mtype != "page_visit" and not skip_notify:
+    if nsettings.get("voice", True) and not skip_notify and (
+        mtype != "page_visit" or nsettings.get("visitor_voice", True)
+    ):
         if mtype == "new_order":
             u = p.get("user_name", "") or p.get("customer_name", "") or ""
             a = _normalize_amount(p.get("total_amount") or p.get("amount") or 0)
@@ -944,6 +954,16 @@ def handle_message(msg, skip_notify=False):
                 voice_text = f"收到购买点击，{name_zh}" if name_zh else "收到购买点击"
                 if city:
                     voice_text += f"，来自{city}"
+        elif mtype == "page_visit":
+            page = p.get("page", "") or p.get("title", "") or ""
+            city = p.get("city", "") or ""
+            region = p.get("region", "") or ""
+            geo_str = city or region or ""
+            page_cn = _page_name_cn(page)
+            if geo_str:
+                voice_text = f"{geo_str}用户访问{page_cn}"
+            else:
+                voice_text = f"访问{page_cn}"
         elif mtype == "test_curl":
             voice_text = "收到测试消息"
         else:
@@ -1080,6 +1100,27 @@ def _format_message_detail(m):
         detail = p.get("name_zh", "") or p.get("slug", "")
         type_label = "购买"
     return type_label, detail
+
+
+def _page_name_cn(page):
+    if not page:
+        return "未知页面"
+    page_lower = page.lower().rstrip("/")
+    if page_lower in ("/", "/index", "/index.html", "/index.htm", "/home", "/home.html"):
+        return "首页"
+    if "activate" in page_lower:
+        return "激活页面"
+    if "download" in page_lower:
+        return "下载页面"
+    if "/go/" in page_lower:
+        slug = page_lower.split("/go/")[-1].split("?")[0].split("/")[0]
+        return f"{slug}页面"
+    path = page_lower.split("?")[0]
+    name = path.rsplit("/", 1)[-1] or path
+    name = name.replace(".html", "").replace(".htm", "").replace("-", " ").replace("_", " ")
+    if name and name != "/":
+        return name + "页面"
+    return page
 
 
 def _normalize_amount(amount_raw):
@@ -3878,7 +3919,9 @@ document.addEventListener('DOMContentLoaded',function(){{
         elif ntype == "sound":
             threading.Thread(target=lambda: _run_and_ignore_timeout(["afplay", "/System/Library/Sounds/Ping.aiff"], timeout=2), daemon=True).start()
         elif ntype == "voice":
-            threading.Thread(target=lambda: _run_and_ignore_timeout(["say", "-v", "Tingting", "语音播报功能正常，这是一条中文语音测试"]), daemon=True).start()
+            enqueue_voice("语音播报功能正常，这是一条中文语音测试")
+        elif ntype == "visitor_voice":
+            enqueue_voice("北京市朝阳区用户访问激活页面")
         _debug_log(f"test_notify: {ntype}")
 
     def _html_settings(self):
@@ -3909,6 +3952,10 @@ document.addEventListener('DOMContentLoaded',function(){{
         voice_color = "var(--green)" if voice_on else "var(--text-tertiary)"
         voice_label = "ON" if voice_on else "OFF"
         voice_url = "ev://setting=voice"
+        visitor_voice_on = nsettings.get("visitor_voice", True)
+        visitor_voice_color = "var(--green)" if visitor_voice_on else "var(--text-tertiary)"
+        visitor_voice_label = "ON" if visitor_voice_on else "OFF"
+        visitor_voice_url = "ev://setting=visitor_voice"
 
         body = f"""
         <div class="settings-group">
@@ -3946,6 +3993,17 @@ document.addEventListener('DOMContentLoaded',function(){{
                   <span style="font-size:11px;font-weight:600;color:{voice_color};">{voice_label}</span>
                   <a class="btn" href="{voice_url}">切换</a>
                   <a class="btn" href="ev://test-notify=voice" style="background:#3b82f6;color:#fff;border-color:#3b82f6;">测试</a>
+                </div>
+              </div>
+              <div class="settings-row">
+                <div>
+                  <div class="settings-row-label">访客访问语音播报</div>
+                  <div class="settings-row-desc">有用户访问网站时用中文语音播报</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <span style="font-size:11px;font-weight:600;color:{visitor_voice_color};">{visitor_voice_label}</span>
+                  <a class="btn" href="{visitor_voice_url}">切换</a>
+                  <a class="btn" href="ev://test-notify=visitor_voice" style="background:#3b82f6;color:#fff;border-color:#3b82f6;">测试</a>
                 </div>
               </div>
             </div>

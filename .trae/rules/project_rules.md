@@ -1,16 +1,53 @@
 # 项目规则
 
 > 汇总自所有 `.trae/rules/*.md` 和用户自定义规则。
-> 最后更新：2026-09-17
+> 最后更新：2026-09-21
 
 ---
 
-## 1. 版本管理
+## 1. 版本管理（多组件）
 
-- **格式**：`x.y.z`，每次 push +1（patch 位递增）
-- **位置**：`package.json` + `version.json`，两边同步更新
+项目包含多个独立组件，每个组件有自己的版本号，统一采用 `major.minor.patch` 语义化版本。
+
+### 1.1 组件与版本文件对应
+
+| 组件 | 版本文件 | 用途 |
+|------|---------|------|
+| **app-auth（主站后台）** | `version.json` | 网站后台、API、Serverless Functions |
+| **ev-notifier** | `tools/ev-notifier/version.json` | macOS 桌面通知器 |
+| **ev-schedule-sync** | `tools/ev-schedule-sync/astrobox-build/astrobox-plugin/manifest.json` | AstroBox 课程表同步插件 |
+
+### 1.2 版本号规则
+
+- **格式**：`x.y.z`（语义化版本）
+- **patch 位（第三位）**：每次改动自动 +1（由 `scripts/bump-version.sh` 自动完成）
+- **minor 位（第二位）**：功能新增/重要改进时手动修改，patch 归零
+- **major 位（第一位）**：架构级变更时手动修改，minor 和 patch 归零
 - **界面体现**：admin 顶栏 `#topbarVersion` 自动读取 `version.json` 显示
-- 发布前必须更新版本号
+
+### 1.3 自动 bump 机制
+
+`scripts/bump-version.sh` 会检测 git 变更文件所属组件，只 bump 有实际改动的组件版本号：
+
+```
+改了 api/activate.js          → bump version.json（主站）
+改了 tools/ev-notifier/*.py   → bump tools/ev-notifier/version.json
+改了 tools/ev-schedule-sync/* → bump manifest.json version
+同时改了多个组件              → 各组件各自 bump
+```
+
+### 1.4 使用方式
+
+```bash
+# 一键 push（自动 bump + commit + push）
+./scripts/push.sh "提交信息"
+
+# 仅 bump 版本号（不 commit）
+./scripts/bump-version.sh
+```
+
+- **每次 push 必须使用 `scripts/push.sh`**，确保版本号自动递增
+- major/minor 版本号变更需手动编辑对应 version.json
 
 ## 2. Git
 
