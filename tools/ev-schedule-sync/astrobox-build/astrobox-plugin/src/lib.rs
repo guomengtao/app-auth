@@ -68,9 +68,15 @@ impl event::Guest for EvScheduleSyncPlugin {
         reader
     }
 
-    fn on_card_render(_card_id: String) -> FutureReader<()> {
+    fn on_card_render(card_id: String) -> FutureReader<()> {
         let vtable = &<() as crate::wit_future::FuturePayload>::VTABLE;
         let (writer, reader) = unsafe { future_new::<()>(|| (), vtable) };
+
+        crate::astrobox::psys_host::ui::render_to_text_card(
+            &card_id,
+            "EV 课程表同步器",
+        );
+
         spawn(async move {
             let _ = writer.write(()).await;
         });
