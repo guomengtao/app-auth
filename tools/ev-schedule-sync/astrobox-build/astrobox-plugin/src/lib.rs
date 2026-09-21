@@ -21,7 +21,6 @@ struct EvScheduleSyncPlugin;
 impl lifecycle::Guest for EvScheduleSyncPlugin {
     fn on_load() {
         logger::init();
-        tracing::info!("hello world plugin loaded!");
     }
 }
 
