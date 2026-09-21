@@ -16,17 +16,12 @@ pub mod logger;
 pub mod ui;
 pub mod resources;
 
-mod models;
-mod import_engine;
-mod export_engine;
-mod adapters;
-
 struct EvScheduleSyncPlugin;
 
 impl lifecycle::Guest for EvScheduleSyncPlugin {
     fn on_load() {
         logger::init();
-        tracing::info!("EV course schedule sync loaded!");
+        tracing::info!("hello world plugin loaded!");
     }
 }
 
@@ -41,15 +36,12 @@ impl event::Guest for EvScheduleSyncPlugin {
     }
 
     fn on_ui_event(
-        event_id: String,
+        _event_id: String,
         _event: event::Event,
         _event_payload: String,
     ) -> FutureReader<String> {
         let vtable = &<String as crate::wit_future::FuturePayload>::VTABLE;
         let (writer, reader) = unsafe { future_new::<String>(String::new, vtable) };
-
-        ui::handle_ui_event(&event_id);
-
         spawn(async move {
             let _ = writer.write(String::new()).await;
         });
@@ -72,10 +64,7 @@ impl event::Guest for EvScheduleSyncPlugin {
         let vtable = &<() as crate::wit_future::FuturePayload>::VTABLE;
         let (writer, reader) = unsafe { future_new::<()>(|| (), vtable) };
 
-        crate::astrobox::psys_host::ui::render_to_text_card(
-            &card_id,
-            "EV 课程表同步器",
-        );
+        crate::astrobox::psys_host::ui::render_to_text_card(&card_id, "hello world");
 
         spawn(async move {
             let _ = writer.write(()).await;
