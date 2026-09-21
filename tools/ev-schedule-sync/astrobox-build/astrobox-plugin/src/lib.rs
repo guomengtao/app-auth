@@ -1,14 +1,6 @@
-use wit_bindgen::rt::async_support::{FutureReader, future_new};
-use wit_bindgen::spawn;
-
-wit_bindgen::generate!({
-    path: "wit",
-    world: "psys-world",
-    generate_all,
-});
-
-use exports::astrobox::psys_plugin::{
-    event::{self, EventType},
+use astrobox_ng_wit::FutureReader;
+use astrobox_ng_wit::exports::astrobox::psys_plugin::{
+    event_v3::{self, EventType},
     lifecycle,
 };
 
@@ -30,52 +22,44 @@ impl lifecycle::Guest for EvScheduleSyncPlugin {
     }
 }
 
-impl event::Guest for EvScheduleSyncPlugin {
+impl event_v3::Guest for EvScheduleSyncPlugin {
     fn on_event(_event_type: EventType, _event_payload: String) -> FutureReader<String> {
-        let vtable = &<String as crate::wit_future::FuturePayload>::VTABLE;
-        let (writer, reader) = unsafe { future_new::<String>(String::new, vtable) };
-        spawn(async move {
-            let _ = writer.write(String::new()).await;
+        let (writer, reader) = astrobox_ng_wit::wit_future::new::<String>(|| "".to_string());
+        astrobox_ng_wit::spawn(async move {
+            let _ = writer.write("".to_string()).await;
         });
         reader
     }
 
-    fn on_ui_event(
+    fn on_ui_event_v3(
         event_id: String,
-        _event: event::Event,
+        _event: event_v3::Event,
         _event_payload: String,
     ) -> FutureReader<String> {
-        let vtable = &<String as crate::wit_future::FuturePayload>::VTABLE;
-        let (writer, reader) = unsafe { future_new::<String>(String::new, vtable) };
-
+        let (writer, reader) = astrobox_ng_wit::wit_future::new::<String>(|| "".to_string());
         ui::handle_ui_event(&event_id);
-
-        spawn(async move {
-            let _ = writer.write(String::new()).await;
+        astrobox_ng_wit::spawn(async move {
+            let _ = writer.write("".to_string()).await;
         });
         reader
     }
 
     fn on_ui_render(element_id: String) -> FutureReader<()> {
-        let vtable = &<() as crate::wit_future::FuturePayload>::VTABLE;
-        let (writer, reader) = unsafe { future_new::<()>(|| (), vtable) };
-
+        let (writer, reader) = astrobox_ng_wit::wit_future::new::<()>(|| ());
         ui::render_main_ui(&element_id);
-
-        spawn(async move {
+        astrobox_ng_wit::spawn(async move {
             let _ = writer.write(()).await;
         });
         reader
     }
 
     fn on_card_render(_card_id: String) -> FutureReader<()> {
-        let vtable = &<() as crate::wit_future::FuturePayload>::VTABLE;
-        let (writer, reader) = unsafe { future_new::<()>(|| (), vtable) };
-        spawn(async move {
+        let (writer, reader) = astrobox_ng_wit::wit_future::new::<()>(|| ());
+        astrobox_ng_wit::spawn(async move {
             let _ = writer.write(()).await;
         });
         reader
     }
 }
 
-export!(EvScheduleSyncPlugin);
+astrobox_ng_wit::export!(EvScheduleSyncPlugin);
