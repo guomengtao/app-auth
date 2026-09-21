@@ -1,4 +1,4 @@
-use astrobox_ng_wit::astrobox::psys_host::{self, ui_v3 as ui};
+use crate::astrobox::psys_host::{self, ui};
 use std::sync::{Mutex, OnceLock};
 
 use crate::export_engine::{export_as_evschedule, export_as_evschedule_actual, export_as_sgschedule};
@@ -50,7 +50,7 @@ fn rerender() {
     let root = state().lock().unwrap_or_else(|p| p.into_inner()).root_element_id.clone();
     if let Some(id) = root {
         let page = state().lock().unwrap_or_else(|p| p.into_inner()).page;
-        ui::render(&id, build_page(page));
+        psys_host::ui::render(&id, build_page(page));
     }
 }
 
@@ -414,5 +414,5 @@ pub fn handle_ui_event(event_id: &str) {
 pub fn render_main_ui(element_id: &str) {
     state().lock().unwrap_or_else(|p| p.into_inner()).root_element_id = Some(element_id.to_string());
     let page = state().lock().unwrap_or_else(|p| p.into_inner()).page;
-    ui::render(element_id, build_page(page));
+    psys_host::ui::render(element_id, build_page(page));
 }
