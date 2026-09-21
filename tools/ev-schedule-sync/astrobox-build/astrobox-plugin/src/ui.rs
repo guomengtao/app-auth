@@ -177,7 +177,8 @@ fn build_page(page: Page) -> ui::Element {
 }
 
 fn build_main() -> ui::Element {
-    let header = el_header("EV 课程表同步器", "导入 / 导出 课程表");
+    let subtitle = format!("v{} | 导入 / 导出 课程表", env!("CARGO_PKG_VERSION"));
+    let header = el_header("EV 课程表同步器", &subtitle);
 
     let c1 = el_menu_card(BTN_IMPORT_FILE, "📥", "从文件导入",
         "JSON / WakeUp / sgschedule / StarLink / CSES", "rgba(33,150,243,0.15)");

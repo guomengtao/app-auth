@@ -3,7 +3,9 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 DIST_DIR="$PROJECT_DIR/dist"
-OUTPUT="$DIST_DIR/EV-Schedule-Sync.abp"
+
+VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "$PROJECT_DIR/manifest.json" | head -1 | sed 's/.*"\(.*\)"/\1/')
+OUTPUT="$DIST_DIR/EV-Schedule-Sync-v${VERSION}.abp"
 
 rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR"
