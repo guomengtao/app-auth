@@ -4295,8 +4295,10 @@ class EvNotifier(rumps.App):
         restart_menu = rumps.MenuItem("重启")
         restart_menu.add(rumps.MenuItem("重启 VS Code", callback=self.restart_vscode))
         restart_menu.add(rumps.MenuItem("重启 AIOT IDE", callback=self.restart_aiot_ide))
+        restart_menu.add(rumps.MenuItem("重启 AstroBox", callback=self.restart_astrobox))
         restart_menu.add(rumps.separator)
         restart_menu.add(rumps.MenuItem("重启 Ev Notifier", callback=self.restart_self))
+        restart_menu.add(rumps.MenuItem("全部重启", callback=self.restart_all))
         self.menu.add(restart_menu)
         try:
             self.menu.add(rumps.separator)
@@ -4328,6 +4330,24 @@ class EvNotifier(rumps.App):
         threading.Thread(target=self._do_force_restart,
                          args=("AIOT IDE", "AIOT IDE"),
                          daemon=True).start()
+
+    def restart_astrobox(self, _):
+        threading.Thread(target=self._do_force_restart,
+                         args=("AstroBox", "AstroBox"),
+                         daemon=True).start()
+
+    def restart_all(self, _):
+        threading.Thread(target=self._do_restart_all, daemon=True).start()
+
+    def _do_restart_all(self):
+        apps = [
+            ("Visual Studio Code", "Visual Studio Code"),
+            ("AIOT IDE", "AIOT IDE"),
+            ("AstroBox", "AstroBox"),
+        ]
+        for app_name, open_target in apps:
+            self._do_force_restart(app_name, open_target)
+        self.restart_self(None)
 
     def _do_force_restart(self, app_name, open_target):
         subprocess.run(["osascript", "-e",

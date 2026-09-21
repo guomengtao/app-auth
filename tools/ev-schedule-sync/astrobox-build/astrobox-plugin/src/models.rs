@@ -1,4 +1,11 @@
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static NEXT_ID: AtomicU64 = AtomicU64::new(1);
+
+pub fn generate_id() -> String {
+    format!("{:016x}", NEXT_ID.fetch_add(1, Ordering::Relaxed))
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UnifiedCourse {

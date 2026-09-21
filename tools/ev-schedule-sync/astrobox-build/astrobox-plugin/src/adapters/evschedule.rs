@@ -57,7 +57,7 @@ pub fn parse(raw_json: &str) -> Result<Vec<UnifiedCourse>> {
             };
 
             UnifiedCourse {
-                id: c.id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
+                id: c.id.unwrap_or_else(|| crate::models::generate_id()),
                 name: c.name,
                 teacher: c.teacher,
                 location: c.location,
