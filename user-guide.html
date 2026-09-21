@@ -193,6 +193,28 @@
     }
     .back-home a:hover { text-decoration: underline; }
 
+    .lab-tag {
+      display: inline-block;
+      padding: 3px 14px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      border-radius: 20px;
+      letter-spacing: 0.4px;
+      line-height: 1.5;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+      text-transform: uppercase;
+    }
+    .lab-tag.settings {
+      background: linear-gradient(135deg, #e8e0ff, #d4c8ff);
+      color: #5b3cc4;
+      border: 1px solid #c4b0ff;
+    }
+    .lab-tag.premium {
+      background: linear-gradient(135deg, #ffe0e0, #ffcccc);
+      color: #c43c3c;
+      border: 1px solid #f5a0a0;
+    }
+
     @media (max-width: 600px) {
       .container { padding: 28px 22px; }
       .step { padding: 18px; }
@@ -250,7 +272,7 @@
         <div class="step-title">获取激活码</div>
       </div>
       <div class="step-body">
-        <p>手环打开 Ev课程表 → <strong>设置</strong> → <strong>高级版</strong>，滑到第二步会显示设备 ID 和一个二维码。</p>
+        <p>手环打开 Ev课程表 → <span class="lab-tag settings">设置</span> → <span class="lab-tag premium">高级版</span>，滑到第二步会显示设备 ID 和一个二维码。</p>
         <p><strong style="font-size:1rem;color:#1a1a2e;">📱 手机扫码</strong>，浏览器会自动打开激活页面。</p>
         <p>在页面中输入 Step 1 拿到的 <strong>4 位兑换码</strong>，点击激活，会生成一段 18 位激活码：</p>
         <div class="code-box">激活码示例：012345678901234567</div>
