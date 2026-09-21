@@ -1,7 +1,7 @@
 use crate::astrobox::psys_host::{self, ui};
 use std::sync::{Mutex, OnceLock};
 
-use crate::export_engine::{export_as_evschedule, export_as_sgschedule};
+use crate::export_engine::{export_as_evschedule, export_as_evschedule_actual, export_as_sgschedule};
 use crate::import_engine::{import_from_json, ImportResult};
 use crate::models::UnifiedSchedule;
 
@@ -300,7 +300,47 @@ fn build_error() -> ui::Element {
 }
 
 fn do_import_demo() {
-    let json = r#"{"courseList":[{"name":"高等数学","teacher":"张教授","location":"A楼101","day":1,"startSection":1,"endSection":2,"type":"every"},{"name":"大学英语","teacher":"李教授","location":"B楼205","day":2,"startSection":3,"endSection":4,"type":"every"},{"name":"线性代数","teacher":"王教授","location":"数学楼301","day":3,"startSection":5,"endSection":6,"type":"every"}],"scheduleName":"示例课程表","timeSlots":[{"start":"08:00","end":"08:45"},{"start":"08:55","end":"09:40"},{"start":"10:05","end":"10:50"},{"start":"10:55","end":"11:40"},{"start":"14:00","end":"14:45"},{"start":"14:55","end":"15:40"},{"start":"16:05","end":"16:50"}]}"#;
+    let json = r#"[
+  {
+    "day": "星期一",
+    "classes": [
+      {
+        "id": "1",
+        "name": "高等数学",
+        "time": "08:00 - 09:40",
+        "teacher": "张教授",
+        "location": "A楼101教室",
+        "notes": ""
+      },
+      {
+        "id": "2",
+        "name": "大学英语",
+        "time": "10:00 - 11:40",
+        "teacher": "李教授",
+        "location": "教学楼B205",
+        "notes": ""
+      }
+    ]
+  },
+  {
+    "day": "星期二",
+    "classes": [
+      {
+        "id": "3",
+        "name": "线性代数",
+        "time": "08:00 - 09:40",
+        "teacher": "王教授",
+        "location": "数学楼301",
+        "notes": ""
+      }
+    ]
+  },
+  { "day": "星期三", "classes": [] },
+  { "day": "星期四", "classes": [] },
+  { "day": "星期五", "classes": [] },
+  { "day": "星期六", "classes": [] },
+  { "day": "星期日", "classes": [] }
+]"#;
 
     match import_from_json(json, "示例课程表") {
         Ok(result) => {
@@ -317,7 +357,27 @@ fn do_import_demo() {
 }
 
 fn do_export_demo() {
-    let json = r#"{"courseList":[{"name":"高等数学","teacher":"张教授","location":"A楼101","day":1,"startSection":1,"endSection":2,"type":"every"}],"scheduleName":"示例","timeSlots":[{"start":"08:00","end":"08:45"},{"start":"08:55","end":"09:40"}]}"#;
+    let json = r#"[
+  {
+    "day": "星期一",
+    "classes": [
+      {
+        "id": "1",
+        "name": "高等数学",
+        "time": "08:00 - 09:40",
+        "teacher": "张教授",
+        "location": "A楼101教室",
+        "notes": ""
+      }
+    ]
+  },
+  { "day": "星期二", "classes": [] },
+  { "day": "星期三", "classes": [] },
+  { "day": "星期四", "classes": [] },
+  { "day": "星期五", "classes": [] },
+  { "day": "星期六", "classes": [] },
+  { "day": "星期日", "classes": [] }
+]"#;
 
     if let Ok(result) = import_from_json(json, "示例") {
         let schedule = UnifiedSchedule {
@@ -326,7 +386,11 @@ fn do_export_demo() {
             courses: result.courses,
         };
         let fmt = state().lock().unwrap_or_else(|p| p.into_inner()).export_format;
-        let exported = if fmt == 0 { export_as_evschedule(&schedule) } else { export_as_sgschedule(&schedule.courses, "2025-02-24", 20) };
+        let exported = if fmt == 0 {
+            export_as_evschedule_actual(&schedule)
+        } else {
+            export_as_sgschedule(&schedule.courses, "2025-02-24", 20)
+        };
         let truncated = if exported.len() > 400 { format!("{}... ({} chars)", &exported[..400], exported.len()) } else { exported };
         state().lock().unwrap_or_else(|p| p.into_inner()).last_export = Some(truncated);
     }

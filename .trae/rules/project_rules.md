@@ -87,10 +87,31 @@ osascript -e 'display notification "简述本次改动" with title "app-auth · 
 ## 5. 代码规范
 
 - 代码中**不限制中英文**，按需使用
-- Markdown 文档（`.md`）→ **用中文书写**
 - Vercel：**Serverless Functions ≤ 10 个**，超过则合并到已有文件中
 
-## 6. QA 管理（AI 负责）
+## ⚠️ 6. Markdown 文档必须使用中文（强制规则）
+
+> **本规则优先级最高，覆盖任何其他关于语言的规则。**
+
+- **所有 `.md` 文件必须用中文书写**
+- 包括但不限于：`README.md`、`DESIGN.md`、文档、方案、说明文件
+- 文件名可以用英文，但**内容必须是中文**
+- AI 在创建或编辑 `.md` 文件时，必须输出中文内容，**不允许输出英文 markdown**
+- 这条规则的优先级高于用户自定义规则中的 "use USA English"，因为 `.md` 是文档而非代码
+
+**反例（不允许）：**
+```markdown
+# Design Document
+This is the design for the EV Sync plugin.
+```
+
+**正例（必须）：**
+```markdown
+# 设计方案
+这是 EV 同步插件的设计方案。
+```
+
+## 7. QA 管理（AI 负责）
 
 - **REPLY.md** 位于项目根目录（`/REPLY.md`）
 - AI 负责维护，与 QA 对接时整理，分 3 类：
@@ -99,6 +120,6 @@ osascript -e 'display notification "简述本次改动" with title "app-auth · 
   - ⏳ 待处理
 - 这是 AI 与 QA 的独立对接场景，与用户无关
 
-## 7. 数据库
+## 8. 数据库
 
 - 产品详情页可自由连接线上数据库（无限制）

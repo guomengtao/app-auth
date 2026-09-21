@@ -60,6 +60,42 @@ pub fn export_as_evschedule(
     serde_json::to_string_pretty(&export).unwrap_or_else(|_| "{}".to_string())
 }
 
+pub fn export_as_evschedule_actual(
+    schedule: &UnifiedSchedule,
+) -> String {
+    let day_names: [&str; 7] = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"];
+
+    let mut day_groups: Vec<Vec<serde_json::Value>> = (0..7).map(|_| Vec::new()).collect();
+    let mut id_counter: u32 = 1;
+
+    for course in &schedule.courses {
+        let idx = (course.day as usize).saturating_sub(1).min(6);
+        let class_json = serde_json::json!({
+            "id": id_counter.to_string(),
+            "name": course.name,
+            "time": format!("{} - {}", course.start_time, course.end_time),
+            "teacher": course.teacher,
+            "location": course.location,
+            "notes": course.remark.as_deref().unwrap_or(""),
+        });
+        day_groups[idx].push(class_json);
+        id_counter += 1;
+    }
+
+    let result: Vec<serde_json::Value> = day_groups
+        .into_iter()
+        .enumerate()
+        .map(|(i, classes)| {
+            serde_json::json!({
+                "day": day_names[i],
+                "classes": classes,
+            })
+        })
+        .collect();
+
+    serde_json::to_string_pretty(&result).unwrap_or_else(|_| "[]".to_string())
+}
+
 pub fn export_as_sgschedule(
     courses: &[UnifiedCourse],
     semester_start_date: &str,
