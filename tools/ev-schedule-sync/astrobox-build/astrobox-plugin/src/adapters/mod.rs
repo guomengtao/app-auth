@@ -7,6 +7,7 @@ pub mod starlink;
 pub mod cses;
 pub mod evschedule;
 pub mod evschedule_actual;
+pub mod demo;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum FormatType {
@@ -16,6 +17,7 @@ pub enum FormatType {
     Cses,
     EvSchedule,
     EvScheduleActual,
+    DemoSchedule,
 }
 
 impl FormatType {
@@ -27,11 +29,17 @@ impl FormatType {
             FormatType::Cses => "CSES Standard",
             FormatType::EvSchedule => "EV Schedule (export format)",
             FormatType::EvScheduleActual => "EV Schedule (native)",
+            FormatType::DemoSchedule => "Demo JSON (AI 生成)",
         }
     }
 }
 
 pub fn detect_format(raw_json: &str) -> Option<FormatType> {
+    // Demo JSON 特征最明显（scheduleName + courses），必须最先匹配，
+    // 否则可能被后续更宽松的 detect 抢走。
+    if demo::detect(raw_json) {
+        return Some(FormatType::DemoSchedule);
+    }
     if sgschedule::detect(raw_json) {
         return Some(FormatType::SgSchedule);
     }
@@ -61,6 +69,7 @@ pub fn parse_by_format(raw_json: &str, format: &FormatType) -> Result<Vec<Unifie
         FormatType::Cses => cses::parse(raw_json),
         FormatType::EvSchedule => evschedule::parse(raw_json),
         FormatType::EvScheduleActual => evschedule_actual::parse(raw_json),
+        FormatType::DemoSchedule => demo::parse(raw_json),
     }
 }
 

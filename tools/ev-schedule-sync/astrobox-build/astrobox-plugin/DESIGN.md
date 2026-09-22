@@ -65,9 +65,15 @@ use astrobox::psys_host::thirdpartyapp; // 检查 EV 课程表是否已安装
 
 **检测流程：**
 
-1. 调用 `device::list()` → 获取 `Vec<DeviceInfo>`（设备 ID、名称、连接状态）
-2. 对每台已连接设备，调用 `thirdpartyapp::is_installed(device_id, "com.ev.schedule")` → 返回布尔值
+1. 调用 `device::get_device_list()` → 全部已配对设备 `Vec<DeviceInfo>{ name, addr }`；
+   再调用 `device::get_connected_device_list()` → 当前在线设备。两者求交集得出每台设备的「在线 / 离线」
+2. 对每台**在线**设备，调用 `thirdpartyapp::get_thirdparty_app_list(addr)`
+   → 返回 `Result<Vec<AppInfo>, ()>`，在列表里匹配
+   `package_name == "com.application.watch.classschedule"` 判断是否已安装
 3. 根据两项结果渲染设备卡片
+
+> ⚠️ 2026-09-22 校正：WIT 里**不存在** `thirdpartyapp::is_installed()` 这种直接查询函数，
+> 只能拉应用列表自行匹配；EV 课程表真实包名也不是本文原写的 `com.ev.schedule`。
 4. 用户点击"选择此设备" → 将 `selected_device_id` 存入状态 → 跳转到导入/导出页面
 
 ### 1.5 新增页面状态
@@ -274,7 +280,7 @@ selected_device_id 不为空
 ### 3.6 实现注意事项
 
 - Demo JSON 作为**代码常量**存储在插件中（含注释）
-- "复制 Demo JSON"按钮使用 `clipboard` WIT 接口（`astrobox::psys_host::clipboard::write()`）
+- "复制 Demo JSON"按钮使用 `clipboard` WIT 接口（`astrobox::psys_host::clipboard::write_text(text: &str)`）
 - 粘贴区域为标准文本输入框
 - 校验逻辑在插件 WASM 内部完成，然后再调用导入引擎
 
@@ -302,7 +308,7 @@ selected_device_id 不为空
 
 ### 4.1 新增页面：选择设备
 
-- 通过 `device::list()` 列出所有设备
+- 通过 `device::get_device_list()` 列出所有设备，并用 `device::get_connected_device_list()` 判定在线状态
 - 每台设备显示连接状态 + EV 课程表安装状态
 - 只有"已连接 + EV 已安装"的设备可以选中
 - 提供"刷新列表"按钮重新扫描
@@ -358,13 +364,19 @@ const BTN_CLOSE_DEMO: &str = "btn_close_demo";         // 关闭 Demo 对话框
 
 ## 7. 依赖的 AstroBox 宿主 API
 
-| API | 用途 |
+| API（真实签名，见 `wit/deps/astrobox-psys-host.wit`） | 用途 |
 |-----|------|
-| `device::list()` | 列出已连接设备 |
-| `device::get_info(id)` | 获取单个设备状态 |
-| `thirdpartyapp::is_installed(device_id, package)` | 检查 EV 课程表是否安装 |
-| `clipboard::write(text)` | 复制 Demo JSON 到剪贴板 |
-| `dialog::show(title, message)` | 错误/提示弹窗（备选方案） |
+| `device::get_device_list() -> Vec<DeviceInfo>` | 列出全部已配对设备 |
+| `device::get_connected_device_list() -> Vec<DeviceInfo>` | 列出当前在线设备 |
+| `thirdpartyapp::get_thirdparty_app_list(addr: &str) -> Result<Vec<AppInfo>, ()>` | 拉设备应用列表，再按包名匹配 EV 课程表 |
+| `clipboard::write_text(text: &str) -> Result<(), ()>` | 复制 Demo JSON 到剪贴板 |
+
+> ⚠️ 2026-09-22 校正：原文写的 `device::list()` / `device::get_info(id)` /
+> `thirdpartyapp::is_installed(...)` / `clipboard::write(...)` 在 WIT 里**均不存在**，
+> 属于伪代码。且所有宿主函数参数是 `&str` 而非 `String`。
+> EV 课程表真实包名：`com.application.watch.classschedule`（来源 `github.com/guomengtao/class-schedule`）。
+> 平台没有 `dialog::show` 这类原生弹窗，错误提示与对话框均需用
+> `ui::Element` 的 `absolute()` + `z_index()` 自行模拟。
 
 ---
 
