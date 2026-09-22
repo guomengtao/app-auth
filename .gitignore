@@ -22,3 +22,6 @@ tools/ev-notifier/launcher
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# CodeBuddy 本地记忆与工作区数据（IDE 产生，不入库）
+.codebuddy/
