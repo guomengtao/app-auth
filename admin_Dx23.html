@@ -561,7 +561,7 @@
 
     .sidebar-menu {
       list-style: none;
-      padding: 8px 12px;
+      padding: 8px 16px;
       margin: 0;
     }
     .menu-separator hr {
@@ -609,7 +609,7 @@
     .sidebar.collapsed .menu-text { display: none; }
     .sidebar.collapsed .sidebar-menu li a {
       justify-content: center;
-      padding: 12px 8px;
+      padding: 12px 0;
     }
     .sidebar.collapsed .sidebar-menu li a.active {
       box-shadow: none;
@@ -618,7 +618,7 @@
 
     .sidebar-user {
       margin-top: auto;
-      padding: 12px 12px;
+      padding: 12px 16px;
       border-top: 1px solid var(--sidebar-line);
       flex-shrink: 0;
       position: relative;
@@ -1345,6 +1345,10 @@
     }
     .muted { color: var(--ink-2); }
     .section-title { font-size: 0.875rem; font-weight: 600; color: var(--ink); }
+
+    /* 日志页 tab：标签已简化，仍禁止窄屏下文字换行；容器横向滚动兜底 */
+    .logs-tabs { overflow-x: auto; }
+    .logs-tab { white-space: nowrap; flex-shrink: 0; }
 
     .table-wrap {
       background: var(--surface);
@@ -3412,8 +3416,8 @@
           <button class="menu-btn" onclick="openMobileSidebar()" aria-label="打开菜单">☰</button>
           <button class="sidebar-toggle-btn" onclick="toggleSidebar()" title="隐藏/显示侧边栏" id="sidebarToggleBtn"><i data-lucide="panel-left" style="width:15px;height:15px;display:block"></i></button>
           <div>
-            <div class="page-title" id="pageTitle">产品管理</div>
-            <div class="page-sub" id="pageSub">管理可授权的产品列表</div>
+            <div class="page-title" id="pageTitle">后台首页</div>
+            <div class="page-sub" id="pageSub">系统概览与快捷入口</div>
           </div>
         </div>
         <div class="topbar-right">
@@ -3627,18 +3631,18 @@
 
           <div class="panel" id="panel-logs">
             <div class="toolbar">
-              <span class="filter-label" style="padding:0;font-weight:700;font-size:0.875rem;color:var(--ink);">📜 系统日志</span>
+              <span style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font-weight:700;font-size:0.9375rem;color:var(--ink);">📜 系统日志</span>
               <span class="spacer"></span>
               <span style="font-size:0.8125rem;color:var(--ink-2);" id="logsTimeHint"></span>
             </div>
 
             <div class="logs-tabs" style="display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid var(--line,#e5e7eb);">
-              <button class="logs-tab active" onclick="switchLogsTab('system')" id="logsTabSystem" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color: var(--accent-text);cursor:pointer;border-bottom:2px solid var(--accent);margin-bottom:-2px;transition:all 0.15s;">🚀 系统日志</button>
-              <button class="logs-tab" onclick="switchLogsTab('email')" id="logsTabEmail" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">📧 邮件日志</button>
-              <button class="logs-tab" onclick="switchLogsTab('resend')" id="logsTabResend" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">📬 Resend平台</button>
-              <button class="logs-tab" onclick="switchLogsTab('afdian-dm')" id="logsTabAfdianDm" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">💬 爱发电私信日志</button>
-              <button class="logs-tab" onclick="switchLogsTab('db-sync')" id="logsTabDbSync" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">🔄 数据库同步日志</button>
-              <button class="logs-tab" onclick="switchLogsTab('cron')" id="logsTabCron" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">⏰ 定时任务日志</button>
+              <button class="logs-tab active" onclick="switchLogsTab('system')" id="logsTabSystem" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color: var(--accent-text);cursor:pointer;border-bottom:2px solid var(--accent);margin-bottom:-2px;transition:all 0.15s;">🚀 系统</button>
+              <button class="logs-tab" onclick="switchLogsTab('email')" id="logsTabEmail" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">📧 邮件</button>
+              <button class="logs-tab" onclick="switchLogsTab('resend')" id="logsTabResend" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">📬 Resend</button>
+              <button class="logs-tab" onclick="switchLogsTab('afdian-dm')" id="logsTabAfdianDm" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">💬 爱发电私信</button>
+              <button class="logs-tab" onclick="switchLogsTab('db-sync')" id="logsTabDbSync" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">🔄 数据同步</button>
+              <button class="logs-tab" onclick="switchLogsTab('cron')" id="logsTabCron" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">⏰ 定时任务</button>
               <button class="logs-tab" onclick="switchLogsTab('neon-quota')" id="logsTabNeonQuota" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">🟢 Neon 额度</button>
               <button class="logs-tab" onclick="switchLogsTab('supabase-quota')" id="logsTabSupabaseQuota" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">🟣 Supabase 额度</button>
             </div>
@@ -4290,7 +4294,6 @@
               </div>
             </div>
             </div>
-          </div>
 
         <!-- Direct Activate Panel -->
         <div id="panel-direct-activate" class="panel">
@@ -4656,6 +4659,7 @@
             <span id="deliveryPageInfo" style="color:var(--muted)">第 1 页</span>
             <button class="btn btn-sm" onclick="deliveryPage++;loadDeliveryMessages()">下一页 ›</button>
           </div>
+        </div>
         </div>
 
       </main>
@@ -8023,6 +8027,8 @@
       var pre = new URLSearchParams(window.location.search).get('tab');
       if (pre && TAB_META[pre]) {
         switchTab(pre);
+      } else {
+        switchTab('dashboard');
       }
     } catch (e) {}
     setInterval(loadStats, 30000);
