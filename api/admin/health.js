@@ -622,11 +622,15 @@ if ((isCron || isCronBackup) && isBackup) {
       var visitIp = visitHeaders["x-forwarded-for"] || visitHeaders["x-real-ip"] || (req.socket && req.socket.remoteAddress) || "";
       var visitUa = visitHeaders["user-agent"] || "";
 
-      var visitDistrict = await geoDistrict.getDistrict(visitIp);
+      // 中文省市优先取 ip_lookups（ip-api lang=zh-CN，国内 IP 往往只有这里有值），Vercel 头部仅兜底
+      var visitStored = await geoDistrict.getStoredGeo(visitIp);
+      var visitDistrict = (await geoDistrict.getDistrict(visitIp)) || (visitStored && visitStored.district) || "";
       var visitGeo = geoZh.resolveZhLocationFull({
         country: visitHeaders["x-vercel-ip-country"],
         region: visitHeaders["x-vercel-ip-country-region"],
         city: visitHeaders["x-vercel-ip-city"],
+        zh_region: visitStored && visitStored.region,
+        zh_city: visitStored && visitStored.city,
         district: visitDistrict,
       });
 
@@ -2270,6 +2274,8 @@ if ((isCron || isCronBackup) && isBackup) {
     var isIpLookupCron = req.query.cron === "1";
     try {
       var ipLookup = require("../../lib/ip-lookup");
+      var ipStore = null;
+      try { ipStore = require("../../lib/ip-lookup-store"); } catch (e) {}
       var records = await redis.lrange("stats:recent", 0, 49).catch(function () { return []; });
       var ips = [];
       var ipSeen = {};
@@ -2289,6 +2295,14 @@ if ((isCron || isCronBackup) && isBackup) {
           var detail = await ipLookup.getIpDetail(redis, ips[j]);
           if (detail) {
             results.push({ ip: ips[j], detail: detail });
+            // 同时写入永久表 ip_lookups（中文省市来源），供通知与后台访客列表使用
+            if (ipStore) {
+              try {
+                await ipStore.saveToStore(ips[j], detail, [detail]);
+              } catch (storeErr) {
+                console.log("[ip-lookup] saveToStore failed:", storeErr && storeErr.message);
+              }
+            }
           }
         } catch (e) {
           console.error("[ip-lookup] query failed for", ips[j], e.message);
@@ -3032,13 +3046,40 @@ if ((isCron || isCronBackup) && isBackup) {
             if (cachedResults && cachedResults[j]) { try { ipDetails[ips[j]] = JSON.parse(cachedResults[j]); } catch (e) {} }
           }
         }
+        // 中文 geo 优先取永久表 ip_lookups（ip-api lang=zh-CN）；Vercel 头部对国内 IP 常常只有国家
+        var storeGeo = {};
+        try {
+          var storeIpList = {};
+          for (var k = 0; k < records.length; k++) {
+            try {
+              var objK = typeof records[k] === "string" ? JSON.parse(records[k]) : records[k];
+              if (objK.ip) { storeIpList[objK.ip] = true; }
+            } catch (e) {}
+          }
+          var storeIps = Object.keys(storeIpList);
+          if (storeIps.length > 0) {
+            var pgMod = require("../../lib/postgres");
+            var stRows = await pgMod.query(
+              "select ip, country, region, city, district from ip_lookups where ip = any($1)",
+              [storeIps]
+            );
+            (stRows.rows || []).forEach(function (row) { storeGeo[row.ip] = row; });
+          }
+        } catch (e) {
+          console.log("[visitor-recent] ip_lookups read failed:", e && e.message);
+        }
         var list = [];
         for (var i = 0; i < records.length; i++) {
           try {
             var obj = typeof records[i] === "string" ? JSON.parse(records[i]) : records[i];
+            var sg = storeGeo[obj.ip] || null;
             var entry = {
               hash: obj.h || "", path: obj.p || "/", ua: obj.u || "", ref: obj.r || "",
-              time: obj.t || 0, country: obj.c || "", region: obj.rg || "", city: obj.ci || "",
+              time: obj.t || 0,
+              country: (sg && sg.country) || obj.c || "",
+              region: (sg && sg.region) || obj.rg || "",
+              city: (sg && sg.city) || obj.ci || "",
+              district: (sg && sg.district) || "",
               timezone: obj.tz || "", ip: obj.ip || "",
             };
             var detail = ipDetails[obj.ip];

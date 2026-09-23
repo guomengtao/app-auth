@@ -13,8 +13,17 @@ async function getGeoFields(req) {
   var region = String(req.headers["x-vercel-ip-country-region"] || "").slice(0, 16);
   var city = String(req.headers["x-vercel-ip-city"] || "").slice(0, 40);
   var ip = String(req.headers["x-forwarded-for"] || req.headers["x-real-ip"] || "").split(",")[0].trim();
-  var district = await geoDistrict.getDistrict(ip);
-  var full = geoZh.resolveZhLocationFull({ country: country, region: region, city: city, district: district });
+  // 中文省市优先取 ip_lookups（ip-api lang=zh-CN，国内 IP 往往只有这里有值），Vercel 头部仅兜底
+  var storedGeo = await geoDistrict.getStoredGeo(ip);
+  var district = (await geoDistrict.getDistrict(ip)) || (storedGeo && storedGeo.district) || "";
+  var full = geoZh.resolveZhLocationFull({
+    country: country,
+    region: region,
+    city: city,
+    zh_region: storedGeo && storedGeo.region,
+    zh_city: storedGeo && storedGeo.city,
+    district: district,
+  });
   return {
     country: country,
     region: region,
@@ -37,12 +46,12 @@ function visitorHashKey(str) {
   return (h >>> 0).toString(16);
 }
 
+// 日期分桶统一用北京时间（UTC+8），复用 lib/rate-limit.js 的唯一实现。
+// ⚠️ 历史 bug：这里原本用 UTC（且 getTimezoneOffset 公式只在 UTC 运行时成立），
+//    导致北京时间 00:00–08:00 的访问被统计到「前一天」的键，后台看「今日访客 / 今日 PV」像没写入。
+//    详见 docs/访客记录写入问题分析与核验.md
 function visitorTodayKey(ts) {
-  var d = new Date(ts || Date.now());
-  var y = d.getUTCFullYear();
-  var m = String(d.getUTCMonth() + 1).padStart(2, "0");
-  var day = String(d.getUTCDate()).padStart(2, "0");
-  return y + "-" + m + "-" + day;
+  return rateLimit.beijingDateKey(ts);
 }
 
 async function handleVisitorTrack(req, res) {
@@ -77,6 +86,8 @@ async function handleVisitorTrack(req, res) {
     } catch (e) {}
     await redis.zadd(pagesKey, curScore + 1, trimmedPath);
     await redis.pexpire(pagesKey, VISITOR_TTL * 1000).catch(function () {});
+    // 注：stats:recent 是 LIST（kv_lists 表没有 expires_at 列），pexpire 对它无效，
+    // 这里靠下面的 ltrim 控制容量（保留最近 ~100 条），不要再写无意义的 pexpire。
     await redis.lpush(recentKey, JSON.stringify({
       h: vHash.slice(0, 8),
       p: trimmedPath,
@@ -90,7 +101,6 @@ async function handleVisitorTrack(req, res) {
       tz: String(req.headers["x-vercel-ip-timezone"] || "").slice(0, 40),
     }));
     await redis.ltrim(recentKey, 0, 99);
-    await redis.pexpire(recentKey, VISITOR_TTL * 1000).catch(function () {});
     return res.json({ success: true, isNewVisitor: isNew === 1 });
   } catch (e) {
     console.error("[visitor/track]", e);

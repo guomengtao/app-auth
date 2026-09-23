@@ -23,6 +23,7 @@
 //   200 OK (302 redirect)
 
 var redis = require("../lib/redis");
+var rateLimit = require("../lib/rate-limit");
 var geoZh = require("../lib/geo-zh");
 var geoDistrict = require("../lib/geo-district");
 var md = null;
@@ -33,12 +34,9 @@ try { md = require("../lib/message-delivery"); } catch(e) { console.log("[go] me
 var SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/; // RFC 1123 label-ish
 var VISITOR_TTL = 30 * 24 * 60 * 60; // 30 天（仅用于点击明细里附带的访客 hash）
 
+// 与 api/activate.js 统一：北京时间（UTC+8）分桶，复用 lib/rate-limit.js 的唯一实现
 function todayKey(ts) {
-  var d = new Date(ts || Date.now());
-  var y = d.getUTCFullYear();
-  var m = String(d.getUTCMonth() + 1).padStart(2, "0");
-  var day = String(d.getUTCDate()).padStart(2, "0");
-  return y + "-" + m + "-" + day;
+  return rateLimit.beijingDateKey(ts);
 }
 
 function visitorHashKey(str) {
@@ -109,8 +107,17 @@ async function pushPurchaseClick(entry, record, ts, dateKey) {
     console.log("[go:stream] no Upstash config, skip purchase_click push");
     return;
   }
-  var district = await geoDistrict.getDistrict(record.ip);
-  var geoFull = geoZh.resolveZhLocationFull({ country: record.c, region: record.rg, city: record.ci, district: district });
+  // 中文省市优先取 ip_lookups（ip-api lang=zh-CN），Vercel 头部仅兜底
+  var storedGeo = await geoDistrict.getStoredGeo(record.ip);
+  var district = (await geoDistrict.getDistrict(record.ip)) || (storedGeo && storedGeo.district) || "";
+  var geoFull = geoZh.resolveZhLocationFull({
+    country: record.c,
+    region: record.rg,
+    city: record.ci,
+    zh_region: storedGeo && storedGeo.region,
+    zh_city: storedGeo && storedGeo.city,
+    district: district,
+  });
   var msgId = null;
   if (md) {
     try {
