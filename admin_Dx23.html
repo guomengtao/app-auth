@@ -3582,7 +3582,7 @@
               <span style="font-weight:700;font-size:0.95rem">访客统计</span>
               <div style="display:flex;gap:4px;background:var(--line);padding:3px;border-radius:8px">
                 <button id="visitorSubTab0" class="visitor-sub-tab active" onclick="switchVisitorSubTab('recent')">最近访客</button>
-                <button id="visitorSubTab1" class="visitor-sub-tab" onclick="switchVisitorSubTab('ip-compare')">IP 对比</button>
+                <button id="visitorSubTab1" class="visitor-sub-tab" onclick="switchVisitorSubTab('unique')">唯一 IP 记录</button>
               </div>
               <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
                 <select id="visitorDays" style="padding:6px 10px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:0.8rem">
@@ -3591,7 +3591,7 @@
                   <option value="14">近14天</option>
                   <option value="30">近30天</option>
                 </select>
-                <button class="btn btn-outline" onclick="loadVisitors()">🔄 刷新</button>
+                <button class="btn btn-outline" onclick="refreshVisitorPane()">🔄 刷新</button>
               </div>
             </div>
             <div id="visitorOverview" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:18px"></div>
@@ -3609,9 +3609,12 @@
               <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">最近访客</div>
               <div id="visitorRecent"></div>
             </div>
-            <div id="visitorIpCompareSection" style="display:none;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px">
-              <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">IP 多源对比</div>
-              <div id="visitorIpCompare"></div>
+            <div id="visitorUniqueIpSection" style="display:none;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px">
+              <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">唯一 IP 记录</div>
+              <div id="visitorUniqueStats" style="margin-bottom:14px"></div>
+              <div id="visitorCityChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px"></div>
+              <div id="visitorIpDetailBox" style="display:none;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px"></div>
+              <div id="visitorUniqueList"></div>
             </div>
           </div>
 
@@ -9214,6 +9217,20 @@
     }
 
     var _visitorChart = null;
+    // 访客记录的地区文案：省 · 市 · 区（中文，服务端 geoZh 已算好），没有省市时退回国家
+    function fmtVisitorLoc(v) {
+      var parts = [];
+      var region = (v.region || '').trim();
+      var city = (v.city || '').trim();
+      var district = (v.district || '').trim();
+      if (region && city && region !== city) parts.push(region);
+      if (city && city !== region) parts.push(city);
+      if (district) parts.push(district);
+      if (parts.length === 0 && region) parts.push(region);
+      if (parts.length === 0 && v.country) parts.push(v.country);
+      return parts.length ? parts.join(' · ') : '-';
+    }
+
     function loadVisitors() {
       var overviewEl = document.getElementById('visitorOverview');
       var pagesEl = document.getElementById('visitorTopPages');
@@ -9300,7 +9317,7 @@
               '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">Page</th>' +
               '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">IP</th>' +
               '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">Time</th>' +
-              '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">Location</th>' +
+              '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">城市 / 地区</th>' +
               '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">UA</th>' +
               '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);width:1%"></th>' +
               '</tr></thead><tbody>' +
@@ -9312,11 +9329,7 @@
                 visits.forEach(function(v, idx) {
                 var t = v.time ? new Date(v.time).toLocaleString() : '-';
                 var uaShort = (v.ua || '').replace(/\(.*?\)/g, '').trim().slice(0, 50);
-                var loc = [];
-                if (v.country) loc.push(v.country);
-                if (v.city) loc.push(v.city);
-                if (v.region && v.city) loc.push(v.region);
-                var locStr = loc.length ? loc.join(' · ') : '-';
+                var locStr = fmtVisitorLoc(v);
                 var ispHint = v.isp ? '<div style="font-size:0.62rem;color:#8b5cf6;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px">' + escapeHtml(v.isp) + '</div>' : '';
                 var vidx = 'visitorDetail' + idx;
                 rowsHtml += '<tr class="visitor-row" onclick="toggleVisitorDetail(event, this)" data-vidx="' + vidx + '">' +
@@ -9346,22 +9359,223 @@
 
     function switchVisitorSubTab(sub) {
       var recentSec = document.getElementById('visitorRecentSection');
-      var ipCompareSec = document.getElementById('visitorIpCompareSection');
+      var uniqueSec = document.getElementById('visitorUniqueIpSection');
       var tab0 = document.getElementById('visitorSubTab0');
       var tab1 = document.getElementById('visitorSubTab1');
 
       if (sub === 'recent') {
         if (recentSec) recentSec.style.display = '';
-        if (ipCompareSec) ipCompareSec.style.display = 'none';
+        if (uniqueSec) uniqueSec.style.display = 'none';
         if (tab0) tab0.classList.add('active');
         if (tab1) tab1.classList.remove('active');
       } else {
         if (recentSec) recentSec.style.display = 'none';
-        if (ipCompareSec) ipCompareSec.style.display = '';
+        if (uniqueSec) uniqueSec.style.display = '';
         if (tab0) tab0.classList.remove('active');
         if (tab1) tab1.classList.add('active');
-        loadIpCompare();
+        loadUniqueIps();
       }
+    }
+
+    // 顶部「🔄 刷新」：刷新当前子页（最近访客 / 唯一 IP 记录）
+    function refreshVisitorPane() {
+      var uniqueSec = document.getElementById('visitorUniqueIpSection');
+      if (uniqueSec && uniqueSec.style.display !== 'none') {
+        loadUniqueIps(true);
+      } else {
+        loadVisitors();
+      }
+    }
+
+    // 点 IP（访客记录 / 唯一 IP 记录内）→ 跳到「唯一 IP 记录」页并展开该 IP 的详情卡
+    function showIpCompare(ip) {
+      switchVisitorSubTab('unique');
+      showUniqueIpDetail(ip);
+    }
+
+    // Cross-linking: 按 IP 过滤「最近访客」列表
+    function showVisitorFilter(ip) {
+      window._visitorFilterIp = ip;
+      window._visitorFilterIp; // force re-filter on load
+      switchVisitorSubTab('recent');
+      if (typeof loadVisitors === 'function') loadVisitors();
+    }
+
+    // ===== 唯一 IP 记录 =====
+    // 从 visitor_logs 按 IP 聚合（服务端 SQL），城市 → 唯一 IP 数（大的在前），点城市 chip 筛选
+    function loadUniqueIps(force) {
+      var statsEl = document.getElementById('visitorUniqueStats');
+      var chipsEl = document.getElementById('visitorCityChips');
+      var listEl = document.getElementById('visitorUniqueList');
+      if (!listEl) return;
+
+      if (force) window._uniqueIpCity = null;
+      var city = window._uniqueIpCity || '';
+      var daysSel = document.getElementById('visitorDays');
+      var days = daysSel ? parseInt(daysSel.value, 10) || 7 : 7;
+
+      statsEl.innerHTML = '<div style="color:var(--muted);font-size:0.85rem">加载中...</div>';
+      listEl.innerHTML = '';
+      if (!city) chipsEl.innerHTML = '';
+
+      api('/api/admin/health?section=stats&sub=visitor-unique-ips&days=' + days +
+        (city ? '&city=' + encodeURIComponent(city) : '')).then(function (res) {
+        if (!res || !res.success) {
+          statsEl.innerHTML = '<div style="color:#dc2626;font-size:0.85rem">加载失败：' + escapeHtml((res && res.error) || '未知错误') + '</div>';
+          return;
+        }
+        window._uniqueIpData = res;
+        renderUniqueIpStats(res);
+        renderVisitorCityChips(res);
+        renderUniqueIpList(res);
+      }).catch(function (e) {
+        statsEl.innerHTML = '<div style="color:#dc2626;font-size:0.85rem">加载失败: ' + escapeHtml(e.message) + '</div>';
+      });
+    }
+
+    function renderUniqueIpStats(res) {
+      var s = res.stats || {};
+      var city = window._uniqueIpCity || '';
+      var cards = [
+        { label: '唯一 IP', val: s.ips || 0, sub: '近 ' + (res.days || 7) + ' 天去重后' },
+        { label: '访问次数', val: s.visits || 0, sub: '总 PV（含重复访问）' },
+        { label: '覆盖城市', val: s.cities || 0, sub: '按省 / 市归组' },
+        { label: '当前筛选', val: city || '全部', sub: city ? ('命中 ' + (s.shown || 0) + ' 个 IP') : ('列表显示前 ' + (s.shown || 0) + ' 个') },
+      ];
+      document.getElementById('visitorUniqueStats').innerHTML =
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">' +
+        cards.map(function (c) {
+          return '<div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px">' +
+            '<div style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">' + escapeHtml(c.label) + '</div>' +
+            '<div style="font-size:1.35rem;font-weight:800;color:var(--ink);margin-top:4px">' + escapeHtml(String(c.val)) + '</div>' +
+            '<div style="font-size:0.7rem;color:var(--muted);margin-top:4px">' + escapeHtml(c.sub) + '</div>' +
+            '</div>';
+        }).join('') + '</div>';
+    }
+
+    function renderVisitorCityChips(res) {
+      var el = document.getElementById('visitorCityChips');
+      if (!el) return;
+      if (res.city) {
+        // 已按某城市筛选：只显示「返回全部」
+        el.innerHTML = '<span style="cursor:pointer;font-size:0.75rem;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted)" ' +
+          'onclick="window._uniqueIpCity=null;loadUniqueIps()">← 全部城市（' + ((res.stats && res.stats.ips) || 0) + ' 个 IP）</span>' +
+          '<span style="font-size:0.75rem;padding:4px 10px;border-radius:999px;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.35);color:#6366f1;font-weight:600">' +
+          escapeHtml(res.city) + '（' + ((res.stats && res.stats.shown) || 0) + '）</span>';
+        return;
+      }
+      var chips = '<span onclick="window._uniqueIpCity=null;loadUniqueIps()" style="cursor:pointer;font-size:0.75rem;padding:4px 10px;border-radius:999px;border:1px solid rgba(99,102,241,0.35);background:rgba(99,102,241,0.12);color:#6366f1;font-weight:600">' +
+        '全部（' + ((res.stats && res.stats.ips) || 0) + '）</span>';
+      (res.cities || []).forEach(function (c) {
+        chips += '<span onclick="filterUniqueIpCity(\'' + escapeJs(c.name) + '\')" title="点击只看该城市的唯一 IP（' + c.ips + ' 个 IP / ' + c.visits + ' 次访问）" ' +
+          'style="cursor:pointer;font-size:0.75rem;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--muted)">' +
+          escapeHtml(c.name) + '（' + c.ips + '）</span>';
+      });
+      el.innerHTML = chips;
+    }
+
+    function filterUniqueIpCity(name) {
+      window._uniqueIpCity = name || null;
+      loadUniqueIps();
+    }
+
+    function toggleUniqueIpRow(idx) {
+      var tr = document.getElementById('uniqueIpRow' + idx);
+      if (tr) tr.style.display = tr.style.display === 'none' ? '' : 'none';
+    }
+
+    function renderUniqueIpList(res) {
+      var el = document.getElementById('visitorUniqueList');
+      if (!el) return;
+      var ips = res.ips || [];
+      if (ips.length === 0) {
+        el.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;padding:10px 0">' +
+          (res.city ? '「' + escapeHtml(res.city) + '」下没有记录' : '近 ' + (res.days || 7) + ' 天暂无访客记录') + '</div>';
+        return;
+      }
+      var th = 'text-align:left;padding:7px 8px;border-bottom:1px solid var(--line)';
+      var html = '<table style="width:100%;border-collapse:collapse;font-size:0.82rem">' +
+        '<thead><tr style="color:var(--muted);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.5px">' +
+        '<th style="' + th + '">IP</th>' +
+        '<th style="' + th + '">城市 / 地区</th>' +
+        '<th style="' + th + '">访问</th>' +
+        '<th style="' + th + '">独立访客</th>' +
+        '<th style="' + th + '">运营商标注</th>' +
+        '<th style="' + th + '">最近访问</th>' +
+        '<th style="' + th + '">最近页面</th>' +
+        '<th style="' + th + ';width:1%"></th>' +
+        '</tr></thead><tbody>';
+
+      ips.forEach(function (v, idx) {
+        var loc = v.location_zh || [v.region, v.city].filter(Boolean).join(' ') || v.country || '-';
+        var last = v.lastSeen ? new Date(v.lastSeen).toLocaleString() : '-';
+        var first = v.firstSeen ? new Date(v.firstSeen).toLocaleString() : '-';
+        var paths = (v.paths || []).map(function (p) { return p.path; });
+        var mainPath = paths.length ? paths[0] : '/';
+        var ispShort = (v.isp || '').slice(0, 40);
+
+        html += '<tr class="visitor-row" onclick="toggleUniqueIpRow(' + idx + ')">' +
+          '<td style="padding:7px 8px;border-bottom:1px solid var(--line);font-family:monospace;font-size:0.75rem;white-space:nowrap">' +
+          '<a href="javascript:void(0)" onclick="event.stopPropagation();showUniqueIpDetail(\'' + escapeJs(v.ip) + '\')" style="color:#6366f1;text-decoration:none;font-weight:600">' + escapeHtml(v.ip) + '</a>' +
+          '</td>' +
+          '<td style="padding:7px 8px;border-bottom:1px solid var(--line);font-size:0.78rem">' + escapeHtml(loc) + '</td>' +
+          '<td style="padding:7px 8px;border-bottom:1px solid var(--line);font-weight:700;color:var(--ink)">' + v.visits + '</td>' +
+          '<td style="padding:7px 8px;border-bottom:1px solid var(--line);color:var(--muted)">' + (v.uv || 0) + '</td>' +
+          '<td style="padding:7px 8px;border-bottom:1px solid var(--line);font-size:0.7rem;color:#8b5cf6;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(v.isp || '') + '">' + escapeHtml(ispShort || '-') + '</td>' +
+          '<td style="padding:7px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:0.75rem;white-space:nowrap">' + escapeHtml(last) + '</td>' +
+          '<td style="padding:7px 8px;border-bottom:1px solid var(--line);font-size:0.75rem;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(paths.join('  |  ')) + '">' + escapeHtml(mainPath) + '</td>' +
+          '<td style="padding:7px 8px;border-bottom:1px solid var(--line);text-align:center;color:var(--muted);font-size:0.72rem">▼</td>' +
+          '</tr>';
+        html += '<tr id="uniqueIpRow' + idx + '" style="display:none"><td colspan="8" style="background:var(--surface);border-bottom:1px solid var(--line);padding:10px 12px">' +
+          '<div style="font-size:0.75rem;color:var(--muted);margin-bottom:6px">首次 ' + escapeHtml(first) + ' · 最近 ' + escapeHtml(last) +
+          ' · ' + (v.uv || 0) + ' 个独立访客 · 共 ' + v.visits + ' 次访问' +
+          (v.asn ? ' · AS' + escapeHtml(String(v.asn).replace(/^AS/i, '').split(' ')[0]) : '') + '</div>' +
+          '<div style="font-size:0.75rem;margin-bottom:8px">' +
+          (v.paths || []).map(function (p) {
+            return '<div style="margin:2px 0"><span style="color:var(--muted);font-size:0.7rem">' + escapeHtml(new Date(p.time).toLocaleString()) + '</span> ' + escapeHtml(p.path) + '</div>';
+          }).join('') + '</div>' +
+          '<div style="display:flex;gap:12px;flex-wrap:wrap">' +
+          '<span onclick="showUniqueIpDetail(\'' + escapeJs(v.ip) + '\')" style="cursor:pointer;color:#6366f1;font-weight:600;font-size:0.75rem">[IP 详情（多源）]</span>' +
+          '<span onclick="showVisitorFilter(\'' + escapeJs(v.ip) + '\')" style="cursor:pointer;color:#6366f1;font-weight:600;font-size:0.75rem">[该 IP 的访客记录]</span>' +
+          '<span onclick="copyText(\'' + escapeJs(v.ip) + '\')" style="cursor:pointer;color:#6366f1;font-weight:600;font-size:0.75rem">[复制 IP]</span>' +
+          '</div></td></tr>';
+      });
+
+      html += '</tbody></table>';
+      html += '<div style="margin-top:12px;font-size:0.68rem;color:var(--muted)">共 ' + (res.stats.ips || 0) + ' 个唯一 IP' +
+        (res.city ? '（当前筛选「' + escapeHtml(res.city) + '」显示 ' + ips.length + ' 个）' : '，列表按访问次数显示前 ' + ips.length + ' 个') +
+        '；点行展开明细，点 IP 看多源详情。</div>';
+      el.innerHTML = html;
+    }
+
+    // 单 IP 详情卡（数据来自 /api/admin/health?section=ip-lookup-once）
+    function showUniqueIpDetail(ip, force) {
+      var box = document.getElementById('visitorIpDetailBox');
+      if (!box) return;
+      box.style.display = '';
+      box.innerHTML = '<div style="color:var(--muted);font-size:0.8rem">正在加载 ' + escapeHtml(ip) + ' 的 IP 详情...</div>';
+      try { box.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {}
+
+      api('/api/admin/health?section=ip-lookup-once', {
+        method: 'POST',
+        body: JSON.stringify({ ips: [ip], force: !!force }),
+        headers: { 'Content-Type': 'application/json' },
+      }).then(function (data) {
+        if (!data || !data.success || !data.results || data.results.length === 0) {
+          box.innerHTML = '<div style="color:#dc2626;font-size:0.82rem">该 IP 查询失败或无数据</div>';
+          return;
+        }
+        box.innerHTML =
+          '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px">' +
+          '<span style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">IP 详情</span>' +
+          '<span style="display:flex;gap:10px">' +
+          '<span onclick="showUniqueIpDetail(\'' + escapeJs(ip) + '\', true)" style="cursor:pointer;color:#6366f1;font-weight:600;font-size:0.75rem">[重新查询]</span>' +
+          '<span onclick="document.getElementById(\'visitorIpDetailBox\').style.display=\'none\'" style="cursor:pointer;color:#6366f1;font-weight:600;font-size:0.75rem">[收起]</span>' +
+          '</span></div>' +
+          renderIpDetailCards(data.results[0], data.sources || [], ip);
+      }).catch(function (e) {
+        box.innerHTML = '<div style="color:#dc2626;font-size:0.82rem">查询失败: ' + escapeHtml(e.message) + '</div>';
+      });
     }
 
     function switchAfdianSubTab(sub) {
@@ -9397,111 +9611,21 @@
       }
     }
 
-    // Cross-linking: click IP in visitor records -> show IP Compare for that IP
-    function showIpCompare(ip) {
-      window._ipCompareFilter = ip;
-      switchVisitorSubTab('ip-compare');
-    }
-
-    // Cross-linking: click IP in IP Compare table -> filter visitor records by that IP
-    function showVisitorFilter(ip) {
-      window._visitorFilterIp = ip;
-      window._visitorFilterIp; // force re-filter on load
-      switchVisitorSubTab('recent');
-      if (typeof loadVisitors === 'function') loadVisitors();
-    }
-
-    function loadIpCompare() {
-      var el = document.getElementById('visitorIpCompare');
-      if (!el) return;
-
-      var filterNotice = '';
-      var ips = [];
-      var singleIp = null;
-      var force = !!window._ipCompareForce;
-      window._ipCompareForce = false;
-
-      // Single IP mode (clicked from visitor records) → 独立详情页（卡片式，同上线的 /my-ip）
-      if (window._ipCompareFilter) {
-        singleIp = window._ipCompareFilter;
-        ips = [singleIp];
-        filterNotice = '<div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">' +
-          '<span style="font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">IP 详情</span>' +
-          '<span style="display:flex;gap:10px">' +
-          '<span onclick="ipDetailReload(\'' + escapeJs(singleIp) + '\')" style="cursor:pointer;color:#6366f1;font-weight:600;font-size:0.75rem">[重新查询]</span>' +
-          '<span onclick="window._ipCompareFilter=null;window._ipCompareForce=false;loadIpCompare()" style="cursor:pointer;color:#6366f1;font-weight:600;font-size:0.75rem">[返回列表]</span>' +
-          '</span></div>';
-        window._ipCompareFilter = null;
-      } else {
-        // Default mode: extract IPs from visitor data
-        var visitorData = window._cachedVisitorData || [];
-        var ipSet = {};
-        visitorData.forEach(function(v) {
-          if (v.ip && !/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|::1$)/.test(v.ip)) {
-            ipSet[v.ip] = true;
-          }
-        });
-        ips = Object.keys(ipSet);
-
-        if (ips.length === 0) {
-          el.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:20px">暂无访客 IP 数据</div>';
-          return;
-        }
-      }
-
-      // 2. Check localStorage cache (24h for same IP batch)
-      var cacheKey = 'ip_lookup_' + ips.sort().join('_');
-      var cached = null;
+    // 通用复制（唯一 IP 列表的行内操作）
+    function copyText(t) {
       try {
-        var raw = localStorage.getItem(cacheKey);
-        if (raw) {
-          var parsed = JSON.parse(raw);
-          if (parsed.expires > Date.now()) cached = parsed.data;
-        }
-      } catch(e) {}
-
-      if (cached && !force) {
-        renderIpCompareTable(el, filterNotice, cached.results, cached.sources, { single: !!singleIp, ip: singleIp, fromCache: true });
-        return;
-      }
-
-      // 3. No cache (or force reload) - AJAX to new on-demand endpoint
-      el.innerHTML = filterNotice + '<div style="color:var(--muted);font-size:0.85rem;padding:20px">' +
-        (force ? '正在重新查询该 IP（跳过缓存，可能要几秒）...' : '正在查询 IP 归属地（' + ips.length + ' 个 IP）...') + '</div>';
-
-      api('/api/admin/health?section=ip-lookup-once', {
-        method: 'POST',
-        body: JSON.stringify({ ips: ips, force: force }),
-        headers: { 'Content-Type': 'application/json' },
-      }).then(function(data) {
-        if (!data || !data.success) {
-          el.innerHTML = filterNotice + '<div style="color:#dc2626;font-size:0.85rem;padding:20px">查询失败</div>';
-          return;
-        }
-        // 4. Cache in localStorage for fast re-open
-        try {
-          localStorage.setItem(cacheKey, JSON.stringify({
-            expires: Date.now() + 86400000,
-            data: { results: data.results, sources: data.sources },
-          }));
-        } catch(e) {}
-        renderIpCompareTable(el, filterNotice, data.results, data.sources, { single: !!singleIp, ip: singleIp, fromCache: false });
-      }).catch(function(e) {
-        el.innerHTML = filterNotice + '<div style="color:#dc2626;font-size:0.85rem;padding:20px">查询失败: ' + escapeHtml(e.message) + '</div>';
-      });
-    }
-
-    // 「重新查询」：清掉本地 24h 缓存 + 让服务端跳过 ip_lookups 缓存，强制重查 5 个源
-    function ipDetailReload(ip) {
-      try {
-        for (var k = localStorage.length - 1; k >= 0; k--) {
-          var key = localStorage.key(k);
-          if (key && key.indexOf('ip_lookup_') === 0 && key.indexOf(ip) >= 0) localStorage.removeItem(key);
-        }
+        var ta = document.createElement('textarea');
+        ta.value = t;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        var ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        if (ok) return true;
       } catch (e) {}
-      window._ipCompareFilter = ip;
-      window._ipCompareForce = true;
-      loadIpCompare();
+      try { window.prompt('手动复制：', t); } catch (e2) {}
+      return false;
     }
 
     function ipDetailCopy(ip) {
@@ -9636,58 +9760,6 @@
       }
 
       return html;
-    }
-
-    function renderIpCompareTable(el, filterNotice, results, sources, opts) {
-      opts = opts || {};
-      var sourceNames = (sources || []).length > 0
-        ? sources
-        : ["ip-api", "ip-sb", "ipinfo", "ipwhois", "ipapi-is"];
-
-      // 单 IP → 独立详情页（卡片式）
-      if (opts.single && results && results.length === 1) {
-        el.innerHTML = filterNotice + renderIpDetailCards(results[0], sourceNames, opts.ip || results[0].ip);
-        return;
-      }
-
-      var html = '<table class="ip-compare-table"><thead><tr>';
-      html += '<th>IP Address</th>';
-      html += '<th>Status</th>';
-      for (var s = 0; s < sourceNames.length; s++) {
-        html += '<th>' + escapeHtml(sourceNames[s]) + '</th>';
-      }
-      html += '</tr></thead><tbody>';
-
-      for (var i = 0; i < (results || []).length; i++) {
-        var item = results[i];
-        var apiResults = item.results || [];
-        var geo = item.geo || {};
-
-        html += '<tr>';
-        html += '<td style="font-family:monospace;color:#6366f1;font-weight:600;white-space:nowrap">' +
-          '<a href="javascript:void(0)" onclick="window._ipCompareFilter=\'' + escapeJs(item.ip) + '\';loadIpCompare()" style="color:#6366f1;text-decoration:none">' + escapeHtml(item.ip) + '</a>' +
-          (geo.location_full_zh ? '<div style="font-size:0.65rem;color:var(--muted);font-weight:400">' + escapeHtml(geo.location_full_zh) + '</div>' : '') +
-          '</td>';
-        html += '<td style="font-size:0.72rem">' + (item.fromCache ? '缓存' : '实时') + '</td>';
-
-        for (var j = 0; j < sourceNames.length; j++) {
-          var r = apiResults.length > j ? apiResults[j] : null;
-          if (r && r.source !== 'no-data') {
-            var addr = [r.country, r.region, r.city].filter(Boolean).join(' ');
-            var ispShort = (r.isp || r.org || '').slice(0, 40);
-            html += '<td><div style="font-size:0.73rem">' + escapeHtml(addr || '-') + '</div>';
-            if (ispShort) html += '<div style="font-size:0.62rem;color:#8b5cf6;margin-top:2px">' + escapeHtml(ispShort) + '</div>';
-            html += '</td>';
-          } else {
-            html += '<td><span class="ip-col-empty">-</span></td>';
-          }
-        }
-        html += '</tr>';
-      }
-      html += '</tbody></table>';
-
-      html += '<div style="margin-top:12px;font-size:0.68rem;color:var(--muted)">共 ' + results.length + ' 个独立 IP，数据来源: ' + sourceNames.join(', ') + '。点 IP 可查看单 IP 详情页。</div>';
-      el.innerHTML = filterNotice + html;
     }
 
     function drawVisitorChart(tr) {

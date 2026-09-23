@@ -3231,6 +3231,48 @@ if ((isCron || isCronBackup) && isBackup) {
       if (sub === "visitor-recent") {
         return res.json(await handleVisitorRecent2());
       }
+      // 唯一 IP 记录（面板「唯一 IP 记录」页）：按 IP 聚合 + 城市统计（唯一 IP 数，大的在前）
+      if (sub === "visitor-unique-ips") {
+        try {
+          var uvDays = parseInt(req.query && req.query.days, 10) || 7;
+          if (uvDays < 1) uvDays = 1;
+          if (uvDays > 90) uvDays = 90;
+          var uvCity = String((req.query && req.query.city) || "").trim().slice(0, 64);
+          var visitorLogU = require("../../lib/visitor-log");
+          var agg = await visitorLogU.uniqueIpStats(uvDays, uvCity || null);
+          var uvIps = (agg.ips || []).map(function (r) {
+            var region = String(r.region || "").trim();
+            var city = String(r.city || "").trim();
+            var baseLoc = region && city && region !== city ? region + " " + city : (region || city);
+            return {
+              ip: r.ip,
+              visits: r.visits,
+              uv: r.uv,
+              firstSeen: r.firstSeen,
+              lastSeen: r.lastSeen,
+              country: r.country || "",
+              region: region,
+              city: city,
+              district: r.district || "",
+              location_zh: geoZh.joinDistrict(baseLoc, r.district),
+              isp: r.isp || "",
+              asn: r.asn || "",
+              paths: r.paths || [],
+            };
+          });
+          return res.json({
+            success: true,
+            days: agg.days,
+            city: uvCity || "",
+            stats: agg.stats,
+            cities: agg.cities,
+            ips: uvIps,
+          });
+        } catch (e) {
+          console.error("[visitor-unique-ips] error:", e);
+          return res.json({ success: false, error: (e && e.message) || String(e) });
+        }
+      }
       if (sub === "ip-compare") {
         return res.json(await handleIpCompare2());
       }
