@@ -4995,12 +4995,19 @@
     }
 
     var TAB_META = {
+      dashboard: { title: '后台首页', sub: '系统概览与快捷入口' },
+      products: { title: '产品管理', sub: '管理可授权的产品列表' },
+      codes: { title: '兑换码管理', sub: '生成、筛选与导出兑换码' },
+      records: { title: '激活记录', sub: '查看设备激活历史' },
+      'direct-activate': { title: '快捷激活', sub: '跳过兑换码流程，直接为设备生成激活码' },
+      'afdian-orders': { title: '爱发电订单', sub: '管理爱发电赞助订单，手动同步并查看激活码生成记录' },
       visitors: { title: '访客统计', sub: 'UV / PV / 热门页面 / 最近访客' },
+      'logs': { title: '系统日志', sub: 'Vercel部署事件 · 邮件发送记录 · 爱发电私信日志' },
+      delivery: { title: '消息投递', sub: '追踪 Redis 推送消息的投递状态，排查丢通知问题' },
+      settings: { title: '设置', sub: '外观 · 数据 · 安全 · 邮件 · 备份恢复' },
       health: { title: '服务器状态', sub: '检测 Postgres / 鉴权 / 激活链路是否正常' },
       'vercel-logs': { title: 'Vercel日志', sub: '部署事件与函数运行日志（Vercel API）' },
-      'logs': { title: '系统日志', sub: 'Vercel部署事件 · 邮件发送记录 · 爱发电私信日志' },
-      'purchase-logs': { title: '购买点击日志', sub: '管理 /go/* 跳转短链，查看各链接点击来源与时间分布' },
-      settings: { title: '设置', sub: '外观 · 数据 · 安全 · 邮件 · 备份恢复' }
+      'purchase-logs': { title: '购买点击日志', sub: '管理 /go/* 跳转短链，查看各链接点击来源与时间分布' }
     };
 
     function switchTab(tab) {
