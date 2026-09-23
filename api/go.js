@@ -108,6 +108,7 @@ async function pushPurchaseClick(entry, record, ts, dateKey) {
     console.log("[go:stream] no Upstash config, skip purchase_click push");
     return;
   }
+  var geoFull = geoZh.resolveZhLocationFull({ country: record.c, region: record.rg, city: record.ci });
   var msgId = null;
   if (md) {
     try {
@@ -122,7 +123,9 @@ async function pushPurchaseClick(entry, record, ts, dateKey) {
           country: record.c,
           region: record.rg,
           city: record.ci,
-          location_zh: geoZh.resolveZhLocation({ country: record.c, region: record.rg, city: record.ci }),
+          location_zh: geoFull.location_zh,
+          district_zh: geoFull.district_zh,
+          location_full_zh: geoFull.location_full_zh,
           referrer: record.r,
           user_agent: record.u,
           utm_source: record.utm_source,
@@ -151,7 +154,9 @@ async function pushPurchaseClick(entry, record, ts, dateKey) {
       country: record.c,
       region: record.rg,
       city: record.ci,
-      location_zh: geoZh.resolveZhLocation({ country: record.c, region: record.rg, city: record.ci }),
+      location_zh: geoFull.location_zh,
+      district_zh: geoFull.district_zh,
+      location_full_zh: geoFull.location_full_zh,
       referrer: record.r,
       user_agent: record.u,
       utm_source: record.utm_source,

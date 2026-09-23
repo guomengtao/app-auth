@@ -621,6 +621,12 @@ if ((isCron || isCronBackup) && isBackup) {
       var visitIp = visitHeaders["x-forwarded-for"] || visitHeaders["x-real-ip"] || (req.socket && req.socket.remoteAddress) || "";
       var visitUa = visitHeaders["user-agent"] || "";
 
+      var visitGeo = geoZh.resolveZhLocationFull({
+        country: visitHeaders["x-vercel-ip-country"],
+        region: visitHeaders["x-vercel-ip-country-region"],
+        city: visitHeaders["x-vercel-ip-city"],
+      });
+
       var visitMsg = {
         page: visitPayload.page || "",
         referrer: visitPayload.referrer || "",
@@ -630,11 +636,9 @@ if ((isCron || isCronBackup) && isBackup) {
         country: String(visitHeaders["x-vercel-ip-country"] || "").slice(0, 8),
         region: String(visitHeaders["x-vercel-ip-country-region"] || "").slice(0, 16),
         city: String(visitHeaders["x-vercel-ip-city"] || "").slice(0, 40),
-        location_zh: geoZh.resolveZhLocation({
-          country: visitHeaders["x-vercel-ip-country"],
-          region: visitHeaders["x-vercel-ip-country-region"],
-          city: visitHeaders["x-vercel-ip-city"],
-        }),
+        location_zh: visitGeo.location_zh,
+        district_zh: visitGeo.district_zh,
+        location_full_zh: visitGeo.location_full_zh,
       };
 
       console.log("[visit:stream] ========== page_visit push start ==========");

@@ -735,8 +735,10 @@ def _startup_recovery():
 
 
 def _zh_loc(p):
-    """归属地优先取中文（location_zh → city_zh），不做英文地名拼接。"""
-    return str(p.get("location_zh") or p.get("city_zh") or "").strip()
+    """归属地优先取中文全量（location_full_zh → location_zh → city_zh），不做英文地名拼接。"""
+    return str(
+        p.get("location_full_zh") or p.get("location_zh") or p.get("city_zh") or ""
+    ).strip()
 
 
 def handle_message(msg, skip_notify=False):
@@ -779,15 +781,16 @@ def handle_message(msg, skip_notify=False):
         title = "新设备激活"
         subtitle = f"{product} {months}".strip()
         lines = []
+        # 地区先说
+        loc = _zh_loc(p)
+        if loc:
+            lines.append(f"归属地: {loc}")
         if act_code:
             lines.append(f"激活码: {act_code}")
         if redeem_code:
             lines.append(f"兑换码: {redeem_code}")
         if device:
             lines.append(f"设备: {device}")
-        loc = _zh_loc(p)
-        if loc:
-            lines.append(f"归属地: {loc}")
         if src:
             lines.append(f"来源: {src}")
         if channel:
@@ -827,13 +830,11 @@ def handle_message(msg, skip_notify=False):
             if region: geo_parts.append(region)
             if city: geo_parts.append(city)
             geo_str = ", ".join(geo_parts) if geo_parts else ""
-        if ip:
-            ip_line = f"IP: {ip}"
-            if geo_str:
-                ip_line += f" ({geo_str})"
-            lines.append(ip_line)
-        elif geo_str:
+        # 地区先说：归属地放首行，IP 不再把地区塞进括号
+        if geo_str:
             lines.append(f"归属地: {geo_str}")
+        if ip:
+            lines.append(f"IP: {ip}")
         if referrer:
             lines.append(f"来源: {referrer[:80]}")
         lines.append(ts_label)
@@ -850,15 +851,16 @@ def handle_message(msg, skip_notify=False):
         if channel:
             subtitle += f" [{channel}]"
         lines = []
+        # 地区先说
+        loc = _zh_loc(p)
+        if loc:
+            lines.append(f"归属地: {loc}")
         if redeem:
             lines.append(f"兑换码: {redeem}")
         if reason:
             lines.append(f"原因: {reason[:80]}")
         if device:
             lines.append(f"设备: {device[:16]}")
-        loc = _zh_loc(p)
-        if loc:
-            lines.append(f"归属地: {loc}")
         if channel:
             lines.append(f"渠道: {channel}")
         lines.append(ts_label)
@@ -883,13 +885,11 @@ def handle_message(msg, skip_notify=False):
             if region: geo_parts.append(region)
             if city: geo_parts.append(city)
             geo_str = ", ".join(geo_parts) if geo_parts else ""
-        if ip:
-            ip_line = f"IP: {ip}"
-            if geo_str:
-                ip_line += f" ({geo_str})"
-            lines.append(ip_line)
-        elif geo_str:
+        # 地区先说：归属地放首行，IP 不再把地区塞进括号
+        if geo_str:
             lines.append(f"归属地: {geo_str}")
+        if ip:
+            lines.append(f"IP: {ip}")
         if ref:
             lines.append(f"来源页面: {ref[:80]}")
         if utm:
@@ -936,51 +936,36 @@ def handle_message(msg, skip_notify=False):
             user_name = p.get("user_name", "") or ""
             device_info = p.get("device_info", {}) or {}
             device_model = p.get("device_model", "") or device_info.get("model", "") or device_info.get("product", "") or ""
-            city = p.get("city", "") or ""
-            region = p.get("region", "") or ""
-            country = p.get("country", "") or ""
-            geo_str = _zh_loc(p) or city or region or country or ""
-            parts = [f"新设备激活：{prod}"]
+            loc = _zh_loc(p)
+            # 地区先说：{地区}用户激活成功{产品}，{时长}（没有中文地区就不念英文城市）
+            parts = [f"{loc}用户激活成功{prod}" if loc else f"用户激活成功{prod}"]
             if duration_str:
                 parts.append(duration_str)
             if user_name:
-                parts.append(f"用户{user_name}")
+                parts.append(user_name)
             if device_model:
                 parts.append(f"设备{device_model}")
-            if geo_str:
-                parts.append(f"来自{geo_str}")
             voice_text = "，".join(parts)
         elif mtype == "activation_failure":
             reason = p.get("reason", "") or p.get("error", "") or ""
-            city = _zh_loc(p) or p.get("city", "") or ""
-            if reason:
-                voice_text = f"激活失败：{reason[:60]}"
-            else:
-                voice_text = "激活失败"
-            if city:
-                voice_text += f"，来自{city}"
+            loc = _zh_loc(p)
+            head = f"{loc}用户激活失败" if loc else "用户激活失败"
+            voice_text = f"{head}：{reason[:60]}" if reason else head
         elif mtype == "purchase_click":
             name_zh = p.get("name_zh", "") or p.get("slug", "")
             slug = p.get("slug", "")
-            city = _zh_loc(p) or p.get("city", "") or ""
+            loc = _zh_loc(p)
             if slug == "ev-timetable" or "timetable" in slug.lower():
-                voice_text = "新用户访问爱发电"
-                if city:
-                    voice_text += f"，来自{city}"
+                voice_text = f"{loc}用户访问爱发电" if loc else "用户访问爱发电"
+            elif name_zh:
+                voice_text = f"{loc}用户点击购买{name_zh}" if loc else f"用户点击购买{name_zh}"
             else:
-                voice_text = f"收到购买点击，{name_zh}" if name_zh else "收到购买点击"
-                if city:
-                    voice_text += f"，来自{city}"
+                voice_text = f"{loc}用户点击购买" if loc else "用户点击购买"
         elif mtype == "page_visit":
             page = p.get("page", "") or p.get("title", "") or ""
-            city = p.get("city", "") or ""
-            region = p.get("region", "") or ""
-            geo_str = _zh_loc(p) or city or region or ""
+            loc = _zh_loc(p)
             page_cn = _page_name_cn(page)
-            if geo_str:
-                voice_text = f"{geo_str}用户访问{page_cn}"
-            else:
-                voice_text = f"访问{page_cn}"
+            voice_text = f"{loc}用户访问{page_cn}" if loc else f"用户访问{page_cn}"
         elif mtype == "test_curl":
             voice_text = "收到测试消息"
         else:
@@ -1126,12 +1111,22 @@ def _page_name_cn(page):
     if not page:
         return "未知页面"
     page_lower = page.lower().rstrip("/")
-    if page_lower in ("/", "/index", "/index.html", "/index.htm", "/home", "/home.html"):
+    if page_lower in ("", "/", "/index", "/index.html", "/index.htm", "/home", "/home.html"):
         return "首页"
     if "activate" in page_lower:
         return "激活页面"
     if "download" in page_lower:
         return "下载页面"
+    if "timetable" in page_lower:
+        return "课程表页"
+    if "course-guide" in page_lower:
+        return "课程指南页"
+    if "user-guide" in page_lower:
+        return "使用指南页"
+    if "redeem" in page_lower:
+        return "兑换页"
+    if "login" in page_lower:
+        return "登录页"
     if "/go/" in page_lower:
         slug = page_lower.split("/go/")[-1].split("?")[0].split("/")[0]
         return f"{slug}页面"

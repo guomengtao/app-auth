@@ -11,13 +11,15 @@ function getGeoFields(req) {
   var country = String(req.headers["x-vercel-ip-country"] || "").slice(0, 8);
   var region = String(req.headers["x-vercel-ip-country-region"] || "").slice(0, 16);
   var city = String(req.headers["x-vercel-ip-city"] || "").slice(0, 40);
-  var locationZh = geoZh.resolveZhLocation({ country: country, region: region, city: city });
+  var full = geoZh.resolveZhLocationFull({ country: country, region: region, city: city });
   return {
     country: country,
     region: region,
     city: city,
-    location_zh: locationZh,
-    city_zh: locationZh,
+    location_zh: full.location_zh,
+    district_zh: full.district_zh,
+    location_full_zh: full.location_full_zh,
+    city_zh: full.location_zh,
   };
 }
 
@@ -548,6 +550,8 @@ module.exports = async (req, res) => {
       region: geo.region,
       city: geo.city,
       location_zh: geo.location_zh,
+      district_zh: geo.district_zh,
+      location_full_zh: geo.location_full_zh,
       city_zh: geo.city_zh,
     }).catch(function (e) {
       console.error("[activate] Push notification failed:", e.message);
