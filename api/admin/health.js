@@ -3123,12 +3123,15 @@ if ((isCron || isCronBackup) && isBackup) {
           try {
             var obj = typeof records[i] === "string" ? JSON.parse(records[i]) : records[i];
             var sg = storeGeo[obj.ip] || null;
+            // Vercel 的 region 对国内 IP 是省级代码（SD/GD/BJ）→ 展示时翻译成中文省市
+            var regionFallback = geoZh.regionZhOf(obj.rg, obj.c) || obj.rg || "";
+            var cityFallback = geoZh.cityZhOf(obj.ci) || obj.ci || "";
             var entry = {
               hash: obj.h || "", path: obj.p || "/", ua: obj.u || "", ref: obj.r || "",
               time: obj.t || 0,
               country: (sg && sg.country) || obj.c || "",
-              region: (sg && sg.region) || obj.rg || "",
-              city: (sg && sg.city) || obj.ci || "",
+              region: (sg && sg.region) || regionFallback,
+              city: (sg && sg.city) || cityFallback,
               district: (sg && sg.district) || "",
               timezone: obj.tz || "", ip: obj.ip || "",
             };

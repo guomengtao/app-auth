@@ -46,6 +46,16 @@ module.exports = async (req, res) => {
     var districtZh = (tencent && tencent.district) || (stored && stored.district) || "";
     var tencentFailed = Boolean(tencent && tencent.tencentFailed);
 
+    // 兜底：Vercel 头部也能给省级（国内返回的是 SD/GD/BJ 这类省级代码）→ 至少把「省/直辖市」显示出来
+    var vercelRegionZh = geoZh.regionZhOf(headers["x-vercel-ip-country-region"], headers["x-vercel-ip-country"]);
+    var vercelCityZh = geoZh.cityZhOf(headers["x-vercel-ip-city"]);
+    var regionFromVercel = false;
+    if (!regionZh && vercelRegionZh) {
+      regionZh = vercelRegionZh;
+      regionFromVercel = true;
+    }
+    if (!cityZh && vercelCityZh) cityZh = vercelCityZh;
+
     var full = geoZh.resolveZhLocationFull({
       country: headers["x-vercel-ip-country"],
       region: headers["x-vercel-ip-country-region"],
@@ -55,11 +65,11 @@ module.exports = async (req, res) => {
       district: districtZh,
     });
 
+    var rawCountry = String(headers["x-vercel-ip-country"] || "").trim();
     var countryZh =
       (stored && stored.country) ||
-      geoZh.resolveZhLocation({ country: headers["x-vercel-ip-country"] }) ||
-      headers["x-vercel-ip-country"] ||
-      "";
+      geoZh.resolveZhLocation({ country: rawCountry }) ||
+      (/^CN$/i.test(rawCountry) ? "中国" : rawCountry); // 页面展示用，国内显示「中国」而不是「CN」
 
     // 来源标签：让页面能准确告诉用户「这个值是哪来的」
     var sourceLabel = "";
@@ -72,9 +82,16 @@ module.exports = async (req, res) => {
     if (districtZh) {
       notes.push("区县来自腾讯位置服务，已按 IP 缓存 30 天（同一 IP 不会重复消耗额度）");
     } else if (tencentFailed) {
-      notes.push("腾讯位置服务暂时不可用（配额未分配 / 域名未授权 / 超时），已自动降级为省市");
+      notes.push(
+        regionZh
+          ? "腾讯位置服务暂时不可用（配额未分配 / 域名未授权 / 超时）；省/直辖市已用 Vercel 头部兜底，区县与城市暂缺"
+          : "腾讯位置服务暂时不可用（配额未分配 / 域名未授权 / 超时），且 Vercel 头部也没给出省级信息"
+      );
     } else {
       notes.push("腾讯位置服务未返回区县（该 IP 可能没有区县级数据）");
+    }
+    if (regionFromVercel) {
+      notes.push("省/直辖市来自 Vercel 头部（原文：" + (headers["x-vercel-ip-country-region"] || "-") + " 省级代码）");
     }
     notes.push("IP 定位精度上限到区县，运营商出口 IP 可能覆盖多个区，仅供大致参考");
     if (!regionZh && !cityZh) {
