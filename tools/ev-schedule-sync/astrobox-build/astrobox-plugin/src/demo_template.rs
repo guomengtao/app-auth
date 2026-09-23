@@ -69,3 +69,137 @@ pub const DEMO_JSON_WITH_NOTES: &str = r##"/*
 pub fn demo_json_text() -> String {
     DEMO_JSON_WITH_NOTES.to_string()
 }
+
+// ══════════════════════════════════════════════════════════════
+// 最小可用 Demo —— 不做任何修改就能直接导入成功的样例
+// ══════════════════════════════════════════════════════════════
+
+/// 生成一份**最小且必定通过校验**的 Demo JSON。
+///
+/// 返回 `(json, 课程表名称)`。
+///
+/// 课程表名称与课程名都带上随机后缀：连点几次「填入示例」也不会因同名而互相覆盖/冲突，
+/// 方便反复测试导入链路。随机数取自系统时间戳（WASI 下可读），无需外部熵源。
+pub fn minimal_demo_json() -> (String, String) {
+    let token = random_token();
+    let schedule_name = format!("示例课表-{}", token);
+    let course_name = format!("示例课程-{}", token);
+
+    let json = format!(
+        concat!(
+            "{{\"scheduleName\":\"{sn}\",\"courses\":[",
+            "{{\"name\":\"{cn}\",\"teacher\":\"示例教师\",\"location\":\"示例教室\",",
+            "\"day\":1,\"startTime\":\"08:00\",\"endTime\":\"09:40\",",
+            "\"weeks\":[1,2,3,4],\"weekType\":\"all\"}}",
+            "]}}"
+        ),
+        sn = schedule_name,
+        cn = course_name
+    );
+
+    (json, schedule_name)
+}
+
+/// 4 位十六进制随机串。SystemTime 不可用时退化为固定串（仍能导入，只是不再随机）。
+fn random_token() -> String {
+    let millis = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+
+    // 混一混低位，避免同一毫秒内连点得到相同值
+    let mixed = millis ^ (millis >> 7) ^ (millis << 3);
+    format!("{:04X}", (mixed % 0xFFFF) as u16)
+}
+
+// ══════════════════════════════════════════════════════════════
+// 支持的导入来源与各自的样板格式
+//
+// 来源：`docs/astrobox-plugin-ev-schedule-sync.md`（平台清单）
+//      `docs/多课程表格式导入兼容分析.md`（各格式样板 JSON）
+// 这两处是权威记录，改格式时请同步这两份文档。
+// ══════════════════════════════════════════════════════════════
+
+/// 支持的导入来源（名称, 一句话说明）
+pub const SUPPORTED_PLATFORMS: &[(&str, &str)] = &[
+    ("时光课程表 sgschedule", "最常用，用 timeSlots 节次表换算时间"),
+    ("WakeUp 课程表", "导出 .wakeup_schedule 文件"),
+    ("StarLink 星链课表", "starlinkkb.cn，含 AI 排课"),
+    ("CSES 标准格式", "通用课程表交换标准"),
+    ("EV 课程表", "自身备份格式，换设备时用"),
+];
+
+/// 各格式的样板 JSON，供用户对照自己的导出文件
+pub const FORMAT_SAMPLES: &str = r##"【1】时光课程表 sgschedule
+特征字段：timeSlots + startSection
+{
+  "courses": [
+    {"name":"高等数学","teacher":"张三","location":"A101",
+     "day":1,"startSection":1,"endSection":2,
+     "weeks":[1,2,3],"color":0}
+  ],
+  "timeSlots": [
+    {"section":1,"startTime":"08:00","endTime":"08:45"}
+  ]
+}
+
+【2】WakeUp 课程表
+特征字段：scheduleName + courseList
+{
+  "scheduleName": "大二上学期",
+  "courseList": [
+    {"name":"高等数学","day":1,
+     "start":"08:00","end":"09:40",
+     "room":"教学楼A101","teacher":"张三",
+     "weeks":[1,2,3],"type":"every"}
+  ]
+}
+
+【3】StarLink 星链课表
+特征字段：semester + subjects + oddEven
+{
+  "semester": "2025-2026-1",
+  "subjects": [
+    {"subjectName":"高等数学","weekday":1,
+     "beginTime":"08:00","finishTime":"09:40",
+     "place":"教学楼A101","instructor":"张三",
+     "weekRange":"1-16","oddEven":0}
+  ]
+}
+
+【4】CSES 标准格式
+特征字段：cses_version
+{
+  "cses_version": "1.0",
+  "export_time": "2026-09-20T12:00:00Z",
+  "source_app": "ev-schedule",
+  "schedules": [
+    {"schedule_id":"default","schedule_name":"大二上学期",
+     "courses":[
+       {"course_id":"MATH201","name":"高等数学",
+        "day_of_week":1,"start_time":"08:00",
+        "end_time":"09:40","location":"教学楼A101",
+        "teacher":"张三","weeks":[1,2,3],
+        "week_type":"all","credits":4.0}
+     ]}
+  ]
+}
+
+【5】EV 课程表
+特征字段：appName + version + schedules
+{
+  "version": "2.0",
+  "appName": "Ev课程表",
+  "schedules": [
+    {"id":"schedule_001","name":"大二上学期",
+     "courses":[
+       {"id":"course_001","name":"高等数学",
+        "day":1,"startTime":"08:00","endTime":"09:40",
+        "location":"教学楼A101","teacher":"张三",
+        "weeks":[1,2,3],"weekType":"all",
+        "color":"#4A90D9"}
+     ]}
+  ]
+}
+
+粘贴后插件会自动识别格式，无需手动选择。"##;

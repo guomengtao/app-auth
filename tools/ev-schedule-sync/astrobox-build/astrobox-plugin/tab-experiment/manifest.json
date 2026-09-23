@@ -1,0 +1,13 @@
+{
+  "name": "Tab实验",
+  "icon": "icon.png",
+  "version": "1.1.1",
+  "description": "Tab 切换实验 + EV 连接检测",
+  "author": "EV Team",
+  "website": "",
+  "entry": "tab-experiment.wasm",
+  "wasi_version": 2,
+  "api_level": 2,
+  "permissions": [],
+  "additional_files": []
+}

@@ -3,7 +3,9 @@
 > 适用：`tools/ev-schedule-sync/astrobox-build/astrobox-plugin/`
 > 背景：这个插件「以前总是装不上」，现在能稳定装上。**本文记录所有踩过的坑，按现象 → 原因 → 检查 → 修复组织**。
 > 排错时先看 §0 一分钟自查，90% 的问题在那儿。
-> 版本记录：v1.0.20 起，插件主界面右上角会显示版本号，可直接用它核对设备里装的是哪个版本。
+> 版本记录：v1.0.21 起，版本号显示在**页面最下方**（导入 / 导出两个 tab 都有，设备选择页也有），
+> 打开插件滑到底就能核对设备里装的是哪个版本。
+> **v1.0.22 修复了 tab 点不到的 Bug**（写死像素宽度导致窄屏溢出，详见 §8.3）。
 
 ---
 
@@ -17,7 +19,8 @@
 - [§5 现象：改了代码但设备上没变化](#5-现象改了代码但设备上没变化)
 - [§6 成功配方 golden recipe](#6-成功配方-golden-recipe)
 - [§7 打包后必做的内容和自检命令](#7-打包后必做的内容自检命令)
-- [§8 附录字段速查表](#8-附录字段速查表)
+- [§8 UI 布局规约与「多页面」的正确理解](#8-ui-布局规约与多页面的正确理解)
+- [§9 附录字段速查表](#9-附录字段速查表)
 
 ---
 
@@ -226,6 +229,44 @@ STATE.lock().unwrap().result = ...;    // 重新上锁写回
 
 事件处理返回 `true` 表示"需要重绘"，但真正要调用 `psys_host::ui::render()` 才会刷新界面。
 
+### 4.3 ⭐⭐⭐ 切页 / 切 Tab 点了没反应 —— 渲染被放进了 `spawn`
+
+**现象**：插件能装、能打开、首屏正常，但点任何切页/Tab 按钮**界面不刷新**（不崩溃、不报错）。
+
+**根因**：`ui::render()` 被包进 `spawn(async move { ... })`。渲染被推迟到 `on_ui_event`
+**返回之后**执行，落在事件回调上下文之外，**宿主不认这次重绘**。
+
+**自检**：
+
+```bash
+grep -n "spawn" src/lib.rs      # on_ui_event 里不应出现 spawn
+```
+
+**正确写法**——状态变更 + render 必须在 `on_ui_event` 的**同步调用栈内**完成：
+
+```rust
+fn on_ui_event(event_id: String, event: event::Event, payload: String) -> FutureReader<String> {
+    let needs_render = handle_ui_event_inner(&event_id, &event, &payload);   // ← 同步，不用 async/await
+    if needs_render {
+        let target = STATE.lock().unwrap().render_target.clone();
+        if !target.is_empty() { ui::render_main_ui(&target); }
+    }
+    make_empty_string_future()   // 只用来填 future，可继续用 spawn，无害
+}
+```
+
+**需要 `.await` 宿主 IO 时**用 `block_on` 同步等结果，再回到同步路径 render：
+
+```rust
+let devices = wit_bindgen::block_on(async { device::fetch_devices().await });
+```
+
+> ⚠️ 宿主 import 的返回值是 `RawFutureReader`（只实现 `IntoFuture` 不实现 `Future`），
+> 必须 `block_on(async { host_fn().await })` **包一层**，否则报 `E0277: ... is not a future`。
+
+> 这个坑从 v1.0.20 一直藏到 v1.0.29，之前怀疑的 width / flex / scroll-area **全是替罪羊**。
+> 完整修复记录见 `切换失效-修复记录.md`。
+
 ---
 
 ## 5. 现象：改了代码，但设备上没变化
@@ -369,12 +410,84 @@ print('wasm size:', len(d))
 
 ### 7.4 装到设备后怎么核对版本
 
-v1.0.20 起，**插件主界面顶部会显示版本号**。打开插件看一眼，就知道设备上装的是哪一版，
-不用再猜"到底装没装上"。
+**版本号显示在页面最下方**（v1.0.21 起）。打开插件滑到底部，
+看到的就是设备上实际运行的版本 —— 不用再猜"到底装没装上、装的是不是新版"。
+
+> 改版本号时要同时改两处，别漏：
+> `manifest.json` 的 `version`，和 `src/lib.rs` 的 `PLUGIN_VERSION` 常量。
+> 两处不一致的话，页面显示的版本就会骗人。
 
 ---
 
-## 8. 附录：字段速查表
+## 8. UI 布局规约与「多页面」的正确理解
+
+> 官方依据：`https://abox.run/docs/plugin-dev/host-api/ui`（v2 = 旧版 ui 接口）
+
+### 8.1 它不是网页，别用写网站的思路写插件
+
+| | 网站 | AstroBox 插件 |
+|---|---|---|
+| 页面 | 多个 HTML 文件 | **只有一个容器**（`on_ui_render(element_id)` 给的 id） |
+| 跳转 | URL 路由 / 浏览器导航 | ❌ 没有路由 |
+| 更新 | DOM 增量更新 | **每次 `render(id, tree)` 全量替换整棵树** |
+| 组件库 | 随便装 | ❌ v2 没有 tabs / grid / scroll-area / dialog |
+
+插件 UI 的心智模型是 **React 的 `setState` 条件渲染**，不是浏览器的多页导航。
+所谓「切页面」= 改一个状态变量 → 用新的树重新调一次 `render()`。
+
+```rust
+// 唯一正确的「页面切换」方式
+let page = { STATE.lock().unwrap().page.clone() };   // 取快照，释放锁
+let tree = match page { Import => build_import_ui(), Export => build_export_ui(), ... };
+ui::render(element_id, tree);                        // 整棵树重建
+```
+
+### 8.2 v2 没有原生 tabs，官方明确说了
+
+> 「旧版 ui 只有基础元素和样式能力，**没有 gap、grid、scroll-area、tabs、dialog**、动画扩展等能力。」
+
+所以 tab 只能用 `Button` 手动模拟。要原生 tabs 就得升 api_level 3 + `ui-v3`
+（但那是另一套接口，**会把本文 §1.1 的匹配规则整个推翻**，成本高、风险大，不建议轻易动）。
+
+### 8.3 ⭐ 不要在手表上写死像素宽度（本次 tab 点不到的根因）
+
+**症状**：tab 栏第一个按钮能点，第二个点不到；或某些按钮看起来被截掉一半。
+
+**原因**：手表屏幕只有 ~194px 宽，而嵌套 `padding` 会层层吃掉可用宽度：
+
+```
+屏幕            194px
+− root padding(14)×2    → 166px
+− tab bar padding(4)×2  → 158px
+− 两个按钮 width(135)×2 = 270px   ← 溢出 112px，「导出」被挤出屏幕
+```
+
+**修复**：所有横向尺寸用**相对值**，不要用像素：
+
+| 用法 | 适用场景 | 说明 |
+|------|---------|------|
+| `width_full()` | 通栏按钮、输入框 | 占满父容器，永不溢出 |
+| `width_half()` | 并排的两个元素 | 精确 50% |
+| ~~`width(N)`~~ | ❌ 不要用 | 窄屏必溢出 |
+
+> ⚠️ `width_half()` 是**精确 50%**，两个并排已经 100%。
+> **不要再叠加 `margin` / `padding` 横向间距**，否则总宽 > 容器，又会溢出并换行。
+> 需要视觉间距请用容器的 `padding` 撑开，而不是给子元素加 margin。
+
+**自检**：`grep -n "width(1\|width(2\|width(3" src/ui.rs` —— 应当无输出。
+
+### 8.4 其它 UI 注意事项
+
+- **垂直方向**：v2 没有 `scroll-area`，内容超出屏幕高度**可能无法滚动**。
+  页面元素要克制，关键按钮尽量别放太深。
+- **根元素必须是 `Div`**：`Span` 当根会同 §3.1 一样算成 0 尺寸。
+- **flex 要成对调用**：`flex()` 和 `flex_direction()` 一起用才生效。
+- **Dialog 只能用 `absolute()` + `z_index()` 自绘**（v2 没有 dialog 组件），
+  参见 `src/ui.rs` 的 `build_demo_overlay()`。
+
+---
+
+## 9. 附录：字段速查表
 
 ### manifest.json
 

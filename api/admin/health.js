@@ -9,6 +9,7 @@ try { pgSync = require("pg"); } catch(e) { console.warn("pg module not available
 var dbSwitches = require("../../lib/db-switches");
 var dbRegistry = require("../../lib/db-registry");
 var notify = require("../../lib/notify");
+var geoZh = require("../../lib/geo-zh");
 var verifySwitch = null;
 try { verifySwitch = require("../../lib/verify-switch"); } catch(e) { console.warn("verify-switch module not available:", e.message); }
 
@@ -629,6 +630,11 @@ if ((isCron || isCronBackup) && isBackup) {
         country: String(visitHeaders["x-vercel-ip-country"] || "").slice(0, 8),
         region: String(visitHeaders["x-vercel-ip-country-region"] || "").slice(0, 16),
         city: String(visitHeaders["x-vercel-ip-city"] || "").slice(0, 40),
+        location_zh: geoZh.resolveZhLocation({
+          country: visitHeaders["x-vercel-ip-country"],
+          region: visitHeaders["x-vercel-ip-country-region"],
+          city: visitHeaders["x-vercel-ip-city"],
+        }),
       };
 
       console.log("[visit:stream] ========== page_visit push start ==========");

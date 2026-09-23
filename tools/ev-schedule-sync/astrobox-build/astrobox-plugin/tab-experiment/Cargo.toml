@@ -1,0 +1,10 @@
+[package]
+name = "tab-experiment"
+version = "1.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = { version = "0.57", features = ["async", "async-spawn"] }

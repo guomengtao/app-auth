@@ -5,15 +5,13 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 DIST_DIR="$PROJECT_DIR/dist"
 
 VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "$PROJECT_DIR/manifest.json" | head -1 | sed 's/.*"\(.*\)"/\1/')
-OUTPUT="$DIST_DIR/EV-Schedule-Sync-v${VERSION}.abp"
+OUTPUT="$DIST_DIR/TabExperiment-v${VERSION}.abp"
 
-# Ensure dist dir exists (don't delete — preserve historical packages)
 mkdir -p "$DIST_DIR"
 
-# Overwrite current-version files only
 cp "$PROJECT_DIR/manifest.json" "$DIST_DIR/"
-cp "$PROJECT_DIR/icon.png" "$DIST_DIR/"
-cp "$PROJECT_DIR/target/wasm32-wasip2/release/ev_schedule_sync.wasm" "$DIST_DIR/ev-schedule-sync.wasm"
+cp "$PROJECT_DIR/icon.png" "$DIST_DIR/" 2>/dev/null || echo "(no icon.png)"
+cp "$PROJECT_DIR/target/wasm32-wasip2/release/tab_experiment.wasm" "$DIST_DIR/tab-experiment.wasm"
 
 echo "dist contents:"
 ls -lh "$DIST_DIR/"

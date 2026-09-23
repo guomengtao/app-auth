@@ -23,6 +23,7 @@
 //   200 OK (302 redirect)
 
 var redis = require("../lib/redis");
+var geoZh = require("../lib/geo-zh");
 var md = null;
 try { md = require("../lib/message-delivery"); } catch(e) { console.log("[go] message-delivery not available"); }
 
@@ -121,6 +122,7 @@ async function pushPurchaseClick(entry, record, ts, dateKey) {
           country: record.c,
           region: record.rg,
           city: record.ci,
+          location_zh: geoZh.resolveZhLocation({ country: record.c, region: record.rg, city: record.ci }),
           referrer: record.r,
           user_agent: record.u,
           utm_source: record.utm_source,
@@ -149,6 +151,7 @@ async function pushPurchaseClick(entry, record, ts, dateKey) {
       country: record.c,
       region: record.rg,
       city: record.ci,
+      location_zh: geoZh.resolveZhLocation({ country: record.c, region: record.rg, city: record.ci }),
       referrer: record.r,
       user_agent: record.u,
       utm_source: record.utm_source,

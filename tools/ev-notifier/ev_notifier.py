@@ -734,6 +734,11 @@ def _startup_recovery():
         _debug_log(f"Startup recovery failed: {e}")
 
 
+def _zh_loc(p):
+    """归属地优先取中文（location_zh → city_zh），不做英文地名拼接。"""
+    return str(p.get("location_zh") or p.get("city_zh") or "").strip()
+
+
 def handle_message(msg, skip_notify=False):
     global _last_msg_ts, _new_msg_count, _paused
     if _paused:
@@ -780,6 +785,9 @@ def handle_message(msg, skip_notify=False):
             lines.append(f"兑换码: {redeem_code}")
         if device:
             lines.append(f"设备: {device}")
+        loc = _zh_loc(p)
+        if loc:
+            lines.append(f"归属地: {loc}")
         if src:
             lines.append(f"来源: {src}")
         if channel:
@@ -811,11 +819,14 @@ def handle_message(msg, skip_notify=False):
         title = "页面访问"
         subtitle = page
         lines = []
-        geo_parts = []
-        if country: geo_parts.append(country)
-        if region: geo_parts.append(region)
-        if city: geo_parts.append(city)
-        geo_str = ", ".join(geo_parts) if geo_parts else ""
+        # 归属地优先中文（location_zh / city_zh），无中文时才回落英文拼接
+        geo_str = _zh_loc(p)
+        if not geo_str:
+            geo_parts = []
+            if country: geo_parts.append(country)
+            if region: geo_parts.append(region)
+            if city: geo_parts.append(city)
+            geo_str = ", ".join(geo_parts) if geo_parts else ""
         if ip:
             ip_line = f"IP: {ip}"
             if geo_str:
@@ -845,6 +856,9 @@ def handle_message(msg, skip_notify=False):
             lines.append(f"原因: {reason[:80]}")
         if device:
             lines.append(f"设备: {device[:16]}")
+        loc = _zh_loc(p)
+        if loc:
+            lines.append(f"归属地: {loc}")
         if channel:
             lines.append(f"渠道: {channel}")
         lines.append(ts_label)
@@ -861,11 +875,14 @@ def handle_message(msg, skip_notify=False):
         title = "购买点击"
         subtitle = name_zh
         lines = [f"链接: /go/{slug}"]
-        geo_parts = []
-        if country: geo_parts.append(country)
-        if region: geo_parts.append(region)
-        if city: geo_parts.append(city)
-        geo_str = ", ".join(geo_parts) if geo_parts else ""
+        # 归属地优先中文（location_zh / city_zh），无中文时才回落英文拼接
+        geo_str = _zh_loc(p)
+        if not geo_str:
+            geo_parts = []
+            if country: geo_parts.append(country)
+            if region: geo_parts.append(region)
+            if city: geo_parts.append(city)
+            geo_str = ", ".join(geo_parts) if geo_parts else ""
         if ip:
             ip_line = f"IP: {ip}"
             if geo_str:
@@ -922,7 +939,7 @@ def handle_message(msg, skip_notify=False):
             city = p.get("city", "") or ""
             region = p.get("region", "") or ""
             country = p.get("country", "") or ""
-            geo_str = city or region or country or ""
+            geo_str = _zh_loc(p) or city or region or country or ""
             parts = [f"新设备激活：{prod}"]
             if duration_str:
                 parts.append(duration_str)
@@ -935,7 +952,7 @@ def handle_message(msg, skip_notify=False):
             voice_text = "，".join(parts)
         elif mtype == "activation_failure":
             reason = p.get("reason", "") or p.get("error", "") or ""
-            city = p.get("city", "") or ""
+            city = _zh_loc(p) or p.get("city", "") or ""
             if reason:
                 voice_text = f"激活失败：{reason[:60]}"
             else:
@@ -945,7 +962,7 @@ def handle_message(msg, skip_notify=False):
         elif mtype == "purchase_click":
             name_zh = p.get("name_zh", "") or p.get("slug", "")
             slug = p.get("slug", "")
-            city = p.get("city", "") or ""
+            city = _zh_loc(p) or p.get("city", "") or ""
             if slug == "ev-timetable" or "timetable" in slug.lower():
                 voice_text = "新用户访问爱发电"
                 if city:
@@ -958,7 +975,7 @@ def handle_message(msg, skip_notify=False):
             page = p.get("page", "") or p.get("title", "") or ""
             city = p.get("city", "") or ""
             region = p.get("region", "") or ""
-            geo_str = city or region or ""
+            geo_str = _zh_loc(p) or city or region or ""
             page_cn = _page_name_cn(page)
             if geo_str:
                 voice_text = f"{geo_str}用户访问{page_cn}"
@@ -1073,7 +1090,7 @@ def _format_message_detail(m):
     elif mtype == "page_visit":
         page = p.get("page", "") or p.get("title", "") or ""
         ip = p.get("ip", "")
-        city = p.get("city", "")
+        city = _zh_loc(p) or p.get("city", "")
         detail = page
         if city:
             detail += f" | {city}"
@@ -1098,6 +1115,9 @@ def _format_message_detail(m):
         type_label = "失败"
     elif mtype == "purchase_click":
         detail = p.get("name_zh", "") or p.get("slug", "")
+        loc = _zh_loc(p)
+        if loc:
+            detail += f" | {loc}"
         type_label = "购买"
     return type_label, detail
 
@@ -2270,51 +2290,77 @@ _GROUP_LABELS = {
 }
 
 
+def _settle_navigation(listener, allow):
+    """给 WebKit 的 decisionListener 回一次话（use=放行 / ignore=拦下）。
+
+    ⚠️ listener 是 WebKit 私有的决策对象，pyobjc 在它上面做方法解析时若类型校验失败会直接
+    `__builtin_trap()` → SIGTRAP(EXC_BREAKPOINT)，**try/except 抓不到**（2026-09-23 崩溃根因）。
+    所以这里只做「一次方法调用」这一个最小访问，不碰任何属性，其余逻辑都放到外面。
+    """
+    if listener is None:
+        return
+    try:
+        if allow:
+            listener.use()
+        else:
+            listener.ignore()
+    except Exception as e:
+        _debug_log(f"_settle_navigation({allow}) failed: {e}")
+
+
 class WebNavDelegate(NSObject):
     def init(self):
         self._dashboard = None
         return self
 
     def webView_decidePolicyForNavigationAction_request_frame_decisionListener_(self, wv, info, request, frame, listener):
-        url_str = str(request.URL()) if request and request.URL() else ""
+        try:
+            url_str = str(request.URL()) if request and request.URL() else ""
+        except Exception:
+            url_str = ""
         _debug_log(f"navAction url={url_str}")
-        if url_str and url_str.startswith("ev://"):
-            if "refresh" in url_str and self._dashboard:
-                self._dashboard._refresh_content()
-            elif "poll=now" in url_str and self._dashboard:
-                self._dashboard._poll_now()
-            elif "setting=" in url_str and self._dashboard:
-                try:
-                    kv = url_str.split("setting=")[1]
-                    self._dashboard._toggle_notify_setting(kv)
-                except Exception:
-                    pass
-            elif "nav=" in url_str and self._dashboard:
-                try:
-                    import re
-                    match = re.search(r'nav=(\w+)', url_str)
-                    if match:
-                        page_id = match.group(1)
-                        focus_redeem_match = re.search(r'focus-redeem=([^&]+)', url_str)
-                        if focus_redeem_match:
-                            global _focus_redeem
-                            _focus_redeem = focus_redeem_match.group(1)
-                        self._dashboard._switch_to(page_id)
-                except Exception:
-                    pass
-            elif "order-sync" in url_str and self._dashboard:
-                self._dashboard._sync_orders()
-            elif "test-notify=" in url_str and self._dashboard:
-                try:
-                    ntype = url_str.split("test-notify=")[1]
-                    self._dashboard._test_notify(ntype)
-                except Exception:
-                    pass
-            elif "mark-read=" in url_str and self._dashboard:
-                self._dashboard._mark_all_read()
-            listener.ignore()
-        else:
-            listener.use()
+        if not url_str.startswith("ev://"):
+            _settle_navigation(listener, True)
+            return
+        try:
+            self._handle_ev_url(url_str)
+        except Exception as e:
+            _debug_log(f"navAction dispatch ERROR: {e}")
+        _settle_navigation(listener, False)
+
+    def _handle_ev_url(self, url_str):
+        if "refresh" in url_str and self._dashboard:
+            self._dashboard._refresh_content()
+        elif "poll=now" in url_str and self._dashboard:
+            self._dashboard._poll_now()
+        elif "setting=" in url_str and self._dashboard:
+            try:
+                kv = url_str.split("setting=")[1]
+                self._dashboard._toggle_notify_setting(kv)
+            except Exception:
+                pass
+        elif "nav=" in url_str and self._dashboard:
+            try:
+                match = re.search(r'nav=(\w+)', url_str)
+                if match:
+                    page_id = match.group(1)
+                    focus_redeem_match = re.search(r'focus-redeem=([^&]+)', url_str)
+                    if focus_redeem_match:
+                        global _focus_redeem
+                        _focus_redeem = focus_redeem_match.group(1)
+                    self._dashboard._switch_to(page_id)
+            except Exception:
+                pass
+        elif "order-sync" in url_str and self._dashboard:
+            self._dashboard._sync_orders()
+        elif "test-notify=" in url_str and self._dashboard:
+            try:
+                ntype = url_str.split("test-notify=")[1]
+                self._dashboard._test_notify(ntype)
+            except Exception:
+                pass
+        elif "mark-read=" in url_str and self._dashboard:
+            self._dashboard._mark_all_read()
 
 
 DEBUG_LOG_FILE = os.path.expanduser("~/.ev_debug.log")
@@ -2324,11 +2370,69 @@ DEBUG_LOG_KEEP_LINES = 1000
 def _debug_log(msg):
     log_path = DEBUG_LOG_FILE
     try:
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
         with open(log_path, "a") as f:
-            f.write(f"[{datetime.now().strftime('%H:%M:%S.%f')}] {msg}\n")
+            f.write(f"[{ts}][pid {os.getpid()}] {msg}\n")
     except Exception:
         pass
     _rotate_debug_log(log_path)
+
+
+# ── 崩溃可观测性（2026-09-23 加）───────────────────────────────────────────────
+# 崩溃是 pyobjc trap 秒杀进程，Python 侧 atexit 不会执行，所以「上次有没有留下正常退出标记」
+# 就是判定异常终止（崩溃/被 kill）的唯一可靠依据 —— 不再依赖系统 ~/Library/Logs/DiagnosticReports。
+STATE_FILE = os.path.expanduser("~/.ev_notifier_state.json")
+
+
+def _load_state():
+    try:
+        with open(STATE_FILE, "r") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _save_state(data):
+    try:
+        with open(STATE_FILE, "w") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+def _record_startup():
+    """启动时对账上次退出：没有正常退出标记 → 判定上次异常终止并累计次数。"""
+    st = _load_state()
+    prev_start = st.get("last_start_time")
+    prev_ok = bool(st.get("clean_exit", False))
+    abnormal = int(st.get("abnormal_exit_count", 0))
+    if prev_start and not prev_ok:
+        abnormal += 1
+        _debug_log(f"⚠️ 上次启动({prev_start})未见正常退出标记 → 判定异常终止（崩溃/被杀），累计 {abnormal} 次")
+    elif prev_start:
+        _debug_log(f"上次启动({prev_start})为正常退出")
+    st.update({
+        "last_start_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "clean_exit": False,
+        "boot_count": int(st.get("boot_count", 0)) + 1,
+        "abnormal_exit_count": abnormal,
+        "last_pid": os.getpid(),
+        "version": VERSION,
+    })
+    _save_state(st)
+    return st
+
+
+def _mark_clean_exit(reason="normal"):
+    """写正常退出标记（正常退出/菜单退出/execv 自重启前调用）。"""
+    try:
+        st = _load_state()
+        st["clean_exit"] = True
+        st["last_exit_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        st["last_exit_reason"] = reason
+        _save_state(st)
+    except Exception:
+        pass
 
 
 def _rotate_debug_log(log_path):
@@ -2351,20 +2455,39 @@ class DashboardWindow:
         self._current_page = "messages"
         self._webview_thread = None
         self._nav_delegate = None
+        self._retired = []   # 已关闭的 (window, webview, delegate)，持有引用防止悬挂
         _debug_log("DashboardWindow.__init__")
 
     def show(self):
+        """打开/前置面板。
+
+        ⚠️ 两条纪律（2026-09-23 崩溃排查，详见 `打开面板崩溃与自动重启统计.md`）：
+
+        1. 必须由主线程的「下一轮 runloop」调用（见 `EvNotifier.open_dashboard` 的 AppHelper.callLater）。
+           在 rumps 菜单回调的同步栈（NSMenuTrackingSession → sendAction）里建窗/导航会踩到
+           pyobjc 类型校验 trap → SIGTRAP，try/except 抓不住（线上 5 次崩溃的栈底就是这个栈）。
+        2. **绝不碰已关闭的窗口**。`NSWindow` 默认 `releasedWhenClosed=True`，用户关掉面板后窗口已被释放，
+           再去调 `isVisible()` / `center()` 就是访问悬垂对象 → 同样 SIGTRAP。
+           `_create_window()` 里已 `setReleasedWhenClosed_(False)`，且关窗后一律重建窗口。
+        """
+        try:
+            self._show_impl()
+        except Exception as e:
+            _debug_log(f"show() ERROR: {e}")
+
+    def _show_impl(self):
         _debug_log("show() called, _HAS_WEBKIT=%s, _HAS_WEBVIEW=%s" % (str(_HAS_WEBKIT), str(_HAS_WEBVIEW)))
 
         if _HAS_WEBKIT:
-            if self._window is None:
-                self._create_window()
-            self._show_loading()
-            self._window.center()
-            self._window.makeKeyAndOrderFront_(None)
-            self._window.orderFrontRegardless()
-            NSApplication.sharedApplication().setActivationPolicy_(
-                NSApplicationActivationPolicyAccessory)
+            if self._window is not None and self._is_window_visible():
+                # 面板已经开着：只前置，不在已加载文档的 WebView 上二次 setMainFrameURL_
+                _debug_log("show(): window already visible -> front only, no navigation")
+                self._bring_to_front()
+                return
+            # 全新窗口 + 新 WebView；一次导航直接灌最终 HTML（不再有 loading 页中转）
+            self._recreate_window()
+            self._refresh_content()
+            self._bring_to_front()
             return
 
         html = self._build_current_html()
@@ -2400,21 +2523,66 @@ class DashboardWindow:
             except Exception as e:
                 _debug_log("ERROR in show fallback: %s" % e)
 
-    def _show_loading(self):
-        if not _HAS_WEBKIT or not self._webview:
-            return
-        loading_html = """<!DOCTYPE html>
-<html><head><meta charset="utf-8"><style>
-*{margin:0;padding:0;box-sizing:border-box}
-html,body{height:100%;background:#f5f7fa}
-body{display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,sans-serif}
-.spinner{width:40px;height:40px;border:4px solid #e5e7eb;border-top-color:#3b82f6;border-radius:50%;animation:spin .8s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-p{color:#6b7280;font-size:14px;margin-top:16px}
-</style></head><body><div><div class="spinner"></div><p>Loading...</p></div><script>setTimeout(function(){window.location='ev://refresh';},50);</script></body></html>"""
-        import base64
-        b64 = base64.b64encode(loading_html.encode("utf-8")).decode("ascii")
-        self._webview.setMainFrameURL_("data:text/html;base64," + b64)
+    # _show_loading() 已于 2026-09-23 删除：它是「打开面板崩溃」的触发装置。
+    # 旧流程 show() → 灌 loading 页(data URL) → 50ms 后 JS 跳 ev://refresh → 再灌真正的页面，
+    # 等于每次打开都在 WebView 上做两次导航 + 一次定时器重入；改成一次直灌最终 HTML。
+
+    def _bring_to_front(self):
+        try:
+            self._window.center()
+            self._window.makeKeyAndOrderFront_(None)
+            self._window.orderFrontRegardless()
+            NSApplication.sharedApplication().setActivationPolicy_(
+                NSApplicationActivationPolicyAccessory)
+        except Exception as e:
+            _debug_log(f"_bring_to_front ERROR: {e}")
+
+    def _is_window_visible(self):
+        try:
+            return bool(self._window.isVisible())
+        except Exception as e:
+            _debug_log(f"_is_window_visible failed: {e}")
+            return False
+
+    def _recreate_window(self):
+        """换一个全新的 NSWindow + WebView，不复用已加载过文档的 WebView。
+
+        顺序很重要：**先建新的、再拆旧的**，并且把旧的三件套（window/webview/delegate）留在
+        `self._retired` 里持有引用 —— WebKit / pyobjc 内部可能仍持有它们的裸指针，
+        提前让 Python 释放会产生悬挂对象，正是那个 SIGTRAP 的成因类型。
+        """
+        old_window, old_webview, old_delegate = self._window, self._webview, self._nav_delegate
+        self._window = None
+        self._webview = None
+        self._nav_delegate = None
+        self._msg_text = None
+        self._create_window()
+        if old_window is not None:
+            self._teardown_window(old_window, old_webview, old_delegate)
+
+    def _teardown_window(self, window, webview, delegate):
+        try:
+            NSNotificationCenter.defaultCenter().removeObserver_name_object_(
+                self, NSWindowWillCloseNotification, window)
+        except Exception as e:
+            _debug_log(f"_teardown_window: removeObserver failed: {e}")
+        try:
+            if webview is not None:
+                webview.setPolicyDelegate_(None)   # 旧页面残留的 JS/导航不再回调我们
+                # pyobjc-framework-WebKit 12.x 里该 selector 暴露为 stopLoading_（无参）
+                if hasattr(webview, "stopLoading_"):
+                    webview.stopLoading_()
+                elif hasattr(webview, "stopLoading"):
+                    webview.stopLoading()
+        except Exception as e:
+            _debug_log(f"_teardown_window: webview cleanup failed: {e}")
+        try:
+            window.close()
+        except Exception as e:
+            _debug_log(f"_teardown_window: close failed: {e}")
+        self._retired.append((window, webview, delegate))
+        del self._retired[:-3]   # 只留最近 3 份，防无限增长
+        _debug_log(f"_teardown_window: retired={len(self._retired)}")
 
     def _create_window(self):
         rect = NSMakeRect(100, 100, 1100, 720)
@@ -2422,6 +2590,13 @@ p{color:#6b7280;font-size:14px;margin-top:16px}
                 NSMiniaturizableWindowMask | NSResizableWindowMask)
         self._window = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
             rect, mask, NSBackingStoreBuffered, False)
+        # ★★ 关键修复（2026-09-23，已用最小用例复现并验证）★★
+        # NSWindow 默认 releasedWhenClosed=True：用户点红叉关掉面板后窗口对象被 dealloc，
+        # 而 pyobjc 包装器还留着 → 下一次「打开面板」再碰这个包装器
+        # （isVisible()/center()/makeKeyAndOrderFront_）就是访问已释放对象，
+        # 表现为 pyobjc 类型校验 trap（SIGTRAP）或直接卡死 —— 这就是「第二次打开必崩」的根因。
+        # 关掉自动释放后，窗口关掉只是 orderOut，对象始终有效。
+        self._window.setReleasedWhenClosed_(False)
         self._window.setTitle_(f"Ev Notifier {VERSION}")
         self._window.setMinSize_(NSMakeSize(900, 560))
 
@@ -3309,7 +3484,7 @@ function lookupGeo(ip, btn) {
   if (!resultEl) return;
   resultEl.textContent = 'Loading...';
   var xhr = new XMLHttpRequest();
-  xhr.open('GET', 'http://ip-api.com/json/' + encodeURIComponent(ip) + '?fields=status,country,regionName,city,isp,org,query', true);
+  xhr.open('GET', 'http://ip-api.com/json/' + encodeURIComponent(ip) + '?fields=status,country,regionName,city,isp,org,query&lang=zh-CN', true);
   xhr.timeout = 5000;
   xhr.onload = function() {
     try {
@@ -4276,6 +4451,17 @@ document.addEventListener('DOMContentLoaded',function(){{
         return self._html_wrap(tab_html, title, subtitle, scripts=scripts)
 
     def windowWillClose_(self, notification):
+        # 用户关掉面板 → 立即丢弃窗口/WebView/delegate 引用，下次打开一律重建。
+        # ⚠️ 实测（2026-09-23）：用**纯 Python 对象**注册的 selector 在应用里**从未被调用**（_retired 恒为 0），
+        # 所以别依赖它做关键清理；真正的兜底是 _create_window() 里的 setReleasedWhenClosed_(False)
+        # + _show_impl() 里"不可见就重建"。这里保留只为将来换成 NSObject 子类/窗口 delegate 时可用。
+        _debug_log("windowWillClose_: 丢弃窗口引用，下次打开重建")
+        self._retired.append((self._window, self._webview, self._nav_delegate))
+        del self._retired[:-3]
+        self._window = None
+        self._webview = None
+        self._nav_delegate = None
+        self._msg_text = None
         NSApplication.sharedApplication().setActivationPolicy_(
             NSApplicationActivationPolicyAccessory)
 
@@ -4314,11 +4500,14 @@ class EvNotifier(rumps.App):
     def quit_app(self, _):
         disable_auto_start()
         _release_pid_lock()
+        _mark_clean_exit("menu_quit")
         from AppKit import NSApp
         NSApp.terminate_(None)
 
     def restart_self(self, _):
         import sys, os
+        _debug_log("restart_self: execv 原地重启（非崩溃）")
+        _mark_clean_exit("execv_restart")   # 主动重启不算异常终止
         os.execv(sys.executable, [sys.executable] + sys.argv)
 
     def restart_vscode(self, _):
@@ -4406,11 +4595,23 @@ class EvNotifier(rumps.App):
 
     @rumps.clicked("打开面板")
     def open_dashboard(self, _):
+        """只做「投递」：真正的建窗/导航延到主线程下一轮 runloop 执行。
+
+        2026-09-23 崩溃排查结论：菜单回调是在 `NSStatusItem → NSMenu → sendAction → NSMenuTrackingSession`
+        的同步栈里跑的，在这段栈里做 AppKit 建窗 / WebView 导航会在同一进程第 2 次打开面板时
+        触发 pyobjc 类型校验 trap（SIGTRAP / EXC_BREAKPOINT），try/except 抓不住、进程秒崩。
+        改用 AppHelper.callLater 排到下一轮 runloop（菜单收起后），彻底离开菜单事件循环。
+        """
+        _debug_log("open_dashboard clicked (deferred -> next runloop)")
         try:
-            _debug_log("open_dashboard clicked")
-            self._dash.show()
+            from PyObjCTools import AppHelper
+            AppHelper.callLater(0.05, self._dash.show)
         except Exception as e:
-            _debug_log(f"open_dashboard ERROR: {e}")
+            _debug_log(f"callLater unavailable ({e}), fallback to synchronous show")
+            try:
+                self._dash.show()
+            except Exception as e2:
+                _debug_log(f"open_dashboard ERROR: {e2}")
 
     @rumps.clicked("暂停/恢复")
     def toggle_pause(self, _):
@@ -4452,6 +4653,7 @@ def main():
     global _app_ref
     app = EvNotifier()
     _app_ref = app
+    _record_startup()
     print(f"Ev Notifier {VERSION} started: {REST_API_URL}")
     app.run()
 
@@ -4491,5 +4693,6 @@ if __name__ == "__main__":
         sys.exit(0)
     atexit.register(_release_pid_lock)
     atexit.register(lambda: _voice_queue.put(None))
+    atexit.register(lambda: _mark_clean_exit("atexit"))   # 崩溃(trap)不会走到这里 → 用于区分异常终止
     load_env()
     main()
