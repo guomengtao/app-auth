@@ -297,9 +297,25 @@ module.exports = async (req, res) => {
     tasks.push(redis.ltrim("stats:recent", 0, 99).catch(function () { return null; }));
     tasks.push(redis.pexpire("stats:recent", VISITOR_TTL * 1000).catch(function () {}));
     // Push purchase_click notification to ev-notifier stream
-    pushPurchaseClick(entry, record, ts, dateKey).catch(function (e) {
+    // ⚠️ Vercel 在 res.end() 后会冻结函数：之前这里是纯 fire-and-forget，推送链被拦腰截断，
+    //    结果是投递记录停在 pending（通知根本没发出去）——「丢通知」。所以这里 await，
+    //    但加 5s 上限，避免腾讯 IP 定位 / Upstash 异常时把跳转拖死。
+    var pushTask = pushPurchaseClick(entry, record, ts, dateKey).catch(function (e) {
       console.error("[go] pushPurchaseClick failed:", e && e.message ? e.message : e);
     });
+    try {
+      await Promise.race([
+        pushTask,
+        new Promise(function (resolve) {
+          setTimeout(function () {
+            console.warn("[go] purchase_click push 超过 5s，转为后台执行");
+            resolve();
+          }, 5000);
+        }),
+      ]);
+    } catch (pushErr) {
+      console.error("[go] purchase_click push error:", pushErr && pushErr.message ? pushErr.message : pushErr);
+    }
     // fire-and-forget: stats failure never blocks redirect
     Promise.all(tasks).catch(function (e) {
       console.error("[go] stats write failed:", e && e.message ? e.message : e);

@@ -14,64 +14,12 @@ var geoDistrict = require("../../lib/geo-district");
 var verifySwitch = null;
 try { verifySwitch = require("../../lib/verify-switch"); } catch(e) { console.warn("verify-switch module not available:", e.message); }
 
-// Direct Upstash REST API push to bypass module loading issues on Vercel
+// page_visit 推送统一走 lib/notify.js 的 pushNotification（原来这里有一份独立的 Upstash 直连实现）：
+//   1) 原实现不写 message_delivery → 面板「消息投递」里完全看不到 page_visit（数量最多的通知类型）；
+//   2) 现在与激活 / 订单通知共用同一条链路：会建投递记录（带 messageId，EvNotifier 收到后回调 marked delivered）、
+//      idx 计数（同一个 Redis key auth:daily:<date>:count，不会重复计数）、以及 Postgres 代理兜底。
 async function pushToStream(type, payload) {
-  var upstashUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "";
-  var upstashToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || "";
-  if (!upstashUrl || !upstashToken) {
-    console.log("[visit:stream] pushToStream: no Upstash config, skip");
-    return;
-  }
-
-  // Get daily counter for idx + total_daily
-  var today = new Date().toISOString().slice(0, 10);
-  var counterKey = "auth:daily:" + today + ":count";
-  var idx = 0, total_daily = 0;
-  try {
-    var incrUrl = upstashUrl.replace(/\/$/, "") + "/incr/" + encodeURIComponent(counterKey);
-    var incrR = await fetch(incrUrl, {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + upstashToken },
-      signal: AbortSignal.timeout(5000),
-    });
-    var incrT = await incrR.text();
-    if (incrR.ok) {
-      var incrVal = JSON.parse(incrT);
-      idx = incrVal.result;
-      total_daily = incrVal.result;
-      console.log("[visit:stream] incr OK, idx:", idx, "total_daily:", total_daily);
-    }
-  } catch (e) {
-    console.error("[visit:stream] incr error:", e.message);
-  }
-
-  var msg = { ts: Math.floor(Date.now() / 1000), type: type, payload: payload || {} };
-  if (idx > 0) { msg.idx = idx; msg.total_daily = total_daily; msg.date = today; }
-  var dataStr = JSON.stringify(msg);
-  var url = upstashUrl.replace(/\/$/, "") + "/xadd/auth:notifications:stream/*/data/" + encodeURIComponent(dataStr);
-  try {
-    var r = await fetch(url, {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + upstashToken },
-      signal: AbortSignal.timeout(5000),
-    });
-    var t = await r.text();
-    console.log("[visit:stream] Upstash REST:", r.status, t.substring(0, 80));
-    // Also publish to channel for real-time push (PUB/SUB broadcast mode)
-    try {
-      var pubUrl = upstashUrl.replace(/\/$/, "") + "/publish/auth:push_channel/" + encodeURIComponent(dataStr);
-      var pubResult = await fetch(pubUrl, {
-        method: "POST",
-        headers: { "Authorization": "Bearer " + upstashToken },
-        signal: AbortSignal.timeout(3000),
-      });
-      console.log("[visit:stream] publish to channel:", pubResult.status);
-    } catch (pubErr) {
-      console.error("[visit:stream] publish failed:", pubErr.message);
-    }
-  } catch (err) {
-    console.error("[visit:stream] Upstash REST error:", err.message);
-  }
+  return notify.pushNotification(type, payload);
 }
 
 var CRON_STATS_KEY = "auth:cron:stats";
@@ -707,9 +655,9 @@ if ((isCron || isCronBackup) && isBackup) {
         var messages = await md.getUndelivered(hours);
         return res.json({ success: true, messages: messages });
       }
-      if (action === "retry-stuck") {
+      if (action === "retry-stuck" || action === "retry-pending") {
         if (req.method !== "POST") {
-          return res.status(405).json({ success: false, error: "Use POST for retry-stuck" });
+          return res.status(405).json({ success: false, error: "Use POST for retry-stuck / retry-pending" });
         }
         var body = req.body || {};
         var targetMessageId = body.message_id || req.query.message_id || null;
@@ -723,6 +671,9 @@ if ((isCron || isCronBackup) && isBackup) {
             return res.json({ success: false, error: "Message not found in database", message_id: targetMessageId });
           }
           stuckMessages = [singleMsg];
+        } else if (action === "retry-pending") {
+          // 只补发「卡在 pending」的（记录建了但从没推送成功 = 真正丢掉的站内通知）
+          stuckMessages = await md.getStuckPending(parseInt(req.query.hours || "72", 10) || 72);
         } else {
           stuckMessages = await md.getUndelivered(168);
         }
