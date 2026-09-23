@@ -8,281 +8,319 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
   <style>
     /* ============================================================
-   后台专用配色体系（保留品牌色，背景/卡片全浅色化）
-   ============================================================ */
+       设计令牌（Design Tokens）—— 布局 / 圆角 / 字号 / 间距 / 阴影 / 语义色
+       P0 只做两件事：① 修掉历史变量引用错误 ② 让 10 套主题真正生效
+    ============================================================ */
+    :root {
+      /* —— 兼容历史写法：曾有 7 处引用未定义的 --card，导致卡片背景透明 —— */
+      --card: var(--card-bg);
 
-    /* ----- 方案1：深空蓝（科技深邃）—— 耐看加强版 ----- */
-    [data-theme="deep-blue"] {
-      --bg: #e4e8ef;
-      --surface: #ffffff;
-      --card-bg: #ffffff;
-      --ink: #0b1120;
-      --muted: #4b5563;
-      --line: #d1d9e6;
-      --border: #d1d9e6;
-      --accent: #4F46E5;
-      --accent-2: #4338CA;
-      --sidebar: #0f172a;
+      /* —— 派生别名（跟随当前主题自动变化）—— */
+      --card-bg: var(--surface);
+      --border: var(--line);
+      --muted: var(--ink-2);
+      --about-bg: var(--surface);
+      --about-border: var(--line);
+      --dash-bg: var(--surface);
+      --dash-border: var(--line);
+      --status-bar-bg: var(--surface);
+      --status-bar-border: var(--line);
+
+      /* —— 布局 —— */
       --sidebar-w: 220px;
       --sidebar-w-collapsed: 64px;
       --topbar-h: 56px;
+
+      /* —— 圆角（原来散落 12 档）—— */
       --radius: 10px;
-      --th-bg: #f1f4f9;
-      --row-hover: #f8fafc;
-      --about-bg: #f1f4f9;
-      --about-border: #d1d9e6;
-      --dash-bg: #ffffff;
-      --dash-border: #d1d9e6;
-      --status-bar-bg: #ffffff;
-      --status-bar-border: #d1d9e6;
+      --r-sm: 6px;
+      --r-md: 10px;
+      --r-lg: 14px;
+      --r-pill: 999px;
+
+      /* —— 字号（原来散落 24 档）—— */
+      --fs-11: 0.6875rem;
+      --fs-12: 0.75rem;
+      --fs-13: 0.8125rem;
+      --fs-14: 0.875rem;
+      --fs-16: 1rem;
+      --fs-20: 1.25rem;
+      --fs-24: 1.5rem;
+
+      /* —— 间距（8pt 栅格，原来 14 种 padding / 9 种 gap）—— */
+      --sp-1: 4px;
+      --sp-2: 8px;
+      --sp-3: 12px;
+      --sp-4: 16px;
+      --sp-6: 24px;
+      --sp-8: 32px;
+
+      /* —— 阴影三档（原来只有一档极淡的）—— */
+      --shadow-1: 0 1px 2px rgba(15,23,42,0.06), 0 1px 3px rgba(15,23,42,0.04);
+      --shadow-2: 0 2px 6px rgba(15,23,42,0.08), 0 4px 12px rgba(15,23,42,0.05);
+      --shadow-3: 0 8px 24px rgba(15,23,42,0.12);
+
+      /* —— 语义色（收敛散落的 #10b981/#ef4444/#f59e0b…）—— */
+      --ok: #059669;   --ok-bg: #ecfdf5;
+      --warn: #b45309; --warn-bg: #fffbeb;
+      --err: #dc2626;  --err-bg: #fef2f2;
+      --info: #2563eb; --info-bg: #eff6ff;
     }
 
-    /* ----- 方案2：翡翠绿（自然清新）—— 耐看加强版 ----- */
-    [data-theme="jade-green"] {
-      --bg: #e4ece4;
+
+    /* ----- 深空蓝（科技深邃） ----- */
+    [data-theme="deep-blue"] {
+      /* 三层：页面底 / 卡片 / 浮层 —— 卡片永远比页底亮，边界永远看得见 */
+      --bg: #eef1f6;
       --surface: #ffffff;
-      --card-bg: #ffffff;
-      --ink: #0b1120;
-      --muted: #4b5563;
-      --line: #d1d9e6;
-      --border: #d1d9e6;
+      --elevated: #ffffff;
+      --line: #ced4de;
+
+      /* 文字三档（正文 / 次要 / 弱化），对比度全部达标 */
+      --ink: #0f172a;
+      --ink-2: #475569;
+      --ink-3: #64748b;
+
+      /* 表格与列表 */
+      --row-hover: #f6f8fc;
+      --th-bg: #eef2f8;
+
+      /* 主色（accent-soft 用于 focus 环 / 选中底） */
+      --accent: #4f46e5;
+      --accent-2: #4338ca;
+      --accent-soft: rgba(79,70,229,0.14);
+      --sidebar: #101828;
+    }
+
+    /* ----- 翡翠绿（自然清新） ----- */
+    [data-theme="jade-green"] {
+      /* 三层：页面底 / 卡片 / 浮层 —— 卡片永远比页底亮，边界永远看得见 */
+      --bg: #edf2ee;
+      --surface: #ffffff;
+      --elevated: #ffffff;
+      --line: #cbd4cd;
+
+      /* 文字三档（正文 / 次要 / 弱化），对比度全部达标 */
+      --ink: #0e1a14;
+      --ink-2: #445650;
+      --ink-3: #5f7368;
+
+      /* 表格与列表 */
+      --row-hover: #f5f9f6;
+      --th-bg: #eaf1ec;
+
+      /* 主色（accent-soft 用于 focus 环 / 选中底） */
       --accent: #059669;
       --accent-2: #047857;
-      --sidebar: #0f1a0f;
-      --sidebar-w: 220px;
-      --sidebar-w-collapsed: 64px;
-      --topbar-h: 56px;
-      --radius: 10px;
-      --th-bg: #f1f4f1;
-      --row-hover: #f5f8f5;
-      --about-bg: #f1f4f1;
-      --about-border: #d1d9e6;
-      --dash-bg: #ffffff;
-      --dash-border: #d1d9e6;
-      --status-bar-bg: #ffffff;
-      --status-bar-border: #d1d9e6;
+      --accent-soft: rgba(5,150,105,0.14);
+      --sidebar: #0c1a12;
     }
 
-    /* ----- 方案3：珊瑚红（热情温暖）—— 耐看加强版 ----- */
+    /* ----- 珊瑚红（热情温暖） ----- */
     [data-theme="coral-red"] {
-      --bg: #e8e4e4;
+      /* 三层：页面底 / 卡片 / 浮层 —— 卡片永远比页底亮，边界永远看得见 */
+      --bg: #f6efef;
       --surface: #ffffff;
-      --card-bg: #ffffff;
-      --ink: #0b1120;
-      --muted: #4b5563;
-      --line: #d1d9e6;
-      --border: #d1d9e6;
+      --elevated: #ffffff;
+      --line: #ddd1d1;
+
+      /* 文字三档（正文 / 次要 / 弱化），对比度全部达标 */
+      --ink: #1c1212;
+      --ink-2: #574545;
+      --ink-3: #7a6363;
+
+      /* 表格与列表 */
+      --row-hover: #fbf6f6;
+      --th-bg: #f4ebeb;
+
+      /* 主色（accent-soft 用于 focus 环 / 选中底） */
       --accent: #dc2626;
       --accent-2: #b91c1c;
+      --accent-soft: rgba(220,38,38,0.14);
       --sidebar: #1a0f0f;
-      --sidebar-w: 220px;
-      --sidebar-w-collapsed: 64px;
-      --topbar-h: 56px;
-      --radius: 10px;
-      --th-bg: #f4f1f1;
-      --row-hover: #f8f4f4;
-      --about-bg: #f4f1f1;
-      --about-border: #d1d9e6;
-      --dash-bg: #ffffff;
-      --dash-border: #d1d9e6;
-      --status-bar-bg: #ffffff;
-      --status-bar-border: #d1d9e6;
     }
 
-    /* ----- 方案4：暗夜黑（极致暗黑）—— 耐看加强版 ----- */
+    /* ----- 夜幕黑（沉稳低调） ----- */
     [data-theme="night-black"] {
-      --bg: #e4e5e7;
+      /* 三层：页面底 / 卡片 / 浮层 —— 卡片永远比页底亮，边界永远看得见 */
+      --bg: #eff1f4;
       --surface: #ffffff;
-      --card-bg: #ffffff;
-      --ink: #0b1120;
-      --muted: #4b5563;
-      --line: #d1d9e6;
-      --border: #d1d9e6;
-      --accent: #374151;
+      --elevated: #ffffff;
+      --line: #d0d4da;
+
+      /* 文字三档（正文 / 次要 / 弱化），对比度全部达标 */
+      --ink: #0b1220;
+      --ink-2: #454f5e;
+      --ink-3: #64707f;
+
+      /* 表格与列表 */
+      --row-hover: #f6f7f9;
+      --th-bg: #edeff2;
+
+      /* 主色（accent-soft 用于 focus 环 / 选中底） */
+      --accent: #334155;
       --accent-2: #1f2937;
+      --accent-soft: rgba(51,65,85,0.14);
       --sidebar: #0a0a0a;
-      --sidebar-w: 220px;
-      --sidebar-w-collapsed: 64px;
-      --topbar-h: 56px;
-      --radius: 10px;
-      --th-bg: #f1f2f4;
-      --row-hover: #f5f6f8;
-      --about-bg: #f1f2f4;
-      --about-border: #d1d9e6;
-      --dash-bg: #ffffff;
-      --dash-border: #d1d9e6;
-      --status-bar-bg: #ffffff;
-      --status-bar-border: #d1d9e6;
     }
 
-    /* ----- 方案5：深空灰（沉稳中性）—— 耐看加强版 ----- */
+    /* ----- 太空灰（中性百搭） ----- */
     [data-theme="space-gray"] {
-      --bg: #e4e5e7;
+      /* 三层：页面底 / 卡片 / 浮层 —— 卡片永远比页底亮，边界永远看得见 */
+      --bg: #f0f1f3;
       --surface: #ffffff;
-      --card-bg: #ffffff;
-      --ink: #0b1120;
-      --muted: #4b5563;
-      --line: #d1d9e6;
-      --border: #d1d9e6;
-      --accent: #6b7280;
-      --accent-2: #4b5563;
+      --elevated: #ffffff;
+      --line: #d3d4d8;
+
+      /* 文字三档（正文 / 次要 / 弱化），对比度全部达标 */
+      --ink: #14161a;
+      --ink-2: #4b5563;
+      --ink-3: #6b7280;
+
+      /* 表格与列表 */
+      --row-hover: #f7f8f9;
+      --th-bg: #eeeff1;
+
+      /* 主色（accent-soft 用于 focus 环 / 选中底） */
+      --accent: #4b5563;
+      --accent-2: #374151;
+      --accent-soft: rgba(75,85,99,0.14);
       --sidebar: #111827;
-      --sidebar-w: 220px;
-      --sidebar-w-collapsed: 64px;
-      --topbar-h: 56px;
-      --radius: 10px;
-      --th-bg: #f1f2f4;
-      --row-hover: #f5f6f8;
-      --about-bg: #f1f2f4;
-      --about-border: #d1d9e6;
-      --dash-bg: #ffffff;
-      --dash-border: #d1d9e6;
-      --status-bar-bg: #ffffff;
-      --status-bar-border: #d1d9e6;
     }
 
-    /* ----- 方案6：暗紫魅影（神秘优雅）—— 耐看加强版 ----- */
+    /* ----- 魅影紫（神秘高级） ----- */
     [data-theme="phantom-purple"] {
-      --bg: #e7e4e9;
+      /* 三层：页面底 / 卡片 / 浮层 —— 卡片永远比页底亮，边界永远看得见 */
+      --bg: #f3eff7;
       --surface: #ffffff;
-      --card-bg: #ffffff;
-      --ink: #0b1120;
-      --muted: #4b5563;
-      --line: #d1d9e6;
-      --border: #d1d9e6;
+      --elevated: #ffffff;
+      --line: #d8d0e2;
+
+      /* 文字三档（正文 / 次要 / 弱化），对比度全部达标 */
+      --ink: #17102a;
+      --ink-2: #4c4261;
+      --ink-3: #6f6386;
+
+      /* 表格与列表 */
+      --row-hover: #f9f6fc;
+      --th-bg: #f1ebf7;
+
+      /* 主色（accent-soft 用于 focus 环 / 选中底） */
       --accent: #7c3aed;
       --accent-2: #6d28d9;
-      --sidebar: #1a0a2e;
-      --sidebar-w: 220px;
-      --sidebar-w-collapsed: 64px;
-      --topbar-h: 56px;
-      --radius: 10px;
-      --th-bg: #f1f0f4;
-      --row-hover: #f5f2f8;
-      --about-bg: #f1f0f4;
-      --about-border: #d1d9e6;
-      --dash-bg: #ffffff;
-      --dash-border: #d1d9e6;
-      --status-bar-bg: #ffffff;
-      --status-bar-border: #d1d9e6;
+      --accent-soft: rgba(124,58,237,0.14);
+      --sidebar: #180a2e;
     }
 
-    /* ----- 方案7：晨光白（明亮清爽）—— 耐看加强版 ----- */
+    /* ----- 晨曦白（清爽干净） ----- */
     [data-theme="dawn-white"] {
-      --bg: #e7e9eb;
+      /* 三层：页面底 / 卡片 / 浮层 —— 卡片永远比页底亮，边界永远看得见 */
+      --bg: #eef2f8;
       --surface: #ffffff;
-      --card-bg: #ffffff;
-      --ink: #0b1120;
-      --muted: #4b5563;
-      --line: #d1d9e6;
-      --border: #d1d9e6;
+      --elevated: #ffffff;
+      --line: #cbd3de;
+
+      /* 文字三档（正文 / 次要 / 弱化），对比度全部达标 */
+      --ink: #0c1524;
+      --ink-2: #43526b;
+      --ink-3: #64748b;
+
+      /* 表格与列表 */
+      --row-hover: #f6f9fc;
+      --th-bg: #ecf1f8;
+
+      /* 主色（accent-soft 用于 focus 环 / 选中底） */
       --accent: #2563eb;
       --accent-2: #1d4ed8;
-      --sidebar: #1e293b;
-      --sidebar-w: 220px;
-      --sidebar-w-collapsed: 64px;
-      --topbar-h: 56px;
-      --radius: 10px;
-      --th-bg: #f1f4f6;
-      --row-hover: #f5f6f8;
-      --about-bg: #f1f4f6;
-      --about-border: #d1d9e6;
-      --dash-bg: #ffffff;
-      --dash-border: #d1d9e6;
-      --status-bar-bg: #ffffff;
-      --status-bar-border: #d1d9e6;
+      --accent-soft: rgba(37,99,235,0.14);
+      --sidebar: #0f172a;
     }
 
-    /* ----- 方案8：暖阳米（温暖舒适）—— 耐看加强版 ----- */
+    /* ----- 暖米色（柔和舒适） ----- */
     [data-theme="warm-beige"] {
-      --bg: #e8e3db;
+      /* 三层：页面底 / 卡片 / 浮层 —— 卡片永远比页底亮，边界永远看得见 */
+      --bg: #f5f0e8;
       --surface: #ffffff;
-      --card-bg: #ffffff;
-      --ink: #0f0a08;
-      --muted: #4a4140;
-      --line: #d1c9c1;
-      --border: #d1c9c1;
-      --accent: #b8956a;
-      --accent-2: #a07d54;
-      --sidebar: #2a1f14;
-      --sidebar-w: 220px;
-      --sidebar-w-collapsed: 64px;
-      --topbar-h: 56px;
-      --radius: 10px;
-      --th-bg: #f1ece0;
-      --row-hover: #f5f0e8;
-      --about-bg: #f1ece0;
-      --about-border: #d1c9c1;
-      --dash-bg: #ffffff;
-      --dash-border: #d1c9c1;
-      --status-bar-bg: #ffffff;
-      --status-bar-border: #d1c9c1;
+      --elevated: #ffffff;
+      --line: #dad0c2;
+
+      /* 文字三档（正文 / 次要 / 弱化），对比度全部达标 */
+      --ink: #1f1a12;
+      --ink-2: #574f42;
+      --ink-3: #7d7263;
+
+      /* 表格与列表 */
+      --row-hover: #faf7f1;
+      --th-bg: #f4eee4;
+
+      /* 主色（accent-soft 用于 focus 环 / 选中底） */
+      --accent: #a1743f;
+      --accent-2: #8a6234;
+      --accent-soft: rgba(161,116,63,0.14);
+      --sidebar: #241a10;
     }
 
-    /* ----- 方案9：墨绿护眼（柔和护眼）—— 耐看加强版 ----- */
+    /* ----- 森林绿（沉静自然） ----- */
     [data-theme="forest-green"] {
-      --bg: #e1e7e1;
+      /* 三层：页面底 / 卡片 / 浮层 —— 卡片永远比页底亮，边界永远看得见 */
+      --bg: #eef2ee;
       --surface: #ffffff;
-      --card-bg: #ffffff;
-      --ink: #0b1120;
-      --muted: #4b5563;
-      --line: #c8d0c8;
-      --border: #c8d0c8;
+      --elevated: #ffffff;
+      --line: #cad4cb;
+
+      /* 文字三档（正文 / 次要 / 弱化），对比度全部达标 */
+      --ink: #101a12;
+      --ink-2: #47574c;
+      --ink-3: #647a6c;
+
+      /* 表格与列表 */
+      --row-hover: #f6faf6;
+      --th-bg: #ebf1eb;
+
+      /* 主色（accent-soft 用于 focus 环 / 选中底） */
       --accent: #4a7c59;
-      --accent-2: #3a6a49;
-      --sidebar: #0f1a0f;
-      --sidebar-w: 220px;
-      --sidebar-w-collapsed: 64px;
-      --topbar-h: 56px;
-      --radius: 10px;
-      --th-bg: #e8efe8;
-      --row-hover: #eef4ee;
-      --about-bg: #e8efe8;
-      --about-border: #c8d0c8;
-      --dash-bg: #ffffff;
-      --dash-border: #c8d0c8;
-      --status-bar-bg: #ffffff;
-      --status-bar-border: #c8d0c8;
+      --accent-2: #3d6849;
+      --accent-soft: rgba(74,124,89,0.14);
+      --sidebar: #0d1a11;
     }
 
-    /* ----- 方案10：琥珀金（奢华温暖）—— 耐看加强版 ----- */
+    /* ----- 琥珀金（奢华温暖） ----- */
     [data-theme="amber-gold"] {
-      --bg: #e8e3db;
+      /* 三层：页面底 / 卡片 / 浮层 —— 卡片永远比页底亮，边界永远看得见 */
+      --bg: #f5f1e8;
       --surface: #ffffff;
-      --card-bg: #ffffff;
-      --ink: #0f0a08;
-      --muted: #4a4140;
-      --line: #d1c9c1;
-      --border: #d1c9c1;
-      --accent: #c99c4e;
-      --accent-2: #b28234;
-      --sidebar: #1a0f05;
-      --sidebar-w: 220px;
-      --sidebar-w-collapsed: 64px;
-      --topbar-h: 56px;
-      --radius: 10px;
-      --th-bg: #f1ece0;
-      --row-hover: #f5f0e8;
-      --about-bg: #f1ece0;
-      --about-border: #d1c9c1;
-      --dash-bg: #ffffff;
-      --dash-border: #d1c9c1;
-      --status-bar-bg: #ffffff;
-      --status-bar-border: #d1c9c1;
+      --elevated: #ffffff;
+      --line: #dcd3c0;
+
+      /* 文字三档（正文 / 次要 / 弱化），对比度全部达标 */
+      --ink: #211b10;
+      --ink-2: #574c39;
+      --ink-3: #7f7159;
+
+      /* 表格与列表 */
+      --row-hover: #faf7f0;
+      --th-bg: #f5efe3;
+
+      /* 主色（accent-soft 用于 focus 环 / 选中底） */
+      --accent: #b8860b;
+      --accent-2: #9a6f09;
+      --accent-soft: rgba(184,134,11,0.14);
+      --sidebar: #1c1406;
     }
+
     /* ---- 耐看增强补丁 ---- */
-    .card, .stat-card, .dash-card, .table-wrap, .setting-block, .help-banner, .filter-panel, .decrypt-box, .health-summary, .health-card, .da-card, .quota-card, .info-card, .breakdown-card,
-      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    .card, .stat-card, .dash-card, .table-wrap, .setting-block, .help-banner, .filter-panel, .decrypt-box, .health-summary, .health-card, .da-card, .quota-card, .info-card, .breakdown-card {
+      box-shadow: var(--shadow-1);
     }
     .sidebar-menu li a { color: rgba(255,255,255,0.78); }
     .sidebar-menu li a:hover { color: #ffffff; }
     .sidebar-menu li a.active { color: #ffffff; }
-    table tbody tr:nth-child(even) td { background-color: #fafbfc; }
-    table tbody tr:hover td { background-color: #f1f4f9; }
-    table td { border-bottom: 1px solid #e2e8f0; }
+    table tbody tr:nth-child(even) td { background-color: var(--row-hover); }
+    table tbody tr:hover td { background-color: var(--th-bg); }
+    table td { border-bottom: 1px solid var(--line); }
     .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
     .btn-primary:hover { box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
-    input, select, .decrypt-input, .da-input-lg { border-color: #cbd5e1; }
+    input, select, .decrypt-input, .da-input-lg { border-color: var(--line); }
     input:focus, select:focus, .decrypt-input:focus, .da-input-lg:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,0,0,0.08); }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { height: 100%; }
@@ -519,7 +557,7 @@
     }
     .sidebar-user-dropdown-item.danger:hover {
       background: rgba(239, 68, 68, 0.15);
-      color: #ef4444;
+      color: var(--err);
     }
     .sidebar-user-dropdown-divider {
       height: 1px;
@@ -651,7 +689,7 @@
       color: rgba(239, 68, 68, 0.7);
     }
     .logout-link:hover {
-      color: #ef4444;
+      color: var(--err);
       background: rgba(239, 68, 68, 0.08);
     }
     .topbar-version {
@@ -775,19 +813,19 @@
     }
     .trend-card {
       background: var(--card-bg, #fff);
-      border: 1px solid var(--line, #d1d9e6);
+      border: 1px solid var(--line);
       border-radius: 12px;
       padding: 16px 20px;
     }
     .trend-card h3 {
       margin: 0 0 4px 0;
       font-size: 0.92rem;
-      color: #1e293b;
+      color: var(--ink);
       font-weight: 600;
     }
     .trend-card .trend-subtitle {
       font-size: 0.75rem;
-      color: #94a3b8;
+      color: var(--ink-3);
       margin-bottom: 12px;
     }
     .trend-card canvas {
@@ -802,11 +840,11 @@
     .trend-days-selector button {
       padding: 2px 10px;
       font-size: 0.75rem;
-      border: 1px solid var(--line, #d1d9e6);
+      border: 1px solid var(--line);
       background: var(--surface, #fff);
       border-radius: 6px;
       cursor: pointer;
-      color: #64748b;
+      color: var(--ink-2);
       transition: all 0.15s;
     }
     .trend-days-selector button.active {
@@ -825,7 +863,7 @@
       color: #475569;
     }
     .trend-summary-item strong {
-      color: #1e293b;
+      color: var(--ink);
     }
 
     /* —— Panels —— */
@@ -892,7 +930,7 @@
     .filter-label {
       font-size: 0.7rem;
       font-weight: 600;
-      color: #94a3b8;
+      color: var(--ink-3);
       text-transform: uppercase;
       letter-spacing: 0.5px;
       padding-left: 2px;
@@ -952,7 +990,7 @@
       border-right: 1px solid var(--line);
     }
     .filter-seg-btn:last-child { border-right: none; }
-    .filter-seg-btn:hover { background: #f1f5f9; }
+    .filter-seg-btn:hover { background: var(--row-hover); }
     .filter-seg-btn.active {
       background: var(--accent);
       color: #fff;
@@ -989,7 +1027,7 @@
       transition: all 0.15s;
       white-space: nowrap;
     }
-    .settings-tab:hover { background: #f1f5f9; }
+    .settings-tab:hover { background: var(--row-hover); }
     .settings-tab.active {
       background: var(--accent);
       color: #fff;
@@ -1029,7 +1067,7 @@
     }
     .backup-item-meta {
       font-size: 0.72rem;
-      color: #94a3b8;
+      color: var(--ink-3);
     }
     .backup-item-badge {
       font-size: 0.68rem;
@@ -1167,7 +1205,7 @@
       font-size: 0.7rem;
       font-weight: 600;
     }
-    .badge-success { background: #e8f5e9; color: #2e7d32; }
+    .badge-success { background: #e8f5e9; color: var(--ok); }
     .badge-warning { background: #fff3e0; color: #e65100; }
     .badge-info { background: #e3f2fd; color: #1565c0; }
     .mono { font-family: 'SF Mono', 'Fira Code', 'Menlo', monospace; font-size: 0.82rem; letter-spacing: 1px; }
@@ -1288,7 +1326,7 @@
     }
     .ip-col-source {
       font-weight: 600;
-      color: #6366f1;
+      color: var(--accent);
       font-size: 0.72rem;
       white-space: nowrap;
     }
@@ -1310,7 +1348,7 @@
     .ip-detail-tag-accent {
       background: rgba(99, 102, 241, 0.12);
       border-color: rgba(99, 102, 241, 0.35);
-      color: #6366f1;
+      color: var(--accent);
       font-weight: 600;
     }
 
@@ -1395,7 +1433,7 @@
     }
     .modal-overlay.show { display: flex; }
     .modal {
-      background: #fff;
+      background: var(--elevated);
       border-radius: 14px;
       padding: 28px;
       max-width: 440px;
@@ -1442,11 +1480,11 @@
       padding: 6px 0;
     }
     .verify-row .icon { font-size: 1.1rem; }
-    .verify-pass { color: #059669; }
-    .verify-fail { color: #dc2626; }
+    .verify-pass { color: var(--ok); }
+    .verify-fail { color: var(--err); }
     .verify-card {
-      background: #f9fafb;
-      border: 1px solid #e5e7eb;
+      background: var(--row-hover);
+      border: 1px solid var(--line);
       border-radius: 8px;
       padding: 12px;
       margin: 8px 0;
@@ -1579,7 +1617,7 @@
     .decrypt-result .field-row:last-child { border-bottom: none; }
     .decrypt-result .field-label { color: var(--muted); font-weight: 600; }
     .decrypt-result .field-value { color: var(--ink); font-family: 'SF Mono', 'Fira Code', monospace; }
-    .decrypt-result .error-msg { color: #c62828; font-weight: 600; }
+    .decrypt-result .error-msg { color: var(--err); font-weight: 600; }
 
     .health-summary {
       background: var(--surface);
@@ -1653,9 +1691,9 @@
       text-transform: uppercase;
       letter-spacing: 0.4px;
     }
-    .health-status.pass { background: #e8f5e9; color: #2e7d32; }
+    .health-status.pass { background: #e8f5e9; color: var(--ok); }
     .health-status.warn { background: #fff3e0; color: #e65100; }
-    .health-status.fail { background: #ffebee; color: #c62828; }
+    .health-status.fail { background: #ffebee; color: var(--err); }
     .health-detail {
       font-size: 0.8rem;
       color: #374151;
@@ -1680,7 +1718,7 @@
     }
     .hl-card {
       background: var(--card-bg, #fff);
-      border: 1px solid var(--border, #e5e7eb);
+      border: 1px solid var(--border);
       border-radius: 8px;
       padding: 10px 14px;
       text-align: center;
@@ -1688,11 +1726,11 @@
     .hl-num {
       font-size: 1.35rem;
       font-weight: 700;
-      color: var(--ink, #111827);
+      color: var(--ink, var(--ink));
       line-height: 1.2;
     }
-    .hl-card.hl-env .hl-num.env-num { font-size: 0.95rem; font-weight: 600; color: #6b7280; }
-    .hl-lab { font-size: 0.72rem; color: var(--muted, #6b7280); margin-top: 4px; }
+    .hl-card.hl-env .hl-num.env-num { font-size: 0.95rem; font-weight: 600; color: var(--ink-2); }
+    .hl-lab { font-size: 0.72rem; color: var(--muted, var(--ink-2)); margin-top: 4px; }
     .health-log-list {
       display: flex;
       flex-direction: column;
@@ -1705,43 +1743,43 @@
       align-items: center;
       gap: 10px;
       padding: 6px 10px;
-      background: #f9fafb;
+      background: var(--row-hover);
       border-radius: 5px;
       font-size: 0.78rem;
       font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
     }
     .hl-row.hl-used { background: #fef3c7; }
     .hl-row.hl-unused { background: #ecfdf5; }
-    .hl-time { color: #6b7280; white-space: nowrap; font-size: 0.72rem; }
+    .hl-time { color: var(--ink-2); white-space: nowrap; font-size: 0.72rem; }
     .hl-pid { background: #3b82f6; color: #fff; padding: 1px 6px; border-radius: 4px; font-size: 0.68rem; }
-    .hl-mon { color: #059669; font-weight: 600; }
+    .hl-mon { color: var(--ok); font-weight: 600; }
     .hl-dev { color: #8b5cf6; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .hl-code { background: #1f2937; color: #fff; padding: 1px 6px; border-radius: 4px; font-weight: 600; font-size: 0.72rem; }
     .hl-tag { padding: 1px 8px; border-radius: 10px; font-size: 0.68rem; font-weight: 600; }
-    .hl-tag.tag-used { background: #fecaca; color: #991b1b; }
+    .hl-tag.tag-used { background: #fecaca; color: var(--err); }
     .hl-tag.tag-unused { background: #bbf7d0; color: #166534; }
     .vl-row {
       display: flex;
       align-items: flex-start;
       gap: 10px;
       padding: 8px 10px;
-      background: #f9fafb;
+      background: var(--row-hover);
       border-radius: 5px;
       font-size: 0.78rem;
       font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
       border-left: 3px solid #9ca3af;
     }
-    .vl-time { color: #6b7280; white-space: nowrap; font-size: 0.72rem; min-width: 140px; }
+    .vl-time { color: var(--ink-2); white-space: nowrap; font-size: 0.72rem; min-width: 140px; }
     .vl-type { padding: 1px 8px; border-radius: 4px; font-size: 0.68rem; font-weight: 600; background: #e5e7eb; color: #374151; white-space: nowrap; }
     .vl-summary { flex: 1; color: #1f2937; word-break: break-all; }
-    .vl-meta { font-size: 0.68rem; color: #9ca3af; white-space: nowrap; }
+    .vl-meta { font-size: 0.68rem; color: var(--ink-3); white-space: nowrap; }
 
     .el-row {
       display: flex;
       align-items: center;
       gap: 8px;
       padding: 6px 10px;
-      background: #f9fafb;
+      background: var(--row-hover);
       border-radius: 5px;
       font-size: 0.76rem;
       font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
@@ -1750,24 +1788,24 @@
     }
     .el-row .el-status-success { border-left-color: #10b981; }
     .el-row:has(.el-status-failed) { border-left-color: #ef4444; }
-    .el-time { color: #6b7280; white-space: nowrap; font-size: 0.7rem; min-width: 130px; }
+    .el-time { color: var(--ink-2); white-space: nowrap; font-size: 0.7rem; min-width: 130px; }
     .el-type { padding: 1px 6px; border-radius: 4px; font-size: 0.66rem; font-weight: 600; white-space: nowrap; }
     .el-type-activation { background: #dbeafe; color: #1e40af; }
     .el-type-test { background: #fef3c7; color: #92400e; }
     .el-status { padding: 1px 6px; border-radius: 4px; font-size: 0.66rem; font-weight: 600; white-space: nowrap; }
-    .el-status-success { background: #d1fae5; color: #065f46; }
-    .el-status-failed { background: #fee2e2; color: #991b1b; }
-    .el-status-skipped { background: #f3f4f6; color: #6b7280; }
-    .el-to { color: #6366f1; font-size: 0.7rem; white-space: nowrap; }
+    .el-status-success { background: #d1fae5; color: var(--ok); }
+    .el-status-failed { background: #fee2e2; color: var(--err); }
+    .el-status-skipped { background: var(--row-hover); color: var(--ink-2); }
+    .el-to { color: var(--accent); font-size: 0.7rem; white-space: nowrap; }
     .el-subject { flex: 1; color: #374151; font-size: 0.7rem; word-break: break-all; min-width: 120px; }
-    .el-error { color: #ef4444; font-size: 0.66rem; width: 100%; padding-left: 138px; }
-    .el-expand { font-size: 0.6rem; color: #9ca3af; min-width: 14px; text-align: center; transition: transform 0.15s; }
-    .el-row:hover { background: #f3f4f6; }
+    .el-error { color: var(--err); font-size: 0.66rem; width: 100%; padding-left: 138px; }
+    .el-expand { font-size: 0.6rem; color: var(--ink-3); min-width: 14px; text-align: center; transition: transform 0.15s; }
+    .el-row:hover { background: var(--row-hover); }
     .el-row-expanded { background: #eef2ff; border-left-color: var(--accent, #4F46E5) !important; }
     .el-detail {
       padding: 10px 14px 10px 30px;
-      background: #fafbfc;
-      border: 1px solid #e5e7eb;
+      background: var(--row-hover);
+      border: 1px solid var(--line);
       border-top: none;
       border-radius: 0 0 5px 5px;
       margin-top: -3px;
@@ -1782,7 +1820,7 @@
       align-items: baseline;
     }
     .el-detail-key {
-      color: #9ca3af;
+      color: var(--ink-3);
       white-space: nowrap;
       min-width: 90px;
       font-size: 0.66rem;
@@ -1795,17 +1833,17 @@
       font-size: 0.68rem;
     }
     .el-detail-divider {
-      color: #6366f1;
+      color: var(--accent);
       font-size: 0.66rem;
       font-weight: 700;
       padding: 6px 0 2px 0;
       margin-top: 4px;
-      border-top: 1px dashed #e5e7eb;
+      border-top: 1px dashed var(--line);
     }
 
     .setting-block {
       background: var(--card-bg, #fff);
-      border: 1px solid var(--border, #e5e7eb);
+      border: 1px solid var(--border);
       border-radius: 10px;
       padding: 18px 20px;
       margin-bottom: 16px;
@@ -1814,12 +1852,12 @@
       margin: 0 0 6px;
       font-size: 0.95rem;
       font-weight: 700;
-      color: var(--ink, #111827);
+      color: var(--ink, var(--ink));
     }
     .setting-desc {
       margin: 0 0 14px;
       font-size: 0.8rem;
-      color: #6b7280;
+      color: var(--ink-2);
       line-height: 1.55;
     }
 
@@ -1888,7 +1926,7 @@
       align-items: flex-start;
       gap: 14px;
       padding: 12px 0;
-      border-bottom: 1px dashed #e5e7eb;
+      border-bottom: 1px dashed var(--line);
     }
     .setting-row:last-child { border-bottom: none; padding-bottom: 0; }
     .setting-switch {
@@ -1923,8 +1961,8 @@
     .setting-switch input:checked + .switch-slider:before { transform: translateX(20px); }
 
     .setting-row-info { flex: 1; }
-    .setting-row-title { font-size: 0.86rem; font-weight: 600; color: var(--ink, #111827); margin-bottom: 2px; }
-    .setting-row-desc { font-size: 0.74rem; color: #6b7280; line-height: 1.5; }
+    .setting-row-title { font-size: 0.86rem; font-weight: 600; color: var(--ink, var(--ink)); margin-bottom: 2px; }
+    .setting-row-desc { font-size: 0.74rem; color: var(--ink-2); line-height: 1.5; }
 
     .btn-danger {
       background: #dc2626;
@@ -1936,10 +1974,10 @@
     .setting-input {
       width: 260px;
       padding: 8px 12px;
-      border: 1px solid var(--border, #e5e7eb);
+      border: 1px solid var(--border);
       border-radius: 8px;
       font-size: 0.82rem;
-      color: var(--ink, #111827);
+      color: var(--ink, var(--ink));
       background: var(--surface, #fff);
       transition: border-color 0.15s;
       flex-shrink: 0;
@@ -1961,7 +1999,7 @@
     .setting-input-label {
       font-size: 0.78rem;
       font-weight: 600;
-      color: var(--ink, #111827);
+      color: var(--ink, var(--ink));
       min-width: 80px;
       white-space: nowrap;
     }
@@ -1991,7 +2029,7 @@
     }
     .smtp-pass-toggle:hover {
       opacity: 1;
-      background: #f3f4f6;
+      background: var(--row-hover);
     }
     .setting-test-result {
       font-size: 0.78rem;
@@ -2003,13 +2041,13 @@
     .setting-test-result.success {
       display: block;
       background: #ecfdf5;
-      color: #065f46;
+      color: var(--ok);
       border: 1px solid #a7f3d0;
     }
     .setting-test-result.error {
       display: block;
       background: #fef2f2;
-      color: #991b1b;
+      color: var(--err);
       border: 1px solid #fecaca;
     }
     .setting-test-result.loading {
@@ -2027,7 +2065,7 @@
     }
     .email-config-item {
       background: var(--card-bg, #fff);
-      border: 2px solid #e2e8f0;
+      border: 2px solid var(--line);
       border-radius: 10px;
       padding: 10px 14px;
       cursor: pointer;
@@ -2050,12 +2088,12 @@
     .email-config-name {
       font-weight: 700;
       font-size: 0.82rem;
-      color: var(--ink, #111827);
+      color: var(--ink, var(--ink));
       white-space: nowrap;
     }
     .email-config-info {
       font-size: 0.7rem;
-      color: #6b7280;
+      color: var(--ink-2);
       flex: 1;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -2064,7 +2102,7 @@
     .email-config-delete {
       background: none;
       border: none;
-      color: #ef4444;
+      color: var(--err);
       cursor: pointer;
       font-size: 0.85rem;
       padding: 2px 6px;
@@ -2077,7 +2115,7 @@
     }
     .email-config-empty {
       font-size: 0.75rem;
-      color: #9ca3af;
+      color: var(--ink-3);
       padding: 8px 0;
       font-style: italic;
     }
@@ -2094,13 +2132,13 @@
     .test-email-detail-section {
       margin-bottom: 10px;
       padding: 10px 12px;
-      background: var(--card-bg, #f8fafc);
-      border: 1px solid #e2e8f0;
+      background: var(--card-bg, var(--row-hover));
+      border: 1px solid var(--line);
       border-radius: 8px;
       line-height: 1.6;
     }
     .test-email-detail-section strong {
-      color: var(--ink, #111827);
+      color: var(--ink, var(--ink));
     }
     .test-email-steps-table {
       width: 100%;
@@ -2109,12 +2147,12 @@
       font-size: 0.7rem;
     }
     .test-email-steps-table th {
-      background: #f1f5f9;
+      background: var(--row-hover);
       padding: 6px 8px;
       text-align: left;
       font-weight: 600;
       color: #475569;
-      border-bottom: 1px solid #e2e8f0;
+      border-bottom: 1px solid var(--line);
     }
     .test-email-steps-table td {
       padding: 5px 8px;
@@ -2125,13 +2163,13 @@
       word-break: break-all;
     }
     .test-email-steps-table .step-ok td:first-child {
-      color: #059669;
+      color: var(--ok);
     }
     .test-email-steps-table .step-fail td:first-child {
-      color: #ef4444;
+      color: var(--err);
     }
     .step-cmd {
-      color: #6366f1;
+      color: var(--accent);
       font-weight: 600;
       white-space: nowrap;
     }
@@ -2151,7 +2189,7 @@
       padding: 12px 14px;
     }
     .about-title { font-weight: 600; font-size: 0.82rem; color: var(--ink); margin-bottom: 4px; }
-    .about-text { font-size: 0.73rem; color: #6b7280; line-height: 1.5; }
+    .about-text { font-size: 0.73rem; color: var(--ink-2); line-height: 1.5; }
     .about-text code {
       background: #e2e8f0;
       color: #be185d;
@@ -2202,10 +2240,10 @@
       font-weight: 600;
     }
     .cron-status-success { background: #dcfce7; color: #166534; }
-    .cron-status-error { background: #fee2e2; color: #991b1b; }
+    .cron-status-error { background: #fee2e2; color: var(--err); }
     .cron-status-partial { background: #fef3c7; color: #92400e; }
     .cron-status-skipped { background: #e0e7ff; color: #3730a3; }
-    .cron-status-unknown { background: #f3f4f6; color: #6b7280; }
+    .cron-status-unknown { background: var(--row-hover); color: var(--ink-2); }
     .cron-count {
       font-weight: 700;
       color: var(--accent);
@@ -2374,7 +2412,7 @@
     }
     .btn-icon.danger:hover {
       border-color: #dc2626;
-      color: #dc2626;
+      color: var(--err);
       background: #fef2f2;
     }
 
@@ -2426,7 +2464,7 @@
 
     /* Quota Page */
     .quota-card {
-      background:#fff;
+      background:var(--surface);
       border:1px solid var(--line);
       border-radius:12px;
       padding:18px;
@@ -2443,7 +2481,7 @@
     .quota-card.qc-danger::before { background:linear-gradient(90deg,#dc2626,#f87171); }
     .quota-card.qc-ok::before { background:linear-gradient(90deg,#059669,#34d399); }
     .qc-title {
-      font-size:0.78rem; color:#6b7280; font-weight:600; letter-spacing:0.3px;
+      font-size:0.78rem; color:var(--ink-2); font-weight:600; letter-spacing:0.3px;
       margin-bottom:10px; text-transform:uppercase;
     }
     .qc-main {
@@ -2451,10 +2489,10 @@
       margin-bottom:12px;
     }
     .qc-used {
-      font-size:2rem; font-weight:800; color:#111827; letter-spacing:-0.5px;
+      font-size:2rem; font-weight:800; color:var(--ink); letter-spacing:-0.5px;
     }
-    .qc-used small { font-size:0.9rem; font-weight:500; color:#6b7280; margin-left:4px; }
-    .qc-total { font-size:0.85rem; color:#9ca3af; white-space:nowrap; }
+    .qc-used small { font-size:0.9rem; font-weight:500; color:var(--ink-2); margin-left:4px; }
+    .qc-total { font-size:0.85rem; color:var(--ink-3); white-space:nowrap; }
     .qc-progress {
       height:10px; background:#eef2ff; border-radius:999px; overflow:hidden; margin-bottom:8px;
     }
@@ -2464,10 +2502,10 @@
     }
     .qc-progress.warn > div { background:linear-gradient(90deg,#f59e0b,#fbbf24); }
     .qc-progress.danger > div { background:linear-gradient(90deg,#dc2626,#f87171); }
-    .qc-foot { display:flex; justify-content:space-between; font-size:0.75rem; color:#6b7280; margin-top:6px; }
-    .qc-foot strong { color:#111827; }
+    .qc-foot { display:flex; justify-content:space-between; font-size:0.75rem; color:var(--ink-2); margin-top:6px; }
+    .qc-foot strong { color:var(--ink); }
     .info-card {
-      background:#fff;
+      background:var(--surface);
       border:1px solid var(--line);
       border-left:4px solid #818cf8;
       border-radius:10px;
@@ -2477,7 +2515,7 @@
     .info-card.ic-danger { border-left-color:#dc2626; }
     .info-card.ic-ok { border-left-color:#10b981; }
     .info-card h4 {
-      margin:0 0 6px; font-size:0.95rem; color:#111827; line-height:1.35; display:flex; align-items:center; gap:8px;
+      margin:0 0 6px; font-size:0.95rem; color:var(--ink); line-height:1.35; display:flex; align-items:center; gap:8px;
     }
     .info-card p { margin:0; font-size:0.82rem; color:#4b5563; line-height:1.7; }
     .tag {
@@ -2485,16 +2523,16 @@
       font-size:0.7rem; font-weight:700; letter-spacing:0.4px;
       background:#eef2ff; color:#4c51bf;
     }
-    .tag.t-warn { background:#fef3c7; color:#b45309; }
+    .tag.t-warn { background:#fef3c7; color:var(--warn); }
     .tag.t-danger { background:#fee2e2; color:#b91c1c; }
-    .tag.t-ok { background:#d1fae5; color:#065f46; }
+    .tag.t-ok { background:#d1fae5; color:var(--ok); }
     .tag.t-code { background:#111827; color:#f9fafb; font-weight:500; letter-spacing:0.3px; }
     .breakdown-card {
       background:#fafbff; border:1px dashed #c7d2fe; border-radius:10px; padding:12px 14px;
     }
-    .breakdown-card .b-title { font-size:0.75rem; color:#6b7280; margin-bottom:6px; }
-    .breakdown-card .b-val { font-size:1.25rem; font-weight:800; color:#111827; }
-    .breakdown-card .b-sub { font-size:0.75rem; color:#9ca3af; margin-top:4px; }
+    .breakdown-card .b-title { font-size:0.75rem; color:var(--ink-2); margin-bottom:6px; }
+    .breakdown-card .b-val { font-size:1.25rem; font-weight:800; color:var(--ink); }
+    .breakdown-card .b-sub { font-size:0.75rem; color:var(--ink-3); margin-top:4px; }
     .storage-detail-table { margin-top:8px; }
 
     /* Sync status bar */
@@ -2542,8 +2580,8 @@
     }
     #syncDirtyBadge.pulse { animation: dirtyPulse 1.4s ease infinite; }
     .sync-banner.warn { border-color: #fed7aa !important; background: #fff7ed !important; color: #9a3412 !important; }
-    .sync-banner.ok { border-color: #a7f3d0 !important; background: #ecfdf5 !important; color: #065f46 !important; }
-    .sync-banner.err { border-color: #fecaca !important; background: #fef2f2 !important; color: #991b1b !important; }
+    .sync-banner.ok { border-color: #a7f3d0 !important; background: #ecfdf5 !important; color: var(--ok) !important; }
+    .sync-banner.err { border-color: #fecaca !important; background: #fef2f2 !important; color: var(--err) !important; }
 
     .diff-grid {
       display: grid;
@@ -2596,7 +2634,7 @@
     }
     .diff-card-status.ok {
       background: #d1fae5;
-      color: #065f46;
+      color: var(--ok);
     }
     .diff-card-status.warn {
       background: #fef3c7;
@@ -2612,7 +2650,7 @@
       text-align: center;
       padding: 8px 6px;
       border-radius: 8px;
-      background: #f8fafc;
+      background: var(--row-hover);
     }
     .diff-count-num {
       font-size: 1.4rem;
@@ -2640,8 +2678,8 @@
     }
     .diff-detail-row:last-child { border-bottom: none; }
     .diff-detail-val { font-weight: 600; }
-    .diff-detail-val.warn { color: #d97706; }
-    .diff-detail-val.good { color: #059669; }
+    .diff-detail-val.warn { color: var(--warn); }
+    .diff-detail-val.good { color: var(--ok); }
     .diff-card-actions {
       margin-top: 14px;
       display: flex;
@@ -2843,8 +2881,8 @@
       font-weight: 500;
       min-height: 20px;
     }
-    .da-device-feedback.valid { color: #10b981; }
-    .da-device-feedback.invalid { color: #ef4444; }
+    .da-device-feedback.valid { color: var(--ok); }
+    .da-device-feedback.invalid { color: var(--err); }
     .da-device-feedback.info { color: var(--muted); }
 
     .da-month-presets {
@@ -2898,7 +2936,7 @@
     }
     .da-month-custom input[type="number"]:disabled {
       opacity: 0.45;
-      background: #f3f4f6;
+      background: var(--row-hover);
     }
     .da-permanent-toggle {
       display: flex;
@@ -2919,7 +2957,7 @@
     .da-permanent-toggle.on {
       border-color: #f59e0b;
       background: #fffbeb;
-      color: #d97706;
+      color: var(--warn);
     }
     .da-permanent-toggle input[type="checkbox"] { display: none; }
 
@@ -3008,8 +3046,8 @@
       font-weight: 500;
       min-height: 20px;
     }
-    .da-status.success { color: #10b981; }
-    .da-status.error { color: #ef4444; }
+    .da-status.success { color: var(--ok); }
+    .da-status.error { color: var(--err); }
 
     .da-result-grid {
       display: grid;
@@ -3054,7 +3092,7 @@
       font-weight: 700;
     }
     .da-result-badge.months { background: #dcfce7; color: #16a34a; }
-    .da-result-badge.permanent { background: #fef3c7; color: #d97706; }
+    .da-result-badge.permanent { background: #fef3c7; color: var(--warn); }
     .da-result-row {
       display: flex;
       justify-content: space-between;
@@ -3106,7 +3144,7 @@
       color: var(--muted);
     }
     .da-result-expires { font-weight: 500; }
-    .da-result-expires.expired { color: #ef4444; }
+    .da-result-expires.expired { color: var(--err); }
 
     .da-bulk-actions {
       display: flex;
@@ -3237,33 +3275,33 @@
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-top:16px">
               <div class="dash-card" onclick="switchTab('products')" style="cursor:pointer">
                 <i data-lucide="package" style="width:28px;height:28px;color:var(--accent);margin-bottom:6px;display:block"></i>
-                <div style="font-weight:700;font-size:0.95rem;color:#1e293b">产品管理</div>
-                <div style="font-size:0.75rem;color:#64748b;margin-top:4px">管理可授权的产品列表</div>
+                <div style="font-weight:700;font-size:0.95rem;color:var(--ink)">产品管理</div>
+                <div style="font-size:0.75rem;color:var(--ink-2);margin-top:4px">管理可授权的产品列表</div>
               </div>
               <div class="dash-card" onclick="switchTab('codes')" style="cursor:pointer">
                 <i data-lucide="ticket" style="width:28px;height:28px;color:var(--accent);margin-bottom:6px;display:block"></i>
-                <div style="font-weight:700;font-size:0.95rem;color:#1e293b">兑换码管理</div>
-                <div style="font-size:0.75rem;color:#64748b;margin-top:4px">生成、筛选与导出兑换码</div>
+                <div style="font-weight:700;font-size:0.95rem;color:var(--ink)">兑换码管理</div>
+                <div style="font-size:0.75rem;color:var(--ink-2);margin-top:4px">生成、筛选与导出兑换码</div>
               </div>
               <div class="dash-card" onclick="switchTab('records')" style="cursor:pointer">
                 <i data-lucide="clipboard-list" style="width:28px;height:28px;color:var(--accent);margin-bottom:6px;display:block"></i>
-                <div style="font-weight:700;font-size:0.95rem;color:#1e293b">激活记录</div>
-                <div style="font-size:0.75rem;color:#64748b;margin-top:4px">查看设备激活历史</div>
+                <div style="font-weight:700;font-size:0.95rem;color:var(--ink)">激活记录</div>
+                <div style="font-size:0.75rem;color:var(--ink-2);margin-top:4px">查看设备激活历史</div>
               </div>
               <div class="dash-card" onclick="switchTab('decrypt')" style="cursor:pointer">
                 <i data-lucide="search" style="width:28px;height:28px;color:var(--accent);margin-bottom:6px;display:block"></i>
-                <div style="font-weight:700;font-size:0.95rem;color:#1e293b">解密验证</div>
-                <div style="font-size:0.75rem;color:#64748b;margin-top:4px">离线解析激活码内容</div>
+                <div style="font-weight:700;font-size:0.95rem;color:var(--ink)">解密验证</div>
+                <div style="font-size:0.75rem;color:var(--ink-2);margin-top:4px">离线解析激活码内容</div>
               </div>
               <div class="dash-card" onclick="switchTab('settings')" style="cursor:pointer">
                 <i data-lucide="settings" style="width:28px;height:28px;color:var(--accent);margin-bottom:6px;display:block"></i>
-                <div style="font-weight:700;font-size:0.95rem;color:#1e293b">设置</div>
-                <div style="font-size:0.75rem;color:#64748b;margin-top:4px">数据模式 · 安全配置</div>
+                <div style="font-weight:700;font-size:0.95rem;color:var(--ink)">设置</div>
+                <div style="font-size:0.75rem;color:var(--ink-2);margin-top:4px">数据模式 · 安全配置</div>
               </div>
             </div>
 
             <div style="display:flex;align-items:center;margin-top:24px;flex-wrap:wrap;gap:8px">
-              <span style="font-weight:600;font-size:1rem;color:#1e293b">数据走势</span>
+              <span style="font-weight:600;font-size:1rem;color:var(--ink)">数据走势</span>
               <div class="trend-days-selector" id="trendDaysSelector">
                 <button data-days="7" class="active">7天</button>
                 <button data-days="14">14天</button>
@@ -3298,7 +3336,7 @@
               <button class="btn btn-outline" onclick="loadCodes()">刷新</button>
               <div style="position:relative;display:inline-flex;align-items:center">
                 <input type="text" id="codeSearchInput" class="filter-input" placeholder="Search code..." style="width:160px;padding-left:28px;font-size:0.78rem" oninput="onCodeSearchInput()">
-                <span style="position:absolute;left:8px;font-size:0.78rem;color:#94a3b8;pointer-events:none">🔍</span>
+                <span style="position:absolute;left:8px;font-size:0.78rem;color:var(--ink-3);pointer-events:none">🔍</span>
               </div>
               <span class="spacer"></span>
               <button class="btn btn-outline" onclick="openExportModal()">导出 CSV</button>
@@ -3334,7 +3372,7 @@
               </div>
             </div>
             <div class="table-wrap" id="codesTable"></div>
-            <div id="codesPagination" style="display:none;align-items:center;justify-content:space-between;padding:10px 0;font-size:0.82rem;color:#64748b">
+            <div id="codesPagination" style="display:none;align-items:center;justify-content:space-between;padding:10px 0;font-size:0.82rem;color:var(--ink-2)">
               <div>
                 <span id="codesCount">0</span> codes
                 <span id="codesFilteredCount" style="display:none"></span>
@@ -3436,7 +3474,7 @@
               <div class="toolbar filter-row" id="quotaSummaryBar" style="margin-top:0">
                 <div style="flex:1">
                   <div class="section-title" style="margin:0 0 6px">Neon 免费额度使用情况</div>
-                  <div style="color:#6b7280;font-size:0.8rem" id="quotaMetaInfo">-</div>
+                  <div style="color:var(--ink-2);font-size:0.8rem" id="quotaMetaInfo">-</div>
                 </div>
                 <a href="https://console.neon.tech/app/billing" target="_blank" class="btn btn-outline" style="font-size:0.8rem">到 Neon 控制台看精确值 ↗</a>
               </div>
@@ -3467,7 +3505,7 @@
               <div class="toolbar filter-row" style="margin-top:0">
                 <div style="flex:1">
                   <div class="section-title" style="margin:0 0 6px">Supabase 免费额度</div>
-                  <div style="color:#6b7280;font-size:0.8rem">每个 Supabase 账户可创建 2 个免费项目，以下为单个项目免费额度</div>
+                  <div style="color:var(--ink-2);font-size:0.8rem">每个 Supabase 账户可创建 2 个免费项目，以下为单个项目免费额度</div>
                 </div>
                 <a href="https://supabase.com/dashboard/project/kqzkdpmyivtpxkfmibnd" target="_blank" class="btn btn-outline" style="font-size:0.8rem">到 Supabase 控制台 ↗</a>
               </div>
@@ -3492,7 +3530,7 @@
             <div class="toolbar">
               <span class="filter-label" style="padding:0;font-weight:700;font-size:0.88rem;color:var(--ink);">📜 系统日志</span>
               <span class="spacer"></span>
-              <span style="font-size:0.78rem;color:#6b7280;" id="logsTimeHint"></span>
+              <span style="font-size:0.78rem;color:var(--ink-2);" id="logsTimeHint"></span>
             </div>
 
             <div class="logs-tabs" style="display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid var(--line,#e5e7eb);">
@@ -3635,78 +3673,78 @@
                 <p class="setting-desc">选择适合你的界面配色方案，包括护眼模式、黑夜模式等多种风格。</p>
                 <div class="theme-grid" id="themeGrid">
                 <div class="theme-card" data-theme="deep-blue" onclick="setTheme('deep-blue')">
-                  <div class="theme-preview" style="background:#f1f4f9;border:1px solid #e5e7eb">
+                  <div class="theme-preview" style="background:#f1f4f9;border:1px solid var(--line)">
                     <div class="theme-preview-sidebar" style="background:#0f172a"></div>
                     <div class="theme-preview-body">
                       <div class="theme-preview-bar" style="background:#4F46E5"></div>
-                      <div class="theme-preview-line" style="background:#e5e7eb"></div>
-                      <div class="theme-preview-line" style="background:#e5e7eb"></div>
+                      <div class="theme-preview-line" style="background:var(--line)"></div>
+                      <div class="theme-preview-line" style="background:var(--line)"></div>
                     </div>
                   </div>
                   <div class="theme-name">🔵 深空蓝</div>
                 </div>
                 <div class="theme-card" data-theme="jade-green" onclick="setTheme('jade-green')">
-                  <div class="theme-preview" style="background:#f1f5f1;border:1px solid #e5e7eb">
+                  <div class="theme-preview" style="background:#f1f5f1;border:1px solid var(--line)">
                     <div class="theme-preview-sidebar" style="background:#0f1a0f"></div>
                     <div class="theme-preview-body">
                       <div class="theme-preview-bar" style="background:#059669"></div>
-                      <div class="theme-preview-line" style="background:#e5e7eb"></div>
-                      <div class="theme-preview-line" style="background:#e5e7eb"></div>
+                      <div class="theme-preview-line" style="background:var(--line)"></div>
+                      <div class="theme-preview-line" style="background:var(--line)"></div>
                     </div>
                   </div>
                   <div class="theme-name">🟢 翡翠绿</div>
                 </div>
                 <div class="theme-card" data-theme="coral-red" onclick="setTheme('coral-red')">
-                  <div class="theme-preview" style="background:#f5f1f1;border:1px solid #e5e7eb">
+                  <div class="theme-preview" style="background:#f5f1f1;border:1px solid var(--line)">
                     <div class="theme-preview-sidebar" style="background:#1a0f0f"></div>
                     <div class="theme-preview-body">
                       <div class="theme-preview-bar" style="background:#dc2626"></div>
-                      <div class="theme-preview-line" style="background:#e5e7eb"></div>
-                      <div class="theme-preview-line" style="background:#e5e7eb"></div>
+                      <div class="theme-preview-line" style="background:var(--line)"></div>
+                      <div class="theme-preview-line" style="background:var(--line)"></div>
                     </div>
                   </div>
                   <div class="theme-name">🔴 珊瑚红</div>
                 </div>
                 <div class="theme-card" data-theme="night-black" onclick="setTheme('night-black')">
-                  <div class="theme-preview" style="background:#f1f2f4;border:1px solid #e5e7eb">
+                  <div class="theme-preview" style="background:#f1f2f4;border:1px solid var(--line)">
                     <div class="theme-preview-sidebar" style="background:#0a0a0a"></div>
                     <div class="theme-preview-body">
                       <div class="theme-preview-bar" style="background:#374151"></div>
-                      <div class="theme-preview-line" style="background:#e5e7eb"></div>
-                      <div class="theme-preview-line" style="background:#e5e7eb"></div>
+                      <div class="theme-preview-line" style="background:var(--line)"></div>
+                      <div class="theme-preview-line" style="background:var(--line)"></div>
                     </div>
                   </div>
                   <div class="theme-name">⚫ 暗夜黑</div>
                 </div>
                 <div class="theme-card" data-theme="space-gray" onclick="setTheme('space-gray')">
-                  <div class="theme-preview" style="background:#f1f2f4;border:1px solid #e5e7eb">
+                  <div class="theme-preview" style="background:#f1f2f4;border:1px solid var(--line)">
                     <div class="theme-preview-sidebar" style="background:#111827"></div>
                     <div class="theme-preview-body">
                       <div class="theme-preview-bar" style="background:#6b7280"></div>
-                      <div class="theme-preview-line" style="background:#e5e7eb"></div>
-                      <div class="theme-preview-line" style="background:#e5e7eb"></div>
+                      <div class="theme-preview-line" style="background:var(--line)"></div>
+                      <div class="theme-preview-line" style="background:var(--line)"></div>
                     </div>
                   </div>
                   <div class="theme-name">⬛ 深空灰</div>
                 </div>
                 <div class="theme-card" data-theme="phantom-purple" onclick="setTheme('phantom-purple')">
-                  <div class="theme-preview" style="background:#f4f1f6;border:1px solid #e5e7eb">
+                  <div class="theme-preview" style="background:#f4f1f6;border:1px solid var(--line)">
                     <div class="theme-preview-sidebar" style="background:#1a0a2e"></div>
                     <div class="theme-preview-body">
                       <div class="theme-preview-bar" style="background:#7c3aed"></div>
-                      <div class="theme-preview-line" style="background:#e5e7eb"></div>
-                      <div class="theme-preview-line" style="background:#e5e7eb"></div>
+                      <div class="theme-preview-line" style="background:var(--line)"></div>
+                      <div class="theme-preview-line" style="background:var(--line)"></div>
                     </div>
                   </div>
                   <div class="theme-name">🟣 暗紫魅影</div>
                 </div>
                 <div class="theme-card" data-theme="dawn-white" onclick="setTheme('dawn-white')">
-                  <div class="theme-preview" style="background:#f4f6f8;border:1px solid #e5e7eb">
+                  <div class="theme-preview" style="background:#f4f6f8;border:1px solid var(--line)">
                     <div class="theme-preview-sidebar" style="background:#1e293b"></div>
                     <div class="theme-preview-body">
                       <div class="theme-preview-bar" style="background:#2563eb"></div>
-                      <div class="theme-preview-line" style="background:#e5e7eb"></div>
-                      <div class="theme-preview-line" style="background:#e5e7eb"></div>
+                      <div class="theme-preview-line" style="background:var(--line)"></div>
+                      <div class="theme-preview-line" style="background:var(--line)"></div>
                     </div>
                   </div>
                   <div class="theme-name">⬜ 晨光白</div>
@@ -3761,7 +3799,7 @@
                 </label>
                 <div class="setting-row-info">
                   <div class="setting-row-title">🟢 推送前校验删除目标是否存在于服务器</div>
-                  <div class="setting-row-desc">推送删除操作前，先去 Postgres 查询该 ID 是否真的存在。如果服务器上没有这条数据（说明之前 pull 失败或从未同步过），就拒绝删除。这能彻底避免本地孤立的删除标记被推到线上造成数据丢失。<b style="color:#dc2626;">强烈建议保持开启。</b></div>
+                  <div class="setting-row-desc">推送删除操作前，先去 Postgres 查询该 ID 是否真的存在。如果服务器上没有这条数据（说明之前 pull 失败或从未同步过），就拒绝删除。这能彻底避免本地孤立的删除标记被推到线上造成数据丢失。<b style="color:var(--err);">强烈建议保持开启。</b></div>
                 </div>
               </div>
               <div class="setting-row">
@@ -3927,14 +3965,14 @@
                 <p class="setting-desc">双层架构：协调层（Upstash KV）管理配置与业务数据 + 数据层（PostgreSQL）可动态切换。</p>
                 <div style="margin-bottom:10px">
                   <button class="btn btn-primary" onclick="loadDatabaseStatus()">🔄 刷新数据库状态</button>
-                  <span style="margin-left:10px;font-size:0.78rem;color:#6b7280" id="dbStatusCheckedAt"></span>
+                  <span style="margin-left:10px;font-size:0.78rem;color:var(--ink-2)" id="dbStatusCheckedAt"></span>
                 </div>
                 <div id="dbStatusCurrent" style="margin-bottom:16px;padding:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;">
                   <span style="font-weight:600">当前主数据库：</span><span id="dbCurrentName" style="color:var(--accent);font-weight:700">加载中...</span>
-                  <span style="margin-left:12px;font-size:0.78rem;color:#6b7280">(DB_PROVIDER: <code id="dbCurrentProvider">-</code>)</span>
+                  <span style="margin-left:12px;font-size:0.78rem;color:var(--ink-2)">(DB_PROVIDER: <code id="dbCurrentProvider">-</code>)</span>
                 </div>
                 <div id="dbStatusInfo" style="margin-bottom:16px;padding:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;display:none">
-                  <span style="font-size:0.78rem;color:#6b7280">切换说明：切换后新请求将连接新的主数据库，内存缓存立即生效，无需重启。</span>
+                  <span style="font-size:0.78rem;color:var(--ink-2)">切换说明：切换后新请求将连接新的主数据库，内存缓存立即生效，无需重启。</span>
                 </div>
               </div>
 
@@ -3969,7 +4007,7 @@
                   <button class="btn btn-primary" onclick="triggerSyncTo('all')" id="btnTriggerSyncAll" style="font-size:0.82rem;padding:6px 14px">Sync All (PG)</button>
                   <button class="btn btn-outline" onclick="triggerSyncTo('neon')" id="btnTriggerSyncNeon" style="font-size:0.82rem;padding:6px 14px">Sync to Neon</button>
                   <button class="btn btn-outline" onclick="triggerSyncTo('upstash')" id="btnTriggerSyncUpstash" style="font-size:0.82rem;padding:6px 14px">Sync to Upstash KV</button>
-                  <span id="syncStatusMsg" style="font-size:0.78rem;color:#6b7280"></span>
+                  <span id="syncStatusMsg" style="font-size:0.78rem;color:var(--ink-2)"></span>
                 </div>
                 <div id="dbSyncStatus" style="padding:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;">
                   <div class="empty">点击「刷新数据库状态」加载...</div>
@@ -4502,7 +4540,7 @@
       <div id="verifySwitchBody" style="font-size:0.85rem;line-height:1.6">
         <div style="text-align:center;padding:20px">
           <div class="spinner" style="margin:0 auto 12px"></div>
-          <p style="color:#6b7280">Comparing databases...</p>
+          <p style="color:var(--ink-2)">Comparing databases...</p>
         </div>
       </div>
       <div class="actions" id="verifySwitchActions" style="display:none;margin-top:16px">
@@ -4522,7 +4560,7 @@
       </div>
       <div class="field">
         <label>用户昵称（可选）</label>
-        <input type="text" id="dmModalUserName" class="input-mono" style="background:#fff" placeholder="手动输入用户昵称，用于日志记录">
+        <input type="text" id="dmModalUserName" class="input-mono" style="background:var(--surface)" placeholder="手动输入用户昵称，用于日志记录">
       </div>
       <div class="field">
         <label>话术内容</label>
@@ -5739,7 +5777,7 @@
           tableHtml += '<td>' + expiresText + '</td>';
           var actionCell = '';
           if (!isFailure && rawDeviceId) {
-            actionCell = '<button class="btn btn-sm" onclick="unbindActivation(\'' + escapeJs(r.activation_code || '') + '\', \'' + escapeJs(rawDeviceId) + '\', \'' + escapeJs(r.redeem_code || '') + '\')" style="font-size:0.72rem;padding:1px 6px;background:#fff5f5;color:#dc2626;border:1px solid #fecaca">解绑</button>';
+            actionCell = '<button class="btn btn-sm" onclick="unbindActivation(\'' + escapeJs(r.activation_code || '') + '\', \'' + escapeJs(rawDeviceId) + '\', \'' + escapeJs(r.redeem_code || '') + '\')" style="font-size:0.72rem;padding:1px 6px;background:#fff5f5;color:var(--err);border:1px solid #fecaca">解绑</button>';
           } else {
             actionCell = '<span style="color:#aaa;font-size:0.72rem">-</span>';
           }
@@ -6157,7 +6195,7 @@
           html += '<div class="stat-card" style="border-left:3px solid #10b981;min-width:80px;padding:6px 10px">';
           html += '<div class="label" style="font-size:0.7rem;white-space:nowrap">' + escapeHtml(label) + '</div>';
           html += '<div class="number" style="font-size:1rem;margin-top:2px">' + ch.count + '</div>';
-          html += '<div style="margin-top:2px;height:3px;background:#e5e7eb;border-radius:2px;overflow:hidden">';
+          html += '<div style="margin-top:2px;height:3px;background:var(--line);border-radius:2px;overflow:hidden">';
           html += '<div style="height:100%;width:' + pct + '%;background:#10b981;border-radius:2px"></div></div>';
           html += '</div>';
         });
@@ -6238,7 +6276,7 @@
         html += '<div class="detail-section">';
         html += '<div class="detail-section-title">IP Details</div>';
         html += '<table class="detail-table">';
-        if (v.ip) html += '<tr><td>IP Address</td><td style="font-family:monospace"><a href="javascript:void(0)" onclick="showIpCompare(\'' + escapeJs(v.ip) + '\')" style="color:#6366f1;text-decoration:none;font-weight:600">' + escapeHtml(v.ip) + '</a></td></tr>';
+        if (v.ip) html += '<tr><td>IP Address</td><td style="font-family:monospace"><a href="javascript:void(0)" onclick="showIpCompare(\'' + escapeJs(v.ip) + '\')" style="color:var(--accent);text-decoration:none;font-weight:600">' + escapeHtml(v.ip) + '</a></td></tr>';
         if (v.isp) html += '<tr><td>ISP</td><td>' + escapeHtml(v.isp) + '</td></tr>';
         if (v.org && v.org !== v.isp) html += '<tr><td>Organization</td><td>' + escapeHtml(v.org) + '</td></tr>';
         if (v.asn) html += '<tr><td>ASN</td><td style="font-family:monospace">AS' + escapeHtml(v.asn) + '</td></tr>';
@@ -6367,8 +6405,8 @@
         var data = await api('/api/admin/health?section=vercel-logs');
         if (!data.success) {
           var hint = '';
-          if (data.hint) hint = '<div style="margin-top:8px;color:#6b7280;font-size:0.8rem;">' + escapeHtml(data.hint) + '</div>';
-          listEl.innerHTML = '<div class="empty" style="text-align:left;color:#f59e0b;">⚠️ ' + escapeHtml(data.error || 'Vercel 日志不可用') + hint + '</div>';
+          if (data.hint) hint = '<div style="margin-top:8px;color:var(--ink-2);font-size:0.8rem;">' + escapeHtml(data.hint) + '</div>';
+          listEl.innerHTML = '<div class="empty" style="text-align:left;color:var(--warn);">⚠️ ' + escapeHtml(data.error || 'Vercel 日志不可用') + hint + '</div>';
           showToast('Vercel API 未配置', 'error');
           return;
         }
@@ -6397,7 +6435,7 @@
         showToast('Vercel 日志加载成功 - ' + logs.length + ' 条事件', 'success');
       } catch (e) {
         console.error('loadVercelLogs failed:', e);
-        listEl.innerHTML = '<div class="empty" style="color:#ef4444;">加载失败: ' + escapeHtml(e.message || '') + '</div>';
+        listEl.innerHTML = '<div class="empty" style="color:var(--err);">加载失败: ' + escapeHtml(e.message || '') + '</div>';
       }
     }
 
@@ -6410,7 +6448,7 @@
       try {
         var data = await api('/api/admin/health?section=email-logs');
         if (!data.success) {
-          listEl.innerHTML = '<div class="empty" style="text-align:left;color:#f59e0b;">⚠️ ' + escapeHtml(data.error || '邮件日志不可用') + '</div>';
+          listEl.innerHTML = '<div class="empty" style="text-align:left;color:var(--warn);">⚠️ ' + escapeHtml(data.error || '邮件日志不可用') + '</div>';
           showToast('邮件日志加载失败', 'error');
           return;
         }
@@ -6456,7 +6494,7 @@
 
           html += '<div class="el-detail" id="' + detailId + '" style="display:none;">';
           if (l.error) {
-            html += '<div class="el-detail-row"><span class="el-detail-key">Error</span><span class="el-detail-val" style="color:#ef4444;">' + escapeHtml(l.error) + '</span></div>';
+            html += '<div class="el-detail-row"><span class="el-detail-key">Error</span><span class="el-detail-val" style="color:var(--err);">' + escapeHtml(l.error) + '</span></div>';
           }
           html += '<div class="el-detail-row"><span class="el-detail-key">Subject</span><span class="el-detail-val">' + escapeHtml(l.subject || '') + '</span></div>';
           html += '<div class="el-detail-row"><span class="el-detail-key">Source</span><span class="el-detail-val">' + escapeHtml(l.source || '') + '</span></div>';
@@ -6480,7 +6518,7 @@
         showToast('邮件日志加载成功 - ' + logs.length + ' 条记录', 'success');
       } catch (e) {
         console.error('loadEmailLogs failed:', e);
-        listEl.innerHTML = '<div class="empty" style="color:#ef4444;">加载失败: ' + escapeHtml(e.message || '') + '</div>';
+        listEl.innerHTML = '<div class="empty" style="color:var(--err);">加载失败: ' + escapeHtml(e.message || '') + '</div>';
       }
     }
 
@@ -6492,7 +6530,7 @@
       try {
         var data = await api('/api/admin/health?section=resend-logs');
         if (!data.success) {
-          listEl.innerHTML = '<div class="empty" style="text-align:left;color:#f59e0b;">⚠️ ' + escapeHtml(data.error || 'Resend 日志不可用') + '</div>';
+          listEl.innerHTML = '<div class="empty" style="text-align:left;color:var(--warn);">⚠️ ' + escapeHtml(data.error || 'Resend 日志不可用') + '</div>';
           showToast('Resend 日志加载失败', 'error');
           return;
         }
@@ -6545,7 +6583,7 @@
         showToast('Resend 日志加载成功 - ' + logs.length + ' 条记录', 'success');
       } catch (e) {
         console.error('loadResendLogs failed:', e);
-        listEl.innerHTML = '<div class="empty" style="color:#ef4444;">加载失败: ' + escapeHtml(e.message || '') + '</div>';
+        listEl.innerHTML = '<div class="empty" style="color:var(--err);">加载失败: ' + escapeHtml(e.message || '') + '</div>';
       }
     }
 
@@ -6558,7 +6596,7 @@
       try {
         var data = await api('/api/admin/health?section=afdian-dm-logs');
         if (!data.success) {
-          listEl.innerHTML = '<div class="empty" style="text-align:left;color:#f59e0b;">⚠️ ' + escapeHtml(data.error || 'DM logs unavailable') + '</div>';
+          listEl.innerHTML = '<div class="empty" style="text-align:left;color:var(--warn);">⚠️ ' + escapeHtml(data.error || 'DM logs unavailable') + '</div>';
           showToast('DM logs load failed', 'error');
           return;
         }
@@ -6602,7 +6640,7 @@
           html += '<div class="el-detail-row"><span class="el-detail-key">Source</span><span class="el-detail-val">' + src.label + '</span></div>';
           html += '<div class="el-detail-row"><span class="el-detail-key">Status</span><span class="el-detail-val">' + (l.success ? '✅ Success' : '❌ Failed') + '</span></div>';
           if (l.error) {
-            html += '<div class="el-detail-row"><span class="el-detail-key">Error</span><span class="el-detail-val" style="color:#ef4444;">' + escapeHtml(l.error) + '</span></div>';
+            html += '<div class="el-detail-row"><span class="el-detail-key">Error</span><span class="el-detail-val" style="color:var(--err);">' + escapeHtml(l.error) + '</span></div>';
           }
           if (l.response) {
             html += '<div class="el-detail-row"><span class="el-detail-key">API Response</span><span class="el-detail-val">' + escapeHtml(l.response) + '</span></div>';
@@ -6615,7 +6653,7 @@
         showToast('DM logs loaded - ' + logs.length + ' records', 'success');
       } catch (e) {
         console.error('loadAfdianDmLogs failed:', e);
-        listEl.innerHTML = '<div class="empty" style="color:#ef4444;">Load failed: ' + escapeHtml(e.message || '') + '</div>';
+        listEl.innerHTML = '<div class="empty" style="color:var(--err);">Load failed: ' + escapeHtml(e.message || '') + '</div>';
       }
     }
 
@@ -6628,7 +6666,7 @@
       try {
         var data = await api('/api/admin/health?section=logs');
         if (!data.success) {
-          listEl.innerHTML = '<div class="empty" style="text-align:left;color:#f59e0b;">⚠️ ' + escapeHtml(data.error || 'Sync logs unavailable') + '</div>';
+          listEl.innerHTML = '<div class="empty" style="text-align:left;color:var(--warn);">⚠️ ' + escapeHtml(data.error || 'Sync logs unavailable') + '</div>';
           showToast('Sync logs load failed', 'error');
           return;
         }
@@ -6689,7 +6727,7 @@
         showToast('Sync logs loaded - ' + logs.length + ' records', 'success');
       } catch (e) {
         console.error('loadDbSyncLogs failed:', e);
-        listEl.innerHTML = '<div class="empty" style="color:#ef4444;">Load failed: ' + escapeHtml(e.message || '') + '</div>';
+        listEl.innerHTML = '<div class="empty" style="color:var(--err);">Load failed: ' + escapeHtml(e.message || '') + '</div>';
       }
     }
 
@@ -6717,7 +6755,7 @@
       try {
         var data = await api('/api/admin/health?section=cron-logs');
         if (!data.success) {
-          listEl.innerHTML = '<div class="empty" style="text-align:left;color:#f59e0b;">⚠️ ' + escapeHtml(data.error || 'Cron logs unavailable') + '</div>';
+          listEl.innerHTML = '<div class="empty" style="text-align:left;color:var(--warn);">⚠️ ' + escapeHtml(data.error || 'Cron logs unavailable') + '</div>';
           showToast('Cron logs load failed', 'error');
           return;
         }
@@ -6778,7 +6816,7 @@
         showToast('Cron logs loaded - ' + logs.length + ' records', 'success');
       } catch (e) {
         console.error('loadCronLogs failed:', e);
-        listEl.innerHTML = '<div class="empty" style="color:#ef4444;">Load failed: ' + escapeHtml(e.message || '') + '</div>';
+        listEl.innerHTML = '<div class="empty" style="color:var(--err);">Load failed: ' + escapeHtml(e.message || '') + '</div>';
       }
     }
 
@@ -7544,9 +7582,9 @@
           Object.keys(tableNames).forEach(function(tk) {
             var td = tables[tk] || {};
             var cnt = td.count !== undefined ? td.count : '-';
-            tableRows += '<tr><td style="padding:3px 8px;font-size:0.72rem;color:#64748b">' + tableNames[tk] + '</td>' +
+            tableRows += '<tr><td style="padding:3px 8px;font-size:0.72rem;color:var(--ink-2)">' + tableNames[tk] + '</td>' +
               '<td style="padding:3px 8px;font-size:0.72rem;font-family:monospace;color:#334155">' + cnt + ' 条</td>' +
-              '<td style="padding:3px 8px;font-size:0.65rem;color:#94a3b8;font-family:monospace">' + (td.key || tk) + '</td></tr>';
+              '<td style="padding:3px 8px;font-size:0.65rem;color:var(--ink-3);font-family:monospace">' + (td.key || tk) + '</td></tr>';
           });
           html += '<div class="backup-item">' +
             '<div class="backup-item-info" style="cursor:pointer" onclick="toggleBackupDetail(\'' + expandId + '\')">' +
@@ -7556,16 +7594,16 @@
             '<span class="backup-item-badge ' + (isAuto ? 'auto' : 'manual') + '">' + (isAuto ? '自动' : '手动') + '</span>' +
             '<div class="backup-item-actions">' +
               '<button class="btn btn-outline" style="padding:4px 12px;font-size:0.75rem" onclick="restoreBackup(\'' + b.id + '\')">↩️ 还原</button>' +
-              '<button class="btn btn-outline" style="padding:4px 12px;font-size:0.75rem;color:#dc2626;border-color:#dc2626" onclick="deleteBackup(\'' + b.id + '\')">🗑️</button>' +
+              '<button class="btn btn-outline" style="padding:4px 12px;font-size:0.75rem;color:var(--err);border-color:#dc2626" onclick="deleteBackup(\'' + b.id + '\')">🗑️</button>' +
             '</div>' +
           '</div>' +
-          '<div id="' + expandId + '" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;margin-top:-1px;padding:8px 12px">' +
+          '<div id="' + expandId + '" style="display:none;background:var(--row-hover);border:1px solid var(--line);border-top:none;border-radius:0 0 8px 8px;margin-top:-1px;padding:8px 12px">' +
             '<table style="width:100%;border-collapse:collapse">' + tableRows + '</table>' +
           '</div>';
         });
         list.innerHTML = html;
       } catch (e) {
-        list.innerHTML = '<div class="muted" style="padding:16px;text-align:center;color:#dc2626">加载失败: ' + escapeHtml(e.message) + '</div>';
+        list.innerHTML = '<div class="muted" style="padding:16px;text-align:center;color:var(--err)">加载失败: ' + escapeHtml(e.message) + '</div>';
       }
     }
 
@@ -7807,7 +7845,7 @@
       html +=   '<span>已用 <strong>' + displayPct + '%</strong></span>';
       html +=   '<span>' + remainingText + '</span>';
       html += '</div>';
-      if (extraFootHtml) html += '<div style="margin-top:10px;font-size:0.75rem;color:#6b7280;line-height:1.6;border-top:1px dashed #eef2ff;padding-top:8px">' + extraFootHtml + '</div>';
+      if (extraFootHtml) html += '<div style="margin-top:10px;font-size:0.75rem;color:var(--ink-2);line-height:1.6;border-top:1px dashed #eef2ff;padding-top:8px">' + extraFootHtml + '</div>';
       html += '</div>';
       return html;
     }
@@ -7881,7 +7919,7 @@
           var freeEg = Number(eg.freeGiB) || 1;
           html += _quotaCard(
             '🌐 跨区出流量 (Inter-Region Egress · 1GB/月)',
-            '<span style="color:#9ca3af">—</span><small>无法直查</small>',
+            '<span style="color:var(--ink-3)">—</span><small>无法直查</small>',
             freeEg + ' GB',
             0,
             '请到控制台查看',
@@ -7890,7 +7928,7 @@
           // 分支 / 历史天数：虚拟卡片，显示上限
           html += _quotaCard(
             '🌳 项目分支 (Branches · 最多 10 个) + 历史窗口',
-            '— <small style="color:#9ca3af">请点右侧按钮查控制台</small>',
+            '— <small style="color:var(--ink-3)">请点右侧按钮查控制台</small>',
             String(s.limits && s.limits.maxBranches ? s.limits.maxBranches : 10) + ' 分支',
             0,
             '保留历史 ' + String(s.limits && s.limits.historyDays ? s.limits.historyDays : 1) + ' 天',
@@ -7926,10 +7964,10 @@
         if (breakEl) {
           var bs = '';
           bs += '<div class="breakdown-card"><div class="b-title">本月估算活跃总时长</div><div class="b-val">' + escapeHtml(String(Number(c.usedHoursEstimate || 0).toFixed(3))) + ' h</div><div class="b-sub">scale-to-zero 不计时 · 精确值以 Neon 为准</div></div>';
-          bs += '<div class="breakdown-card"><div class="b-title">冷启动次数</div><div class="b-val">' + escapeHtml(String(c.coldStarts || 0)) + '<small style="font-size:0.75rem;color:#9ca3af;margin-left:4px">次</small></div><div class="b-sub">每 5 分钟空闲后首次请求算一次</div></div>';
+          bs += '<div class="breakdown-card"><div class="b-title">冷启动次数</div><div class="b-val">' + escapeHtml(String(c.coldStarts || 0)) + '<small style="font-size:0.75rem;color:var(--ink-3);margin-left:4px">次</small></div><div class="b-sub">每 5 分钟空闲后首次请求算一次</div></div>';
           bs += '<div class="breakdown-card"><div class="b-title">本月累计观察到的请求数</div><div class="b-val">' + escapeHtml(String(c.totalPings || 0)) + '</div><div class="b-sub">API 访问（激活/后台/健康检查 等）</div></div>';
           bs += '<div class="breakdown-card"><div class="b-title">月末预估消耗</div><div class="b-val" style="color:' + (Number(c.projectedHoursAtCurrentRate || 0) > Number(c.freeHours || 100) ? '#b91c1c' : '#065f46') + '">' + escapeHtml(String(c.projectedHoursAtCurrentRate || 0)) + ' h</div><div class="b-sub">按已过天数等比线性推算</div></div>';
-          bs += '<div class="breakdown-card"><div class="b-title">每日平均活跃</div><div class="b-val">' + escapeHtml(String(c.dailyAverageHours || 0)) + '<small style="font-size:0.75rem;color:#9ca3af;margin-left:4px">h / 天</small></div><div class="b-sub">理想日使用应 < 3.33 小时（100h / 30d）</div></div>';
+          bs += '<div class="breakdown-card"><div class="b-title">每日平均活跃</div><div class="b-val">' + escapeHtml(String(c.dailyAverageHours || 0)) + '<small style="font-size:0.75rem;color:var(--ink-3);margin-left:4px">h / 天</small></div><div class="b-sub">理想日使用应 < 3.33 小时（100h / 30d）</div></div>';
           bs += '<div class="breakdown-card"><div class="b-title">下次免费额度重置</div><div class="b-val">' + new Date(m.nextResetUtcIso || new Date()).toLocaleDateString('zh-CN') + '</div><div class="b-sub">届时 Compute、Egress 会重新从 0 开始计</div></div>';
           breakEl.innerHTML = bs;
         }
@@ -8063,7 +8101,7 @@
         var html = '';
         html += _quotaCard(
           '💾 数据库存储 (Database)',
-          '<span style="color:#10b981;font-weight:700">' + dbSizeMB + '</span><small> MB</small>',
+          '<span style="color:var(--ok);font-weight:700">' + dbSizeMB + '</span><small> MB</small>',
           '500 MB',
           dbSizePct,
           '每个项目 500MB 数据库存储',
@@ -8071,7 +8109,7 @@
         );
         html += _quotaCard(
           '🌐 带宽 (Bandwidth)',
-          '<span style="color:#9ca3af">--</span><small>GB</small>',
+          '<span style="color:var(--ink-3)">--</span><small>GB</small>',
           '2 GB',
           0,
           '每月 2GB 数据传输',
@@ -8079,7 +8117,7 @@
         );
         html += _quotaCard(
           '👤 活跃用户 (MAU)',
-          '<span style="color:#9ca3af">--</span><small>人</small>',
+          '<span style="color:var(--ink-3)">--</span><small>人</small>',
           '50,000',
           0,
           '每月 5 万活跃用户',
@@ -8087,7 +8125,7 @@
         );
         html += _quotaCard(
           '📁 文件存储 (Storage)',
-          '<span style="color:#9ca3af">--</span><small>GB</small>',
+          '<span style="color:var(--ink-3)">--</span><small>GB</small>',
           '1 GB',
           0,
           '文件/图片存储空间',
@@ -8095,7 +8133,7 @@
         );
         html += _quotaCard(
           '⚡ Edge Functions',
-          '<span style="color:#9ca3af">--</span><small>次</small>',
+          '<span style="color:var(--ink-3)">--</span><small>次</small>',
           '500,000',
           0,
           '每月 50 万次调用',
@@ -8103,7 +8141,7 @@
         );
         html += _quotaCard(
           '🔌 实时连接 (Realtime)',
-          '<span style="color:#9ca3af">--</span><small>个</small>',
+          '<span style="color:var(--ink-3)">--</span><small>个</small>',
           '200',
           0,
           '200 个并发 WebSocket 连接',
@@ -8196,34 +8234,34 @@
               coordHtml += '<h4>' + statusIcon + ' ' + escapeHtml(db.name) + '<span class="tag" style="margin-left:6px;background:#ede9fe;color:#7c3aed">⚙️ 协调层</span></h4>';
               coordHtml += '<p><strong>类型：</strong>' + escapeHtml(db.type) + ' · <strong>主机：</strong>' + escapeHtml(db.host) + '</p>';
               coordHtml += '<p><strong>免费额度：</strong>' + escapeHtml(db.freeLimit) + '</p>';
-              coordHtml += '<p><strong>配置状态：</strong>' + (db.configured ? '<span style="color:#059669">已配置</span>' : '<span style="color:#dc2626">未配置</span>') + '</p>';
+              coordHtml += '<p><strong>配置状态：</strong>' + (db.configured ? '<span style="color:var(--ok)">已配置</span>' : '<span style="color:var(--err)">未配置</span>') + '</p>';
 
               if (db.syncStats) {
                 var ss = db.syncStats;
                 var syncTotal = (ss.strings || 0) + (ss.hashes || 0) + (ss.sets || 0) + (ss.zsets || 0);
                 coordHtml += '<p style="margin-top:6px"><strong>数据：</strong>4 种, <span style="font-size:1.1rem;font-weight:700;color:#7c3aed">' + syncTotal.toLocaleString() + '</span> 条记录</p>';
                 coordHtml += '<table style="width:100%;margin-top:4px;font-size:0.78rem;border-collapse:collapse">';
-                coordHtml += '<thead><tr style="color:#6b7280"><th style="text-align:left;padding:2px 4px">类型</th><th style="text-align:right;padding:2px 4px">条数</th></tr></thead><tbody>';
+                coordHtml += '<thead><tr style="color:var(--ink-2)"><th style="text-align:left;padding:2px 4px">类型</th><th style="text-align:right;padding:2px 4px">条数</th></tr></thead><tbody>';
                 coordHtml += '<tr><td style="padding:1px 4px;font-family:monospace">strings</td><td style="text-align:right;padding:1px 4px">' + (ss.strings || 0).toLocaleString() + '</td></tr>';
                 coordHtml += '<tr><td style="padding:1px 4px;font-family:monospace">hashes</td><td style="text-align:right;padding:1px 4px">' + (ss.hashes || 0).toLocaleString() + '</td></tr>';
                 coordHtml += '<tr><td style="padding:1px 4px;font-family:monospace">sets</td><td style="text-align:right;padding:1px 4px">' + (ss.sets || 0).toLocaleString() + '</td></tr>';
                 coordHtml += '<tr><td style="padding:1px 4px;font-family:monospace">zsets</td><td style="text-align:right;padding:1px 4px">' + (ss.zsets || 0).toLocaleString() + '</td></tr>';
                 coordHtml += '</tbody></table>';
                 if (db.keyCount !== null && db.keyCount !== undefined) {
-                  coordHtml += '<p style="font-size:0.75rem;color:#9ca3af;margin-top:4px">' + Number(db.keyCount).toLocaleString() + ' keys</p>';
+                  coordHtml += '<p style="font-size:0.75rem;color:var(--ink-3);margin-top:4px">' + Number(db.keyCount).toLocaleString() + ' keys</p>';
                 }
               } else if (db.keyCount !== null && db.keyCount !== undefined) {
                 coordHtml += '<p style="margin-top:6px"><strong>数据：</strong><span style="font-size:1.1rem;font-weight:700;color:#7c3aed">' + Number(db.keyCount).toLocaleString() + '</span> keys</p>';
               }
               if (Array.isArray(db.keys) && db.keys.length > 0) {
-                coordHtml += '<div style="margin-top:4px;font-size:0.78rem;color:#6b7280">';
+                coordHtml += '<div style="margin-top:4px;font-size:0.78rem;color:var(--ink-2)">';
                 for (var ki = 0; ki < db.keys.length; ki++) {
                   coordHtml += '<span style="display:inline-block;background:#ede9fe;padding:1px 6px;border-radius:3px;margin:1px 2px">' + escapeHtml(db.keys[ki].name) + ' x' + db.keys[ki].rowCount + '</span>';
                 }
                 coordHtml += '</div>';
               }
               if (db.error) {
-                coordHtml += '<p style="margin-top:2px;color:#dc2626;font-size:0.75rem">' + escapeHtml(db.error) + '</p>';
+                coordHtml += '<p style="margin-top:2px;color:var(--err);font-size:0.75rem">' + escapeHtml(db.error) + '</p>';
               }
               coordHtml += '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #e9d5ff;font-size:0.78rem;color:#7c3aed">⚙️ 协调层不可切换，不参与主数据库选举</div>';
               coordHtml += '</div>';
@@ -8243,19 +8281,19 @@
               dataHtml += '<h4>' + statusIcon + ' ' + escapeHtml(db.name) + roleBadge + '</h4>';
               dataHtml += '<p><strong>类型：</strong>' + escapeHtml(db.type) + ' · <strong>主机：</strong>' + escapeHtml(db.host) + '</p>';
               dataHtml += '<p><strong>免费额度：</strong>' + escapeHtml(db.freeLimit) + '</p>';
-              dataHtml += '<p><strong>配置状态：</strong>' + (db.configured ? '<span style="color:#059669">已配置</span>' : '<span style="color:#dc2626">未配置</span>') + '</p>';
+              dataHtml += '<p><strong>配置状态：</strong>' + (db.configured ? '<span style="color:var(--ok)">已配置</span>' : '<span style="color:var(--err)">未配置</span>') + '</p>';
 
               dataHtml += '<p style="margin-top:6px"><strong>数据：</strong>' + db.tableCount + ' 表, <span style="font-size:1.1rem;font-weight:700;color:var(--accent)">' + Number(db.totalRows || 0).toLocaleString() + '</span> 条记录</p>';
               if (Array.isArray(db.tables) && db.tables.length > 0) {
                 dataHtml += '<table style="width:100%;margin-top:4px;font-size:0.78rem;border-collapse:collapse">';
-                dataHtml += '<thead><tr style="color:#6b7280"><th style="text-align:left;padding:2px 4px">表名</th><th style="text-align:right;padding:2px 4px">行数</th></tr></thead><tbody>';
+                dataHtml += '<thead><tr style="color:var(--ink-2)"><th style="text-align:left;padding:2px 4px">表名</th><th style="text-align:right;padding:2px 4px">行数</th></tr></thead><tbody>';
                 for (var ti = 0; ti < db.tables.length; ti++) {
                   dataHtml += '<tr><td style="padding:1px 4px;font-family:monospace">' + escapeHtml(db.tables[ti].name) + '</td><td style="text-align:right;padding:1px 4px">' + Number(db.tables[ti].rowCount).toLocaleString() + '</td></tr>';
                 }
                 dataHtml += '</tbody></table>';
               }
               if (db.error) {
-                dataHtml += '<p style="margin-top:2px;color:#dc2626;font-size:0.75rem">' + escapeHtml(db.error) + '</p>';
+                dataHtml += '<p style="margin-top:2px;color:var(--err);font-size:0.75rem">' + escapeHtml(db.error) + '</p>';
               }
               var dbSwitchKey = db.id || db.name;
               var isOn = db.enabled === 'on';
@@ -8292,7 +8330,7 @@
               th += '<td style="text-align:right">' + escapeHtml(t.sizeMB) + ' MB</td>';
               th += '</tr>';
             });
-            th += '<tr style="background:#f9fafb;font-weight:600"><td colspan="2">合计</td><td style="text-align:right">' + d.tables.reduce(function(s, t) { return s + Number(t.estRows); }, 0).toLocaleString('zh-CN') + '</td><td style="text-align:right">' + escapeHtml(d.dbSizeMB) + ' MB</td></tr>';
+            th += '<tr style="background:var(--row-hover);font-weight:600"><td colspan="2">合计</td><td style="text-align:right">' + d.tables.reduce(function(s, t) { return s + Number(t.estRows); }, 0).toLocaleString('zh-CN') + '</td><td style="text-align:right">' + escapeHtml(d.dbSizeMB) + ' MB</td></tr>';
             th += '</tbody></table>';
             tablesEl.innerHTML = th;
           }
@@ -8318,7 +8356,7 @@
                 if (sl.time) { try { slTime = new Date(sl.time).toLocaleString('zh-CN'); } catch (_) { slTime = sl.time; } }
                 var slTrigger = sl.trigger === 'cron' ? '⏰' : '👆';
                 var slDuration = sl.duration ? (sl.duration / 1000).toFixed(1) + 's' : '?';
-                syncEl.innerHTML += '<div style="font-size:0.75rem;color:#6b7280;margin-top:4px;display:flex;gap:8px;flex-wrap:wrap">' +
+                syncEl.innerHTML += '<div style="font-size:0.75rem;color:var(--ink-2);margin-top:4px;display:flex;gap:8px;flex-wrap:wrap">' +
                   '<span>' + escapeHtml(slTime) + '</span>' +
                   '<span>' + slTrigger + ' #' + (sl.updateCount || 0) + '</span>' +
                   '<span>⏱ ' + slDuration + '</span>' +
@@ -8327,7 +8365,7 @@
               }
             }
           } else {
-            syncEl.innerHTML = '<div style="color:#9ca3af">尚未进行过数据同步。运行 <code>node scripts/setup-supabase.js</code> 执行 Neon → Supabase 数据同步。</div>';
+            syncEl.innerHTML = '<div style="color:var(--ink-3)">尚未进行过数据同步。运行 <code>node scripts/setup-supabase.js</code> 执行 Neon → Supabase 数据同步。</div>';
           }
         }
 
@@ -8415,7 +8453,7 @@
 
       modal.classList.add('show');
       title.textContent = 'Database Verification: Switch to ' + dbName;
-      body.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto 12px"></div><p style="color:#6b7280">Comparing ' + dbName + ' with current primary database...</p></div>';
+      body.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto 12px"></div><p style="color:var(--ink-2)">Comparing ' + dbName + ' with current primary database...</p></div>';
       actions.style.display = 'none';
       confirmBtn.style.display = 'none';
       syncBtn.style.display = 'none';
@@ -8427,7 +8465,7 @@
         var data = await res.json();
 
         if (!data.success) {
-          body.innerHTML = '<div style="text-align:center;padding:20px"><p style="color:#dc2626;font-size:1.1rem">Verification Failed</p><p style="color:#6b7280">' + escapeHtml(data.error || 'Unknown error') + '</p></div>';
+          body.innerHTML = '<div style="text-align:center;padding:20px"><p style="color:var(--err);font-size:1.1rem">Verification Failed</p><p style="color:var(--ink-2)">' + escapeHtml(data.error || 'Unknown error') + '</p></div>';
           actions.style.display = 'flex';
           return;
         }
@@ -8443,14 +8481,14 @@
 
         if (data.canSwitch) {
           html += '<div style="text-align:center;padding:8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;margin-bottom:12px">';
-          html += '<span style="font-size:1.1rem;font-weight:700;color:#059669">Data is consistent</span>';
-          html += '<p style="font-size:0.8rem;color:#6b7280;margin-top:4px">' + escapeHtml(data.suggestion) + '</p>';
+          html += '<span style="font-size:1.1rem;font-weight:700;color:var(--ok)">Data is consistent</span>';
+          html += '<p style="font-size:0.8rem;color:var(--ink-2);margin-top:4px">' + escapeHtml(data.suggestion) + '</p>';
           html += '</div>';
         } else {
           html += '<div style="text-align:center;padding:8px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;margin-bottom:12px">';
-          html += '<span style="font-size:1.1rem;font-weight:700;color:#dc2626">Data Mismatch</span>';
-          html += '<p style="font-size:0.8rem;color:#6b7280;margin-top:4px">' + escapeHtml(data.reason) + '</p>';
-          html += '<p style="font-size:0.8rem;color:#6b7280;margin-top:2px"><strong>Suggestion:</strong> ' + escapeHtml(data.suggestion) + '</p>';
+          html += '<span style="font-size:1.1rem;font-weight:700;color:var(--err)">Data Mismatch</span>';
+          html += '<p style="font-size:0.8rem;color:var(--ink-2);margin-top:4px">' + escapeHtml(data.reason) + '</p>';
+          html += '<p style="font-size:0.8rem;color:var(--ink-2);margin-top:2px"><strong>Suggestion:</strong> ' + escapeHtml(data.suggestion) + '</p>';
           html += '</div>';
         }
 
@@ -8458,10 +8496,10 @@
         html += '<div style="font-weight:600;margin-bottom:6px">Primary: ' + escapeHtml(primary.name) + '</div>';
         html += '<div class="verify-row"><span class="icon">' + (primary.hasError ? '❌' : '✅') + '</span> Keys: <strong>' + Number(primaryStats.keys || 0).toLocaleString() + '</strong> | Records: <strong>' + Number(primaryStats.totalRecords || 0).toLocaleString() + '</strong></div>';
         if (primaryStats.strings > 0) {
-          html += '<div style="font-size:0.78rem;color:#6b7280;margin-left:28px">strings: ' + primaryStats.strings + ' | hashes: ' + primaryStats.hashes + ' | sets: ' + primaryStats.sets + ' | zsets: ' + primaryStats.zsets + '</div>';
+          html += '<div style="font-size:0.78rem;color:var(--ink-2);margin-left:28px">strings: ' + primaryStats.strings + ' | hashes: ' + primaryStats.hashes + ' | sets: ' + primaryStats.sets + ' | zsets: ' + primaryStats.zsets + '</div>';
         }
         if (primary.hasError) {
-          html += '<div class="verify-row"><span class="icon verify-fail">⚠️</span> <span style="color:#dc2626;font-size:0.78rem">' + escapeHtml(primaryStats.error) + '</span></div>';
+          html += '<div class="verify-row"><span class="icon verify-fail">⚠️</span> <span style="color:var(--err);font-size:0.78rem">' + escapeHtml(primaryStats.error) + '</span></div>';
         }
         html += '</div>';
 
@@ -8469,14 +8507,14 @@
         html += '<div style="font-weight:600;margin-bottom:6px">Target: ' + escapeHtml(target.name) + '</div>';
         html += '<div class="verify-row"><span class="icon">' + (target.hasError ? '❌' : '✅') + '</span> Keys: <strong>' + Number(targetStats.keys || 0).toLocaleString() + '</strong> | Records: <strong>' + Number(targetStats.totalRecords || 0).toLocaleString() + '</strong></div>';
         if (targetStats.strings > 0) {
-          html += '<div style="font-size:0.78rem;color:#6b7280;margin-left:28px">strings: ' + targetStats.strings + ' | hashes: ' + targetStats.hashes + ' | sets: ' + targetStats.sets + ' | zsets: ' + targetStats.zsets + '</div>';
+          html += '<div style="font-size:0.78rem;color:var(--ink-2);margin-left:28px">strings: ' + targetStats.strings + ' | hashes: ' + targetStats.hashes + ' | sets: ' + targetStats.sets + ' | zsets: ' + targetStats.zsets + '</div>';
         }
         if (target.hasError) {
-          html += '<div class="verify-row"><span class="icon verify-fail">⚠️</span> <span style="color:#dc2626;font-size:0.78rem">' + escapeHtml(targetStats.error) + '</span></div>';
+          html += '<div class="verify-row"><span class="icon verify-fail">⚠️</span> <span style="color:var(--err);font-size:0.78rem">' + escapeHtml(targetStats.error) + '</span></div>';
         }
         html += '</div>';
 
-        html += '<div class="verify-card" style="background:#fff">';
+        html += '<div class="verify-card" style="background:var(--surface)">';
         html += '<div style="font-weight:600;margin-bottom:6px">Comparison Results</div>';
         html += '<div class="verify-row"><span class="icon ' + (comp.keyCountMatch ? 'verify-pass' : 'verify-fail') + '">' + (comp.keyCountMatch ? '✅' : '❌') + '</span> Key Count: ' + comp.primaryKeys + ' vs ' + comp.targetKeys + ' (diff: ' + (comp.keyDiff > 0 ? '+' : '') + comp.keyDiff + ')</div>';
         html += '<div class="verify-row"><span class="icon ' + (comp.fingerprintMatch ? 'verify-pass' : 'verify-fail') + '">' + (comp.fingerprintMatch ? '✅' : '❌') + '</span> Fingerprint: ' + (comp.fingerprintMatch ? 'Match' : 'Mismatch') + '</div>';
@@ -8505,7 +8543,7 @@
         actions.style.display = 'flex';
 
       } catch (e) {
-        body.innerHTML = '<div style="text-align:center;padding:20px"><p style="color:#dc2626;font-size:1.1rem">Verification Error</p><p style="color:#6b7280">' + escapeHtml(e.message || 'Network error') + '</p></div>';
+        body.innerHTML = '<div style="text-align:center;padding:20px"><p style="color:var(--err);font-size:1.1rem">Verification Error</p><p style="color:var(--ink-2)">' + escapeHtml(e.message || 'Network error') + '</p></div>';
         actions.style.display = 'flex';
       }
     }
@@ -8521,7 +8559,7 @@
 
       if (confirmBtn) confirmBtn.disabled = true;
       if (syncBtn) syncBtn.style.display = 'none';
-      body.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto 12px"></div><p style="color:#6b7280">Switching primary database to ' + target.dbName + '...</p></div>';
+      body.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto 12px"></div><p style="color:var(--ink-2)">Switching primary database to ' + target.dbName + '...</p></div>';
 
       fetch('/api/admin/health?section=switch-db', {
         method: 'POST',
@@ -8532,7 +8570,7 @@
         .then(function (r) { return r.json(); })
         .then(function (data) {
           if (data && data.success) {
-            body.innerHTML = '<div style="text-align:center;padding:20px"><div style="font-size:2rem;margin-bottom:12px">&#9989;</div><p style="color:#059669;font-weight:600">Primary database switched!</p><p style="color:#6b7280;margin-top:8px">From <strong>' + (data.from || '') + '</strong> to <strong>' + (data.to || '') + '</strong></p><p style="font-size:0.75rem;color:#9ca3af;margin-top:4px">The switch takes effect on the next request.</p></div>';
+            body.innerHTML = '<div style="text-align:center;padding:20px"><div style="font-size:2rem;margin-bottom:12px">&#9989;</div><p style="color:var(--ok);font-weight:600">Primary database switched!</p><p style="color:var(--ink-2);margin-top:8px">From <strong>' + (data.from || '') + '</strong> to <strong>' + (data.to || '') + '</strong></p><p style="font-size:0.75rem;color:var(--ink-3);margin-top:4px">The switch takes effect on the next request.</p></div>';
             showToast('Primary database switched to ' + target.dbName, 'success');
             if (cancelBtn) cancelBtn.disabled = false;
             if (actions) { actions.style.display = 'flex'; }
@@ -8549,7 +8587,7 @@
           }
         })
         .catch(function (err) {
-          body.innerHTML = '<div style="text-align:center;padding:20px"><div style="font-size:2rem;margin-bottom:12px">&#10060;</div><p style="color:#dc2626;font-weight:600">Switch Failed</p><p style="color:#6b7280;margin-top:8px">' + (err.message || 'Unknown error') + '</p></div>';
+          body.innerHTML = '<div style="text-align:center;padding:20px"><div style="font-size:2rem;margin-bottom:12px">&#10060;</div><p style="color:var(--err);font-weight:600">Switch Failed</p><p style="color:var(--ink-2);margin-top:8px">' + (err.message || 'Unknown error') + '</p></div>';
           if (cancelBtn) cancelBtn.disabled = false;
           if (actions) { actions.style.display = 'flex'; }
           if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.style.display = ''; }
@@ -8569,7 +8607,7 @@
       if (syncBtn) syncBtn.disabled = true;
       if (actions) actions.style.display = 'flex';
 
-      body.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto 12px"></div><p style="color:#6b7280">Syncing from ' + (target.dbKey === 'neon' ? 'current primary' : 'current primary') + ' to ' + target.dbName + '...</p><p style="font-size:0.75rem;color:#9ca3af;margin-top:4px">This may take a moment</p></div>';
+      body.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto 12px"></div><p style="color:var(--ink-2)">Syncing from ' + (target.dbKey === 'neon' ? 'current primary' : 'current primary') + ' to ' + target.dbName + '...</p><p style="font-size:0.75rem;color:var(--ink-3);margin-top:4px">This may take a moment</p></div>';
 
       try {
         var syncUrl = '/api/admin/health?section=sync';
@@ -8582,7 +8620,7 @@
 
         if (data && data.success) {
           showToast('Sync to ' + target.dbName + ' completed successfully', 'success');
-          body.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto 12px"></div><p style="color:#6b7280">Sync complete. Re-verifying...</p></div>';
+          body.innerHTML = '<div style="text-align:center;padding:20px"><div class="spinner" style="margin:0 auto 12px"></div><p style="color:var(--ink-2)">Sync complete. Re-verifying...</p></div>';
           if (cancelBtn) cancelBtn.disabled = false;
           if (actions) actions.style.display = 'none';
           setTimeout(function() {
@@ -8592,7 +8630,7 @@
           throw new Error(data && data.error ? data.error : 'Sync failed');
         }
       } catch (e) {
-        body.innerHTML = '<div style="text-align:center;padding:20px"><p style="color:#dc2626;font-size:1.1rem">Sync Failed</p><p style="color:#6b7280">' + escapeHtml(e.message || 'Network error') + '</p></div>';
+        body.innerHTML = '<div style="text-align:center;padding:20px"><p style="color:var(--err);font-size:1.1rem">Sync Failed</p><p style="color:var(--ink-2)">' + escapeHtml(e.message || 'Network error') + '</p></div>';
         if (syncBtn) { syncBtn.disabled = false; syncBtn.style.display = ''; }
         if (confirmBtn) confirmBtn.style.display = 'none';
         if (actions) actions.style.display = 'flex';
@@ -8964,7 +9002,7 @@
         console.log('[afdian:ui] loadAfdianOrders response:', data);
         if (!data.success) {
           console.error('[afdian:ui] loadAfdianOrders failed:', data.error);
-          tableBody.innerHTML = '<tr><td colspan="9" class="empty" style="color:#ef4444;">Load failed: ' + escapeHtml(data.error || 'Unknown error') + '</td></tr>';
+          tableBody.innerHTML = '<tr><td colspan="9" class="empty" style="color:var(--err);">Load failed: ' + escapeHtml(data.error || 'Unknown error') + '</td></tr>';
           return;
         }
 
@@ -9023,16 +9061,16 @@
             '<td>' + escapeHtml(o.total_amount || '-') + '</td>' +
             '<td>' + escapeHtml(String(o.months || '-')) + '</td>' +
             '<td style="font-family:monospace;font-size:0.78rem">' +
-              '<span id="afdian-code-' + escapeHtml(o.out_trade_no) + '">' + (redeemCode ? escapeHtml(redeemCode) : '<i style="color:#94a3b8">-</i>') + '</span>' +
+              '<span id="afdian-code-' + escapeHtml(o.out_trade_no) + '">' + (redeemCode ? escapeHtml(redeemCode) : '<i style="color:var(--ink-3)">-</i>') + '</span>' +
               ' <button class="btn btn-outline" style="padding:1px 6px;font-size:0.7rem;border-radius:4px" onclick="editAfdianRedeem(\'' + escapeJs(o.out_trade_no) + '\')" title="Edit redeem code">✎</button>' +
             '</td>' +
             '<td style="font-family:monospace;font-size:0.7rem">' +
-              '<span id="afdian-act-' + escapeHtml(o.out_trade_no) + '">' + (activationCode ? formatActivationCode(activationCode) + (activationTimeStr ? '<br><span style="font-size:0.65rem;color:#64748b">' + escapeHtml(activationTimeStr) + '</span>' : '') : '<i style="color:#94a3b8">-</i>') + '</span>' +
+              '<span id="afdian-act-' + escapeHtml(o.out_trade_no) + '">' + (activationCode ? formatActivationCode(activationCode) + (activationTimeStr ? '<br><span style="font-size:0.65rem;color:var(--ink-2)">' + escapeHtml(activationTimeStr) + '</span>' : '') : '<i style="color:var(--ink-3)">-</i>') + '</span>' +
             '</td>' +
             '<td>' + statusHtml + '</td>' +
             '<td style="font-size:0.75rem">' + escapeHtml(timeStr) + '</td>' +
             '</tr>' +
-            '<tr id="' + expandId + '" style="display:none"><td colspan="9" style="padding:0;background:#f8fafc;border-bottom:2px solid #e2e8f0">' +
+            '<tr id="' + expandId + '" style="display:none"><td colspan="9" style="padding:0;background:var(--row-hover);border-bottom:2px solid var(--line)">' +
               '<div style="padding:12px 16px;max-height:360px;overflow:auto">' +
                 '<div style="font-weight:600;font-size:0.78rem;color:#475569;margin-bottom:5px">Raw API Response</div>' +
                 '<pre style="font-size:0.7rem;color:#334155;white-space:pre;margin:0">' + escapeHtml(rawJson) + '</pre>' +
@@ -9044,7 +9082,7 @@
         showToast('Loaded ' + orders.length + ' orders', 'success');
       } catch (e) {
         console.error('[afdian:ui] loadAfdianOrders EXCEPTION:', e.message, e.stack);
-        tableBody.innerHTML = '<tr><td colspan="9" class="empty" style="color:#ef4444;">Load failed: ' + escapeHtml(e.message || '') + '</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="9" class="empty" style="color:var(--err);">Load failed: ' + escapeHtml(e.message || '') + '</td></tr>';
       }
     }
 
@@ -9145,7 +9183,7 @@
           if (actEl && data.activation_code) {
             actEl.textContent = formatActivationCode(data.activation_code);
           } else if (actEl) {
-            actEl.innerHTML = '<i style="color:#94a3b8">not found</i>';
+            actEl.innerHTML = '<i style="color:var(--ink-3)">not found</i>';
           }
           showToast('Redeem code updated', 'success');
         } else {
@@ -9289,7 +9327,7 @@
             }).join('');
           }
         } else {
-          overviewEl.innerHTML = '<div style="grid-column:1/-1;color:#dc2626;font-size:0.85rem;padding:20px">加载失败：访客 API 不可用</div>';
+          overviewEl.innerHTML = '<div style="grid-column:1/-1;color:var(--err);font-size:0.85rem;padding:20px">加载失败：访客 API 不可用</div>';
         }
 
         if (tr && tr.success) {
@@ -9308,8 +9346,8 @@
             var filterNotice = '';
           if (window._visitorFilterIp) {
             filterNotice = '<div style="margin-bottom:10px;padding:8px 12px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;font-size:0.82rem;display:flex;align-items:center;justify-content:space-between">' +
-              '<span>Filtering by IP: <strong style="font-family:monospace;color:#6366f1">' + escapeHtml(window._visitorFilterIp) + '</strong></span>' +
-              '<span onclick="window._visitorFilterIp=null;loadVisitors()" style="cursor:pointer;color:#6366f1;font-weight:600;font-size:0.75rem">[Clear]</span>' +
+              '<span>Filtering by IP: <strong style="font-family:monospace;color:var(--accent)">' + escapeHtml(window._visitorFilterIp) + '</strong></span>' +
+              '<span onclick="window._visitorFilterIp=null;loadVisitors()" style="cursor:pointer;color:var(--accent);font-weight:600;font-size:0.75rem">[Clear]</span>' +
               '</div>';
           }
           recentEl.innerHTML = filterNotice + '<table style="width:100%;border-collapse:collapse;font-size:0.82rem">' +
@@ -9340,7 +9378,7 @@
                   '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;max-width:90px">' + escapeHtml(v.path || '/') + '</span>' +
                   '<span class="copy-url-btn" onclick="event.stopPropagation();copyPageUrl(\'' + escapeJs(v.path || '/') + '\')" title="Copy URL" style="cursor:pointer;flex-shrink:0;font-size:0.65rem;opacity:0.4;transition:opacity 0.15s">Copy</span>' +
                   '</span></td>' +
-                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-family:monospace;font-size:0.72rem;white-space:nowrap"><a href="javascript:void(0)" onclick="event.stopPropagation();showIpCompare(\'' + escapeJs(v.ip) + '\')" style="color:#6366f1;text-decoration:none;font-weight:600">' + escapeHtml(v.ip) + '</a></td>' +
+                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-family:monospace;font-size:0.72rem;white-space:nowrap"><a href="javascript:void(0)" onclick="event.stopPropagation();showIpCompare(\'' + escapeJs(v.ip) + '\')" style="color:var(--accent);text-decoration:none;font-weight:600">' + escapeHtml(v.ip) + '</a></td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:0.75rem">' + t + '</td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-size:0.75rem">' + escapeHtml(locStr) + ispHint + '</td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:0.72rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(v.ua || '') + '">' + escapeHtml(uaShort) + '</td>' +
@@ -9354,7 +9392,7 @@
           }
         }
       }).catch(function(e) {
-        overviewEl.innerHTML = '<div style="color:#dc2626">Error: ' + escapeHtml(e.message) + '</div>';
+        overviewEl.innerHTML = '<div style="color:var(--err)">Error: ' + escapeHtml(e.message) + '</div>';
       });
     }
 
@@ -9422,7 +9460,7 @@
       api('/api/admin/health?section=stats&sub=visitor-unique-ips&days=' + days +
         (city ? '&city=' + encodeURIComponent(city) : '')).then(function (res) {
         if (!res || !res.success) {
-          statsEl.innerHTML = '<div style="color:#dc2626;font-size:0.85rem">加载失败：' + escapeHtml((res && res.error) || '未知错误') + '</div>';
+          statsEl.innerHTML = '<div style="color:var(--err);font-size:0.85rem">加载失败：' + escapeHtml((res && res.error) || '未知错误') + '</div>';
           return;
         }
         window._uniqueIpData = res;
@@ -9430,7 +9468,7 @@
         renderVisitorCityChips(res);
         renderUniqueIpList(res);
       }).catch(function (e) {
-        statsEl.innerHTML = '<div style="color:#dc2626;font-size:0.85rem">加载失败: ' + escapeHtml(e.message) + '</div>';
+        statsEl.innerHTML = '<div style="color:var(--err);font-size:0.85rem">加载失败: ' + escapeHtml(e.message) + '</div>';
       });
     }
 
@@ -9461,11 +9499,11 @@
         // 已按某城市筛选：只显示「返回全部」
         el.innerHTML = '<span style="cursor:pointer;font-size:0.75rem;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted)" ' +
           'onclick="window._uniqueIpCity=null;loadUniqueIps()">← 全部城市（' + ((res.stats && res.stats.ips) || 0) + ' 个 IP）</span>' +
-          '<span style="font-size:0.75rem;padding:4px 10px;border-radius:999px;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.35);color:#6366f1;font-weight:600">' +
+          '<span style="font-size:0.75rem;padding:4px 10px;border-radius:999px;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.35);color:var(--accent);font-weight:600">' +
           escapeHtml(res.city) + '（' + ((res.stats && res.stats.shown) || 0) + '）</span>';
         return;
       }
-      var chips = '<span onclick="window._uniqueIpCity=null;loadUniqueIps()" style="cursor:pointer;font-size:0.75rem;padding:4px 10px;border-radius:999px;border:1px solid rgba(99,102,241,0.35);background:rgba(99,102,241,0.12);color:#6366f1;font-weight:600">' +
+      var chips = '<span onclick="window._uniqueIpCity=null;loadUniqueIps()" style="cursor:pointer;font-size:0.75rem;padding:4px 10px;border-radius:999px;border:1px solid rgba(99,102,241,0.35);background:rgba(99,102,241,0.12);color:var(--accent);font-weight:600">' +
         '全部（' + ((res.stats && res.stats.ips) || 0) + '）</span>';
       (res.cities || []).forEach(function (c) {
         chips += '<span onclick="filterUniqueIpCity(\'' + escapeJs(c.name) + '\')" title="点击只看该城市的唯一 IP（' + c.ips + ' 个 IP / ' + c.visits + ' 次访问）" ' +
@@ -9517,7 +9555,7 @@
 
         html += '<tr class="visitor-row" onclick="toggleUniqueIpRow(' + idx + ')">' +
           '<td style="padding:7px 8px;border-bottom:1px solid var(--line);font-family:monospace;font-size:0.75rem;white-space:nowrap">' +
-          '<a href="javascript:void(0)" onclick="event.stopPropagation();showUniqueIpDetail(\'' + escapeJs(v.ip) + '\')" style="color:#6366f1;text-decoration:none;font-weight:600">' + escapeHtml(v.ip) + '</a>' +
+          '<a href="javascript:void(0)" onclick="event.stopPropagation();showUniqueIpDetail(\'' + escapeJs(v.ip) + '\')" style="color:var(--accent);text-decoration:none;font-weight:600">' + escapeHtml(v.ip) + '</a>' +
           '</td>' +
           '<td style="padding:7px 8px;border-bottom:1px solid var(--line);font-size:0.78rem">' + escapeHtml(loc) + '</td>' +
           '<td style="padding:7px 8px;border-bottom:1px solid var(--line);font-weight:700;color:var(--ink)">' + v.visits + '</td>' +
@@ -9536,9 +9574,9 @@
             return '<div style="margin:2px 0"><span style="color:var(--muted);font-size:0.7rem">' + escapeHtml(new Date(p.time).toLocaleString()) + '</span> ' + escapeHtml(p.path) + '</div>';
           }).join('') + '</div>' +
           '<div style="display:flex;gap:12px;flex-wrap:wrap">' +
-          '<span onclick="showUniqueIpDetail(\'' + escapeJs(v.ip) + '\')" style="cursor:pointer;color:#6366f1;font-weight:600;font-size:0.75rem">[IP 详情（多源）]</span>' +
-          '<span onclick="showVisitorFilter(\'' + escapeJs(v.ip) + '\')" style="cursor:pointer;color:#6366f1;font-weight:600;font-size:0.75rem">[该 IP 的访客记录]</span>' +
-          '<span onclick="copyText(\'' + escapeJs(v.ip) + '\')" style="cursor:pointer;color:#6366f1;font-weight:600;font-size:0.75rem">[复制 IP]</span>' +
+          '<span onclick="showUniqueIpDetail(\'' + escapeJs(v.ip) + '\')" style="cursor:pointer;color:var(--accent);font-weight:600;font-size:0.75rem">[IP 详情（多源）]</span>' +
+          '<span onclick="showVisitorFilter(\'' + escapeJs(v.ip) + '\')" style="cursor:pointer;color:var(--accent);font-weight:600;font-size:0.75rem">[该 IP 的访客记录]</span>' +
+          '<span onclick="copyText(\'' + escapeJs(v.ip) + '\')" style="cursor:pointer;color:var(--accent);font-weight:600;font-size:0.75rem">[复制 IP]</span>' +
           '</div></td></tr>';
       });
 
@@ -9563,19 +9601,19 @@
         headers: { 'Content-Type': 'application/json' },
       }).then(function (data) {
         if (!data || !data.success || !data.results || data.results.length === 0) {
-          box.innerHTML = '<div style="color:#dc2626;font-size:0.82rem">该 IP 查询失败或无数据</div>';
+          box.innerHTML = '<div style="color:var(--err);font-size:0.82rem">该 IP 查询失败或无数据</div>';
           return;
         }
         box.innerHTML =
           '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px">' +
           '<span style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">IP 详情</span>' +
           '<span style="display:flex;gap:10px">' +
-          '<span onclick="showUniqueIpDetail(\'' + escapeJs(ip) + '\', true)" style="cursor:pointer;color:#6366f1;font-weight:600;font-size:0.75rem">[重新查询]</span>' +
-          '<span onclick="document.getElementById(\'visitorIpDetailBox\').style.display=\'none\'" style="cursor:pointer;color:#6366f1;font-weight:600;font-size:0.75rem">[收起]</span>' +
+          '<span onclick="showUniqueIpDetail(\'' + escapeJs(ip) + '\', true)" style="cursor:pointer;color:var(--accent);font-weight:600;font-size:0.75rem">[重新查询]</span>' +
+          '<span onclick="document.getElementById(\'visitorIpDetailBox\').style.display=\'none\'" style="cursor:pointer;color:var(--accent);font-weight:600;font-size:0.75rem">[收起]</span>' +
           '</span></div>' +
           renderIpDetailCards(data.results[0], data.sources || [], ip);
       }).catch(function (e) {
-        box.innerHTML = '<div style="color:#dc2626;font-size:0.82rem">查询失败: ' + escapeHtml(e.message) + '</div>';
+        box.innerHTML = '<div style="color:var(--err);font-size:0.82rem">查询失败: ' + escapeHtml(e.message) + '</div>';
       });
     }
 
@@ -9674,7 +9712,7 @@
       // ---- 头部：IP + 复制 + 标签 ----
       html += '<div class="detail-section" style="margin-bottom:12px">';
       html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">';
-      html += '<div style="font-family:monospace;font-size:1.1rem;font-weight:700;color:#6366f1;word-break:break-all">' + escapeHtml(ip) + '</div>';
+      html += '<div style="font-family:monospace;font-size:1.1rem;font-weight:700;color:var(--accent);word-break:break-all">' + escapeHtml(ip) + '</div>';
       html += '<button id="ipDetailCopyBtn" onclick="ipDetailCopy(\'' + escapeJs(ip) + '\')" style="cursor:pointer;border:1px solid var(--line);background:transparent;color:inherit;border-radius:8px;padding:5px 12px;font-size:0.75rem">复制</button>';
       html += '</div>';
       html += '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">';
@@ -9756,7 +9794,7 @@
           html += '<td style="word-break:break-all">' + escapeHtml(visits[m].path || '/') + '</td></tr>';
         }
         html += '</table>';
-        html += '<div style="margin-top:8px"><span onclick="showVisitorFilter(\'' + escapeJs(ip) + '\')" style="cursor:pointer;color:#6366f1;font-weight:600;font-size:0.75rem">[查看全部访客记录]</span></div>';
+        html += '<div style="margin-top:8px"><span onclick="showVisitorFilter(\'' + escapeJs(ip) + '\')" style="cursor:pointer;color:var(--accent);font-weight:600;font-size:0.75rem">[查看全部访客记录]</span></div>';
         html += '</div>';
       }
 
@@ -9914,7 +9952,7 @@
           document.getElementById('deliveryPageInfo').textContent = '第 ' + (deliveryPage + 1) + '/' + totalPages + ' 页（共 ' + total + ' 条）';
         })
         .catch(function(e) {
-          tbody.innerHTML = '<tr><td colspan="7" class="empty" style="color:#dc2626">加载失败: ' + escapeHtml(e.message) + '</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="7" class="empty" style="color:var(--err)">加载失败: ' + escapeHtml(e.message) + '</td></tr>';
         });
     }
 
@@ -10096,22 +10134,22 @@
             var target = escapeHtml(it.target_url || '');
             var status = it.enabled !== false
               ? '<span style="color:#16a34a;font-weight:600">●启用</span>'
-              : '<span style="color:#94a3b8">○已停用</span>';
+              : '<span style="color:var(--ink-3)">○已停用</span>';
             var week7 = weekClicksOf(slug, stats);
             var updatedAt = fmtDate(it.updated_at || it.created_at || 0);
             return '<tr>' +
-              '<td><code style="font-weight:600">' + slug + '</code><br><span style="font-size:0.7rem;color:#64748b">' + escapeHtml(shortUrl(it.slug)) + '</span></td>' +
+              '<td><code style="font-weight:600">' + slug + '</code><br><span style="font-size:0.7rem;color:var(--ink-2)">' + escapeHtml(shortUrl(it.slug)) + '</span></td>' +
               '<td>' + nameZh + '</td>' +
               '<td><code style="font-size:0.78rem">' + nameEn + '</code></td>' +
               '<td><a href="' + target + '" target="_blank" rel="noopener" style="font-size:0.78rem;color:var(--accent);word-break:break-all">' + target + '</a></td>' +
               '<td>' + status + '</td>' +
               '<td>' + week7 + '</td>' +
-              '<td style="font-size:0.78rem;color:#64748b">' + updatedAt + '</td>' +
+              '<td style="font-size:0.78rem;color:var(--ink-2)">' + updatedAt + '</td>' +
               '<td style="white-space:nowrap">' +
                 '<button class="btn btn-outline" title="复制短链" onclick="copyGoLink(\'' + escapeJs(it.slug) + '\')" style="padding:3px 8px;font-size:0.75rem;margin-right:4px">📋</button>' +
                 '<button class="btn btn-outline" title="编辑" onclick="openGoLinkForm(\'' + escapeJs(it.slug) + '\')" style="padding:3px 8px;font-size:0.75rem;margin-right:4px">✎</button>' +
                 '<button class="btn btn-outline" title="切换启用" onclick="toggleGoLink(\'' + escapeJs(it.slug) + '\')" style="padding:3px 8px;font-size:0.75rem;margin-right:4px">' + (it.enabled !== false ? '⏸' : '▶') + '</button>' +
-                '<button class="btn btn-outline" title="删除" onclick="deleteGoLink(\'' + escapeJs(it.slug) + '\')" style="padding:3px 8px;font-size:0.75rem;color:#dc2626">🗑</button>' +
+                '<button class="btn btn-outline" title="删除" onclick="deleteGoLink(\'' + escapeJs(it.slug) + '\')" style="padding:3px 8px;font-size:0.75rem;color:var(--err)">🗑</button>' +
               '</td>' +
             '</tr>';
           }).join('');
@@ -10124,7 +10162,7 @@
         renderGoRecent(stats.recent || []);
       } catch (e) {
         console.error('loadPurchaseLogs failed:', e);
-        if (tableBody) tableBody.innerHTML = '<tr><td colspan="8" class="empty" style="color:#dc2626">加载失败：' + escapeHtml(e.message || String(e)) + '</td></tr>';
+        if (tableBody) tableBody.innerHTML = '<tr><td colspan="8" class="empty" style="color:var(--err)">加载失败：' + escapeHtml(e.message || String(e)) + '</td></tr>';
       }
     }
 
@@ -10155,7 +10193,7 @@
         return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">' +
           '<div style="font-size:0.7rem;color:#475569;font-weight:600">' + d.clicks + '</div>' +
           '<div style="width:100%;height:' + h + 'px;background:linear-gradient(180deg,#3b82f6,#1e40af);border-radius:4px 4px 0 0;min-height:2px"></div>' +
-          '<div style="font-size:0.65rem;color:#94a3b8">' + escapeHtml(label) + '</div>' +
+          '<div style="font-size:0.65rem;color:var(--ink-3)">' + escapeHtml(label) + '</div>' +
         '</div>';
       }).join('');
     }
@@ -10173,14 +10211,14 @@
         var c = escapeHtml(r.c || '-');
         var city = escapeHtml(r.ci || '-');
         var v = escapeHtml((r.v || '-').slice(0, 8));
-        var ref = r.r ? escapeHtml(r.r.slice(0, 60)) : '<span style="color:#94a3b8">直接访问</span>';
+        var ref = r.r ? escapeHtml(r.r.slice(0, 60)) : '<span style="color:var(--ink-3)">直接访问</span>';
         var utm = [];
         if (r.utm_source) utm.push('src:' + escapeHtml(r.utm_source));
         if (r.utm_medium) utm.push('med:' + escapeHtml(r.utm_medium));
         if (r.utm_campaign) utm.push('cmp:' + escapeHtml(r.utm_campaign));
-        var utmHtml = utm.length ? utm.join(' · ') : '<span style="color:#94a3b8">-</span>';
+        var utmHtml = utm.length ? utm.join(' · ') : '<span style="color:var(--ink-3)">-</span>';
         return '<tr>' +
-          '<td style="font-size:0.78rem;color:#64748b;white-space:nowrap">' + ts + '</td>' +
+          '<td style="font-size:0.78rem;color:var(--ink-2);white-space:nowrap">' + ts + '</td>' +
           '<td><code style="font-size:0.78rem">' + slug + '</code></td>' +
           '<td>' + c + '</td>' +
           '<td style="font-size:0.78rem">' + city + '</td>' +
@@ -10208,27 +10246,27 @@
       var slugVal = existing ? existing.slug : '';
 
       var html = '<div style="position:fixed;inset:0;background:rgba(15,23,42,0.55);display:flex;align-items:center;justify-content:center;z-index:9999" id="goLinkModal">' +
-        '<div style="background:#fff;border-radius:12px;padding:24px;width:480px;max-width:90vw;box-shadow:0 30px 80px rgba(0,0,0,0.3)">' +
+        '<div style="background:var(--surface);border-radius:12px;padding:24px;width:480px;max-width:90vw;box-shadow:0 30px 80px rgba(0,0,0,0.3)">' +
           '<h3 style="margin:0 0 16px;font-size:1.05rem">' + (isEdit ? '✎ 编辑短链' : '➕ 新建短链') + '</h3>' +
           '<div style="margin-bottom:10px">' +
-            '<label style="display:block;font-size:0.78rem;color:#64748b;margin-bottom:4px">Slug（短链标识，创建后不可修改）</label>' +
+            '<label style="display:block;font-size:0.78rem;color:var(--ink-2);margin-bottom:4px">Slug（短链标识，创建后不可修改）</label>' +
             '<input id="goFormSlug" type="text" class="setting-input" value="' + escapeHtml(slugVal) + '" ' + (isEdit ? 'disabled' : 'placeholder="例如：ev-timetable"') + ' style="width:100%;font-family:monospace">' +
-            '<div style="font-size:0.7rem;color:#94a3b8;margin-top:2px">小写字母、数字、中划线，1~64 位</div>' +
+            '<div style="font-size:0.7rem;color:var(--ink-3);margin-top:2px">小写字母、数字、中划线，1~64 位</div>' +
           '</div>' +
           '<div style="margin-bottom:10px">' +
-            '<label style="display:block;font-size:0.78rem;color:#64748b;margin-bottom:4px">中文名</label>' +
+            '<label style="display:block;font-size:0.78rem;color:var(--ink-2);margin-bottom:4px">中文名</label>' +
             '<input id="goFormNameZh" type="text" class="setting-input" value="' + escapeHtml(nameZhVal) + '" placeholder="例如：下载 EV 课程表" style="width:100%">' +
           '</div>' +
           '<div style="margin-bottom:10px">' +
-            '<label style="display:block;font-size:0.78rem;color:#64748b;margin-bottom:4px">英文名</label>' +
+            '<label style="display:block;font-size:0.78rem;color:var(--ink-2);margin-bottom:4px">英文名</label>' +
             '<input id="goFormNameEn" type="text" class="setting-input" value="' + escapeHtml(nameEnVal) + '" placeholder="例如：Download EV Timetable" style="width:100%">' +
           '</div>' +
           '<div style="margin-bottom:10px">' +
-            '<label style="display:block;font-size:0.78rem;color:#64748b;margin-bottom:4px">目标 URL（爱发电/任意 https 链接）</label>' +
+            '<label style="display:block;font-size:0.78rem;color:var(--ink-2);margin-bottom:4px">目标 URL（爱发电/任意 https 链接）</label>' +
             '<input id="goFormTarget" type="text" class="setting-input" value="' + escapeHtml(targetVal) + '" placeholder="https://ifdian.net/item/..." style="width:100%;font-family:monospace;font-size:0.85rem">' +
           '</div>' +
           '<div style="margin-bottom:10px">' +
-            '<label style="display:block;font-size:0.78rem;color:#64748b;margin-bottom:4px">备注（可选）</label>' +
+            '<label style="display:block;font-size:0.78rem;color:var(--ink-2);margin-bottom:4px">备注（可选）</label>' +
             '<input id="goFormNote" type="text" class="setting-input" value="' + escapeHtml(noteVal) + '" placeholder="例如：EV 课程表应用页购买链接" style="width:100%">' +
           '</div>' +
           '<div style="margin-bottom:16px">' +
