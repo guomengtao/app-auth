@@ -2356,6 +2356,7 @@ if ((isCron || isCronBackup) && isBackup) {
       if (typeof body === "string") { try { body = JSON.parse(body); } catch (_) {} }
       body = body || {};
       var ips = body.ips || [];
+      var force = Boolean(body.force); // 详情页「重新查询」：跳过 ip_lookups 缓存，重新查 5 个源
       if (!Array.isArray(ips) || ips.length === 0) {
         return res.json({ success: true, results: [] });
       }
@@ -2364,18 +2365,59 @@ if ((isCron || isCronBackup) && isBackup) {
       var ipStore = require("../../lib/ip-lookup-store");
       var results = [];
 
+      // 「IP 详情页」用：把 ip_lookups 一行整理成中文归属地（腾讯列优先，其次 ip-api 列）
+      var buildIpGeo = function (row) {
+        if (!row) return null;
+        var pair = geoZh.pickCnPair(row);
+        var full = geoZh.resolveZhLocationFull({
+          country: row.country,
+          region: row.region,
+          city: row.city,
+          zh_region: row.region_zh,
+          zh_city: row.city_zh,
+          district: row.district,
+        });
+        return {
+          country: String(row.country || "").trim(),
+          region: pair.region,
+          city: pair.city,
+          district: String(row.district || "").trim(),
+          location_zh: full.location_zh,
+          location_full_zh: full.location_full_zh,
+          geoSource: row.region_zh || row.city_zh || row.district ? "tencent" : (pair.source === "ip-api" ? "ip-api" : ""),
+          checkedAt: row.district_checked_at || null,
+          updatedAt: row.updated_at || null,
+        };
+      };
+
       for (var i = 0; i < ips.length; i++) {
         var ip = ips[i];
         if (ipLookup.isPrivateOrInvalid(ip)) continue;
 
-        // 1. Check Supabase cache first
-        var stored = await ipStore.getFromStore(ip);
+        // 1. Check Supabase cache first（body.force = true 时跳过，强制重新查 5 个源）
+        var stored = force ? null : await ipStore.getFromStore(ip);
         if (stored) {
           var rawData = [];
           try { rawData = typeof stored.raw_data === "string" ? JSON.parse(stored.raw_data) : (stored.raw_data || []); } catch (e) {}
+          if (!Array.isArray(rawData) || rawData.length === 0) {
+            // 只有腾讯区县链路写过的行（或老记录）没有 raw_data → 用汇总字段合成一条，避免详情页整片空白
+            rawData = [{
+              source: (stored.region_zh || stored.city_zh || stored.district) ? "tencent" : (stored.sources || "cache"),
+              country: stored.country || "",
+              region: stored.region_zh || stored.region || "",
+              city: stored.city_zh || stored.city || "",
+              district: stored.district || "",
+              isp: stored.isp || "",
+              org: stored.org || "",
+              asn: stored.asn || "",
+              lat: stored.lat || 0,
+              lon: stored.lon || 0,
+            }];
+          }
           results.push({
             ip: ip,
             fromCache: true,
+            geo: buildIpGeo(stored),
             results: rawData.map(function(r) {
               return {
                 source: r.source || "cache",
@@ -2436,6 +2478,10 @@ if ((isCron || isCronBackup) && isBackup) {
         results.push({
           ip: ip,
           fromCache: false,
+          geo: buildIpGeo({
+            country: merged.country, region: merged.region, city: merged.city,
+            lat: merged.lat, lon: merged.lon, updated_at: new Date(),
+          }),
           results: individual.map(function(r) {
             return {
               source: r.source || "unknown",
