@@ -2,7 +2,9 @@
   "rewrites": [
     { "source": "/", "destination": "/index.html" },
     { "source": "/go/:slug", "destination": "/api/go?slug=:slug" },
-    { "source": "/go/:slug/", "destination": "/api/go?slug=:slug" }
+    { "source": "/go/:slug/", "destination": "/api/go?slug=:slug" },
+    { "source": "/my-ip", "destination": "/my-ip.html" },
+    { "source": "/ip", "destination": "/my-ip.html" }
   ],
   "redirects": [
     { "source": "/api/oauth/login", "destination": "/api/oauth", "permanent": false },

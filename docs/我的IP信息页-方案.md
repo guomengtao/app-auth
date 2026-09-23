@@ -260,7 +260,39 @@ node -e "…select region_zh,city_zh,district,district_checked_at from ip_lookup
 
 ---
 
-## 八、待确认
+## 八、实现状态（2026-09-23 已落地）
+
+| # | 文件 | 改动 |
+|---|---|---|
+| 1 | `lib/geo-district.js` | 新增 **`resolveNow(ip, force)`**（用户显式查询用：同步等腾讯 ≤2.5s 并落库）；`getStoredGeo()` 扩展返回 `isp/org/asn/lat/lon/country/timezone/updatedAt`（仍然只 1 次 SELECT） |
+| 2 | `lib/rate-limit.js` | 新增 **`checkMyIpForceLimit(req)`**：key `ratelimit:myip:<分钟>:<ip>`，**1 次/分钟** |
+| 3 | `api/visitor/ip.js` | 新端点 `GET /api/visitor/ip`（`?force=1` 强制刷新）；**只查调用者自己，拒绝任意 IP 参数** |
+| 4 | `my-ip.html` | 新页面：IP / 归属地 / 网络设备 / Vercel 原文与说明；骨架屏、复制、60s 冷却；**只用 `var` + `XMLHttpRequest`**（手环兼容） |
+| 5 | `vercel.json` | 新增 rewrite：`/my-ip`、`/ip` → `/my-ip.html` |
+| 6 | `index.html` | 首页 `link-grid` 新增「我的 IP 信息」入口 |
+
+**本地 mock 实测**（此时腾讯 key 仍未分配配额）：
+
+```json
+GET /api/visitor/ip -> 200
+{
+  "ip": "36.113.30.111", "ipVersion": 4,
+  "geo": { "country": "中国", "region": "浙江", "city": "杭州", "district": "",
+           "full": "浙江 杭州", "source": "cache", "cached": false },
+  "vercel": { "country": "CN", "region": "", "city": "", "timezone": "Asia/Shanghai" },
+  "network": { "isp": "…Chinatelecom…", "org": "Chinanet ZJ", "asn": "137689 …", "lat": 30.2656, "lon": 120.154 },
+  "device": { "os": "macOS", "browser": "Chrome", "device": "Desktop" },
+  "notes": ["腾讯位置服务暂时不可用（配额未分配 / 域名未授权 / 超时），已自动降级为省市", "IP 定位精度上限到区县…"]
+}
+```
+
+- **降级行为符合设计**：腾讯挂了页面照常显示省市 + 明确原因，不报错。
+- **限流实测**：连续调 `?force=1` → 第 1 次 200、第 2/3 次 `{"blocked":true,"reason":"刷新过于频繁，请稍后再试"}`（页面侧另有 60s 冷却）。
+- 腾讯配额分配完成后，`district` 会自动变成「西湖区」这类值，**无需改代码**。
+
+---
+
+## 九、待确认
 
 1. 页面路径：`/my-ip.html`、`/ip.html` 还是 `/myip`？标题用「我的 IP 信息」还是「网络诊断」？
 2. 是否允许输入**任意 IP** 查询？建议：仅管理员登录后可见（复用 `admin/health?section=ip-lookup-once`）。

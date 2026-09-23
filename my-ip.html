@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>我的 IP 信息</title>
+<!--
+  兼容约定（手环端老旧 WebView）：本页脚本只用 var / XMLHttpRequest，
+  不使用 fetch、const、箭头函数、模板字符串、IntersectionObserver。
+-->
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --text: #1f2430;
+    --text-2: #6b7280;
+    --line: #e5e7eb;
+    --accent: #2563eb;
+    --accent-soft: #eff6ff;
+    --ok: #059669;
+    --warn: #b45309;
+    --warn-soft: #fef3c7;
+    --shadow: 0 6px 24px rgba(17, 24, 39, 0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115;
+      --card: #171a21;
+      --text: #e8eaee;
+      --text-2: #9aa3af;
+      --line: #262b35;
+      --accent: #60a5fa;
+      --accent-soft: #1e293b;
+      --ok: #34d399;
+      --warn: #fbbf24;
+      --warn-soft: #3a2f12;
+      --shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+    }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 16px 14px 40px;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 620px; margin: 0 auto; }
+  .page-title { font-size: 1.25rem; font-weight: 700; margin-bottom: 4px; }
+  .page-sub { font-size: 0.8rem; color: var(--text-2); margin-bottom: 16px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: var(--shadow);
+  }
+  .card-title {
+    font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text-2); margin-bottom: 10px; font-weight: 600;
+  }
+  .ip-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .ip-text {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 1.35rem; font-weight: 700; word-break: break-all;
+  }
+  .badges { margin-top: 8px; }
+  .badge {
+    display: inline-block; font-size: 0.7rem; padding: 2px 8px; border-radius: 999px;
+    background: var(--accent-soft); color: var(--accent); margin-right: 6px; margin-top: 4px;
+  }
+  .badge.ok { background: rgba(5, 150, 105, 0.12); color: var(--ok); }
+  .badge.warn { background: var(--warn-soft); color: var(--warn); }
+  .loc-main { font-size: 1.5rem; font-weight: 700; margin-bottom: 2px; }
+  .loc-sub { font-size: 0.8rem; color: var(--text-2); }
+  .rows { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 10px; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 0.86rem; }
+  .row .k { color: var(--text-2); flex: 0 0 auto; }
+  .row .v { text-align: right; word-break: break-all; }
+  .btn {
+    display: inline-block; border: 1px solid var(--line); background: transparent; color: var(--text);
+    font-size: 0.85rem; padding: 8px 14px; border-radius: 10px; cursor: pointer;
+    font-family: inherit; -webkit-appearance: none;
+  }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .btn:disabled { opacity: 0.55; cursor: default; }
+  .toolbar { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+  .hint { font-size: 0.75rem; color: var(--text-2); }
+  .notes { font-size: 0.78rem; color: var(--text-2); }
+  .notes li { margin: 4px 0 0 16px; }
+  details summary { cursor: pointer; font-size: 0.82rem; color: var(--accent); outline: none; }
+  .skeleton {
+    height: 14px; border-radius: 6px; margin: 8px 0;
+    background: linear-gradient(90deg, var(--line), var(--card), var(--line));
+    background-size: 200% 100%; animation: sk 1.2s infinite;
+  }
+  @keyframes sk { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+  .err {
+    background: var(--warn-soft); color: var(--warn);
+    border-radius: 10px; padding: 10px 12px; font-size: 0.85rem; margin-bottom: 12px;
+  }
+  .footer { font-size: 0.72rem; color: var(--text-2); text-align: center; margin-top: 18px; }
+  .footer a { color: var(--accent); text-decoration: none; }
+  .hide { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="page-title">我的 IP 信息</div>
+  <div class="page-sub">显示你当前的公网 IP，以及我们能查到的归属地与网络信息</div>
+
+  <div id="err" class="err hide"></div>
+
+  <div class="card">
+    <div class="card-title">你的 IP</div>
+    <div id="ipBox">
+      <div class="skeleton" style="width:60%"></div>
+      <div class="skeleton" style="width:35%"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">归属地</div>
+    <div id="geoBox">
+      <div class="skeleton" style="width:50%"></div>
+      <div class="skeleton" style="width:70%"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">网络 / 设备</div>
+    <div id="netBox">
+      <div class="skeleton" style="width:80%"></div>
+      <div class="skeleton" style="width:65%"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">明细与来源</div>
+    <div id="detailBox">
+      <div class="skeleton" style="width:75%"></div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button id="btnRefresh" class="btn primary" type="button">重新查询</button>
+    <span id="refreshHint" class="hint">首次查询可能需要 1~2 秒</span>
+  </div>
+
+  <div class="footer">
+    本页只查询<strong>你自己的 IP</strong>，不提供任意 IP 查询；归属地为 IP 级定位，仅供参考。<br>
+    <a href="/">返回首页</a>
+  </div>
+</div>
+
+<script>
+(function () {
+  var apiUrl = '/api/visitor/ip';
+  var loading = false;
+
+  function $(id) { return document.getElementById(id); }
+
+  function esc(s) {
+    if (s === null || s === undefined) return '';
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function xhrGet(url, timeout, onOk, onErr) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url, true);
+    xhr.timeout = timeout || 15000;
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState !== 4) return;
+      if (xhr.status >= 200 && xhr.status < 300) {
+        var data = null;
+        try { data = JSON.parse(xhr.responseText); } catch (e) {}
+        if (data) { onOk(data); } else { onErr('返回数据解析失败'); }
+        return;
+      }
+      var msg = '查询失败（HTTP ' + xhr.status + '）';
+      try {
+        var body = JSON.parse(xhr.responseText);
+        if (body && body.error) msg = body.error;
+      } catch (e) {}
+      onErr(msg);
+    };
+    xhr.ontimeout = function () { onErr('查询超时，请重试'); };
+    xhr.onerror = function () { onErr('网络错误，请检查连接'); };
+    try { xhr.send(); } catch (e) { onErr('请求发送失败'); }
+  }
+
+  function xhrPost(url, payload) {
+    try {
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', url, true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.send(JSON.stringify(payload));
+    } catch (e) {}
+  }
+
+  function showError(msg) {
+    var box = $('err');
+    if (!msg) { box.className = 'err hide'; box.innerHTML = ''; return; }
+    box.className = 'err';
+    box.innerHTML = esc(msg);
+  }
+
+  function fmtTime(ms) {
+    if (!ms) return '-';
+    var d = new Date(ms);
+    function p(n) { return n < 10 ? '0' + n : '' + n; }
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  function row(k, v) {
+    if (v === '' || v === null || v === undefined) v = '—';
+    return '<div class="row"><span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + '</span></div>';
+  }
+
+  function renderIp(d) {
+    var html = '';
+    html += '<div class="ip-line">';
+    html += '<div class="ip-text" id="ipText">' + esc(d.ip) + '</div>';
+    html += '<button id="btnCopy" class="btn" type="button">复制</button>';
+    html += '</div>';
+    html += '<div class="badges">';
+    html += '<span class="badge">IPv' + esc(d.ipVersion) + '</span>';
+    if (d.geo && d.geo.country) html += '<span class="badge">' + esc(d.geo.country) + '</span>';
+    html += '</div>';
+    $('ipBox').innerHTML = html;
+    var btn = $('btnCopy');
+    if (btn) {
+      btn.onclick = function () {
+        var text = d.ip || '';
+        var done = function () { btn.innerHTML = '已复制'; setTimeout(function () { btn.innerHTML = '复制'; }, 1500); };
+        try {
+          var ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          var ok = document.execCommand('copy');
+          document.body.removeChild(ta);
+          if (ok) { done(); return; }
+        } catch (e) {}
+        try { window.prompt('手动复制你的 IP：', text); } catch (e2) {}
+      };
+    }
+  }
+
+  function renderGeo(d) {
+    var g = d.geo || {};
+    var html = '';
+    var fullText = g.full || ((g.region || '') + ' ' + (g.city || '')).replace(/^\s+|\s+$/g, '');
+    if (!fullText && g.country) fullText = g.country;
+    html += '<div class="loc-main">' + esc(fullText || '暂不可用') + '</div>';
+    var srcLabel = g.source === 'tencent' ? '腾讯位置服务' : (g.cached ? '本地缓存' : '—');
+    html += '<div class="loc-sub">来源：' + esc(srcLabel) + (g.cached ? ' · 已缓存（30 天内不再查询）' : ' · 本次新查询') + '</div>';
+    html += '<div class="rows">';
+    html += row('国家/地区', g.country);
+    html += row('省 / 直辖市', g.region);
+    html += row('城市', g.city);
+    html += row('区县', g.district);
+    html += row('查询时间', fmtTime(g.checkedAt));
+    html += '</div>';
+    $('geoBox').innerHTML = html;
+  }
+
+  function renderNet(d) {
+    var n = d.network || {};
+    var dev = d.device || {};
+    var html = '<div class="rows" style="border-top:none;padding-top:0;margin-top:0">';
+    html += row('运营商 ISP', n.isp);
+    html += row('机构 org', n.org);
+    html += row('ASN', n.asn);
+    html += row('时区', n.timezone || (d.vercel && d.vercel.timezone));
+    html += row('系统', dev.os);
+    html += row('浏览器', dev.browser);
+    html += row('设备类型', dev.device);
+    html += '</div>';
+    if (!d.network) {
+      html += '<div class="loc-sub" style="margin-top:8px">该 IP 还没有运营商数据（ip-api 那条链路只在后台按需查询时才会补全）</div>';
+    }
+    $('netBox').innerHTML = html;
+  }
+
+  function renderDetail(d) {
+    var v = d.vercel || {};
+    var html = '';
+    html += '<div class="rows" style="border-top:none;padding-top:0;margin-top:0">';
+    html += row('Vercel 国家', v.country);
+    html += row('Vercel 省/州', v.region);
+    html += row('Vercel 城市', v.city);
+    html += '</div>';
+    html += '<details style="margin-top:10px"><summary>为什么有的字段是空的？</summary>';
+    html += '<ul class="notes" style="margin-top:6px">';
+    var notes = d.notes || [];
+    for (var i = 0; i < notes.length; i++) {
+      html += '<li>' + esc(notes[i]) + '</li>';
+    }
+    html += '</ul></details>';
+    $('detailBox').innerHTML = html;
+  }
+
+  function setLoading(on) {
+    loading = on;
+    var btn = $('btnRefresh');
+    if (!btn) return;
+    if (on) {
+      btn.disabled = true;
+      btn.innerHTML = '查询中…';
+    } else {
+      btn.disabled = false;
+      btn.innerHTML = '重新查询';
+    }
+  }
+
+  function load(force) {
+    if (loading) return;
+    setLoading(true);
+    if (force) showError('');
+    var url = force ? (apiUrl + '?force=1') : apiUrl;
+    xhrGet(url, 15000, function (d) {
+      setLoading(false);
+      if (!d || !d.success) { showError((d && d.error) || '查询失败'); return; }
+      renderIp(d);
+      renderGeo(d);
+      renderNet(d);
+      renderDetail(d);
+      showError('');
+      if (force) {
+        $('refreshHint').innerHTML = '刚完成一次强制查询' + (d.geo && d.geo.district ? '，已拿到区县' : '');
+      } else {
+        $('refreshHint').innerHTML = d.geo && d.geo.cached ? '结果来自缓存（同一 IP 30 天内不重复查询）' : '首次查询可能需要 1~2 秒';
+      }
+    }, function (msg) {
+      setLoading(false);
+      showError(msg);
+    });
+  }
+
+  // 「重新查询」60 秒冷却（本地记录 + 后端 429 双重保护）
+  var COOLDOWN_MS = 60 * 1000;
+  var lastForceAt = 0;
+  try {
+    var saved = window.localStorage ? window.localStorage.getItem('myip_force_at') : null;
+    if (saved) lastForceAt = parseInt(saved, 10) || 0;
+  } catch (e) {}
+
+  function tickCooldown() {
+    var btn = $('btnRefresh');
+    if (!btn) return;
+    var left = COOLDOWN_MS - (Date.now() - lastForceAt);
+    if (left > 0) {
+      btn.disabled = true;
+      btn.innerHTML = '冷却中 ' + Math.ceil(left / 1000) + 's';
+      setTimeout(tickCooldown, 1000);
+    } else if (!loading) {
+      btn.disabled = false;
+      btn.innerHTML = '重新查询';
+    }
+  }
+
+  $('btnRefresh').onclick = function () {
+    lastForceAt = Date.now();
+    try { if (window.localStorage) window.localStorage.setItem('myip_force_at', String(lastForceAt)); } catch (e) {}
+    load(true);
+    tickCooldown();
+  };
+
+  // 与其它页面一致：上报一次访问（服务端在响应之后写 visitor_logs，不阻塞本页）
+  xhrPost('/api/activate?section=visitor-track', { path: window.location.pathname + window.location.search });
+
+  load(false);
+  tickCooldown();
+})();
+</script>
+</body>
+</html>
