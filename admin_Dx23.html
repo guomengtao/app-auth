@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="deep-blue">
+<html lang="zh-CN" data-theme="deep-blue" data-mode="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -61,10 +61,19 @@
       --shadow-3: 0 8px 24px rgba(15,23,42,0.12);
 
       /* —— 语义色（收敛散落的 #10b981/#ef4444/#f59e0b…）—— */
-      --ok: #059669;   --ok-bg: #ecfdf5;
-      --warn: #b45309; --warn-bg: #fffbeb;
-      --err: #dc2626;  --err-bg: #fef2f2;
-      --info: #2563eb; --info-bg: #eff6ff;
+      --ok: #059669;   --ok-bg: #ecfdf5;   --ok-line: #a7f3d0;
+      --warn: #b45309; --warn-bg: #fffbeb; --warn-line: #fde68a;
+      --err: #dc2626;  --err-bg: #fef2f2;  --err-line: #fecaca;
+      --info: #2563eb; --info-bg: #eff6ff; --info-line: #bfdbfe;
+      --accent-bg: #eef2ff; --accent-line: #c7d2fe;
+      --accent-text: var(--accent);   /* 主色用于「文字」时走这个（深色模式会提亮） */
+
+      /* —— 「页面级」令牌：不受容器上的 data-theme 影响（只有 mode 会改它）——
+         用途：主题选择卡片内部既有 data-theme="X"、又要跟随当前页面明暗，例如主题名文字 */
+      --ui-ink: #0f172a;
+      --ui-ink-2: #475569;
+      --ui-ink-3: #64748b;
+      --ui-line: #d7dde7;
     }
 
 
@@ -306,6 +315,44 @@
       --accent-2: #9a6f09;
       --accent-soft: rgba(184,134,11,0.14);
       --sidebar: #1c1406;
+    }
+
+
+    /* ============================================================
+       深色模式：只覆盖「中性层 + 语义底/边 + 阴影」，主色(--accent)仍跟随所选主题
+       用法：<html data-theme="deep-blue" data-mode="dark">
+    ============================================================ */
+    [data-mode="dark"] {
+      --bg: #12171f;
+      --surface: #1b2230;
+      --elevated: #202836;
+      --line: #2b3542;
+      --ink: #e6ebf3;
+      --ink-2: #b6c2d2;
+      --ink-3: #98a6ba;
+      --row-hover: #202836;
+      --th-bg: #1f2733;
+      --sidebar: #0b0f16;
+      --shadow-1: 0 1px 2px rgba(0,0,0,0.45);
+      --shadow-2: 0 2px 8px rgba(0,0,0,0.5);
+      --shadow-3: 0 12px 32px rgba(0,0,0,0.6);
+      --ok: #34d399;   --ok-bg: rgba(52,211,153,0.14);   --ok-line: rgba(52,211,153,0.38);
+      --warn: #fbbf24; --warn-bg: rgba(251,191,36,0.14); --warn-line: rgba(251,191,36,0.38);
+      --err: #f87171;  --err-bg: rgba(248,113,113,0.14); --err-line: rgba(248,113,113,0.38);
+      --info: #60a5fa; --info-bg: rgba(96,165,250,0.14); --info-line: rgba(96,165,250,0.38);
+      /* 不支持 color-mix 的老浏览器用上面/下面的纯色兜底 */
+      --accent-bg: rgba(255,255,255,0.06);
+      --accent-bg: color-mix(in srgb, var(--accent) 20%, transparent);
+      --accent-line: rgba(255,255,255,0.16);
+      --accent-line: color-mix(in srgb, var(--accent) 45%, transparent);
+      /* 深色底上主色文字要提亮，否则 14px 文字对比度不足 */
+      --accent-text: var(--accent);
+      --accent-text: color-mix(in srgb, var(--accent) 68%, #ffffff);
+      /* 页面级令牌（不受容器 data-theme 影响） */
+      --ui-ink: #e6ebf3;
+      --ui-ink-2: #b6c2d2;
+      --ui-ink-3: #98a6ba;
+      --ui-line: #2b3542;
     }
 
     /* ---- 耐看增强补丁 ---- */
@@ -765,7 +812,7 @@
       padding: 12px 16px;
       font-size: 0.8125rem;
       font-weight: 600;
-      color: var(--accent);
+      color: var(--accent-text);
       display: flex;
       align-items: center;
       gap: 8px;
@@ -789,7 +836,7 @@
       padding-top: 12px;
       margin: 0 16px 12px;
     }
-    .help-banner strong { color: var(--accent); }
+    .help-banner strong { color: var(--accent-text); }
 
     /* —— Dashboard Cards —— */
     .dash-card {
@@ -860,7 +907,7 @@
     }
     .trend-summary-item {
       font-size: 0.875rem;
-      color: #475569;
+      color: var(--ink-2);
     }
     .trend-summary-item strong {
       color: var(--ink);
@@ -905,7 +952,7 @@
       box-shadow: 0 0 0 2px rgba(102,126,234,0.15);
     }
     .toolbar input[type="text"]::placeholder {
-      color: #bbb;
+      color: var(--ink-3);
       font-size: 0.8125rem;
     }
     .toolbar .spacer { flex: 1; min-width: 8px; }
@@ -968,7 +1015,7 @@
       box-shadow: 0 0 0 2px rgba(102,126,234,0.15);
     }
     .filter-input::placeholder {
-      color: #cbd5e1;
+      color: var(--ink-3);
       font-size: 0.75rem;
     }
     .filter-segmented {
@@ -1076,12 +1123,12 @@
       font-weight: 600;
     }
     .backup-item-badge.auto {
-      background: #dbeafe;
-      color: #2563eb;
+      background: var(--info-bg);
+      color: var(--info);
     }
     .backup-item-badge.manual {
-      background: #dcfce7;
-      color: #16a34a;
+      background: var(--ok-bg);
+      color: var(--ok);
     }
     .backup-item-actions {
       display: flex;
@@ -1120,7 +1167,7 @@
     }
     .filter-chip {
       border: 1px solid var(--line);
-      background: #f7f8fb;
+      background: var(--row-hover);
       color: var(--ink);
       border-radius: 10px;
       padding: 6px 12px;
@@ -1131,13 +1178,13 @@
       line-height: 1.3;
     }
     .filter-chip:hover {
-      border-color: #c5c0ff;
-      background: #f3f1ff;
+      border-color: var(--accent-line);
+      background: var(--accent-bg);
     }
     .filter-chip.active {
       background: rgba(108, 99, 255, 0.12);
       border-color: var(--accent);
-      color: var(--accent);
+      color: var(--accent-text);
       font-weight: 650;
     }
     @media (max-width: 720px) {
@@ -1166,7 +1213,7 @@
     }
     .btn-outline {
       background: var(--surface);
-      color: var(--accent);
+      color: var(--accent-text);
       border: 1px solid var(--accent);
     }
     .btn:hover { opacity: 0.88; }
@@ -1226,13 +1273,13 @@
       font-size: 0.6875rem;
       font-weight: 600;
     }
-    .badge-success { background: #e8f5e9; color: var(--ok); }
-    .badge-warning { background: #fff3e0; color: #e65100; }
-    .badge-info { background: #e3f2fd; color: #1565c0; }
+    .badge-success { background: var(--ok-bg); color: var(--ok); }
+    .badge-warning { background: var(--warn-bg); color: var(--warn); }
+    .badge-info { background: var(--info-bg); color: var(--info); }
     .mono { font-family: 'SF Mono', 'Fira Code', 'Menlo', monospace; font-size: 0.875rem; letter-spacing: 1px; }
     .input-mono { font-family: 'SF Mono', 'Fira Code', 'Menlo', monospace; letter-spacing: 1px; text-transform: uppercase; }
     .redeem-link {
-      color: #667eea;
+      color: var(--accent-text);
       text-decoration: none;
       font-weight: 600;
       border-bottom: 1px dashed rgba(102,126,234,0.45);
@@ -1243,12 +1290,12 @@
     }
     .redeem-link:hover {
       background: rgba(102,126,234,0.12);
-      color: #4c51bf;
-      border-bottom-color: #4c51bf;
+      color: var(--accent-text);
+      border-bottom-color: var(--accent);
     }
 
     .device-link {
-      color: #2563eb;
+      color: var(--info);
       text-decoration: none;
       font-weight: 600;
       font-size: 0.75rem;
@@ -1267,14 +1314,14 @@
     }
     .device-link:hover {
       background: rgba(37,99,235,0.1);
-      color: #1d4ed8;
-      border-bottom-color: #1d4ed8;
+      color: var(--info);
+      border-bottom-color: var(--info);
     }
     tr.record-row-hl {
       background: rgba(102,126,234,0.14) !important;
       box-shadow: inset 3px 0 0 #667eea;
     }
-    .empty { text-align: center; padding: 48px 24px; color: #aaa; }
+    .empty { text-align: center; padding: 48px 24px; color: var(--ink-3); }
 
     .record-detail-row { display: none; }
     .record-detail-row.show { display: table-row; }
@@ -1347,7 +1394,7 @@
     }
     .ip-col-source {
       font-weight: 600;
-      color: var(--accent);
+      color: var(--accent-text);
       font-size: 0.75rem;
       white-space: nowrap;
     }
@@ -1369,7 +1416,7 @@
     .ip-detail-tag-accent {
       background: rgba(99, 102, 241, 0.12);
       border-color: rgba(99, 102, 241, 0.35);
-      color: var(--accent);
+      color: var(--accent-text);
       font-weight: 600;
     }
 
@@ -1396,7 +1443,7 @@
     .detail-section-title {
       font-weight: 700;
       font-size: 0.875rem;
-      color: var(--accent);
+      color: var(--accent-text);
       margin-bottom: 8px;
       padding-bottom: 6px;
       border-bottom: 1px solid var(--line);
@@ -1528,10 +1575,10 @@
       padding: 8px 12px;
       border: 1px solid var(--line);
       border-radius: 10px;
-      background: #fafbfe;
+      background: var(--row-hover);
       user-select: none;
     }
-    .export-cols label:hover { border-color: var(--accent); background: #f5f4ff; }
+    .export-cols label:hover { border-color: var(--accent); background: var(--accent-bg); }
     .export-cols input { width: auto !important; margin: 0; accent-color: var(--accent); }
     .export-col-actions {
       display: flex;
@@ -1569,8 +1616,8 @@
       display: none;
     }
     .toast.show { display: block; }
-    .toast.success { background: #2e7d32; }
-    .toast.error { background: #c62828; }
+    .toast.success { background: var(--ok); }
+    .toast.error { background: var(--err); }
     @keyframes slideIn {
       from { opacity: 0; transform: translateY(8px); }
       to { opacity: 1; transform: translateY(0); }
@@ -1621,12 +1668,12 @@
       to { opacity: 1; }
     }
     .decrypt-result.success {
-      background: #e8f5e9;
-      border: 1px solid #a5d6a7;
+      background: var(--ok-bg);
+      border: 1px solid var(--ok-line);
     }
     .decrypt-result.error {
-      background: #ffebee;
-      border: 1px solid #ef9a9a;
+      background: var(--err-bg);
+      border: 1px solid var(--err-line);
     }
     .decrypt-result .field-row {
       display: flex;
@@ -1647,9 +1694,9 @@
       padding: 16px 24px;
       margin-bottom: 16px;
     }
-    .health-summary.ok { border-left: 4px solid #2e7d32; }
-    .health-summary.degraded { border-left: 4px solid #e65100; }
-    .health-summary.down { border-left: 4px solid #c62828; }
+    .health-summary.ok { border-left: 4px solid var(--ok); }
+    .health-summary.degraded { border-left: 4px solid var(--warn); }
+    .health-summary.down { border-left: 4px solid var(--err); }
     .health-overall {
       display: flex;
       align-items: center;
@@ -1671,9 +1718,9 @@
       border-radius: 50%;
       background: #9ca3af;
     }
-    .health-summary.ok .health-dot { background: #2e7d32; }
-    .health-summary.degraded .health-dot { background: #e65100; }
-    .health-summary.down .health-dot { background: #c62828; }
+    .health-summary.ok .health-dot { background: var(--ok); }
+    .health-summary.degraded .health-dot { background: var(--warn); }
+    .health-summary.down .health-dot { background: var(--err); }
     .health-meta {
       font-size: 0.75rem;
       color: var(--muted);
@@ -1712,19 +1759,19 @@
       text-transform: uppercase;
       letter-spacing: 0.4px;
     }
-    .health-status.pass { background: #e8f5e9; color: var(--ok); }
-    .health-status.warn { background: #fff3e0; color: #e65100; }
-    .health-status.fail { background: #ffebee; color: var(--err); }
+    .health-status.pass { background: var(--ok-bg); color: var(--ok); }
+    .health-status.warn { background: var(--warn-bg); color: var(--warn); }
+    .health-status.fail { background: var(--err-bg); color: var(--err); }
     .health-detail {
       font-size: 0.8125rem;
-      color: #374151;
+      color: var(--ink-2);
       line-height: 1.55;
       word-break: break-word;
     }
     .health-hint {
       margin-top: 6px;
       font-size: 0.75rem;
-      color: var(--accent);
+      color: var(--accent-text);
       line-height: 1.5;
     }
     .health-latency {
@@ -1769,16 +1816,16 @@
       font-size: 0.8125rem;
       font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
     }
-    .hl-row.hl-used { background: #fef3c7; }
-    .hl-row.hl-unused { background: #ecfdf5; }
+    .hl-row.hl-used { background: var(--warn-bg); }
+    .hl-row.hl-unused { background: var(--ok-bg); }
     .hl-time { color: var(--ink-2); white-space: nowrap; font-size: 0.75rem; }
     .hl-pid { background: #3b82f6; color: #fff; padding: 2px 6px; border-radius: 6px; font-size: 0.6875rem; }
     .hl-mon { color: var(--ok); font-weight: 600; }
-    .hl-dev { color: #8b5cf6; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .hl-dev { color: var(--accent-text); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .hl-code { background: #1f2937; color: #fff; padding: 2px 6px; border-radius: 6px; font-weight: 600; font-size: 0.75rem; }
     .hl-tag { padding: 2px 8px; border-radius: 10px; font-size: 0.6875rem; font-weight: 600; }
-    .hl-tag.tag-used { background: #fecaca; color: var(--err); }
-    .hl-tag.tag-unused { background: #bbf7d0; color: #166534; }
+    .hl-tag.tag-used { background: var(--err-line); color: var(--err); }
+    .hl-tag.tag-unused { background: var(--ok-line); color: var(--ok); }
     .vl-row {
       display: flex;
       align-items: flex-start;
@@ -1788,11 +1835,11 @@
       border-radius: 6px;
       font-size: 0.8125rem;
       font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
-      border-left: 3px solid #9ca3af;
+      border-left: 3px solid var(--line);
     }
     .vl-time { color: var(--ink-2); white-space: nowrap; font-size: 0.75rem; min-width: 140px; }
-    .vl-type { padding: 2px 8px; border-radius: 6px; font-size: 0.6875rem; font-weight: 600; background: #e5e7eb; color: #374151; white-space: nowrap; }
-    .vl-summary { flex: 1; color: #1f2937; word-break: break-all; }
+    .vl-type { padding: 2px 8px; border-radius: 6px; font-size: 0.6875rem; font-weight: 600; background: var(--line); color: var(--ink-2); white-space: nowrap; }
+    .vl-summary { flex: 1; color: var(--ink); word-break: break-all; }
     .vl-meta { font-size: 0.6875rem; color: var(--ink-3); white-space: nowrap; }
 
     .el-row {
@@ -1804,25 +1851,25 @@
       border-radius: 6px;
       font-size: 0.75rem;
       font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
-      border-left: 3px solid #9ca3af;
+      border-left: 3px solid var(--line);
       flex-wrap: wrap;
     }
-    .el-row .el-status-success { border-left-color: #10b981; }
-    .el-row:has(.el-status-failed) { border-left-color: #ef4444; }
+    .el-row .el-status-success { border-left-color: var(--ok); }
+    .el-row:has(.el-status-failed) { border-left-color: var(--err); }
     .el-time { color: var(--ink-2); white-space: nowrap; font-size: 0.6875rem; min-width: 130px; }
     .el-type { padding: 2px 6px; border-radius: 6px; font-size: 0.6875rem; font-weight: 600; white-space: nowrap; }
-    .el-type-activation { background: #dbeafe; color: #1e40af; }
-    .el-type-test { background: #fef3c7; color: #92400e; }
+    .el-type-activation { background: var(--info-bg); color: var(--info); }
+    .el-type-test { background: var(--warn-bg); color: var(--warn); }
     .el-status { padding: 2px 6px; border-radius: 6px; font-size: 0.6875rem; font-weight: 600; white-space: nowrap; }
-    .el-status-success { background: #d1fae5; color: var(--ok); }
-    .el-status-failed { background: #fee2e2; color: var(--err); }
+    .el-status-success { background: var(--ok-bg); color: var(--ok); }
+    .el-status-failed { background: var(--err-bg); color: var(--err); }
     .el-status-skipped { background: var(--row-hover); color: var(--ink-2); }
-    .el-to { color: var(--accent); font-size: 0.6875rem; white-space: nowrap; }
-    .el-subject { flex: 1; color: #374151; font-size: 0.6875rem; word-break: break-all; min-width: 120px; }
+    .el-to { color: var(--accent-text); font-size: 0.6875rem; white-space: nowrap; }
+    .el-subject { flex: 1; color: var(--ink-2); font-size: 0.6875rem; word-break: break-all; min-width: 120px; }
     .el-error { color: var(--err); font-size: 0.6875rem; width: 100%; padding-left: 138px; }
     .el-expand { font-size: 0.6875rem; color: var(--ink-3); min-width: 14px; text-align: center; transition: transform 0.15s; }
     .el-row:hover { background: var(--row-hover); }
-    .el-row-expanded { background: #eef2ff; border-left-color: var(--accent, #4F46E5) !important; }
+    .el-row-expanded { background: var(--accent-bg); border-left-color: var(--accent, #4F46E5) !important; }
     .el-detail {
       padding: 12px 16px 12px 32px;
       background: var(--row-hover);
@@ -1849,12 +1896,12 @@
       text-transform: uppercase;
     }
     .el-detail-val {
-      color: #374151;
+      color: var(--ink-2);
       word-break: break-all;
       font-size: 0.6875rem;
     }
     .el-detail-divider {
-      color: var(--accent);
+      color: var(--accent-text);
       font-size: 0.6875rem;
       font-weight: 700;
       padding: 6px 0 2px 0;
@@ -1939,7 +1986,9 @@
     .theme-name {
       font-size: 0.75rem;
       font-weight: 600;
-      color: var(--ink);
+      /* 用页面级 --ui-ink：主题卡片自带 data-theme="X"，用 --ink 会在深色模式下
+         取到「那个主题的深色文字」，压在深色卡片上变成看不见（实测对比度 1.07:1） */
+      color: var(--ui-ink);
     }
 
     .setting-row {
@@ -1963,7 +2012,7 @@
       position: absolute;
       cursor: pointer;
       inset: 0;
-      background-color: #d1d5db;
+      background-color: var(--line);
       border-radius: 24px;
       transition: 0.18s;
     }
@@ -1974,7 +2023,7 @@
       width: 18px;
       left: 3px;
       bottom: 3px;
-      background-color: #fff;
+      background-color: var(--surface);
       border-radius: 50%;
       transition: 0.18s;
     }
@@ -1988,7 +2037,7 @@
     .btn-danger {
       background: #dc2626;
       color: #fff;
-      border: 1px solid #dc2626;
+      border: 1px solid var(--err);
     }
     .btn-danger:hover { background: #b91c1c; }
 
@@ -2061,21 +2110,21 @@
     }
     .setting-test-result.success {
       display: block;
-      background: #ecfdf5;
+      background: var(--ok-bg);
       color: var(--ok);
-      border: 1px solid #a7f3d0;
+      border: 1px solid var(--ok-line);
     }
     .setting-test-result.error {
       display: block;
-      background: #fef2f2;
+      background: var(--err-bg);
       color: var(--err);
-      border: 1px solid #fecaca;
+      border: 1px solid var(--err-line);
     }
     .setting-test-result.loading {
       display: block;
-      background: #eff6ff;
-      color: #1e40af;
-      border: 1px solid #bfdbfe;
+      background: var(--info-bg);
+      color: var(--info);
+      border: 1px solid var(--info-line);
     }
 
     .email-config-list {
@@ -2098,12 +2147,12 @@
       position: relative;
     }
     .email-config-item:hover {
-      border-color: #6366f1;
+      border-color: var(--accent);
       box-shadow: 0 2px 8px rgba(99,102,241,.12);
     }
     .email-config-item.active {
-      border-color: #6366f1;
-      background: #eef2ff;
+      border-color: var(--accent);
+      background: var(--accent-bg);
       box-shadow: 0 2px 8px rgba(99,102,241,.15);
     }
     .email-config-name {
@@ -2145,7 +2194,7 @@
       margin-top: 12px;
       padding: 0;
       font-size: 0.75rem;
-      color: #475569;
+      color: var(--ink-2);
       width: 100%;
       max-height: 400px;
       overflow-y: auto;
@@ -2172,12 +2221,12 @@
       padding: 6px 8px;
       text-align: left;
       font-weight: 600;
-      color: #475569;
+      color: var(--ink-2);
       border-bottom: 1px solid var(--line);
     }
     .test-email-steps-table td {
       padding: 6px 8px;
-      border-bottom: 1px solid #f1f5f9;
+      border-bottom: 1px solid var(--line);
       vertical-align: top;
       font-family: monospace;
       font-size: 0.6875rem;
@@ -2190,12 +2239,12 @@
       color: var(--err);
     }
     .step-cmd {
-      color: var(--accent);
+      color: var(--accent-text);
       font-weight: 600;
       white-space: nowrap;
     }
     .step-resp {
-      color: #475569;
+      color: var(--ink-2);
     }
 
     .about-grid {
@@ -2213,7 +2262,7 @@
     .about-text { font-size: 0.75rem; color: var(--ink-2); line-height: 1.5; }
     .about-text code {
       background: #e2e8f0;
-      color: #be185d;
+      color: var(--accent-text);
       padding: 2px 6px;
       border-radius: 6px;
       font-size: 0.6875rem;
@@ -2260,14 +2309,14 @@
       font-size: 0.75rem;
       font-weight: 600;
     }
-    .cron-status-success { background: #dcfce7; color: #166534; }
-    .cron-status-error { background: #fee2e2; color: var(--err); }
-    .cron-status-partial { background: #fef3c7; color: #92400e; }
-    .cron-status-skipped { background: #e0e7ff; color: #3730a3; }
+    .cron-status-success { background: var(--ok-bg); color: var(--ok); }
+    .cron-status-error { background: var(--err-bg); color: var(--err); }
+    .cron-status-partial { background: var(--warn-bg); color: var(--warn); }
+    .cron-status-skipped { background: var(--accent-bg); color: var(--accent-text); }
     .cron-status-unknown { background: var(--row-hover); color: var(--ink-2); }
     .cron-count {
       font-weight: 700;
-      color: var(--accent);
+      color: var(--accent-text);
       font-size: 0.875rem;
     }
     .cron-time {
@@ -2322,7 +2371,7 @@
     }
     .cron-task-card.disabled {
       opacity: 0.55;
-      background: #fafafa;
+      background: var(--row-hover);
     }
     .cron-task-header {
       display: flex;
@@ -2394,7 +2443,7 @@
       position: absolute;
       cursor: pointer;
       top: 0; left: 0; right: 0; bottom: 0;
-      background-color: #ccc;
+      background-color: var(--line);
       transition: 0.2s;
       border-radius: 24px;
     }
@@ -2410,7 +2459,7 @@
       border-radius: 50%;
     }
     .toggle-switch input:checked + .toggle-slider {
-      background-color: #ccc;
+      background-color: var(--line);
     }
     .toggle-switch input:checked + .toggle-slider:before {
       background-color: #10b981;
@@ -2432,9 +2481,9 @@
       border-color: var(--accent);
     }
     .btn-icon.danger:hover {
-      border-color: #dc2626;
+      border-color: var(--err);
       color: var(--err);
-      background: #fef2f2;
+      background: var(--err-bg);
     }
 
     .sidebar-backdrop {
@@ -2515,7 +2564,7 @@
     .qc-used small { font-size:0.875rem; font-weight:500; color:var(--ink-2); margin-left:4px; }
     .qc-total { font-size:0.875rem; color:var(--ink-3); white-space:nowrap; }
     .qc-progress {
-      height:10px; background:#eef2ff; border-radius:999px; overflow:hidden; margin-bottom:8px;
+      height:10px; background: var(--accent-bg); border-radius:999px; overflow:hidden; margin-bottom:8px;
     }
     .qc-progress > div {
       height:100%; border-radius:999px; transition:width .4s ease;
@@ -2528,28 +2577,28 @@
     .info-card {
       background:var(--surface);
       border:1px solid var(--line);
-      border-left:4px solid #818cf8;
+      border-left: 4px solid var(--accent-line);
       border-radius:10px;
       padding: 16px 16px;
     }
-    .info-card.ic-warn { border-left-color:#f59e0b; }
-    .info-card.ic-danger { border-left-color:#dc2626; }
-    .info-card.ic-ok { border-left-color:#10b981; }
+    .info-card.ic-warn { border-left-color: var(--warn); }
+    .info-card.ic-danger { border-left-color: var(--err); }
+    .info-card.ic-ok { border-left-color: var(--ok); }
     .info-card h4 {
       margin:0 0 6px; font-size:1rem; color:var(--ink); line-height:1.35; display:flex; align-items:center; gap:8px;
     }
-    .info-card p { margin:0; font-size:0.875rem; color:#4b5563; line-height:1.7; }
+    .info-card p { margin:0; font-size:0.875rem; color: var(--ink-2); line-height:1.7; }
     .tag {
       display:inline-block; padding:2px 8px; border-radius:999px;
       font-size:0.6875rem; font-weight:700; letter-spacing:0.4px;
-      background:#eef2ff; color:#4c51bf;
+      background: var(--accent-bg); color: var(--accent-text);
     }
-    .tag.t-warn { background:#fef3c7; color:var(--warn); }
-    .tag.t-danger { background:#fee2e2; color:#b91c1c; }
-    .tag.t-ok { background:#d1fae5; color:var(--ok); }
+    .tag.t-warn { background: var(--warn-bg); color:var(--warn); }
+    .tag.t-danger { background: var(--err-bg); color: var(--err); }
+    .tag.t-ok { background: var(--ok-bg); color:var(--ok); }
     .tag.t-code { background:#111827; color:#f9fafb; font-weight:500; letter-spacing:0.3px; }
     .breakdown-card {
-      background:#fafbff; border:1px dashed #c7d2fe; border-radius:10px; padding: 12px 16px;
+      background: var(--row-hover); border: 1px dashed var(--accent-line); border-radius:10px; padding: 12px 16px;
     }
     .breakdown-card .b-title { font-size:0.75rem; color:var(--ink-2); margin-bottom:6px; }
     .breakdown-card .b-val { font-size:1.25rem; font-weight:800; color:var(--ink); }
@@ -2561,7 +2610,7 @@
       display: inline-flex;
       align-items: center;
       flex-wrap: wrap;
-      background: #fff;
+      background: var(--surface);
       border: 1px solid var(--line);
       border-radius: 999px;
       padding: 4px 4px 4px 12px;
@@ -2600,9 +2649,9 @@
       50% { transform: scale(1.02); box-shadow: 0 0 0 6px rgba(249, 115, 22, 0); }
     }
     #syncDirtyBadge.pulse { animation: dirtyPulse 1.4s ease infinite; }
-    .sync-banner.warn { border-color: #fed7aa !important; background: #fff7ed !important; color: #9a3412 !important; }
-    .sync-banner.ok { border-color: #a7f3d0 !important; background: #ecfdf5 !important; color: var(--ok) !important; }
-    .sync-banner.err { border-color: #fecaca !important; background: #fef2f2 !important; color: var(--err) !important; }
+    .sync-banner.warn { border-color: var(--warn-line) !important; background: var(--warn-bg) !important; color: var(--warn) !important; }
+    .sync-banner.ok { border-color: var(--ok-line) !important; background: var(--ok-bg) !important; color: var(--ok) !important; }
+    .sync-banner.err { border-color: var(--err-line) !important; background: var(--err-bg) !important; color: var(--err) !important; }
 
     .diff-grid {
       display: grid;
@@ -2621,12 +2670,12 @@
       box-shadow: 0 4px 16px rgba(0,0,0,0.06);
     }
     .diff-card.has-diff {
-      border-color: #f59e0b;
-      background: #fffbeb;
+      border-color: var(--warn);
+      background: var(--warn-bg);
     }
     .diff-card.no-diff {
-      border-color: #10b981;
-      background: #ecfdf5;
+      border-color: var(--ok);
+      background: var(--ok-bg);
     }
     .diff-card-header {
       display: flex;
@@ -2654,12 +2703,12 @@
       white-space: nowrap;
     }
     .diff-card-status.ok {
-      background: #d1fae5;
+      background: var(--ok-bg);
       color: var(--ok);
     }
     .diff-card-status.warn {
-      background: #fef3c7;
-      color: #92400e;
+      background: var(--warn-bg);
+      color: var(--warn);
     }
     .diff-card-counts {
       display: grid;
@@ -2684,10 +2733,10 @@
       margin-top: 2px;
     }
     .diff-count-item.local {
-      border-left: 3px solid #3b82f6;
+      border-left: 3px solid var(--info);
     }
     .diff-count-item.remote {
-      border-left: 3px solid #8b5cf6;
+      border-left: 3px solid var(--accent);
     }
     .diff-detail-row {
       display: flex;
@@ -2695,7 +2744,7 @@
       font-size: 0.75rem;
       color: var(--muted);
       padding: 4px 0;
-      border-bottom: 1px solid #f1f5f9;
+      border-bottom: 1px solid var(--line);
     }
     .diff-detail-row:last-child { border-bottom: none; }
     .diff-detail-val { font-weight: 600; }
@@ -2725,7 +2774,7 @@
     .diff-detail-item {
       font-size: 0.75rem;
       padding: 6px 8px;
-      border-bottom: 1px solid #f1f5f9;
+      border-bottom: 1px solid var(--line);
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -2741,9 +2790,9 @@
       border-radius: 10px;
       font-weight: 600;
     }
-    .diff-detail-tag.local-only { background: #dbeafe; color: #1e40af; }
-    .diff-detail-tag.remote-only { background: #ede9fe; color: #6d28d9; }
-    .diff-detail-tag.changed { background: #fef3c7; color: #92400e; }
+    .diff-detail-tag.local-only { background: var(--info-bg); color: var(--info); }
+    .diff-detail-tag.remote-only { background: var(--accent-bg); color: var(--accent-text); }
+    .diff-detail-tag.changed { background: var(--warn-bg); color: var(--warn); }
 
     /* Direct Activate multi-select */
     .multi-select-wrap {
@@ -2802,7 +2851,7 @@
       transition: background 0.15s;
     }
     .multi-select-drop-item:hover { background: var(--row-hover); }
-    .multi-select-drop-item.selected { background: #eef2ff; color: var(--accent); font-weight: 600; }
+    .multi-select-drop-item.selected { background: var(--accent-bg); color: var(--accent-text); font-weight: 600; }
     .multi-select-drop-item .check-mark { width: 16px; text-align: center; }
     .multi-select-placeholder { color: var(--muted); font-size: 0.875rem; padding: 4px; }
     .redeem-preview {
@@ -2810,9 +2859,9 @@
       font-family: 'SF Mono', 'Fira Code', monospace;
       font-size: 1.25rem;
       font-weight: 700;
-      color: var(--accent);
+      color: var(--accent-text);
       padding: 4px 12px;
-      background: #f0f0ff;
+      background: var(--accent-bg);
       border-radius: 6px;
       letter-spacing: 2px;
     }
@@ -2861,9 +2910,9 @@
       font-size: 1.25rem;
       flex-shrink: 0;
     }
-    .da-card-icon.i-device { background: #eef2ff; }
-    .da-card-icon.i-product { background: #fef3c7; }
-    .da-card-icon.i-duration { background: #dcfce7; }
+    .da-card-icon.i-device { background: var(--accent-bg); }
+    .da-card-icon.i-product { background: var(--warn-bg); }
+    .da-card-icon.i-duration { background: var(--ok-bg); }
     .da-card-icon.i-redeem { background: #fce7f3; }
     .da-card-title {
       font-weight: 700;
@@ -2892,7 +2941,7 @@
       border-color: var(--accent);
       box-shadow: 0 0 0 3px rgba(108,99,255,0.1);
     }
-    .da-input-lg::placeholder { color: #c4c4cd; letter-spacing: 0; font-family: inherit; }
+    .da-input-lg::placeholder { color: var(--ink-3); letter-spacing: 0; font-family: inherit; }
     .da-device-feedback {
       display: flex;
       align-items: center;
@@ -2926,8 +2975,8 @@
     }
     .da-month-btn:hover {
       border-color: var(--accent);
-      color: var(--accent);
-      background: #f5f3ff;
+      color: var(--accent-text);
+      background: var(--accent-bg);
     }
     .da-month-btn.active {
       border-color: var(--accent);
@@ -2976,8 +3025,8 @@
     }
     .da-permanent-toggle:hover { border-color: var(--accent); }
     .da-permanent-toggle.on {
-      border-color: #f59e0b;
-      background: #fffbeb;
+      border-color: var(--warn);
+      background: var(--warn-bg);
       color: var(--warn);
     }
     .da-permanent-toggle input[type="checkbox"] { display: none; }
@@ -2987,15 +3036,15 @@
       align-items: center;
       gap: 12px;
       padding: 16px;
-      background: #f0f0ff;
+      background: var(--accent-bg);
       border-radius: 10px;
-      border: 2px dashed #c7c3ff;
+      border: 2px dashed var(--accent-line);
     }
     .da-redeem-code {
       font-family: 'SF Mono', 'Fira Code', monospace;
       font-size: 1.5rem;
       font-weight: 800;
-      color: var(--accent);
+      color: var(--accent-text);
       letter-spacing: 4px;
       flex: 1;
       text-align: center;
@@ -3005,7 +3054,7 @@
       height: 36px;
       border: none;
       border-radius: 10px;
-      background: #e0defa;
+      background: var(--accent-bg);
       cursor: pointer;
       font-size: 1rem;
       display: flex;
@@ -3112,14 +3161,14 @@
       font-size: 0.6875rem;
       font-weight: 700;
     }
-    .da-result-badge.months { background: #dcfce7; color: #16a34a; }
-    .da-result-badge.permanent { background: #fef3c7; color: var(--warn); }
+    .da-result-badge.months { background: var(--ok-bg); color: var(--ok); }
+    .da-result-badge.permanent { background: var(--warn-bg); color: var(--warn); }
     .da-result-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
       padding: 8px 0;
-      border-bottom: 1px solid #f3f4f6;
+      border-bottom: 1px solid var(--line);
     }
     .da-result-row:last-child { border-bottom: none; }
     .da-result-label {
@@ -3148,16 +3197,16 @@
       cursor: pointer;
       font-size: 0.6875rem;
       font-weight: 600;
-      color: var(--accent);
+      color: var(--accent-text);
       transition: all 0.15s;
       white-space: nowrap;
     }
     .da-result-copy:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
-    .da-result-copy.copied { background: #10b981; color: #fff; border-color: #10b981; }
+    .da-result-copy.copied { background: #10b981; color: #fff; border-color: var(--ok); }
     .da-result-footer {
       margin-top: 12px;
       padding-top: 12px;
-      border-top: 1px solid #f3f4f6;
+      border-top: 1px solid var(--line);
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -3187,8 +3236,8 @@
       align-items: center;
       gap: 6px;
     }
-    .da-bulk-btn:hover { border-color: var(--accent); color: var(--accent); background: #f5f3ff; }
-    .da-bulk-btn.copied { background: #10b981; color: #fff; border-color: #10b981; }
+    .da-bulk-btn:hover { border-color: var(--accent); color: var(--accent-text); background: var(--accent-bg); }
+    .da-bulk-btn.copied { background: #10b981; color: #fff; border-color: var(--ok); }
 
     .da-empty-state {
       text-align: center;
@@ -3295,27 +3344,27 @@
 
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap: 16px;margin-top:16px">
               <div class="dash-card" onclick="switchTab('products')" style="cursor:pointer">
-                <i data-lucide="package" style="width:28px;height:28px;color:var(--accent);margin-bottom:6px;display:block"></i>
+                <i data-lucide="package" style="width:28px;height:28px;color: var(--accent-text);margin-bottom:6px;display:block"></i>
                 <div style="font-weight:700;font-size:1rem;color:var(--ink)">产品管理</div>
                 <div style="font-size:0.75rem;color:var(--ink-2);margin-top:4px">管理可授权的产品列表</div>
               </div>
               <div class="dash-card" onclick="switchTab('codes')" style="cursor:pointer">
-                <i data-lucide="ticket" style="width:28px;height:28px;color:var(--accent);margin-bottom:6px;display:block"></i>
+                <i data-lucide="ticket" style="width:28px;height:28px;color: var(--accent-text);margin-bottom:6px;display:block"></i>
                 <div style="font-weight:700;font-size:1rem;color:var(--ink)">兑换码管理</div>
                 <div style="font-size:0.75rem;color:var(--ink-2);margin-top:4px">生成、筛选与导出兑换码</div>
               </div>
               <div class="dash-card" onclick="switchTab('records')" style="cursor:pointer">
-                <i data-lucide="clipboard-list" style="width:28px;height:28px;color:var(--accent);margin-bottom:6px;display:block"></i>
+                <i data-lucide="clipboard-list" style="width:28px;height:28px;color: var(--accent-text);margin-bottom:6px;display:block"></i>
                 <div style="font-weight:700;font-size:1rem;color:var(--ink)">激活记录</div>
                 <div style="font-size:0.75rem;color:var(--ink-2);margin-top:4px">查看设备激活历史</div>
               </div>
               <div class="dash-card" onclick="switchTab('decrypt')" style="cursor:pointer">
-                <i data-lucide="search" style="width:28px;height:28px;color:var(--accent);margin-bottom:6px;display:block"></i>
+                <i data-lucide="search" style="width:28px;height:28px;color: var(--accent-text);margin-bottom:6px;display:block"></i>
                 <div style="font-weight:700;font-size:1rem;color:var(--ink)">解密验证</div>
                 <div style="font-size:0.75rem;color:var(--ink-2);margin-top:4px">离线解析激活码内容</div>
               </div>
               <div class="dash-card" onclick="switchTab('settings')" style="cursor:pointer">
-                <i data-lucide="settings" style="width:28px;height:28px;color:var(--accent);margin-bottom:6px;display:block"></i>
+                <i data-lucide="settings" style="width:28px;height:28px;color: var(--accent-text);margin-bottom:6px;display:block"></i>
                 <div style="font-weight:700;font-size:1rem;color:var(--ink)">设置</div>
                 <div style="font-size:0.75rem;color:var(--ink-2);margin-top:4px">数据模式 · 安全配置</div>
               </div>
@@ -3400,7 +3449,7 @@
               </div>
               <div style="display:flex;align-items:center;gap:8px">
                 <span>Per page:</span>
-                <select id="codesPerPage" onchange="onCodesPerPageChange()" style="padding:4px 8px;border-radius:6px;border:1px solid #d1d5db;font-size:0.8125rem">
+                <select id="codesPerPage" onchange="onCodesPerPageChange()" style="padding:4px 8px;border-radius:6px;border: 1px solid var(--line);font-size:0.8125rem">
                   <option value="20">20</option>
                   <option value="50" selected>50</option>
                   <option value="100">100</option>
@@ -3460,7 +3509,7 @@
                 <button class="btn btn-primary" onclick="loadRecords()" style="height:40px;padding:0 16px">搜索</button>
               </div>
             </div>
-            <div id="recordFilterHint" style="display:none;margin-bottom:8px;font-size:0.875rem;color:#667eea"></div>
+            <div id="recordFilterHint" style="display:none;margin-bottom:8px;font-size:0.875rem;color: var(--accent-text)"></div>
             <div id="channelStatsCard" style="margin-bottom:12px;display:none">
               <div class="stats-bar" id="channelStatsBar"></div>
             </div>
@@ -3487,7 +3536,7 @@
             </div>
 
             <div class="quota-tabs" style="display:flex;gap:0;margin:12px 0 16px;border-bottom:2px solid var(--line,#e5e7eb);">
-              <button class="quota-tab active" onclick="switchQuotaTab('neon')" id="quotaTabNeon" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--accent);cursor:pointer;border-bottom:2px solid var(--accent);margin-bottom:-2px;transition:all 0.15s;">🟢 Neon 额度</button>
+              <button class="quota-tab active" onclick="switchQuotaTab('neon')" id="quotaTabNeon" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color: var(--accent-text);cursor:pointer;border-bottom:2px solid var(--accent);margin-bottom:-2px;transition:all 0.15s;">🟢 Neon 额度</button>
               <button class="quota-tab" onclick="switchQuotaTab('supabase')" id="quotaTabSupabase" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">🟣 Supabase 额度</button>
             </div>
 
@@ -3555,7 +3604,7 @@
             </div>
 
             <div class="logs-tabs" style="display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid var(--line,#e5e7eb);">
-              <button class="logs-tab active" onclick="switchLogsTab('system')" id="logsTabSystem" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--accent);cursor:pointer;border-bottom:2px solid var(--accent);margin-bottom:-2px;transition:all 0.15s;">🚀 系统日志</button>
+              <button class="logs-tab active" onclick="switchLogsTab('system')" id="logsTabSystem" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color: var(--accent-text);cursor:pointer;border-bottom:2px solid var(--accent);margin-bottom:-2px;transition:all 0.15s;">🚀 系统日志</button>
               <button class="logs-tab" onclick="switchLogsTab('email')" id="logsTabEmail" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">📧 邮件日志</button>
               <button class="logs-tab" onclick="switchLogsTab('resend')" id="logsTabResend" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">📬 Resend平台</button>
               <button class="logs-tab" onclick="switchLogsTab('afdian-dm')" id="logsTabAfdianDm" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">💬 爱发电私信日志</button>
@@ -3694,10 +3743,10 @@
                 <p class="setting-desc">选择适合你的界面配色方案，包括护眼模式、黑夜模式等多种风格。</p>
                 <div class="theme-grid" id="themeGrid">
                 <div class="theme-card" data-theme="deep-blue" onclick="setTheme('deep-blue')">
-                  <div class="theme-preview" style="background:#f1f4f9;border:1px solid var(--line)">
-                    <div class="theme-preview-sidebar" style="background:#0f172a"></div>
+                  <div class="theme-preview" style="background:var(--bg);border:1px solid var(--line)">
+                    <div class="theme-preview-sidebar" style="background:var(--sidebar)"></div>
                     <div class="theme-preview-body">
-                      <div class="theme-preview-bar" style="background:#4F46E5"></div>
+                      <div class="theme-preview-bar" style="background:var(--accent)"></div>
                       <div class="theme-preview-line" style="background:var(--line)"></div>
                       <div class="theme-preview-line" style="background:var(--line)"></div>
                     </div>
@@ -3705,10 +3754,10 @@
                   <div class="theme-name">🔵 深空蓝</div>
                 </div>
                 <div class="theme-card" data-theme="jade-green" onclick="setTheme('jade-green')">
-                  <div class="theme-preview" style="background:#f1f5f1;border:1px solid var(--line)">
-                    <div class="theme-preview-sidebar" style="background:#0f1a0f"></div>
+                  <div class="theme-preview" style="background:var(--bg);border:1px solid var(--line)">
+                    <div class="theme-preview-sidebar" style="background:var(--sidebar)"></div>
                     <div class="theme-preview-body">
-                      <div class="theme-preview-bar" style="background:#059669"></div>
+                      <div class="theme-preview-bar" style="background:var(--accent)"></div>
                       <div class="theme-preview-line" style="background:var(--line)"></div>
                       <div class="theme-preview-line" style="background:var(--line)"></div>
                     </div>
@@ -3716,10 +3765,10 @@
                   <div class="theme-name">🟢 翡翠绿</div>
                 </div>
                 <div class="theme-card" data-theme="coral-red" onclick="setTheme('coral-red')">
-                  <div class="theme-preview" style="background:#f5f1f1;border:1px solid var(--line)">
-                    <div class="theme-preview-sidebar" style="background:#1a0f0f"></div>
+                  <div class="theme-preview" style="background:var(--bg);border:1px solid var(--line)">
+                    <div class="theme-preview-sidebar" style="background:var(--sidebar)"></div>
                     <div class="theme-preview-body">
-                      <div class="theme-preview-bar" style="background:#dc2626"></div>
+                      <div class="theme-preview-bar" style="background:var(--accent)"></div>
                       <div class="theme-preview-line" style="background:var(--line)"></div>
                       <div class="theme-preview-line" style="background:var(--line)"></div>
                     </div>
@@ -3727,10 +3776,10 @@
                   <div class="theme-name">🔴 珊瑚红</div>
                 </div>
                 <div class="theme-card" data-theme="night-black" onclick="setTheme('night-black')">
-                  <div class="theme-preview" style="background:#f1f2f4;border:1px solid var(--line)">
-                    <div class="theme-preview-sidebar" style="background:#0a0a0a"></div>
+                  <div class="theme-preview" style="background:var(--bg);border:1px solid var(--line)">
+                    <div class="theme-preview-sidebar" style="background:var(--sidebar)"></div>
                     <div class="theme-preview-body">
-                      <div class="theme-preview-bar" style="background:#374151"></div>
+                      <div class="theme-preview-bar" style="background:var(--accent)"></div>
                       <div class="theme-preview-line" style="background:var(--line)"></div>
                       <div class="theme-preview-line" style="background:var(--line)"></div>
                     </div>
@@ -3738,10 +3787,10 @@
                   <div class="theme-name">⚫ 暗夜黑</div>
                 </div>
                 <div class="theme-card" data-theme="space-gray" onclick="setTheme('space-gray')">
-                  <div class="theme-preview" style="background:#f1f2f4;border:1px solid var(--line)">
-                    <div class="theme-preview-sidebar" style="background:#111827"></div>
+                  <div class="theme-preview" style="background:var(--bg);border:1px solid var(--line)">
+                    <div class="theme-preview-sidebar" style="background:var(--sidebar)"></div>
                     <div class="theme-preview-body">
-                      <div class="theme-preview-bar" style="background:#6b7280"></div>
+                      <div class="theme-preview-bar" style="background:var(--accent)"></div>
                       <div class="theme-preview-line" style="background:var(--line)"></div>
                       <div class="theme-preview-line" style="background:var(--line)"></div>
                     </div>
@@ -3749,10 +3798,10 @@
                   <div class="theme-name">⬛ 深空灰</div>
                 </div>
                 <div class="theme-card" data-theme="phantom-purple" onclick="setTheme('phantom-purple')">
-                  <div class="theme-preview" style="background:#f4f1f6;border:1px solid var(--line)">
-                    <div class="theme-preview-sidebar" style="background:#1a0a2e"></div>
+                  <div class="theme-preview" style="background:var(--bg);border:1px solid var(--line)">
+                    <div class="theme-preview-sidebar" style="background:var(--sidebar)"></div>
                     <div class="theme-preview-body">
-                      <div class="theme-preview-bar" style="background:#7c3aed"></div>
+                      <div class="theme-preview-bar" style="background:var(--accent)"></div>
                       <div class="theme-preview-line" style="background:var(--line)"></div>
                       <div class="theme-preview-line" style="background:var(--line)"></div>
                     </div>
@@ -3760,10 +3809,10 @@
                   <div class="theme-name">🟣 暗紫魅影</div>
                 </div>
                 <div class="theme-card" data-theme="dawn-white" onclick="setTheme('dawn-white')">
-                  <div class="theme-preview" style="background:#f4f6f8;border:1px solid var(--line)">
-                    <div class="theme-preview-sidebar" style="background:#1e293b"></div>
+                  <div class="theme-preview" style="background:var(--bg);border:1px solid var(--line)">
+                    <div class="theme-preview-sidebar" style="background:var(--sidebar)"></div>
                     <div class="theme-preview-body">
-                      <div class="theme-preview-bar" style="background:#2563eb"></div>
+                      <div class="theme-preview-bar" style="background:var(--accent)"></div>
                       <div class="theme-preview-line" style="background:var(--line)"></div>
                       <div class="theme-preview-line" style="background:var(--line)"></div>
                     </div>
@@ -3771,38 +3820,50 @@
                   <div class="theme-name">⬜ 晨光白</div>
                 </div>
                 <div class="theme-card" data-theme="warm-beige" onclick="setTheme('warm-beige')">
-                  <div class="theme-preview" style="background:#f5f0e8;border:1px solid #e5ddd5">
-                    <div class="theme-preview-sidebar" style="background:#2a1f14"></div>
+                  <div class="theme-preview" style="background:var(--bg);border: 1px solid var(--line)">
+                    <div class="theme-preview-sidebar" style="background:var(--sidebar)"></div>
                     <div class="theme-preview-body">
-                      <div class="theme-preview-bar" style="background:#b8956a"></div>
-                      <div class="theme-preview-line" style="background:#e5ddd5"></div>
-                      <div class="theme-preview-line" style="background:#e5ddd5"></div>
+                      <div class="theme-preview-bar" style="background:var(--accent)"></div>
+                      <div class="theme-preview-line" style="background:var(--line)"></div>
+                      <div class="theme-preview-line" style="background:var(--line)"></div>
                     </div>
                   </div>
                   <div class="theme-name">🟡 暖阳米</div>
                 </div>
                 <div class="theme-card" data-theme="forest-green" onclick="setTheme('forest-green')">
-                  <div class="theme-preview" style="background:#eef4ee;border:1px solid #dce4dc">
-                    <div class="theme-preview-sidebar" style="background:#0f1a0f"></div>
+                  <div class="theme-preview" style="background:var(--bg);border: 1px solid var(--line)">
+                    <div class="theme-preview-sidebar" style="background:var(--sidebar)"></div>
                     <div class="theme-preview-body">
-                      <div class="theme-preview-bar" style="background:#4a7c59"></div>
-                      <div class="theme-preview-line" style="background:#dce4dc"></div>
-                      <div class="theme-preview-line" style="background:#dce4dc"></div>
+                      <div class="theme-preview-bar" style="background:var(--accent)"></div>
+                      <div class="theme-preview-line" style="background:var(--line)"></div>
+                      <div class="theme-preview-line" style="background:var(--line)"></div>
                     </div>
                   </div>
                   <div class="theme-name">🌲 墨绿护眼</div>
                 </div>
                 <div class="theme-card" data-theme="amber-gold" onclick="setTheme('amber-gold')">
-                  <div class="theme-preview" style="background:#f5f0e8;border:1px solid #e5ddd5">
-                    <div class="theme-preview-sidebar" style="background:#1a0f05"></div>
+                  <div class="theme-preview" style="background:var(--bg);border: 1px solid var(--line)">
+                    <div class="theme-preview-sidebar" style="background:var(--sidebar)"></div>
                     <div class="theme-preview-body">
-                      <div class="theme-preview-bar" style="background:#c99c4e"></div>
-                      <div class="theme-preview-line" style="background:#e5ddd5"></div>
-                      <div class="theme-preview-line" style="background:#e5ddd5"></div>
+                      <div class="theme-preview-bar" style="background:var(--accent)"></div>
+                      <div class="theme-preview-line" style="background:var(--line)"></div>
+                      <div class="theme-preview-line" style="background:var(--line)"></div>
                     </div>
                   </div>
                   <div class="theme-name">🟠 琥珀金</div>
                 </div>
+              </div>
+
+              <!-- 深色模式：只换中性层（背景/卡片/描边/文字），主色仍跟随上面所选主题 -->
+              <div class="setting-row" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line)">
+                <div class="setting-row-info">
+                  <div class="setting-row-title">🌙 深色模式</div>
+                  <div class="setting-row-desc">在深色底上重配一套中性色与语义色；主色仍跟随上面选择的主题，可组合出 20 种观感</div>
+                </div>
+                <label class="setting-switch" title="切换深色 / 浅色模式">
+                  <input type="checkbox" id="darkModeToggle" onchange="setMode(this.checked ? 'dark' : 'light')">
+                  <span class="switch-slider"></span>
+                </label>
               </div>
             </div>
             </div>
@@ -3988,11 +4049,11 @@
                   <button class="btn btn-primary" onclick="loadDatabaseStatus()">🔄 刷新数据库状态</button>
                   <span style="margin-left: 12px;font-size:0.8125rem;color:var(--ink-2)" id="dbStatusCheckedAt"></span>
                 </div>
-                <div id="dbStatusCurrent" style="margin-bottom:16px;padding:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;">
-                  <span style="font-weight:600">当前主数据库：</span><span id="dbCurrentName" style="color:var(--accent);font-weight:700">加载中...</span>
+                <div id="dbStatusCurrent" style="margin-bottom:16px;padding:12px;background: var(--ok-bg);border: 1px solid var(--ok-line);border-radius:10px;">
+                  <span style="font-weight:600">当前主数据库：</span><span id="dbCurrentName" style="color: var(--accent-text);font-weight:700">加载中...</span>
                   <span style="margin-left:12px;font-size:0.8125rem;color:var(--ink-2)">(DB_PROVIDER: <code id="dbCurrentProvider">-</code>)</span>
                 </div>
-                <div id="dbStatusInfo" style="margin-bottom:16px;padding:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;display:none">
+                <div id="dbStatusInfo" style="margin-bottom:16px;padding:12px;background: var(--ok-bg);border: 1px solid var(--ok-line);border-radius:10px;display:none">
                   <span style="font-size:0.8125rem;color:var(--ink-2)">切换说明：切换后新请求将连接新的主数据库，内存缓存立即生效，无需重启。</span>
                 </div>
               </div>
@@ -4030,7 +4091,7 @@
                   <button class="btn btn-outline" onclick="triggerSyncTo('upstash')" id="btnTriggerSyncUpstash" style="font-size:0.875rem;padding: 6px 16px">Sync to Upstash KV</button>
                   <span id="syncStatusMsg" style="font-size:0.8125rem;color:var(--ink-2)"></span>
                 </div>
-                <div id="dbSyncStatus" style="padding:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;">
+                <div id="dbSyncStatus" style="padding:12px;background:#fffbeb;border: 1px solid var(--warn-line);border-radius:10px;">
                   <div class="empty">点击「刷新数据库状态」加载...</div>
                 </div>
               </div>
@@ -4424,27 +4485,27 @@
 
           <div id="deliveryStats" style="display:none;margin-bottom:16px">
             <div class="stats-bar">
-              <div class="stat-card" style="border-left:3px solid #3b82f6">
+              <div class="stat-card" style="border-left: 3px solid var(--info)">
                 <div class="number" id="deliveryStatTotal">-</div>
                 <div class="label">7天总数</div>
               </div>
-              <div class="stat-card" style="border-left:3px solid #f59e0b">
+              <div class="stat-card" style="border-left: 3px solid var(--warn)">
                 <div class="number" id="deliveryStatPending">-</div>
                 <div class="label">待投递</div>
               </div>
-              <div class="stat-card" style="border-left:3px solid #3b82f6">
+              <div class="stat-card" style="border-left: 3px solid var(--info)">
                 <div class="number" id="deliveryStatPublished">-</div>
                 <div class="label">已发布</div>
               </div>
-              <div class="stat-card" style="border-left:3px solid #10b981">
+              <div class="stat-card" style="border-left: 3px solid var(--ok)">
                 <div class="number" id="deliveryStatDelivered">-</div>
                 <div class="label">已送达 ✓</div>
               </div>
-              <div class="stat-card" style="border-left:3px solid #8b5cf6">
+              <div class="stat-card" style="border-left: 3px solid var(--accent)">
                 <div class="number" id="deliveryStatConfirmed">-</div>
                 <div class="label">已确认 ✓✓</div>
               </div>
-              <div class="stat-card" style="border-left:3px solid #ef4444">
+              <div class="stat-card" style="border-left: 3px solid var(--err)">
                 <div class="number" id="deliveryStatFailed">-</div>
                 <div class="label">失败 ✗</div>
               </div>
@@ -4487,7 +4548,7 @@
       <input type="hidden" id="productId">
       <div class="field" id="productIdField" style="display:none">
         <label>产品 ID（不可修改）</label>
-        <input type="text" id="productIdDisplay" disabled class="input-mono" style="background:#f5f6fa">
+        <input type="text" id="productIdDisplay" disabled class="input-mono" style="background: var(--row-hover)">
       </div>
       <div class="field">
         <label>产品名称</label>
@@ -4577,7 +4638,7 @@
       <h3>📨 发送爱发电私信</h3>
       <div class="field">
         <label>用户ID</label>
-        <input type="text" id="dmModalUserId" class="input-mono" readonly style="background:#f5f6fa">
+        <input type="text" id="dmModalUserId" class="input-mono" readonly style="background: var(--row-hover)">
       </div>
       <div class="field">
         <label>用户昵称（可选）</label>
@@ -4611,9 +4672,19 @@
       });
     }
 
+    // 深色模式：只切 data-mode（[data-mode="dark"] 覆盖中性层令牌），主色仍由 data-theme 决定
+    function setMode(mode) {
+      mode = mode === 'dark' ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-mode', mode);
+      try { localStorage.setItem('admin-mode', mode); } catch (e) {}
+      var t = document.getElementById('darkModeToggle');
+      if (t) t.checked = (mode === 'dark');
+    }
+
     function loadTheme() {
       var saved = localStorage.getItem('admin-theme') || 'deep-blue';
       setTheme(saved);
+      setMode(localStorage.getItem('admin-mode') || 'light');
     }
 
     function loadVersion() {
@@ -5128,7 +5199,7 @@
           html += '<td>' + new Date(p.created_at || 0).toLocaleDateString('zh-CN') + '</td>';
           html += '<td style="white-space:nowrap">';
           html += '<button class="btn btn-outline" style="padding: 4px 12px;font-size:0.8125rem;margin-right:6px" onclick="openProductModal(\'' + escapeJs(p.id) + '\')">编辑</button>';
-          html += '<button class="btn btn-outline" style="padding: 4px 12px;font-size:0.8125rem;color:#c0392b;border-color:#e6b3b3" onclick="deleteProduct(\'' + escapeJs(p.id) + '\', \'' + escapeJs(p.name) + '\')">删除</button>';
+          html += '<button class="btn btn-outline" style="padding: 4px 12px;font-size:0.8125rem;color: var(--err);border-color: var(--err-line)" onclick="deleteProduct(\'' + escapeJs(p.id) + '\', \'' + escapeJs(p.name) + '\')">删除</button>';
           html += '</td>';
           html += '</tr>';
         });
@@ -5209,9 +5280,9 @@
           html += '<td>' + (c.used_at ? new Date(Number(c.used_at)).toLocaleString('zh-CN') : '-') + '</td>';
           html += '<td style="white-space:nowrap">';
           if (c.used) {
-            html += '<button class="btn btn-outline" style="padding: 4px 8px;font-size:0.75rem;color:#2563eb;border-color:#bfdbfe;margin-right:4px" onclick="unbindRedeemCode(\'' + escapeJs(c.code) + '\')">解绑</button>';
+            html += '<button class="btn btn-outline" style="padding: 4px 8px;font-size:0.75rem;color: var(--info);border-color: var(--info-line);margin-right:4px" onclick="unbindRedeemCode(\'' + escapeJs(c.code) + '\')">解绑</button>';
           }
-          html += '<button class="btn btn-outline" style="padding: 4px 8px;font-size:0.75rem;color:#b91c1c;border-color:#fecaca" onclick="deleteRedeemCode(\'' + escapeJs(c.code) + '\')">删除</button></td>';
+          html += '<button class="btn btn-outline" style="padding: 4px 8px;font-size:0.75rem;color: var(--err);border-color: var(--err-line)" onclick="deleteRedeemCode(\'' + escapeJs(c.code) + '\')">删除</button></td>';
           html += '</tr>';
         });
       }
@@ -5580,7 +5651,7 @@
       var hint = document.getElementById('recordFilterHint');
       if (hint) {
         hint.style.display = 'block';
-        hint.innerHTML = '筛选: 兑换码 <span class="mono" style="font-weight:700;color:#4c51bf">' + escapeHtml(rc) + '</span> — 加载中...';
+        hint.innerHTML = '筛选: 兑换码 <span class="mono" style="font-weight:700;color: var(--accent-text)">' + escapeHtml(rc) + '</span> — 加载中...';
       }
       _lastLoadedRecords = null;
       switchTab('records');
@@ -5671,9 +5742,9 @@
           if (hasFilter) {
             var foundCount = displayRecords.length;
             var parts = [];
-            if (rc) parts.push('兑换码: <span class="mono" style="font-weight:700;color:#4c51bf">' + escapeHtml(rc) + '</span>');
-            if (deviceId) parts.push('设备: <span class="mono" style="font-weight:700;color:#4c51bf">' + escapeHtml(deviceId) + '</span>');
-            if (ip) parts.push('IP: <span class="mono" style="font-weight:700;color:#4c51bf">' + escapeHtml(ip) + '</span>');
+            if (rc) parts.push('兑换码: <span class="mono" style="font-weight:700;color: var(--accent-text)">' + escapeHtml(rc) + '</span>');
+            if (deviceId) parts.push('设备: <span class="mono" style="font-weight:700;color: var(--accent-text)">' + escapeHtml(deviceId) + '</span>');
+            if (ip) parts.push('IP: <span class="mono" style="font-weight:700;color: var(--accent-text)">' + escapeHtml(ip) + '</span>');
             if (status && status !== 'all') parts.push('状态: <b>' + (status === 'failure' ? '失败' : '成功') + '</b>');
             if (filterModel) parts.push('型号: <b>' + escapeHtml(filterModel) + '</b>');
             if (filterVer) parts.push('版本: <b>' + escapeHtml(filterVer) + '</b>');
@@ -5719,7 +5790,7 @@
           var isPermanent = durationMonths === 99;
           var expiresText;
           if (isFailure) {
-            expiresText = '<span class="badge" style="background:#f5f5f5;color:#999">-</span>';
+            expiresText = '<span class="badge" style="background: var(--row-hover);color: var(--ink-3)">-</span>';
           } else if (isPermanent) {
             expiresText = '<span class="badge badge-info">永久</span>';
           } else if (r.expires_at && Number(r.expires_at) > 0) {
@@ -5730,11 +5801,11 @@
             if (durationMonths > 0 && durationMonths < 99) {
               d.setUTCMonth(d.getUTCMonth() + durationMonths);
             }
-            expiresText = new Date(d).toLocaleDateString('zh-CN') + '<span style="color:#e65100;font-size:0.75rem;margin-left:4px">(est)</span>';
+            expiresText = new Date(d).toLocaleDateString('zh-CN') + '<span style="color: var(--warn);font-size:0.75rem;margin-left:4px">(est)</span>';
           }
           var rcCell = r.redeem_code
             ? ('<span class="mono" style="font-weight:700">' + escapeHtml(String(r.redeem_code).slice(0, 4)) + '</span>')
-            : '<span style="color:#aaa">-</span>';
+            : '<span style="color: var(--ink-3)">-</span>';
           var rawDeviceId = r.device_id || '';
           var hashDeviceId = r.device_id_hash || r.used_device_id || '';
           var displayDeviceId = rawDeviceId;
@@ -5749,7 +5820,7 @@
             if (hDisplay.length > 5) hDisplay = hDisplay.slice(0, 5) + '…';
             deviceCell = '<span class="mono" style="font-size:0.6875rem;letter-spacing:0;opacity:0.65" title="' + escapeHtml(hashDeviceId) + '">' + escapeHtml(hDisplay) + '</span>';
           } else {
-            deviceCell = '<span style="color:#aaa">-</span>';
+            deviceCell = '<span style="color: var(--ink-3)">-</span>';
           }
           var hl = '';
           if ((highlightRc && String(r.redeem_code || '').toUpperCase() === highlightRc) ||
@@ -5758,7 +5829,7 @@
           }
           var statusBadge;
           if (isFailure) {
-            statusBadge = '<span class="badge" style="background:#fff3cd;color:#856404;border:1px solid #ffc107">失败</span>';
+            statusBadge = '<span class="badge" style="background: var(--warn-bg);color: var(--warn);border: 1px solid var(--warn-line)">失败</span>';
           } else {
             statusBadge = '<span class="badge badge-success">成功</span>';
           }
@@ -5769,9 +5840,9 @@
           var rMatch = refUrl.match(/[&?]r=([^&]+)/);
           var versionVal = rMatch ? decodeURIComponent(rMatch[1]) : '';
           var versionCell = versionVal || '';
-          if (!versionCell) versionCell = '<span style="color:#aaa">-</span>';
+          if (!versionCell) versionCell = '<span style="color: var(--ink-3)">-</span>';
           var modelCell = di.product || di.model || '';
-          if (!modelCell) modelCell = '<span style="color:#aaa">-</span>';
+          if (!modelCell) modelCell = '<span style="color: var(--ink-3)">-</span>';
 
           tableHtml += '<tr class="' + hl.trim() + '">';
           tableHtml += '<td>' + statusBadge + '</td>';
@@ -5779,17 +5850,17 @@
           if (ac) {
             tableHtml += '<td class="mono" style="font-size:0.8125rem;letter-spacing:0.5px"><a href="javascript:void(0)" class="redeem-link" onclick="openDecryptForActivationCode(\'' + escapeJs(ac) + '\')">' + formatActivationCode(ac) + ' -></a></td>';
           } else if (isFailure) {
-            tableHtml += '<td style="color:#aaa;font-size:0.8125rem">' + escapeHtml(r.reason || 'Failed') + '</td>';
+            tableHtml += '<td style="color: var(--ink-3);font-size:0.8125rem">' + escapeHtml(r.reason || 'Failed') + '</td>';
           } else {
-            tableHtml += '<td style="color:#aaa">-</td>';
+            tableHtml += '<td style="color: var(--ink-3)">-</td>';
           }
           tableHtml += '<td>' + rcCell + '</td>';
           tableHtml += '<td>' + deviceCell + '</td>';
           var ch = (di && di.source) || '';
           if (ch) {
-            tableHtml += '<td><span class="channel-badge" style="font-size:0.75rem;background:#e8f5e9;color:#2e7d32;padding: 2px 6px;border-radius:6px;white-space:nowrap">' + escapeHtml(ch) + '</span></td>';
+            tableHtml += '<td><span class="channel-badge" style="font-size:0.75rem;background: var(--ok-bg);color: var(--ok);padding: 2px 6px;border-radius:6px;white-space:nowrap">' + escapeHtml(ch) + '</span></td>';
           } else {
-            tableHtml += '<td style="color:#aaa;font-size:0.75rem">-</td>';
+            tableHtml += '<td style="color: var(--ink-3);font-size:0.75rem">-</td>';
           }
           tableHtml += '<td>' + escapeHtml(r.product_id || '') + '</td>';
           tableHtml += '<td style="font-size:0.8125rem">' + versionCell + '</td>';
@@ -5798,9 +5869,9 @@
           tableHtml += '<td>' + expiresText + '</td>';
           var actionCell = '';
           if (!isFailure && rawDeviceId) {
-            actionCell = '<button class="btn btn-sm" onclick="unbindActivation(\'' + escapeJs(r.activation_code || '') + '\', \'' + escapeJs(rawDeviceId) + '\', \'' + escapeJs(r.redeem_code || '') + '\')" style="font-size:0.75rem;padding: 2px 6px;background:#fff5f5;color:var(--err);border:1px solid #fecaca">解绑</button>';
+            actionCell = '<button class="btn btn-sm" onclick="unbindActivation(\'' + escapeJs(r.activation_code || '') + '\', \'' + escapeJs(rawDeviceId) + '\', \'' + escapeJs(r.redeem_code || '') + '\')" style="font-size:0.75rem;padding: 2px 6px;background: var(--err-bg);color:var(--err);border: 1px solid var(--err-line)">解绑</button>';
           } else {
-            actionCell = '<span style="color:#aaa;font-size:0.75rem">-</span>';
+            actionCell = '<span style="color: var(--ink-3);font-size:0.75rem">-</span>';
           }
           tableHtml += '<td>' + actionCell + '</td>';
           tableHtml += '</tr>';
@@ -6130,7 +6201,7 @@
       var hasVisitor = vi.ip || vi.os || vi.browser;
       var hasChannel = di.source;
 
-      if (!hasDevice && !hasVisitor && !isFailure && !hasChannel) return '<span style="color:#aaa">No detail</span>';
+      if (!hasDevice && !hasVisitor && !isFailure && !hasChannel) return '<span style="color: var(--ink-3)">No detail</span>';
 
       var html = '<div class="record-detail">';
 
@@ -6142,7 +6213,7 @@
         html += '<div class="detail-section">';
         html += '<div class="detail-section-title">Channel Source</div>';
         html += '<table class="detail-table">';
-        html += '<tr><td>Channel</td><td><span class="channel-badge" style="background:#e8f5e9;color:#2e7d32;padding:2px 8px;border-radius:6px;font-weight:600">' + escapeHtml(di.source) + '</span></td></tr>';
+        html += '<tr><td>Channel</td><td><span class="channel-badge" style="background: var(--ok-bg);color: var(--ok);padding:2px 8px;border-radius:6px;font-weight:600">' + escapeHtml(di.source) + '</span></td></tr>';
         if (channelParts.length >= 1 && platformMap[channelParts[0]]) {
           html += '<tr><td>Platform</td><td>' + platformMap[channelParts[0]] + '</td></tr>';
         }
@@ -6157,9 +6228,9 @@
 
       if (isFailure) {
         html += '<div class="detail-section">';
-        html += '<div class="detail-section-title" style="color:#856404">Failure Info</div>';
+        html += '<div class="detail-section-title" style="color: var(--warn)">Failure Info</div>';
         html += '<table class="detail-table">';
-        html += '<tr><td>Reason</td><td style="color:#856404;font-weight:600">' + escapeHtml(r.reason || 'Unknown') + '</td></tr>';
+        html += '<tr><td>Reason</td><td style="color: var(--warn);font-weight:600">' + escapeHtml(r.reason || 'Unknown') + '</td></tr>';
         html += '</table></div>';
       }
 
@@ -6213,7 +6284,7 @@
         data.channels.forEach(function(ch) {
           var pct = (ch.count / maxCount * 100).toFixed(0);
           var label = ch.channel === '__unknown__' ? 'Unknown' : ch.channel;
-          html += '<div class="stat-card" style="border-left:3px solid #10b981;min-width:80px;padding: 6px 12px">';
+          html += '<div class="stat-card" style="border-left: 3px solid var(--ok);min-width:80px;padding: 6px 12px">';
           html += '<div class="label" style="font-size:0.6875rem;white-space:nowrap">' + escapeHtml(label) + '</div>';
           html += '<div class="number" style="font-size:1rem;margin-top:2px">' + ch.count + '</div>';
           html += '<div style="margin-top:2px;height:3px;background:var(--line);border-radius:6px;overflow:hidden">';
@@ -6297,7 +6368,7 @@
         html += '<div class="detail-section">';
         html += '<div class="detail-section-title">IP Details</div>';
         html += '<table class="detail-table">';
-        if (v.ip) html += '<tr><td>IP Address</td><td style="font-family:monospace"><a href="javascript:void(0)" onclick="showIpCompare(\'' + escapeJs(v.ip) + '\')" style="color:var(--accent);text-decoration:none;font-weight:600">' + escapeHtml(v.ip) + '</a></td></tr>';
+        if (v.ip) html += '<tr><td>IP Address</td><td style="font-family:monospace"><a href="javascript:void(0)" onclick="showIpCompare(\'' + escapeJs(v.ip) + '\')" style="color: var(--accent-text);text-decoration:none;font-weight:600">' + escapeHtml(v.ip) + '</a></td></tr>';
         if (v.isp) html += '<tr><td>ISP</td><td>' + escapeHtml(v.isp) + '</td></tr>';
         if (v.org && v.org !== v.isp) html += '<tr><td>Organization</td><td>' + escapeHtml(v.org) + '</td></tr>';
         if (v.asn) html += '<tr><td>ASN</td><td style="font-family:monospace">AS' + escapeHtml(v.asn) + '</td></tr>';
@@ -7604,7 +7675,7 @@
             var td = tables[tk] || {};
             var cnt = td.count !== undefined ? td.count : '-';
             tableRows += '<tr><td style="padding: 4px 8px;font-size:0.75rem;color:var(--ink-2)">' + tableNames[tk] + '</td>' +
-              '<td style="padding: 4px 8px;font-size:0.75rem;font-family:monospace;color:#334155">' + cnt + ' 条</td>' +
+              '<td style="padding: 4px 8px;font-size:0.75rem;font-family:monospace;color: var(--ink-2)">' + cnt + ' 条</td>' +
               '<td style="padding: 4px 8px;font-size:0.6875rem;color:var(--ink-3);font-family:monospace">' + (td.key || tk) + '</td></tr>';
           });
           html += '<div class="backup-item">' +
@@ -7615,7 +7686,7 @@
             '<span class="backup-item-badge ' + (isAuto ? 'auto' : 'manual') + '">' + (isAuto ? '自动' : '手动') + '</span>' +
             '<div class="backup-item-actions">' +
               '<button class="btn btn-outline" style="padding:4px 12px;font-size:0.75rem" onclick="restoreBackup(\'' + b.id + '\')">↩️ 还原</button>' +
-              '<button class="btn btn-outline" style="padding:4px 12px;font-size:0.75rem;color:var(--err);border-color:#dc2626" onclick="deleteBackup(\'' + b.id + '\')">🗑️</button>' +
+              '<button class="btn btn-outline" style="padding:4px 12px;font-size:0.75rem;color:var(--err);border-color: var(--err)" onclick="deleteBackup(\'' + b.id + '\')">🗑️</button>' +
             '</div>' +
           '</div>' +
           '<div id="' + expandId + '" style="display:none;background:var(--row-hover);border:1px solid var(--line);border-top:none;border-radius:0 0 8px 8px;margin-top: -2px;padding:8px 12px">' +
@@ -7791,7 +7862,7 @@
         html += '<div class="field-row"><span class="field-label">兑换码</span><span class="field-value">' + dec.checkCode + '</span></div>';
         html += '<div class="field-row"><span class="field-label">有效期</span><span class="field-value">' + monthsText + '</span></div>';
         html += '<div class="field-row"><span class="field-label">设备 ID</span><span class="field-value">' + dec.deviceId + '</span></div>';
-        html += '<div class="field-row"><span class="field-label">验证结果</span><span class="field-value" style="color:#2e7d32">通过</span></div>';
+        html += '<div class="field-row"><span class="field-label">验证结果</span><span class="field-value" style="color: var(--ok)">通过</span></div>';
 
         resultEl.style.display = 'block';
         resultEl.className = 'decrypt-result success';
@@ -7866,7 +7937,7 @@
       html +=   '<span>已用 <strong>' + displayPct + '%</strong></span>';
       html +=   '<span>' + remainingText + '</span>';
       html += '</div>';
-      if (extraFootHtml) html += '<div style="margin-top: 12px;font-size:0.75rem;color:var(--ink-2);line-height:1.6;border-top:1px dashed #eef2ff;padding-top:8px">' + extraFootHtml + '</div>';
+      if (extraFootHtml) html += '<div style="margin-top: 12px;font-size:0.75rem;color:var(--ink-2);line-height:1.6;border-top: 1px dashed var(--line);padding-top:8px">' + extraFootHtml + '</div>';
       html += '</div>';
       return html;
     }
@@ -7923,7 +7994,7 @@
             freeH + ' 小时',
             pctH,
             computeSubtitle,
-            '冷启动 <strong>' + escapeHtml(String(c.coldStarts || 0)) + '</strong> 次 · 日均 <strong>' + escapeHtml(String(c.dailyAverageHours || 0)) + ' h</strong> · 按当前速率估算月末会用 <strong style="color:' + (Number(c.projectedHoursAtCurrentRate || 0) > freeH ? '#b91c1c' : '#111827') + '">' + escapeHtml(String(c.projectedHoursAtCurrentRate || 0)) + ' h</strong>'
+            '冷启动 <strong>' + escapeHtml(String(c.coldStarts || 0)) + '</strong> 次 · 日均 <strong>' + escapeHtml(String(c.dailyAverageHours || 0)) + ' h</strong> · 按当前速率估算月末会用 <strong style="color: ' + (Number(c.projectedHoursAtCurrentRate || 0) > freeH ? 'var(--err)' : 'var(--ink)') + '">' + escapeHtml(String(c.projectedHoursAtCurrentRate || 0)) + ' h</strong>'
           );
           var freeGiB = Number(st.freeGiB) || 0.5;
           var usedGiB = Number(st.dbSizeGiB) || 0;
@@ -7987,7 +8058,7 @@
           bs += '<div class="breakdown-card"><div class="b-title">本月估算活跃总时长</div><div class="b-val">' + escapeHtml(String(Number(c.usedHoursEstimate || 0).toFixed(3))) + ' h</div><div class="b-sub">scale-to-zero 不计时 · 精确值以 Neon 为准</div></div>';
           bs += '<div class="breakdown-card"><div class="b-title">冷启动次数</div><div class="b-val">' + escapeHtml(String(c.coldStarts || 0)) + '<small style="font-size:0.75rem;color:var(--ink-3);margin-left:4px">次</small></div><div class="b-sub">每 5 分钟空闲后首次请求算一次</div></div>';
           bs += '<div class="breakdown-card"><div class="b-title">本月累计观察到的请求数</div><div class="b-val">' + escapeHtml(String(c.totalPings || 0)) + '</div><div class="b-sub">API 访问（激活/后台/健康检查 等）</div></div>';
-          bs += '<div class="breakdown-card"><div class="b-title">月末预估消耗</div><div class="b-val" style="color:' + (Number(c.projectedHoursAtCurrentRate || 0) > Number(c.freeHours || 100) ? '#b91c1c' : '#065f46') + '">' + escapeHtml(String(c.projectedHoursAtCurrentRate || 0)) + ' h</div><div class="b-sub">按已过天数等比线性推算</div></div>';
+          bs += '<div class="breakdown-card"><div class="b-title">月末预估消耗</div><div class="b-val" style="color: ' + (Number(c.projectedHoursAtCurrentRate || 0) > Number(c.freeHours || 100) ? 'var(--err)' : 'var(--ok)') + '">' + escapeHtml(String(c.projectedHoursAtCurrentRate || 0)) + ' h</div><div class="b-sub">按已过天数等比线性推算</div></div>';
           bs += '<div class="breakdown-card"><div class="b-title">每日平均活跃</div><div class="b-val">' + escapeHtml(String(c.dailyAverageHours || 0)) + '<small style="font-size:0.75rem;color:var(--ink-3);margin-left:4px">h / 天</small></div><div class="b-sub">理想日使用应 < 3.33 小时（100h / 30d）</div></div>';
           bs += '<div class="breakdown-card"><div class="b-title">下次免费额度重置</div><div class="b-val">' + new Date(m.nextResetUtcIso || new Date()).toLocaleDateString('zh-CN') + '</div><div class="b-sub">届时 Compute、Egress 会重新从 0 开始计</div></div>';
           breakEl.innerHTML = bs;
@@ -8013,7 +8084,7 @@
               body += '<tr><td class="mono">' + escapeHtml(k) + '</td>';
               body += '<td style="text-align:right">' + r.toLocaleString('zh-CN') + '</td>';
               body += '<td style="text-align:right">' + mb.toFixed(2) + ' MB</td>';
-              body += '<td style="text-align:right"><div class="qc-progress ' + lvl + '" style="margin:0 0 4px auto;max-width:160px;display:inline-block;vertical-align:middle;height:6px;width:140px"><div style="width:' + Math.max(0, Math.min(100, pctT)) + '%"></div></div> <span style="font-size:0.8125rem;color:#374151;margin-left:6px">' + pctT.toFixed(2) + '%</span></td></tr>';
+              body += '<td style="text-align:right"><div class="qc-progress ' + lvl + '" style="margin:0 0 4px auto;max-width:160px;display:inline-block;vertical-align:middle;height:6px;width:140px"><div style="width:' + Math.max(0, Math.min(100, pctT)) + '%"></div></div> <span style="font-size:0.8125rem;color: var(--ink-2);margin-left:6px">' + pctT.toFixed(2) + '%</span></td></tr>';
             });
           }
           storeEl.innerHTML = head + body + '</tbody></table>';
@@ -8105,12 +8176,12 @@
           activityIcon.textContent = '🟠';
           activityText.innerHTML = '<strong>即将暂停！</strong> 最后一次活动在 ' + days + ' 天前，距离 Supabase 7 天自动暂停还有 <strong>' + pausedDays + ' 天</strong>。请尽快触发数据库操作（如运行健康检查）。';
         } else if (warning === 'warning') {
-          activityBar.style.background = '#fffbeb';
+          activityBar.style.background = 'var(--warn-bg)';
           activityBar.style.border = '1px solid #fde68a';
           activityIcon.textContent = '🟡';
           activityText.innerHTML = '最后一次活动在 ' + days + ' 天前，距离自动暂停还有 <strong>' + pausedDays + ' 天</strong>。';
         } else {
-          activityBar.style.background = '#f0fdf4';
+          activityBar.style.background = 'var(--ok-bg)';
           activityBar.style.border = '1px solid #bbf7d0';
           activityIcon.textContent = '🟢';
           activityText.innerHTML = '最后活动在 ' + days + ' 天前，距离自动暂停还有 <strong>' + pausedDays + ' 天</strong>。数据库活跃正常。';
@@ -8229,8 +8300,8 @@
 
         var statusDiv = document.getElementById('dbStatusCurrent');
         if (statusDiv && d.currentProvider) {
-          statusDiv.style.background = '#f0fdf4';
-          statusDiv.style.borderColor = '#bbf7d0';
+          statusDiv.style.background = 'var(--ok-bg)';
+          statusDiv.style.borderColor = 'var(--ok-line)';
         }
 
         var coordinatorEl = document.getElementById('dbCoordinatorCard');
@@ -8251,8 +8322,8 @@
             var coordHtml = '';
             coordinators.forEach(function(db) {
               var statusIcon = db.configured ? '✅' : '❌';
-              coordHtml += '<div class="info-card" style="border-left:3px solid #8b5cf6;background:#faf5ff">';
-              coordHtml += '<h4>' + statusIcon + ' ' + escapeHtml(db.name) + '<span class="tag" style="margin-left:6px;background:#ede9fe;color:#7c3aed">⚙️ 协调层</span></h4>';
+              coordHtml += '<div class="info-card" style="border-left: 3px solid var(--accent);background:#faf5ff">';
+              coordHtml += '<h4>' + statusIcon + ' ' + escapeHtml(db.name) + '<span class="tag" style="margin-left:6px;background: var(--accent-bg);color: var(--accent-text)">⚙️ 协调层</span></h4>';
               coordHtml += '<p><strong>类型：</strong>' + escapeHtml(db.type) + ' · <strong>主机：</strong>' + escapeHtml(db.host) + '</p>';
               coordHtml += '<p><strong>免费额度：</strong>' + escapeHtml(db.freeLimit) + '</p>';
               coordHtml += '<p><strong>配置状态：</strong>' + (db.configured ? '<span style="color:var(--ok)">已配置</span>' : '<span style="color:var(--err)">未配置</span>') + '</p>';
@@ -8260,7 +8331,7 @@
               if (db.syncStats) {
                 var ss = db.syncStats;
                 var syncTotal = (ss.strings || 0) + (ss.hashes || 0) + (ss.sets || 0) + (ss.zsets || 0);
-                coordHtml += '<p style="margin-top:6px"><strong>数据：</strong>4 种, <span style="font-size:1rem;font-weight:700;color:#7c3aed">' + syncTotal.toLocaleString() + '</span> 条记录</p>';
+                coordHtml += '<p style="margin-top:6px"><strong>数据：</strong>4 种, <span style="font-size:1rem;font-weight:700;color: var(--accent-text)">' + syncTotal.toLocaleString() + '</span> 条记录</p>';
                 coordHtml += '<table style="width:100%;margin-top:4px;font-size:0.8125rem;border-collapse:collapse">';
                 coordHtml += '<thead><tr style="color:var(--ink-2)"><th style="text-align:left;padding:2px 4px">类型</th><th style="text-align:right;padding:2px 4px">条数</th></tr></thead><tbody>';
                 coordHtml += '<tr><td style="padding: 2px 4px;font-family:monospace">strings</td><td style="text-align:right;padding: 2px 4px">' + (ss.strings || 0).toLocaleString() + '</td></tr>';
@@ -8272,19 +8343,19 @@
                   coordHtml += '<p style="font-size:0.75rem;color:var(--ink-3);margin-top:4px">' + Number(db.keyCount).toLocaleString() + ' keys</p>';
                 }
               } else if (db.keyCount !== null && db.keyCount !== undefined) {
-                coordHtml += '<p style="margin-top:6px"><strong>数据：</strong><span style="font-size:1rem;font-weight:700;color:#7c3aed">' + Number(db.keyCount).toLocaleString() + '</span> keys</p>';
+                coordHtml += '<p style="margin-top:6px"><strong>数据：</strong><span style="font-size:1rem;font-weight:700;color: var(--accent-text)">' + Number(db.keyCount).toLocaleString() + '</span> keys</p>';
               }
               if (Array.isArray(db.keys) && db.keys.length > 0) {
                 coordHtml += '<div style="margin-top:4px;font-size:0.8125rem;color:var(--ink-2)">';
                 for (var ki = 0; ki < db.keys.length; ki++) {
-                  coordHtml += '<span style="display:inline-block;background:#ede9fe;padding: 2px 6px;border-radius:6px;margin: 2px 2px">' + escapeHtml(db.keys[ki].name) + ' x' + db.keys[ki].rowCount + '</span>';
+                  coordHtml += '<span style="display:inline-block;background: var(--accent-bg);padding: 2px 6px;border-radius:6px;margin: 2px 2px">' + escapeHtml(db.keys[ki].name) + ' x' + db.keys[ki].rowCount + '</span>';
                 }
                 coordHtml += '</div>';
               }
               if (db.error) {
                 coordHtml += '<p style="margin-top:2px;color:var(--err);font-size:0.75rem">' + escapeHtml(db.error) + '</p>';
               }
-              coordHtml += '<div style="margin-top: 12px;padding-top: 12px;border-top:1px solid #e9d5ff;font-size:0.8125rem;color:#7c3aed">⚙️ 协调层不可切换，不参与主数据库选举</div>';
+              coordHtml += '<div style="margin-top: 12px;padding-top: 12px;border-top: 1px solid var(--accent-line);font-size:0.8125rem;color: var(--accent-text)">⚙️ 协调层不可切换，不参与主数据库选举</div>';
               coordHtml += '</div>';
             });
             coordinatorEl.innerHTML = coordHtml || '<div class="empty">未配置协调层数据库</div>';
@@ -8304,7 +8375,7 @@
               dataHtml += '<p><strong>免费额度：</strong>' + escapeHtml(db.freeLimit) + '</p>';
               dataHtml += '<p><strong>配置状态：</strong>' + (db.configured ? '<span style="color:var(--ok)">已配置</span>' : '<span style="color:var(--err)">未配置</span>') + '</p>';
 
-              dataHtml += '<p style="margin-top:6px"><strong>数据：</strong>' + db.tableCount + ' 表, <span style="font-size:1rem;font-weight:700;color:var(--accent)">' + Number(db.totalRows || 0).toLocaleString() + '</span> 条记录</p>';
+              dataHtml += '<p style="margin-top:6px"><strong>数据：</strong>' + db.tableCount + ' 表, <span style="font-size:1rem;font-weight:700;color: var(--accent-text)">' + Number(db.totalRows || 0).toLocaleString() + '</span> 条记录</p>';
               if (Array.isArray(db.tables) && db.tables.length > 0) {
                 dataHtml += '<table style="width:100%;margin-top:4px;font-size:0.8125rem;border-collapse:collapse">';
                 dataHtml += '<thead><tr style="color:var(--ink-2)"><th style="text-align:left;padding:2px 4px">表名</th><th style="text-align:right;padding:2px 4px">行数</th></tr></thead><tbody>';
@@ -8364,13 +8435,13 @@
             syncEl.innerHTML =
               '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">' +
               '<div><strong>最后同步日期：</strong><br>' + new Date(ss.lastSyncDate).toLocaleString('zh-CN') + '</div>' +
-              '<div><strong>更新次数：</strong><br><span style="font-size:1.5rem;font-weight:700;color:var(--accent)">' + escapeHtml(String(ss.updateCount || 0)) + '</span> 次</div>' +
+              '<div><strong>更新次数：</strong><br><span style="font-size:1.5rem;font-weight:700;color: var(--accent-text)">' + escapeHtml(String(ss.updateCount || 0)) + '</span> 次</div>' +
               '<div><strong>同步类型：</strong><br>' + escapeHtml(ss.lastSyncType || '-') + (ss.targets ? ' (' + escapeHtml(ss.targets.join(', ')) + ')' : '') + '</div>' +
               '<div><strong>状态：</strong><br>' + escapeHtml(ss.message || '正常') + '</div>' +
               '</div>';
 
             if (d.syncLogs && d.syncLogs.length > 0) {
-              syncEl.innerHTML += '<div style="margin-top: 12px;border-top:1px solid #fde68a;padding-top: 12px"><strong style="font-size:0.8125rem">📋 最近同步日志：</strong></div>';
+              syncEl.innerHTML += '<div style="margin-top: 12px;border-top: 1px solid var(--warn-line);padding-top: 12px"><strong style="font-size:0.8125rem">📋 最近同步日志：</strong></div>';
               for (var sli = 0; sli < Math.min(d.syncLogs.length, 5); sli++) {
                 var sl = d.syncLogs[sli];
                 var slTime = '';
@@ -8501,12 +8572,12 @@
         var html = '';
 
         if (data.canSwitch) {
-          html += '<div style="text-align:center;padding:8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;margin-bottom:12px">';
+          html += '<div style="text-align:center;padding:8px;background: var(--ok-bg);border: 1px solid var(--ok-line);border-radius:10px;margin-bottom:12px">';
           html += '<span style="font-size:1rem;font-weight:700;color:var(--ok)">Data is consistent</span>';
           html += '<p style="font-size:0.8125rem;color:var(--ink-2);margin-top:4px">' + escapeHtml(data.suggestion) + '</p>';
           html += '</div>';
         } else {
-          html += '<div style="text-align:center;padding:8px;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;margin-bottom:12px">';
+          html += '<div style="text-align:center;padding:8px;background: var(--err-bg);border: 1px solid var(--err-line);border-radius:10px;margin-bottom:12px">';
           html += '<span style="font-size:1rem;font-weight:700;color:var(--err)">Data Mismatch</span>';
           html += '<p style="font-size:0.8125rem;color:var(--ink-2);margin-top:4px">' + escapeHtml(data.reason) + '</p>';
           html += '<p style="font-size:0.8125rem;color:var(--ink-2);margin-top:2px"><strong>Suggestion:</strong> ' + escapeHtml(data.suggestion) + '</p>';
@@ -9074,7 +9145,7 @@
           var expandId = 'afdian-expand-' + (o.out_trade_no || '');
 
           return '<tr id="' + rowId + '">' +
-            '<td class="mono" style="cursor:pointer;color:var(--accent)" onclick="toggleAfdianExpand(\'' + expandId + '\')" title="Click to view raw API response">' + escapeHtml(outTradeNoShort) + '</td>' +
+            '<td class="mono" style="cursor:pointer;color: var(--accent-text)" onclick="toggleAfdianExpand(\'' + expandId + '\')" title="Click to view raw API response">' + escapeHtml(outTradeNoShort) + '</td>' +
             '<td title="' + escapeHtml(userId) + '">' + escapeHtml(userName) +
               ' <button class="btn btn-outline" style="padding: 2px 6px;font-size:0.6875rem;border-radius:6px" onclick="openDmModal(\'' + escapeJs(userId) + '\',\'' + escapeJs(userName) + '\')" title="Send DM">📨</button>' +
             '</td>' +
@@ -9093,8 +9164,8 @@
             '</tr>' +
             '<tr id="' + expandId + '" style="display:none"><td colspan="9" style="padding:0;background:var(--row-hover);border-bottom:2px solid var(--line)">' +
               '<div style="padding:12px 16px;max-height:360px;overflow:auto">' +
-                '<div style="font-weight:600;font-size:0.8125rem;color:#475569;margin-bottom: 6px">Raw API Response</div>' +
-                '<pre style="font-size:0.6875rem;color:#334155;white-space:pre;margin:0">' + escapeHtml(rawJson) + '</pre>' +
+                '<div style="font-weight:600;font-size:0.8125rem;color: var(--ink-2);margin-bottom: 6px">Raw API Response</div>' +
+                '<pre style="font-size:0.6875rem;color: var(--ink-2);white-space:pre;margin:0">' + escapeHtml(rawJson) + '</pre>' +
               '</div>' +
             '</td></tr>';
         }).join('');
@@ -9126,7 +9197,7 @@
           if (data.message) {
             console.warn('[afdian:ui] syncAfdianOrders warning:', data.message);
             statusEl.style.display = 'block';
-            statusEl.style.background = '#fffbeb';
+            statusEl.style.background = 'var(--warn-bg)';
             statusEl.style.color = '#92400e';
             statusEl.style.border = '1px solid #fcd34d';
             statusEl.textContent = '⚠️ ' + data.message;
@@ -9325,7 +9396,7 @@
           ];
           overviewEl.innerHTML = cards.map(function(c) {
             var trendHtml = typeof c.trend === 'number'
-              ? '<span style="color:' + (c.trend >= 0 ? '#16a34a' : '#dc2626') + ';font-size:0.75rem;margin-left:6px">' + (c.trend >= 0 ? '▲' : '▼') + Math.abs(c.trend) + '%</span>'
+              ? '<span style="color: ' + (c.trend >= 0 ? 'var(--ok)' : 'var(--err)') + ';font-size:0.75rem;margin-left:6px">' + (c.trend >= 0 ? '▲' : '▼') + Math.abs(c.trend) + '%</span>'
               : '';
             return '<div style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding: 16px 16px">' +
               '<div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">' + c.label + '</div>' +
@@ -9366,9 +9437,9 @@
           } else {
             var filterNotice = '';
           if (window._visitorFilterIp) {
-            filterNotice = '<div style="margin-bottom: 12px;padding:8px 12px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;font-size:0.875rem;display:flex;align-items:center;justify-content:space-between">' +
-              '<span>Filtering by IP: <strong style="font-family:monospace;color:var(--accent)">' + escapeHtml(window._visitorFilterIp) + '</strong></span>' +
-              '<span onclick="window._visitorFilterIp=null;loadVisitors()" style="cursor:pointer;color:var(--accent);font-weight:600;font-size:0.75rem">[Clear]</span>' +
+            filterNotice = '<div style="margin-bottom: 12px;padding:8px 12px;background: var(--warn-bg);border: 1px solid var(--warn);border-radius:6px;font-size:0.875rem;display:flex;align-items:center;justify-content:space-between">' +
+              '<span>Filtering by IP: <strong style="font-family:monospace;color: var(--accent-text)">' + escapeHtml(window._visitorFilterIp) + '</strong></span>' +
+              '<span onclick="window._visitorFilterIp=null;loadVisitors()" style="cursor:pointer;color: var(--accent-text);font-weight:600;font-size:0.75rem">[Clear]</span>' +
               '</div>';
           }
           recentEl.innerHTML = filterNotice + '<table style="width:100%;border-collapse:collapse;font-size:0.875rem">' +
@@ -9390,16 +9461,16 @@
                 var t = v.time ? new Date(v.time).toLocaleString() : '-';
                 var uaShort = (v.ua || '').replace(/\(.*?\)/g, '').trim().slice(0, 50);
                 var locStr = fmtVisitorLoc(v);
-                var ispHint = v.isp ? '<div style="font-size:0.6875rem;color:#8b5cf6;margin-top: 2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px">' + escapeHtml(v.isp) + '</div>' : '';
+                var ispHint = v.isp ? '<div style="font-size:0.6875rem;color: var(--accent-text);margin-top: 2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px">' + escapeHtml(v.isp) + '</div>' : '';
                 var vidx = 'visitorDetail' + idx;
                 rowsHtml += '<tr class="visitor-row" onclick="toggleVisitorDetail(event, this)" data-vidx="' + vidx + '">' +
-                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-family:monospace;color:#6366f1;font-size:0.75rem">' + escapeHtml(v.hash || '-') + '</td>' +
+                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-family:monospace;color: var(--accent-text);font-size:0.75rem">' + escapeHtml(v.hash || '-') + '</td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(v.path || '/') + '">' +
                   '<span style="display:inline-flex;align-items:center;gap:4px;max-width:100%">' +
                   '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;max-width:90px">' + escapeHtml(v.path || '/') + '</span>' +
                   '<span class="copy-url-btn" onclick="event.stopPropagation();copyPageUrl(\'' + escapeJs(v.path || '/') + '\')" title="Copy URL" style="cursor:pointer;flex-shrink:0;font-size:0.6875rem;opacity:0.4;transition:opacity 0.15s">Copy</span>' +
                   '</span></td>' +
-                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-family:monospace;font-size:0.75rem;white-space:nowrap"><a href="javascript:void(0)" onclick="event.stopPropagation();showIpCompare(\'' + escapeJs(v.ip) + '\')" style="color:var(--accent);text-decoration:none;font-weight:600">' + escapeHtml(v.ip) + '</a></td>' +
+                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-family:monospace;font-size:0.75rem;white-space:nowrap"><a href="javascript:void(0)" onclick="event.stopPropagation();showIpCompare(\'' + escapeJs(v.ip) + '\')" style="color: var(--accent-text);text-decoration:none;font-weight:600">' + escapeHtml(v.ip) + '</a></td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:0.75rem">' + t + '</td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-size:0.75rem">' + escapeHtml(locStr) + ispHint + '</td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:0.75rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(v.ua || '') + '">' + escapeHtml(uaShort) + '</td>' +
@@ -9520,11 +9591,11 @@
         // 已按某城市筛选：只显示「返回全部」
         el.innerHTML = '<span style="cursor:pointer;font-size:0.75rem;padding: 4px 12px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted)" ' +
           'onclick="window._uniqueIpCity=null;loadUniqueIps()">← 全部城市（' + ((res.stats && res.stats.ips) || 0) + ' 个 IP）</span>' +
-          '<span style="font-size:0.75rem;padding: 4px 12px;border-radius:999px;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.35);color:var(--accent);font-weight:600">' +
+          '<span style="font-size:0.75rem;padding: 4px 12px;border-radius:999px;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.35);color: var(--accent-text);font-weight:600">' +
           escapeHtml(res.city) + '（' + ((res.stats && res.stats.shown) || 0) + '）</span>';
         return;
       }
-      var chips = '<span onclick="window._uniqueIpCity=null;loadUniqueIps()" style="cursor:pointer;font-size:0.75rem;padding: 4px 12px;border-radius:999px;border:1px solid rgba(99,102,241,0.35);background:rgba(99,102,241,0.12);color:var(--accent);font-weight:600">' +
+      var chips = '<span onclick="window._uniqueIpCity=null;loadUniqueIps()" style="cursor:pointer;font-size:0.75rem;padding: 4px 12px;border-radius:999px;border:1px solid rgba(99,102,241,0.35);background:rgba(99,102,241,0.12);color: var(--accent-text);font-weight:600">' +
         '全部（' + ((res.stats && res.stats.ips) || 0) + '）</span>';
       (res.cities || []).forEach(function (c) {
         chips += '<span onclick="filterUniqueIpCity(\'' + escapeJs(c.name) + '\')" title="点击只看该城市的唯一 IP（' + c.ips + ' 个 IP / ' + c.visits + ' 次访问）" ' +
@@ -9576,12 +9647,12 @@
 
         html += '<tr class="visitor-row" onclick="toggleUniqueIpRow(' + idx + ')">' +
           '<td style="padding: 8px 8px;border-bottom:1px solid var(--line);font-family:monospace;font-size:0.75rem;white-space:nowrap">' +
-          '<a href="javascript:void(0)" onclick="event.stopPropagation();showUniqueIpDetail(\'' + escapeJs(v.ip) + '\')" style="color:var(--accent);text-decoration:none;font-weight:600">' + escapeHtml(v.ip) + '</a>' +
+          '<a href="javascript:void(0)" onclick="event.stopPropagation();showUniqueIpDetail(\'' + escapeJs(v.ip) + '\')" style="color: var(--accent-text);text-decoration:none;font-weight:600">' + escapeHtml(v.ip) + '</a>' +
           '</td>' +
           '<td style="padding: 8px 8px;border-bottom:1px solid var(--line);font-size:0.8125rem">' + escapeHtml(loc) + '</td>' +
           '<td style="padding: 8px 8px;border-bottom:1px solid var(--line);font-weight:700;color:var(--ink)">' + v.visits + '</td>' +
           '<td style="padding: 8px 8px;border-bottom:1px solid var(--line);color:var(--muted)">' + (v.uv || 0) + '</td>' +
-          '<td style="padding: 8px 8px;border-bottom:1px solid var(--line);font-size:0.6875rem;color:#8b5cf6;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(v.isp || '') + '">' + escapeHtml(ispShort || '-') + '</td>' +
+          '<td style="padding: 8px 8px;border-bottom:1px solid var(--line);font-size:0.6875rem;color: var(--accent-text);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(v.isp || '') + '">' + escapeHtml(ispShort || '-') + '</td>' +
           '<td style="padding: 8px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:0.75rem;white-space:nowrap">' + escapeHtml(last) + '</td>' +
           '<td style="padding: 8px 8px;border-bottom:1px solid var(--line);font-size:0.75rem;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(paths.join('  |  ')) + '">' + escapeHtml(mainPath) + '</td>' +
           '<td style="padding: 8px 8px;border-bottom:1px solid var(--line);text-align:center;color:var(--muted);font-size:0.75rem">▼</td>' +
@@ -9595,9 +9666,9 @@
             return '<div style="margin:2px 0"><span style="color:var(--muted);font-size:0.6875rem">' + escapeHtml(new Date(p.time).toLocaleString()) + '</span> ' + escapeHtml(p.path) + '</div>';
           }).join('') + '</div>' +
           '<div style="display:flex;gap:12px;flex-wrap:wrap">' +
-          '<span onclick="showUniqueIpDetail(\'' + escapeJs(v.ip) + '\')" style="cursor:pointer;color:var(--accent);font-weight:600;font-size:0.75rem">[IP 详情（多源）]</span>' +
-          '<span onclick="showVisitorFilter(\'' + escapeJs(v.ip) + '\')" style="cursor:pointer;color:var(--accent);font-weight:600;font-size:0.75rem">[该 IP 的访客记录]</span>' +
-          '<span onclick="copyText(\'' + escapeJs(v.ip) + '\')" style="cursor:pointer;color:var(--accent);font-weight:600;font-size:0.75rem">[复制 IP]</span>' +
+          '<span onclick="showUniqueIpDetail(\'' + escapeJs(v.ip) + '\')" style="cursor:pointer;color: var(--accent-text);font-weight:600;font-size:0.75rem">[IP 详情（多源）]</span>' +
+          '<span onclick="showVisitorFilter(\'' + escapeJs(v.ip) + '\')" style="cursor:pointer;color: var(--accent-text);font-weight:600;font-size:0.75rem">[该 IP 的访客记录]</span>' +
+          '<span onclick="copyText(\'' + escapeJs(v.ip) + '\')" style="cursor:pointer;color: var(--accent-text);font-weight:600;font-size:0.75rem">[复制 IP]</span>' +
           '</div></td></tr>';
       });
 
@@ -9629,8 +9700,8 @@
           '<div style="display:flex;align-items:center;justify-content:space-between;gap: 12px;flex-wrap:wrap;margin-bottom:8px">' +
           '<span style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">IP 详情</span>' +
           '<span style="display:flex;gap: 12px">' +
-          '<span onclick="showUniqueIpDetail(\'' + escapeJs(ip) + '\', true)" style="cursor:pointer;color:var(--accent);font-weight:600;font-size:0.75rem">[重新查询]</span>' +
-          '<span onclick="document.getElementById(\'visitorIpDetailBox\').style.display=\'none\'" style="cursor:pointer;color:var(--accent);font-weight:600;font-size:0.75rem">[收起]</span>' +
+          '<span onclick="showUniqueIpDetail(\'' + escapeJs(ip) + '\', true)" style="cursor:pointer;color: var(--accent-text);font-weight:600;font-size:0.75rem">[重新查询]</span>' +
+          '<span onclick="document.getElementById(\'visitorIpDetailBox\').style.display=\'none\'" style="cursor:pointer;color: var(--accent-text);font-weight:600;font-size:0.75rem">[收起]</span>' +
           '</span></div>' +
           renderIpDetailCards(data.results[0], data.sources || [], ip);
       }).catch(function (e) {
@@ -9733,7 +9804,7 @@
       // ---- 头部：IP + 复制 + 标签 ----
       html += '<div class="detail-section" style="margin-bottom:12px">';
       html += '<div style="display:flex;align-items:center;justify-content:space-between;gap: 12px;flex-wrap:wrap">';
-      html += '<div style="font-family:monospace;font-size:1rem;font-weight:700;color:var(--accent);word-break:break-all">' + escapeHtml(ip) + '</div>';
+      html += '<div style="font-family:monospace;font-size:1rem;font-weight:700;color: var(--accent-text);word-break:break-all">' + escapeHtml(ip) + '</div>';
       html += '<button id="ipDetailCopyBtn" onclick="ipDetailCopy(\'' + escapeJs(ip) + '\')" style="cursor:pointer;border:1px solid var(--line);background:transparent;color:inherit;border-radius:10px;padding: 6px 12px;font-size:0.75rem">复制</button>';
       html += '</div>';
       html += '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">';
@@ -9815,7 +9886,7 @@
           html += '<td style="word-break:break-all">' + escapeHtml(visits[m].path || '/') + '</td></tr>';
         }
         html += '</table>';
-        html += '<div style="margin-top:8px"><span onclick="showVisitorFilter(\'' + escapeJs(ip) + '\')" style="cursor:pointer;color:var(--accent);font-weight:600;font-size:0.75rem">[查看全部访客记录]</span></div>';
+        html += '<div style="margin-top:8px"><span onclick="showVisitorFilter(\'' + escapeJs(ip) + '\')" style="cursor:pointer;color: var(--accent-text);font-weight:600;font-size:0.75rem">[查看全部访客记录]</span></div>';
         html += '</div>';
       }
 
@@ -10024,7 +10095,7 @@
                 var statusCell = row.cells[2];
                 var timelineCell = row.cells[5];
                 if (statusCell) {
-                  statusCell.innerHTML = '<span style="color:#3b82f6;font-weight:600;font-size:0.75rem">📤 已发布</span>';
+                  statusCell.innerHTML = '<span style="color: var(--info);font-weight:600;font-size:0.75rem">📤 已发布</span>';
                 }
                 if (timelineCell && data.results && data.results[0] && data.results[0].timestamp) {
                   var publishedTime = new Date(data.results[0].timestamp * 1000).toLocaleTimeString();
@@ -10154,7 +10225,7 @@
             var nameEn = escapeHtml(it.name_en || '-');
             var target = escapeHtml(it.target_url || '');
             var status = it.enabled !== false
-              ? '<span style="color:#16a34a;font-weight:600">●启用</span>'
+              ? '<span style="color: var(--ok);font-weight:600">●启用</span>'
               : '<span style="color:var(--ink-3)">○已停用</span>';
             var week7 = weekClicksOf(slug, stats);
             var updatedAt = fmtDate(it.updated_at || it.created_at || 0);
@@ -10162,7 +10233,7 @@
               '<td><code style="font-weight:600">' + slug + '</code><br><span style="font-size:0.6875rem;color:var(--ink-2)">' + escapeHtml(shortUrl(it.slug)) + '</span></td>' +
               '<td>' + nameZh + '</td>' +
               '<td><code style="font-size:0.8125rem">' + nameEn + '</code></td>' +
-              '<td><a href="' + target + '" target="_blank" rel="noopener" style="font-size:0.8125rem;color:var(--accent);word-break:break-all">' + target + '</a></td>' +
+              '<td><a href="' + target + '" target="_blank" rel="noopener" style="font-size:0.8125rem;color: var(--accent-text);word-break:break-all">' + target + '</a></td>' +
               '<td>' + status + '</td>' +
               '<td>' + week7 + '</td>' +
               '<td style="font-size:0.8125rem;color:var(--ink-2)">' + updatedAt + '</td>' +
@@ -10212,7 +10283,7 @@
         var h = Math.max(2, Math.round((d.clicks / max) * 110));
         var label = (d.date || '').slice(5);
         return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">' +
-          '<div style="font-size:0.6875rem;color:#475569;font-weight:600">' + d.clicks + '</div>' +
+          '<div style="font-size:0.6875rem;color: var(--ink-2);font-weight:600">' + d.clicks + '</div>' +
           '<div style="width:100%;height:' + h + 'px;background:linear-gradient(180deg,#3b82f6,#1e40af);border-radius:6px 4px 0 0;min-height:2px"></div>' +
           '<div style="font-size:0.6875rem;color:var(--ink-3)">' + escapeHtml(label) + '</div>' +
         '</div>';
