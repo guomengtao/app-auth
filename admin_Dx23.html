@@ -74,6 +74,22 @@
       --ui-ink-2: #475569;
       --ui-ink-3: #64748b;
       --ui-line: #d7dde7;
+
+      /* —— 侧栏专用令牌（默认：深色侧栏）——「素白」主题会把它翻成白色侧栏 —— */
+      --sidebar-ink: rgba(255,255,255,0.62);
+      --sidebar-ink-strong: #ffffff;
+      --sidebar-ink-dim: rgba(255,255,255,0.35);
+      --sidebar-nav-label: rgba(255,255,255,0.28);
+      --sidebar-line: rgba(255,255,255,0.07);
+      --sidebar-hover-bg: rgba(255,255,255,0.06);
+      --sidebar-active-bg: rgba(108,99,255,0.22);
+      --sidebar-active-bg-strong: rgba(108,99,255,0.35);
+      --sidebar-brand-ink: #ffffff;
+      --sidebar-user-bg: rgba(255,255,255,0.04);
+      --sidebar-user-bg-hover: rgba(255,255,255,0.08);
+
+      /* 主色底上的文字（深色模式 / 单色主题会把主色翻亮，这时需要反色文字） */
+      --on-accent: #ffffff;
     }
 
 
@@ -318,6 +334,87 @@
     }
 
 
+
+    /* ----- 方案11：素白（通栏纯白 + 强分隔）—— 专门试「白色大背景」风格 -----
+       与其它主题的本质区别：不是换色，而是换「版式策略」——
+       画布与卡片同为白色，不靠灰底/投影区分层次，靠 1px 分隔线 + 区块间距 + 排版层级。
+       侧栏也翻成白色（靠右侧 1px 线分区），主色走近黑单色。 */
+    [data-theme="pure-white"] {
+      --bg: #ffffff;
+      --surface: #ffffff;
+      --elevated: #ffffff;
+      --line: #e4e7ec;          /* 分隔线是这套风格的「骨架」，不能太淡 */
+      --ink: #101828;           /* 18.0:1 */
+      --ink-2: #475569;         /* 7.6:1  */
+      --ink-3: #667085;         /* 4.9:1  */
+      --row-hover: #fafbfc;
+      --th-bg: #f7f8fa;
+      --accent: #18181b;        /* 近黑单色主色 → 最「黑白分明」 */
+      --accent-2: #09090b;
+      --accent-soft: rgba(24, 24, 27, 0.08);
+      /* 白色侧栏 */
+      --sidebar: #ffffff;
+      --sidebar-ink: #52525b;
+      --sidebar-ink-strong: #18181b;
+      --sidebar-ink-dim: #667085;   /* 白底上 4.9:1（原来 #98a2b3 只有 2.58:1） */
+      --sidebar-nav-label: #667085;
+      --sidebar-line: #eaecf0;
+      --sidebar-hover-bg: #f4f5f7;
+      --sidebar-active-bg: #eef0f3;
+      --sidebar-active-bg-strong: #e7e9ee;
+      --sidebar-brand-ink: #18181b;
+      --sidebar-user-bg: #f7f8fa;
+      --sidebar-user-bg-hover: #eef0f3;
+      /* 扁平：不用投影（层次交给分隔线） */
+      --shadow-1: none;
+      --shadow-2: 0 1px 2px rgba(16, 24, 40, 0.06);
+      --shadow-3: 0 16px 40px rgba(16, 24, 40, 0.12);
+    }
+
+    /* ---- 「素白」专属版式：扁平网格 ----
+       画布纯白 + 区块用 1px 实线直角框（去掉圆角与投影）。
+       第一版试过「无边框 + 底部分隔线」，结果分组线索全没了（两块并排的内容糊成一片），
+       所以改成「白画布 + 直角细线框」：既保留分组，又与其它 10 套主题（灰底 + 圆角 + 投影）在观感上完全不同。 */
+    [data-theme="pure-white"] .sidebar { border-right: 1px solid var(--sidebar-line); }
+    [data-theme="pure-white"] .setting-block,
+    [data-theme="pure-white"] .card,
+    [data-theme="pure-white"] .table-wrap,
+    [data-theme="pure-white"] .dash-card,
+    [data-theme="pure-white"] .health-card,
+    [data-theme="pure-white"] .da-card,
+    [data-theme="pure-white"] .quota-card,
+    [data-theme="pure-white"] .info-card,
+    [data-theme="pure-white"] .breakdown-card,
+    [data-theme="pure-white"] .help-banner,
+    [data-theme="pure-white"] .filter-panel,
+    [data-theme="pure-white"] .decrypt-box,
+    [data-theme="pure-white"] .health-summary,
+    [data-theme="pure-white"] .stat-card {
+      background: var(--surface) !important;
+      border: 1px solid var(--line) !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      padding: 20px !important;
+    }
+    [data-theme="pure-white"] .settings-tabs,
+    [data-theme="pure-white"] .logs-tabs,
+    [data-theme="pure-white"] .quota-tabs {
+      background: var(--surface) !important;
+      border: 1px solid var(--line) !important;
+      border-radius: 0 !important;
+      padding: 6px !important;
+    }
+    [data-theme="pure-white"] .main-content-inner { max-width: 1180px; }
+
+    /* 单色主题（素白）的 accent 就是「墨色」，深色模式下必须翻亮，否则按钮消失在深底上 */
+    [data-mode="dark"][data-theme="pure-white"] {
+      --accent: #d4d4d8;
+      --accent-2: #a1a1aa;
+      --accent-soft: rgba(255,255,255,0.10);
+      --accent-text: #e6ebf3;
+      --on-accent: #18181b;
+    }
+
     /* ============================================================
        深色模式：只覆盖「中性层 + 语义底/边 + 阴影」，主色(--accent)仍跟随所选主题
        用法：<html data-theme="deep-blue" data-mode="dark">
@@ -333,6 +430,19 @@
       --row-hover: #202836;
       --th-bg: #1f2733;
       --sidebar: #0b0f16;
+      /* 深色模式强制深色侧栏：必须把侧栏文字令牌一起复位，
+         否则「素白」主题定义的白色侧栏令牌会残留 → 深底深字（实测 2.48:1 不可读） */
+      --sidebar-ink: rgba(255,255,255,0.62);
+      --sidebar-ink-strong: #ffffff;
+      --sidebar-ink-dim: rgba(255,255,255,0.42);
+      --sidebar-nav-label: rgba(255,255,255,0.32);
+      --sidebar-line: rgba(255,255,255,0.07);
+      --sidebar-hover-bg: rgba(255,255,255,0.06);
+      --sidebar-active-bg: rgba(108,99,255,0.22);
+      --sidebar-active-bg-strong: rgba(108,99,255,0.35);
+      --sidebar-brand-ink: #ffffff;
+      --sidebar-user-bg: rgba(255,255,255,0.04);
+      --sidebar-user-bg-hover: rgba(255,255,255,0.08);
       --shadow-1: 0 1px 2px rgba(0,0,0,0.45);
       --shadow-2: 0 2px 8px rgba(0,0,0,0.5);
       --shadow-3: 0 12px 32px rgba(0,0,0,0.6);
@@ -359,9 +469,9 @@
     .card, .stat-card, .dash-card, .table-wrap, .setting-block, .help-banner, .filter-panel, .decrypt-box, .health-summary, .health-card, .da-card, .quota-card, .info-card, .breakdown-card {
       box-shadow: var(--shadow-1);
     }
-    .sidebar-menu li a { color: rgba(255,255,255,0.78); }
-    .sidebar-menu li a:hover { color: #ffffff; }
-    .sidebar-menu li a.active { color: #ffffff; }
+    .sidebar-menu li a { color: var(--sidebar-ink); }
+    .sidebar-menu li a:hover { color: var(--sidebar-ink-strong); }
+    .sidebar-menu li a.active { color: var(--sidebar-ink-strong); }
     table tbody tr:nth-child(even) td { background-color: var(--row-hover); }
     table tbody tr:hover td { background-color: var(--th-bg); }
     table td { border-bottom: 1px solid var(--line); }
@@ -403,7 +513,7 @@
       gap: 12px;
       height: var(--topbar-h);
       padding: 0 16px;
-      border-bottom: 1px solid rgba(255,255,255,0.06);
+      border-bottom: 1px solid var(--sidebar-line);
       white-space: nowrap;
       flex-shrink: 0;
     }
@@ -420,21 +530,21 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #fff;
+      color: var(--on-accent);
       font-size: 0.875rem;
       font-weight: 700;
     }
     .brand-text {
       font-size: 0.875rem;
       font-weight: 700;
-      color: #fff;
+      color: var(--sidebar-brand-ink);
       letter-spacing: 0.2px;
     }
     .brand-text small {
       display: block;
       font-size: 0.6875rem;
       font-weight: 500;
-      color: rgba(255,255,255,0.35);
+      color: var(--sidebar-ink-dim);
       margin-top: 2px;
     }
     .sidebar.collapsed .brand-text { display: none; }
@@ -442,7 +552,7 @@
     .sidebar-nav-label {
       font-size: 0.6875rem;
       font-weight: 600;
-      color: rgba(255,255,255,0.28);
+      color: var(--sidebar-nav-label);
       letter-spacing: 1.2px;
       padding: 16px 16px 8px;
       white-space: nowrap;
@@ -456,7 +566,7 @@
     }
     .menu-separator hr {
       border: none;
-      border-top: 1px solid rgba(255,255,255,0.08);
+      border-top: 1px solid var(--sidebar-line);
       margin: 8px 4px;
     }
     .sidebar-menu li a {
@@ -465,7 +575,7 @@
       gap: 12px;
       padding: 12px 12px;
       margin-bottom: 2px;
-      color: rgba(255,255,255,0.55);
+      color: var(--sidebar-ink);
       text-decoration: none;
       font-size: 0.875rem;
       font-weight: 500;
@@ -475,12 +585,12 @@
       cursor: pointer;
     }
     .sidebar-menu li a:hover {
-      background: rgba(255,255,255,0.06);
-      color: #fff;
+      background: var(--sidebar-hover-bg);
+      color: var(--sidebar-ink-strong);
     }
     .sidebar-menu li a.active {
-      background: rgba(108, 99, 255, 0.22);
-      color: #fff;
+      background: var(--sidebar-active-bg);
+      color: var(--sidebar-ink-strong);
       box-shadow: inset 3px 0 0 var(--accent);
     }
     .menu-icon {
@@ -503,13 +613,13 @@
     }
     .sidebar.collapsed .sidebar-menu li a.active {
       box-shadow: none;
-      background: rgba(108, 99, 255, 0.35);
+      background: var(--sidebar-active-bg-strong);
     }
 
     .sidebar-user {
       margin-top: auto;
       padding: 12px 12px;
-      border-top: 1px solid rgba(255,255,255,0.06);
+      border-top: 1px solid var(--sidebar-line);
       flex-shrink: 0;
       position: relative;
     }
@@ -520,18 +630,18 @@
       width: 100%;
       padding: 8px 12px;
       border: none;
-      background: rgba(255,255,255,0.04);
+      background: var(--sidebar-user-bg);
       border-radius: 10px;
       cursor: pointer;
-      color: rgba(255,255,255,0.55);
+      color: var(--sidebar-ink);
       font-size: 0.8125rem;
       transition: background 0.15s, color 0.15s;
       white-space: nowrap;
       overflow: hidden;
     }
     .sidebar-user-btn:hover {
-      background: rgba(255,255,255,0.08);
-      color: #fff;
+      background: var(--sidebar-user-bg-hover);
+      color: var(--sidebar-ink-strong);
     }
     .sidebar-user-avatar {
       width: 28px;
@@ -542,7 +652,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #fff;
+      color: var(--on-accent);
       font-size: 0.6875rem;
       font-weight: 700;
       flex-shrink: 0;
@@ -751,7 +861,8 @@
     .logout {
       padding: 8px 16px;
       background: var(--ink);
-      color: #fff;
+      /* 用 --bg 而不是 #fff：深色模式下 --ink 变浅，白字会看不见 */
+      color: var(--bg);
       border: none;
       border-radius: 10px;
       cursor: pointer;
@@ -1208,7 +1319,7 @@
     }
     .btn-primary {
       background: linear-gradient(135deg, var(--accent), var(--accent-2));
-      color: #fff;
+      color: var(--on-accent);
       border-color: transparent;
     }
     .btn-outline {
@@ -3704,20 +3815,20 @@
             </div>
             <div id="visitorOverview" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap: 16px;margin-bottom: 16px"></div>
             <div style="display:grid;grid-template-columns:2fr 1fr;gap: 16px;margin-bottom: 16px">
-              <div style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px">
+              <div class="card" style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px">
                 <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom: 12px">UV / PV 趋势</div>
                 <canvas id="visitorChart" height="180" style="width:100%;display:block"></canvas>
               </div>
-              <div style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px">
+              <div class="card" style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px">
                 <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom: 12px">热门页面 Top 5</div>
                 <div id="visitorTopPages" style="font-size:0.875rem"></div>
               </div>
             </div>
-            <div id="visitorRecentSection" style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px">
+            <div class="card" id="visitorRecentSection" style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px">
               <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom: 12px">最近访客</div>
               <div id="visitorRecent"></div>
             </div>
-            <div id="visitorUniqueIpSection" style="display:none;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px">
+            <div class="card" id="visitorUniqueIpSection" style="display:none;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px">
               <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom: 12px">唯一 IP 记录</div>
               <div id="visitorUniqueStats" style="margin-bottom: 16px"></div>
               <div id="visitorCityChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom: 16px"></div>
@@ -3740,7 +3851,7 @@
             <div class="settings-sub-panel active" id="settings-sub-appearance">
               <div class="setting-block">
                 <h3 class="setting-title">🎨 主题配色</h3>
-                <p class="setting-desc">选择适合你的界面配色方案，包括护眼模式、黑夜模式等多种风格。</p>
+                <p class="setting-desc">选择界面风格。前 10 套是配色方案；「⚪ 素白（通栏白）」是<b>版式风格</b> —— 画布与卡片同为白色，靠分隔线与排版分层，不靠灰底和投影。</p>
                 <div class="theme-grid" id="themeGrid">
                 <div class="theme-card" data-theme="deep-blue" onclick="setTheme('deep-blue')">
                   <div class="theme-preview" style="background:var(--bg);border:1px solid var(--line)">
@@ -3851,6 +3962,17 @@
                     </div>
                   </div>
                   <div class="theme-name">🟠 琥珀金</div>
+                </div>
+                <div class="theme-card" data-theme="pure-white" onclick="setTheme('pure-white')">
+                  <div class="theme-preview" style="background:var(--bg);border:1px solid var(--line)">
+                    <div class="theme-preview-sidebar" style="background:var(--sidebar);border-right:1px solid var(--line)"></div>
+                    <div class="theme-preview-body">
+                      <div class="theme-preview-bar" style="background:var(--accent)"></div>
+                      <div class="theme-preview-line" style="background:var(--line)"></div>
+                      <div class="theme-preview-line" style="background:var(--line)"></div>
+                    </div>
+                  </div>
+                  <div class="theme-name">⚪ 素白（通栏白）</div>
                 </div>
               </div>
 
@@ -9398,7 +9520,7 @@
             var trendHtml = typeof c.trend === 'number'
               ? '<span style="color: ' + (c.trend >= 0 ? 'var(--ok)' : 'var(--err)') + ';font-size:0.75rem;margin-left:6px">' + (c.trend >= 0 ? '▲' : '▼') + Math.abs(c.trend) + '%</span>'
               : '';
-            return '<div style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding: 16px 16px">' +
+            return '<div class="card" style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding: 16px 16px">' +
               '<div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">' + c.label + '</div>' +
               '<div style="font-size:1.5rem;font-weight:800;color:var(--ink);margin-top:4px">' + c.val + trendHtml + '</div>' +
               '<div style="font-size:0.75rem;color:var(--muted);margin-top:4px">' + c.sub + '</div>' +
