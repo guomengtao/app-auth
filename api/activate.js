@@ -182,9 +182,11 @@ module.exports = async (req, res) => {
   var rawRedeemCode = body.redeemCode;
   var deviceInfo = body.deviceInfo || null;
   var visitorInfo = notify.collectRequestInfo(req);
-  var geo = await getGeoFields(req);
+  // 与限流检查并行：getGeoFields 只查一次区县缓存（不联网），不额外占用用户等待时间
+  var geoPromise = getGeoFields(req);
 
   var ipCheck = await rateLimit.checkIpRateLimit(req);
+  var geo = await geoPromise;
   if (ipCheck.blocked) {
     saveFailureRecord(ipCheck.reason, rawDeviceId, rawRedeemCode, "", "", visitorInfo, deviceInfo);
     var ipNotifyResult = await notify.sendActivationFailure(req, {
