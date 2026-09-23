@@ -61,6 +61,13 @@ module.exports = async (req, res) => {
       headers["x-vercel-ip-country"] ||
       "";
 
+    // 来源标签：让页面能准确告诉用户「这个值是哪来的」
+    var sourceLabel = "";
+    if (tencentFailed) sourceLabel = "tencent_failed";
+    else if (tencent && tencent.cached) sourceLabel = "cache";
+    else if (tencent) sourceLabel = "tencent";
+    else if (stored) sourceLabel = "stored";
+
     var notes = [];
     if (districtZh) {
       notes.push("区县来自腾讯位置服务，已按 IP 缓存 30 天（同一 IP 不会重复消耗额度）");
@@ -84,8 +91,9 @@ module.exports = async (req, res) => {
         city: cityZh,
         district: districtZh,
         full: full.location_full_zh,
-        source: tencentFailed ? "cache" : (tencent ? "tencent" : (stored ? "cache" : "")),
-        cached: Boolean(tencent && tencent.cached && !tencentFailed),
+        source: sourceLabel,
+        cached: sourceLabel === "cache",
+        tencentFailed: tencentFailed,
         checkedAt: (tencent && tencent.checkedAt) || (stored && stored.checkedAt) || 0,
       },
       vercel: {

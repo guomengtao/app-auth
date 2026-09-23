@@ -257,8 +257,14 @@
     var fullText = g.full || ((g.region || '') + ' ' + (g.city || '')).replace(/^\s+|\s+$/g, '');
     if (!fullText && g.country) fullText = g.country;
     html += '<div class="loc-main">' + esc(fullText || '暂不可用') + '</div>';
-    var srcLabel = g.source === 'tencent' ? '腾讯位置服务' : (g.cached ? '本地缓存' : '—');
-    html += '<div class="loc-sub">来源：' + esc(srcLabel) + (g.cached ? ' · 已缓存（30 天内不再查询）' : ' · 本次新查询') + '</div>';
+    var srcMap = {
+      tencent: '腾讯位置服务 · 本次新查询',
+      cache: '本地缓存 · 30 天内不再重复查询',
+      tencent_failed: '本地已存数据 · 腾讯位置服务暂不可用',
+      stored: '数据库中已存数据'
+    };
+    var srcLabel = srcMap[g.source] || '—';
+    html += '<div class="loc-sub">来源：' + esc(srcLabel) + '</div>';
     html += '<div class="rows">';
     html += row('国家/地区', g.country);
     html += row('省 / 直辖市', g.region);
