@@ -3110,7 +3110,7 @@ if ((isCron || isCronBackup) && isBackup) {
           if (storeIps.length > 0) {
             var pgMod = require("../../lib/postgres");
             var stRows = await pgMod.query(
-              "select ip, country, region, city, district from ip_lookups where ip = any($1)",
+              "select ip, country, region, city, region_zh, city_zh, district from ip_lookups where ip = any($1)",
               [storeIps]
             );
             (stRows.rows || []).forEach(function (row) { storeGeo[row.ip] = row; });
@@ -3123,15 +3123,17 @@ if ((isCron || isCronBackup) && isBackup) {
           try {
             var obj = typeof records[i] === "string" ? JSON.parse(records[i]) : records[i];
             var sg = storeGeo[obj.ip] || null;
-            // Vercel 的 region 对国内 IP 是省级代码（SD/GD/BJ）→ 展示时翻译成中文省市
-            var regionFallback = geoZh.regionZhOf(obj.rg, obj.c) || obj.rg || "";
-            var cityFallback = geoZh.cityZhOf(obj.ci) || obj.ci || "";
+            // 中文省市按「来源成组」取（腾讯整组优先，其次 ip-api 整组），避免混搭出「上海 · 杭州」
+            var pair = geoZh.pickCnPair(sg || {});
+            // 都没有时，用 Vercel 头部兜底（国内是 SD/GD/BJ 这类省级代码，需翻译）
+            var region = pair.region || geoZh.regionZhOf(obj.rg, obj.c) || obj.rg || "";
+            var city = pair.city || geoZh.cityZhOf(obj.ci) || obj.ci || "";
             var entry = {
               hash: obj.h || "", path: obj.p || "/", ua: obj.u || "", ref: obj.r || "",
               time: obj.t || 0,
-              country: (sg && sg.country) || obj.c || "",
-              region: (sg && sg.region) || regionFallback,
-              city: (sg && sg.city) || cityFallback,
+              country: (sg && sg.country) || (/^CN$/i.test(obj.c || "") ? "中国" : (obj.c || "")),
+              region: region,
+              city: city,
               district: (sg && sg.district) || "",
               timezone: obj.tz || "", ip: obj.ip || "",
             };

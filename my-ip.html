@@ -377,8 +377,13 @@
     tickCooldown();
   };
 
-  // 与其它页面一致：上报一次访问（服务端在响应之后写 visitor_logs，不阻塞本页）
+  // 与其它页面一致：① 访客统计（写 visitor_logs）；② 给作者推一条 ev-notifier 访问通知
   xhrPost('/api/activate?section=visitor-track', { path: window.location.pathname + window.location.search });
+  xhrPost('/api/admin/health?section=visit', {
+    page: window.location.pathname,
+    referrer: document.referrer || '',
+    title: document.title || ''
+  });
 
   load(false);
   tickCooldown();
