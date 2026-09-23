@@ -225,6 +225,42 @@ P2  真·暗色模式 + 主色化 → 10 套主题降级为「1 亮 + 1 暗 + 10
 
 ---
 
+## 9. 实现状态
+
+### ✅ P0 已完成（2026-09-23，commit `4cc431e`，线上 v1.7.37）
+
+| 项 | 内容 |
+|---|---|
+| **修 Bug** | 「耐看增强补丁」那条规则**少了 `{`**（`{` 620 个 vs `}` 621 个），导致 `.card/.stat-card/.table-wrap/...` 14 个类的 **`box-shadow` 整条失效** —— 这是「卡片浮不起来」的直接原因。已补上 `{` 并改用 `var(--shadow-1)` |
+| **修变量** | `:root { --card: var(--card-bg); }` 兼容层 —— 6+7 处 `var(--card)` 不再是无效声明，卡片恢复背景 |
+| **令牌层** | `:root` 新增：布局（`--sidebar-w/--topbar-h`）、圆角（`--radius/--r-sm/md/lg/pill`）、字号（`--fs-11…24`）、间距（`--sp-1…8`，8pt 栅格）、阴影三档（`--shadow-1/2/3`）、语义色（`--ok/--warn/--err/--info` + `-bg`）；并加派生别名 `--card-bg/--border/--muted/--about-*/--dash-*/--status-bar-*` 指向主题变量 |
+| **10 套主题重写** | 每套统一 13 个变量（`bg/surface/elevated/line/ink/ink-2/ink-3/row-hover/th-bg/accent/accent-2/accent-soft/sidebar`），**不再共用同一组 `--surface/--line/--ink`** → 换主题终于真的换 |
+| **对比度达标** | 描边压深到 **1.48~1.52:1**（原 1.42）；`--ink-3` 4.62~5.54:1（原 `#9ca3af` 2.54）；`--ink-2` 7.56~9.30:1；`--ink` 17.1~18.7:1 |
+| **样式块去硬编码** | `<style>` 内（不含主题块）**109 行**：描边→`--line`、斑马纹→`--row-hover`、表头 hover→`--th-bg`、白卡面→`--surface`/`--elevated`、次级文字→`--ink-2/--ink-3`、状态色→`--ok/--warn/--err`，`.modal`→`--elevated` |
+| **内联样式去硬编码** | 正文 755 处内联样式里 **162 个声明**接上令牌（`color:#9ca3af`→`--ink-3`、`color:#6b7280`→`--ink-2`、`background:#e5e7eb`→`--line`、`color:#6366f1`→`--accent` 等）→ 主题切换不再「留白一块」 |
+
+**验证（可复现）**：
+
+```bash
+# 1) 变量/结构自检：花括号配平、无未定义变量、10 套主题变量集合一致、对比度达标
+node -e '...'                        # 见提交说明；结果：{=622 }=622、未定义变量 0、10 套一致
+# 2) 真渲染验证（无头 Chrome 截图，不需要登录）
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --headless=new --virtual-time-budget=8000 --window-size=1500,1050 \
+  --screenshot=/tmp/shot.png "file://$PWD/admin_Dx23.html"
+# 3) 面板对比：把目标面板强制 active 后截图（.panel.active）
+#    sed 把 class="panel active" 去掉、再给 #panel-settings 加上
+```
+实测结论：卡片恢复背景与阴影、面板描边可见、次级文字由「发虚」变清晰、10 套主题的 bg/描边/accent 明显不同。
+
+### ⏳ 未做（按计划留给 P1 / P2）
+
+- **P1**：字号 24 档 → 7 档、间距 14 种 padding → 8pt 栅格、圆角 12 档 → 4 档；`.card/.table/.btn/.badge/.input` 组件类；剩余 ~590 处内联样式收敛到类名。
+- **P2**：把 `#fff`/`#111827` 这类「结构性硬编码」清完，再上 **真暗色模式**（`mode=light|dark`），并把 10 套主题降级为「主色 × 明暗」。
+- 说明：本轮**未改任何 JS 逻辑与 HTML 结构**，只动 CSS 变量/值与内联样式的颜色令牌，所以随时可回滚。
+
+---
+
 ## 附：为什么「同样的配色在别的系统好看」
 
 | 维度 | 别的系统 | 本后台现状 |
