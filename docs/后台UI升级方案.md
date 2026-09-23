@@ -272,12 +272,47 @@ node -e '...'                        # 见提交说明；结果：{=622 }=622、
 用于精确回归比对，能直接读到「按钮背景是不是原生灰」「表头底色是多少」「哪些元素偏黄」这类肉眼容易误判的结论。
 例：投递页按钮实测由 `rgb(239,239,239)`（原生灰）→ `rgb(255,255,255)` + `--line` 边框。
 
-### ⏳ 未做（按计划留给 P2）
+### ✅ P2 已完成（2026-09-23，commit `936fa85`，线上 v1.7.41）
 
-- **P2**：清 `#fff`/`#111827` 这类「结构性硬编码」，再上**真暗色模式**（`mode=light|dark`），10 套主题降级为「主色 × 明暗」。
-- 剩余 ~590 处内联样式里的**结构性**部分（flex/grid 宽度/定位）保留内联属正常；纯外观部分可继续收敛到 `.card/.chip/.pill` 等类。
-- 其余无定义组件类：`.logs-tab/.quota-*/ .info-cards/.lvl/.channel-badge/.modal-card/.modal-header/.modal-close`。
-- 说明：P0/P1 **均未改任何 JS 逻辑**；P1 只改 CSS 值与类定义，HTML 结构未动，随时可回滚。
+**① 深色模式（`data-mode="light|dark"`）**——比原计划更保守的做法：**不删主题**，而是
+「10 套主题 × 明暗 2 种 = 20 种观感」。`[data-mode="dark"]` 只覆盖**中性层 + 语义底/边 + 阴影**，
+`--accent/--accent-2/--sidebar` 仍由 `data-theme` 决定（所以换主题在深色下同样有效）。
+
+```css
+[data-mode="dark"] { --bg:#12171f; --surface:#1b2230; --elevated:#202836; --line:#2b3542;
+                     --ink:#e6ebf3; --ink-2:#b6c2d2; --ink-3:#98a6ba;
+                     --row-hover:#202836; --th-bg:#1f2733; --sidebar:#0b0f16; … }
+```
+设置页新增「🌙 深色模式」开关（`.setting-switch`），`setMode()` 写 `localStorage['admin-mode']`，
+`loadTheme()` 同时恢复主题与明暗。顺带把主题预览小样（bg/sidebar/bar/line）也改成令牌——因为每张卡片自带
+`data-theme`，**预览自动变准**（以前是硬编码，改了主题预览也不对）。
+
+**② 结构性硬编码收敛**（第二轮共 243 处声明）：
+- 语义 tint → 新令牌 `--accent-bg/--accent-line/--ok-bg/--ok-line/--warn-bg/--warn-line/--err-bg/--err-line/--info-bg/--info-line`
+- `background:#fffbeb`、`border:#fecaca`、JS 里 `el.style.background = '#fffbeb'` 这类也一并接管
+- `<style>` 主体剩余硬编码从 100 种降到 25 种，且**基本只剩 `color:#fff`（彩色底上的白字，正常）与渐变停靠色**
+
+**③ QA 抓到的两个真 bug（深色模式下才暴露）**：
+1. **主题选择卡片的名字在深色模式下不可见**：`.theme-name { color: var(--ink) }`，而卡片自带 `data-theme="X"`
+   → 取到「那个主题的深色文字」压在深色卡片上，实测对比度 **1.07:1（等于看不见）**。
+   新增**页面级令牌** `--ui-ink/--ui-ink-2/--ui-ink-3/--ui-line`（只在 `:root` 与 `[data-mode=dark]` 定义，
+   不受容器 `data-theme` 影响），`.theme-name` 改用 `--ui-ink` ✅
+2. **主色当文字用，深色底上对比度不足**：`#4f46e5` on `#1b2230` ≈ 3.3:1。新增 `--accent-text`
+   （浅色 `=var(--accent)`；深色 `color-mix(in srgb, var(--accent) 68%, #fff)` + 纯色兜底），
+   全局 63 处 `color: var(--accent)` → `var(--accent-text)`，实测提亮为 `rgb(135,129,237)` ≈ 4.6:1 ✅
+
+**验证（新增深色模式自动 QA）**：`/tmp/cdp-dark-audit.js` 切到 dark 后遍历 DOM，输出两份清单：
+**① 仍然偏亮的块**（>1500px² 且亮度 >0.55）② **对比度 <3.0 的文字**（含「有效背景」向上追溯）。
+结果：`panel-settings / panel-visitors / panel-delivery / panel-logs` 四个面板 **白块 0、低对比文字 0**
+（仅主题预览小样刻意保持浅色）。
+
+### ⏳ 未做（可选）
+
+- 剩余 ~590 处内联样式里的**结构性**部分（flex/grid 宽度、定位）保留内联属正常；纯外观部分可继续收敛到 `.card/.chip/.pill`。
+- 其余「写了类名没写样式」的死类名：`.logs-tab/.quota-*/ .info-cards/.lvl/.channel-badge/.modal-card/.modal-header/.modal-close`。
+- 深色模式下**主题预览小样仍显示各主题的浅色样貌**（因为只用一套中性层覆盖，没有为 10 套主题各写一套深色）。若想「深色下预览也变深」，
+  需要为每套主题补一组深色值（10×13 个变量），属可选增强。
+- 说明：P0/P1/P2 **均未改任何业务 JS 逻辑**；样式全部走令牌，随时可回滚。
 
 ---
 
