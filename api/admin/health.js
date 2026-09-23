@@ -2976,11 +2976,9 @@ if ((isCron || isCronBackup) && isBackup) {
       }
 
       function todayKey(ts) {
-        var d = new Date(ts || Date.now());
-        var y = d.getUTCFullYear();
-        var m = String(d.getUTCMonth() + 1).padStart(2, "0");
-        var day = String(d.getUTCDate()).padStart(2, "0");
-        return y + "-" + m + "-" + day;
+        // 必须与访客统计的写入口径一致：北京时间（UTC+8）。
+        // 原先这里用 UTC → 后台「今日」在早上 0:00–8:00 看不到当天数据。
+        return require("../../lib/rate-limit").beijingDateKey(ts);
       }
 
       async function handleVisitorOverview2() {
@@ -3008,16 +3006,47 @@ if ((isCron || isCronBackup) && isBackup) {
         topPages.sort(function(a, b) { return b.hits - a.hits; });
         topPages = topPages.slice(0, 5);
 
+        // 永久表优先：数据更全，且不受 KV 7 天 TTL 影响
+        try {
+          var visitorLog = require("../../lib/visitor-log");
+          var dbToday = await visitorLog.dayOverview(today);
+          if (dbToday && dbToday.pv > 0) {
+            todayPv = dbToday.pv;
+            todayUv = dbToday.uv;
+            if (dbToday.topPages && dbToday.topPages.length > 0) topPages = dbToday.topPages;
+          }
+          var dbYesterday = await visitorLog.dayOverview(yesterday);
+          if (dbYesterday && dbYesterday.pv > 0) {
+            ydPv = dbYesterday.pv;
+            ydUv = dbYesterday.uv;
+          }
+        } catch (e) {
+          console.log("[visitor-overview] visitor_logs read failed:", e && e.message);
+        }
+
         return { success: true, today: { uv: todayUv, pv: todayPv }, yesterday: { uv: ydUv, pv: ydPv }, topPages: topPages };
       }
 
       async function handleVisitorTrend2(days) {
         days = Math.max(1, Math.min(days, 30));
+        // 优先用永久表 visitor_logs 做 SQL 聚合（不受 KV 7 天 TTL 影响），缺的日期再回落 KV
+        var dbMap = {};
+        try {
+          var dbRows = await require("../../lib/visitor-log").dailyStats(days);
+          (dbRows || []).forEach(function(r) { dbMap[r.date] = r; });
+        } catch (e) {
+          console.log("[visitor-trend] visitor_logs aggregate failed:", e && e.message);
+        }
         var labels = [], uvData = [], pvData = [];
         for (var i = days - 1; i >= 0; i--) {
           var d2 = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
           var dk = todayKey(d2.getTime());
           labels.push(dk.slice(5));
+          if (dbMap[dk] && (dbMap[dk].pv > 0 || dbMap[dk].uv > 0)) {
+            uvData.push(dbMap[dk].uv);
+            pvData.push(dbMap[dk].pv);
+            continue;
+          }
           var uv = await redis.scard("stats:uv:" + dk).catch(function() { return 0; });
           var pvRaw = await redis.get("stats:pv:" + dk).catch(function() { return null; });
           uvData.push(uv || 0);
@@ -3027,7 +3056,28 @@ if ((isCron || isCronBackup) && isBackup) {
       }
 
       async function handleVisitorRecent2() {
-        var records = await redis.lrange("stats:recent", 0, 49).catch(function() { return []; });
+        // 优先读**永久表** visitor_logs；表还空（刚上线）时回落到旧 KV 列表，保证面板不空白
+        var records = [];
+        try {
+          var visitorLog = require("../../lib/visitor-log");
+          var logRows = await visitorLog.listRecent(50, 0);
+          records = (logRows || []).map(function (row) {
+            return {
+              h: row.hash, p: row.path, u: row.ua, r: row.ref, t: row.time,
+              ip: row.ip, c: row.country, rg: row.region, ci: row.city, tz: "",
+            };
+          });
+          console.log("[visitor-recent] visitor_logs rows:", records.length);
+        } catch (e) {
+          console.log("[visitor-recent] visitor_logs read failed:", e && e.message);
+        }
+        if (records.length === 0) {
+          var kvRecords = await redis.lrange("stats:recent", 0, 49).catch(function() { return []; });
+          records = (kvRecords || []).map(function (v) {
+            try { return typeof v === "string" ? JSON.parse(v) : v; } catch (e) { return null; }
+          }).filter(Boolean);
+          console.log("[visitor-recent] fallback to kv stats:recent rows:", records.length);
+        }
         var ipLookup = null;
         try { ipLookup = require("../../lib/ip-lookup"); } catch (e) {}
         var ipSet = {};

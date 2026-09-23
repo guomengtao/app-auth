@@ -26,6 +26,7 @@ var redis = require("../lib/redis");
 var rateLimit = require("../lib/rate-limit");
 var geoZh = require("../lib/geo-zh");
 var geoDistrict = require("../lib/geo-district");
+var visitorLog = require("../lib/visitor-log");
 var md = null;
 try { md = require("../lib/message-delivery"); } catch(e) { console.log("[go] message-delivery not available"); }
 
@@ -286,6 +287,13 @@ module.exports = async (req, res) => {
       source: "go-link", slug: slug
     };
     tasks.push(redis.lpush("stats:recent", JSON.stringify(visitorRecord)).catch(function () { return null; }));
+    // 永久日志（业务表）：与通知一样都是 fire-and-forget，不影响 302
+    tasks.push(
+      visitorLog.logVisit({
+        ts: ts, ip: ip, path: "/go/" + slug, ua: ua, ref: ref,
+        country: country, region: region, city: city, hash: vHash, source: "go-link",
+      }).catch(function () { return null; })
+    );
     tasks.push(redis.ltrim("stats:recent", 0, 99).catch(function () { return null; }));
     tasks.push(redis.pexpire("stats:recent", VISITOR_TTL * 1000).catch(function () {}));
     // Push purchase_click notification to ev-notifier stream

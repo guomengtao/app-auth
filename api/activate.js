@@ -6,6 +6,8 @@ var rateLimit = require("../lib/rate-limit");
 var notify = require("../lib/notify");
 var geoZh = require("../lib/geo-zh");
 var geoDistrict = require("../lib/geo-district");
+var visitorLog = require("../lib/visitor-log");
+var background = require("../lib/background");
 
 // Vercel 免费头部 + 腾讯位置服务区县 → geo 字段（中文由 lib/geo-zh.js 统一产出）
 async function getGeoFields(req) {
@@ -101,6 +103,25 @@ async function handleVisitorTrack(req, res) {
       tz: String(req.headers["x-vercel-ip-timezone"] || "").slice(0, 40),
     }));
     await redis.ltrim(recentKey, 0, 99);
+
+    // ⭐ 永久日志（业务表 visitor_logs）：放在响应之后执行，不占用用户等待时间。
+    //    KV 的 stats:recent 只留 ~100 条、日报 7 天过期，长期存档靠这张表。
+    background.run(
+      visitorLog.logVisit({
+        ts: ts,
+        ip: ip,
+        path: trimmedPath,
+        ua: ua,
+        ref: ref,
+        country: req.headers["x-vercel-ip-country"] || "",
+        region: req.headers["x-vercel-ip-country-region"] || "",
+        city: req.headers["x-vercel-ip-city"] || "",
+        hash: vHash,
+        source: "visit",
+      }),
+      "visitor-log"
+    );
+
     return res.json({ success: true, isNewVisitor: isNew === 1 });
   } catch (e) {
     console.error("[visitor/track]", e);
