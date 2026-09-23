@@ -24,6 +24,7 @@
 
 var redis = require("../lib/redis");
 var geoZh = require("../lib/geo-zh");
+var geoDistrict = require("../lib/geo-district");
 var md = null;
 try { md = require("../lib/message-delivery"); } catch(e) { console.log("[go] message-delivery not available"); }
 
@@ -108,7 +109,8 @@ async function pushPurchaseClick(entry, record, ts, dateKey) {
     console.log("[go:stream] no Upstash config, skip purchase_click push");
     return;
   }
-  var geoFull = geoZh.resolveZhLocationFull({ country: record.c, region: record.rg, city: record.ci });
+  var district = await geoDistrict.getDistrict(record.ip);
+  var geoFull = geoZh.resolveZhLocationFull({ country: record.c, region: record.rg, city: record.ci, district: district });
   var msgId = null;
   if (md) {
     try {

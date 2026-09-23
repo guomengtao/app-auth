@@ -10,6 +10,7 @@ var dbSwitches = require("../../lib/db-switches");
 var dbRegistry = require("../../lib/db-registry");
 var notify = require("../../lib/notify");
 var geoZh = require("../../lib/geo-zh");
+var geoDistrict = require("../../lib/geo-district");
 var verifySwitch = null;
 try { verifySwitch = require("../../lib/verify-switch"); } catch(e) { console.warn("verify-switch module not available:", e.message); }
 
@@ -621,10 +622,12 @@ if ((isCron || isCronBackup) && isBackup) {
       var visitIp = visitHeaders["x-forwarded-for"] || visitHeaders["x-real-ip"] || (req.socket && req.socket.remoteAddress) || "";
       var visitUa = visitHeaders["user-agent"] || "";
 
+      var visitDistrict = await geoDistrict.getDistrict(visitIp);
       var visitGeo = geoZh.resolveZhLocationFull({
         country: visitHeaders["x-vercel-ip-country"],
         region: visitHeaders["x-vercel-ip-country-region"],
         city: visitHeaders["x-vercel-ip-city"],
+        district: visitDistrict,
       });
 
       var visitMsg = {

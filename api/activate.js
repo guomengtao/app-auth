@@ -5,13 +5,16 @@ var quota = require("../lib/quota");
 var rateLimit = require("../lib/rate-limit");
 var notify = require("../lib/notify");
 var geoZh = require("../lib/geo-zh");
+var geoDistrict = require("../lib/geo-district");
 
-// Vercel 免费头部 → 中英文 geo 字段（中文由 lib/geo-zh.js 统一产出）
-function getGeoFields(req) {
+// Vercel 免费头部 + 腾讯位置服务区县 → geo 字段（中文由 lib/geo-zh.js 统一产出）
+async function getGeoFields(req) {
   var country = String(req.headers["x-vercel-ip-country"] || "").slice(0, 8);
   var region = String(req.headers["x-vercel-ip-country-region"] || "").slice(0, 16);
   var city = String(req.headers["x-vercel-ip-city"] || "").slice(0, 40);
-  var full = geoZh.resolveZhLocationFull({ country: country, region: region, city: city });
+  var ip = String(req.headers["x-forwarded-for"] || req.headers["x-real-ip"] || "").split(",")[0].trim();
+  var district = await geoDistrict.getDistrict(ip);
+  var full = geoZh.resolveZhLocationFull({ country: country, region: region, city: city, district: district });
   return {
     country: country,
     region: region,
@@ -179,7 +182,7 @@ module.exports = async (req, res) => {
   var rawRedeemCode = body.redeemCode;
   var deviceInfo = body.deviceInfo || null;
   var visitorInfo = notify.collectRequestInfo(req);
-  var geo = getGeoFields(req);
+  var geo = await getGeoFields(req);
 
   var ipCheck = await rateLimit.checkIpRateLimit(req);
   if (ipCheck.blocked) {
@@ -201,6 +204,12 @@ module.exports = async (req, res) => {
       user_agent: visitorInfo ? visitorInfo.userAgent : "",
       visitor_info: visitorInfo || {},
       device_info: deviceInfo || {},
+      country: geo.country,
+      region: geo.region,
+      city: geo.city,
+      location_zh: geo.location_zh,
+      district_zh: geo.district_zh,
+      location_full_zh: geo.location_full_zh,
     }).catch(function () {});
     res.setHeader("Retry-After", Math.ceil(ipCheck.retryAfterMs / 1000));
     return res.status(429).json({ success: false, error: ipCheck.reason, debug: { visitor: visitorInfo, notification: buildNotificationStatus(ipNotifyResult), reason: ipCheck.reason } });
@@ -231,6 +240,12 @@ module.exports = async (req, res) => {
         user_agent: visitorInfo ? visitorInfo.userAgent : "",
         visitor_info: visitorInfo || {},
         device_info: deviceInfo || {},
+        country: geo.country,
+        region: geo.region,
+        city: geo.city,
+        location_zh: geo.location_zh,
+        district_zh: geo.district_zh,
+        location_full_zh: geo.location_full_zh,
       }).catch(function () {});
       return res.status(400).json({ success: false, error: deviceCheck.error, debug: { visitor: visitorInfo, notification: buildNotificationStatus(deviceNotifyResult), reason: deviceCheck.error } });
     }
@@ -255,6 +270,12 @@ module.exports = async (req, res) => {
         user_agent: visitorInfo ? visitorInfo.userAgent : "",
         visitor_info: visitorInfo || {},
         device_info: deviceInfo || {},
+        country: geo.country,
+        region: geo.region,
+        city: geo.city,
+        location_zh: geo.location_zh,
+        district_zh: geo.district_zh,
+        location_full_zh: geo.location_full_zh,
       }).catch(function () {});
       return res.status(400).json({ success: false, error: codeCheck.error, debug: { visitor: visitorInfo, notification: buildNotificationStatus(codeNotifyResult), reason: codeCheck.error } });
     }
@@ -281,6 +302,12 @@ module.exports = async (req, res) => {
         user_agent: visitorInfo ? visitorInfo.userAgent : "",
         visitor_info: visitorInfo || {},
         device_info: deviceInfo || {},
+        country: geo.country,
+        region: geo.region,
+        city: geo.city,
+        location_zh: geo.location_zh,
+        district_zh: geo.district_zh,
+        location_full_zh: geo.location_full_zh,
       }).catch(function () {});
       res.setHeader("Retry-After", Math.ceil(deviceCheck2.retryAfterMs / 1000));
       return res.status(429).json({ success: false, error: deviceCheck2.reason, debug: { visitor: visitorInfo, notification: buildNotificationStatus(device2NotifyResult), reason: deviceCheck2.reason } });
@@ -308,6 +335,12 @@ module.exports = async (req, res) => {
         user_agent: visitorInfo ? visitorInfo.userAgent : "",
         visitor_info: visitorInfo || {},
         device_info: deviceInfo || {},
+        country: geo.country,
+        region: geo.region,
+        city: geo.city,
+        location_zh: geo.location_zh,
+        district_zh: geo.district_zh,
+        location_full_zh: geo.location_full_zh,
       }).catch(function () {});
       return res.status(400).json({ success: false, error: "兑换码不存在或尚未同步到服务器，请在管理后台同步后重试", debug: { visitor: visitorInfo, notification: buildNotificationStatus(codeNotFoundResult), reason: "兑换码不存在" } });
     }
@@ -332,6 +365,12 @@ module.exports = async (req, res) => {
         user_agent: visitorInfo ? visitorInfo.userAgent : "",
         visitor_info: visitorInfo || {},
         device_info: deviceInfo || {},
+        country: geo.country,
+        region: geo.region,
+        city: geo.city,
+        location_zh: geo.location_zh,
+        district_zh: geo.district_zh,
+        location_full_zh: geo.location_full_zh,
       }).catch(function () {});
       console.error("Activate: invalid redeem payload", typeof codeData, codeData);
       return res.status(500).json({ success: false, error: "兑换码数据已损坏，请联系管理员", debug: { visitor: visitorInfo, notification: buildNotificationStatus(corruptNotifyResult), reason: "兑换码数据已损坏" } });
@@ -358,6 +397,12 @@ module.exports = async (req, res) => {
         user_agent: visitorInfo ? visitorInfo.userAgent : "",
         visitor_info: visitorInfo || {},
         device_info: deviceInfo || {},
+        country: geo.country,
+        region: geo.region,
+        city: geo.city,
+        location_zh: geo.location_zh,
+        district_zh: geo.district_zh,
+        location_full_zh: geo.location_full_zh,
       }).catch(function () {});
       console.error("Activate: bad product/duration", info.product_id, info.duration_months);
       return res.status(500).json({
@@ -440,6 +485,12 @@ module.exports = async (req, res) => {
           source: "user-reuse",
           ip: visitorInfo ? visitorInfo.ip : "",
           user_agent: visitorInfo ? visitorInfo.userAgent : "",
+          country: geo.country,
+          region: geo.region,
+          city: geo.city,
+          location_zh: geo.location_zh,
+          district_zh: geo.district_zh,
+          location_full_zh: geo.location_full_zh,
         }).catch(function () {});
 
         rateLimit.clearDeviceRateLimit(device).catch(function () {});
@@ -464,6 +515,12 @@ module.exports = async (req, res) => {
         user_agent: visitorInfo ? visitorInfo.userAgent : "",
         visitor_info: visitorInfo || {},
         device_info: deviceInfo || {},
+        country: geo.country,
+        region: geo.region,
+        city: geo.city,
+        location_zh: geo.location_zh,
+        district_zh: geo.district_zh,
+        location_full_zh: geo.location_full_zh,
       }).catch(function () {});
       return res.status(400).json({
         success: false,
@@ -594,6 +651,12 @@ module.exports = async (req, res) => {
       user_agent: visitorInfo ? visitorInfo.userAgent : "",
       visitor_info: visitorInfo || {},
       device_info: deviceInfo || {},
+      country: geo.country,
+      region: geo.region,
+      city: geo.city,
+      location_zh: geo.location_zh,
+      district_zh: geo.district_zh,
+      location_full_zh: geo.location_full_zh,
     }).catch(function () {});
 
     // Send response after push completes
