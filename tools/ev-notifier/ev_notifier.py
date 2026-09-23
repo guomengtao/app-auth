@@ -4481,6 +4481,15 @@ class EvNotifier(rumps.App):
         restart_menu.add(rumps.MenuItem("重启 Ev Notifier", callback=self.restart_self))
         restart_menu.add(rumps.MenuItem("全部重启", callback=self.restart_all))
         self.menu.add(restart_menu)
+        # 截图：菜单项 + 快捷键 ⌃⇧⌘4（容易忘，显式展示；点击菜单项即可开始截图）
+        try:
+            from AppKit import NSControlKeyMask, NSShiftKeyMask, NSCommandKeyMask
+            shot_item = rumps.MenuItem("截图", callback=self.start_screenshot, key="4")
+            shot_item._menuitem.setKeyEquivalentModifierMask_(
+                NSControlKeyMask | NSShiftKeyMask | NSCommandKeyMask)
+            self.menu.add(shot_item)
+        except Exception as e:
+            _debug_log(f"screenshot menu setup ERROR: {e}")
         try:
             self.menu.add(rumps.separator)
         except Exception:
@@ -4549,6 +4558,37 @@ class EvNotifier(rumps.App):
     def _version_menu(self):
         menu = rumps.MenuItem(f"版本: {VERSION}")
         return menu
+
+    def start_screenshot(self, _):
+        """触发系统原生快捷键 ⌃⇧⌘4 开始截图。延到下一轮 runloop，避免在菜单追踪栈里发按键。"""
+        _debug_log("start_screenshot clicked")
+        try:
+            from PyObjCTools import AppHelper
+            AppHelper.callLater(0.3, self._do_screenshot)
+        except Exception as e:
+            _debug_log(f"callLater unavailable ({e}), fallback to sync")
+            self._do_screenshot()
+
+    def _do_screenshot(self):
+        # 直接触发系统原生快捷键 ⌃⇧⌘4（复制选区截图到剪贴板），
+        # 与用户手动按下该组合键 100% 等价：原生十字选区、缩略图、剪贴板全走系统原生链路。
+        # key code 21 = 数字键 4。需要「辅助功能」权限：系统设置 → 隐私与安全性 → 辅助功能 → 勾选 Python。
+        script = ('tell application "System Events" to key code 21 '
+                  'using {control down, shift down, command down}')
+        try:
+            r = subprocess.run(["osascript", "-e", script],
+                               capture_output=True, timeout=10)
+            if r.returncode != 0:
+                err = (r.stderr or b"").decode(errors="replace").strip()
+                _debug_log(f"native screenshot shortcut ERROR: {err}")
+                try:
+                    rumps.notification(f"Ev {VERSION}", "截图快捷键触发失败",
+                                       "请在 系统设置→隐私与安全性→辅助功能 中授权 Python",
+                                       sound=False)
+                except Exception:
+                    pass
+        except Exception as e:
+            _debug_log(f"native screenshot shortcut ERROR: {e}")
 
     @rumps.timer(2)
     def _update_title(self, _):
