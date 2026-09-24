@@ -5706,6 +5706,9 @@
     var _pendingRedeemCode = null;
     var _pendingActivationCode = null;
     var _lastLoadedRecords = null;
+    // 记录接口的返回元信息（total/fetched/returned/truncated）：用来暴露"接口只返回了一部分"，
+    // 避免再次出现「记录看起来凭空少了一截」而页面毫无提示。详见 docs/激活记录丢失问题分析与修复方案.md
+    var _recordsMeta = null;
 
     function setStatusFilter(value, btn) {
       var btns = document.querySelectorAll('.filter-seg-btn');
@@ -5888,6 +5891,7 @@
         }
 
         var allRecords = [];
+        _recordsMeta = null;
         try {
           var params = new URLSearchParams();
           if (pid && pid !== '0000') params.set('product_id', pid);
@@ -5900,6 +5904,12 @@
           var data = await api('/api/admin/health?section=records&' + params.toString());
           if (data && data.success && Array.isArray(data.records)) {
             allRecords = data.records;
+            _recordsMeta = {
+              total: Number(data.total) || 0,
+              fetched: Number(data.fetched) || allRecords.length,
+              returned: Number(data.returned) || allRecords.length,
+              truncated: !!data.truncated
+            };
           } else {
             throw new Error((data && data.error) ? data.error : 'API returned empty');
           }
@@ -5932,6 +5942,11 @@
 
         if (hint) {
           var hasFilter = rc || deviceId || ip || (status && status !== 'all') || filterModel || filterVer;
+          // 接口返回被裁剪时必须显式告知（历史 bug：静默少一截，页面看起来像"记录丢了"）
+          var truncNote = '';
+          if (_recordsMeta && _recordsMeta.truncated) {
+            truncNote = '<span style="color:var(--warn)">⚠️ 库中共 <b>' + _recordsMeta.total + '</b> 条，本次仅返回最近 <b>' + _recordsMeta.returned + '</b> 条，更早的记录未展示</span>';
+          }
           if (hasFilter) {
             var foundCount = displayRecords.length;
             var parts = [];
@@ -5942,7 +5957,10 @@
             if (filterModel) parts.push('型号: <b>' + escapeHtml(filterModel) + '</b>');
             if (filterVer) parts.push('版本: <b>' + escapeHtml(filterVer) + '</b>');
             hint.style.display = 'block';
-            hint.innerHTML = '筛选: ' + parts.join(', ') + ' — <b>' + foundCount + '</b> 条结果。';
+            hint.innerHTML = '筛选: ' + parts.join(', ') + ' — <b>' + foundCount + '</b> 条结果。' + (truncNote ? ' ' + truncNote : '');
+          } else if (truncNote) {
+            hint.style.display = 'block';
+            hint.innerHTML = truncNote;
           } else {
             hint.style.display = 'none';
             hint.innerHTML = '';

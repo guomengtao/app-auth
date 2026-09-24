@@ -252,6 +252,42 @@ function buildNotificationStatus(result) {
   return "skipped";
 }
 
+// ⚠️ redis.pipeline().exec() 在 lib/redis.js 里会把**每条命令的异常吞成 null**（只 push(null)，不抛错）。
+//    因此 `set("auth:activation:<码>")` 失败而 `sadd("auth:activation_codes", <码>)` 成功时，
+//    集合里就有 member、kv_strings 里却没有 value → 记录在后台凭空消失，且因为没有异常而无人知晓。
+//    这里把 null 结果定位到具体命令并**主动推送告警**，保证这类数据缺失不再静默。
+//    详见 docs/激活记录丢失问题分析与修复方案.md 根因 4。
+async function reportPipelineFailures(results, ops, ctx) {
+  if (!results || !results.length) return 0;
+  var failed = [];
+  for (var i = 0; i < results.length; i++) {
+    if (results[i] === null) failed.push(ops[i] || ("op#" + i));
+  }
+  if (!failed.length) return 0;
+  ctx = ctx || {};
+  console.error("[activate] pipeline failed ops:", failed, results);
+  await notify.pushNotification("activation_failure", {
+    reason: (ctx.reasonPrefix || "写库部分失败") + "：" + failed.join(" / "),
+    redeem_code: ctx.redeemCode || "",
+    activation_code: ctx.activationCode || "",
+    device_id: ctx.device || "",
+    source: ctx.source || "user",
+    ip: (ctx.visitorInfo && ctx.visitorInfo.ip) || "",
+    user_agent: (ctx.visitorInfo && ctx.visitorInfo.userAgent) || "",
+    visitor_info: ctx.visitorInfo || {},
+    device_info: ctx.deviceInfo || {},
+    country: (ctx.geo && ctx.geo.country) || "",
+    region: (ctx.geo && ctx.geo.region) || "",
+    city: (ctx.geo && ctx.geo.city) || "",
+    location_zh: (ctx.geo && ctx.geo.location_zh) || "",
+    district_zh: (ctx.geo && ctx.geo.district_zh) || "",
+    location_full_zh: (ctx.geo && ctx.geo.location_full_zh) || "",
+  }).catch(function (e) {
+    console.error("[activate] pipeline-failure notify failed:", e.message);
+  });
+  return failed.length;
+}
+
 module.exports = async (req, res) => {
   if (req.query && req.query.section === "visitor-track") {
     return handleVisitorTrack(req, res);
@@ -555,13 +591,28 @@ module.exports = async (req, res) => {
         info.used_at = reuseNow;
         info.activation_seq = reuseSeq;
         var reusePipeline = redis.pipeline();
+        var reuseOps = [];
         reusePipeline.set("auth:redeem:" + code, JSON.stringify(info));
+        reuseOps.push("set auth:redeem:" + code);
         reusePipeline.set("auth:device:" + deviceHash, activationCodeReuse);
+        reuseOps.push("set auth:device:" + deviceHash.slice(0, 8) + "...");
         if (repeatRecord) {
           reusePipeline.set("auth:activation:" + reuseMember, JSON.stringify(repeatRecord));
+          reuseOps.push("set auth:activation:" + reuseMember);
           reusePipeline.sadd("auth:activation_codes", reuseMember);
+          reuseOps.push("sadd auth:activation_codes " + reuseMember);
         }
-        await reusePipeline.exec();
+        var reuseResults = await reusePipeline.exec();
+        await reportPipelineFailures(reuseResults, reuseOps, {
+          reasonPrefix: "复用激活写库部分失败",
+          redeemCode: code,
+          device: device,
+          activationCode: reuseMember,
+          source: "user-reuse",
+          visitorInfo: visitorInfo,
+          deviceInfo: deviceInfo,
+          geo: geo,
+        });
 
         background.run(tracking.record({
           ts: reuseNow,
@@ -734,11 +785,24 @@ module.exports = async (req, res) => {
     writePipeline.sadd("auth:activation_codes", activationMember);
     writePipeline.set("auth:device:" + deviceHash, activationCode);
     writePipeline.incr(USED_COUNTER_KEY);
+    var writeOps = [
+      "set auth:redeem:" + code,
+      "set auth:activation:" + activationMember,
+      "sadd auth:activation_codes " + activationMember,
+      "set auth:device:" + deviceHash.slice(0, 8) + "...",
+      "incr " + USED_COUNTER_KEY,
+    ];
     var writeResults = await writePipeline.exec();
-    var writeFailed = writeResults.some(function (r) { return r === null; });
-    if (writeFailed) {
-      console.error("activate.js pipeline had failures:", writeResults);
-    }
+    await reportPipelineFailures(writeResults, writeOps, {
+      reasonPrefix: "激活写库部分失败",
+      redeemCode: code,
+      device: device,
+      activationCode: activationMember,
+      source: "user",
+      visitorInfo: visitorInfo,
+      deviceInfo: deviceInfo,
+      geo: geo,
+    });
     console.log("✅ Activate success:", {
       redeemCode: code,
       activationCode: activationCode,

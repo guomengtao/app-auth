@@ -2849,33 +2849,74 @@ if ((isCron || isCronBackup) && isBackup) {
       return res.status(405).json({ success: false, error: "Method not allowed" });
     }
     try {
-      var recCount = Math.min(parseInt(req.query.count, 10) || 500, 500);
+      // count = 返回条数上限（历史行为）；max = 单次全量读取的安全上限，防止集合无限增长把函数拖垮
+      var recLimit = Math.min(parseInt(req.query.count, 10) || 500, 2000);
+      var recCap = Math.min(Math.max(parseInt(req.query.max, 10) || 20000, 1000), 50000);
       var recStatus = req.query.status || "all";
+      var BATCH = 200;
 
-      // ⚠️ 用 mget（一次 SELECT ... IN）而不是 pipeline —— 后者在 lib/redis.js 里是逐条 await
+      // ⚠️ 这里曾经是 `redis.sscan(setKey, 0, { count: recCount })` —— **只取一批并丢弃返回游标**。
+      //    lib/redis.js 的 sscan 是 `SELECT member ... ORDER BY member LIMIT $count OFFSET $cursor`，
+      //    集合一旦超过一批（旧 count 写死 500）就会静默丢掉其余记录：
+      //    后台「激活记录」凭空少一截，接口却返回 success，没有任何报错。
+      //    改为 smembers 全量 + 每 200 条一次 mget，与 lib/tracking.js scanSet() / lib/user-journey.js 口径一致。
+      //    （必须是 mget 而不是 pipeline：lib/redis.js 的 pipeline.exec() 是逐条 await，上千 key 会串行到超时）
+      //    详见 docs/激活记录丢失问题分析与修复方案.md 根因 3。
       async function fetchRecordsFromSet(setKey, keyPrefix) {
+        var members = [];
         try {
-          var ss = await redis.sscan(setKey, 0, { count: recCount });
-          var keys = Array.isArray(ss) ? (ss[1] || []) : (ss && ss.keys) || [];
-          if (!keys.length) return [];
-          var vals = await redis.mget(keys.map(function (k) { return keyPrefix ? keyPrefix + k : k; }));
-          return (vals || []).map(function (raw) {
-            if (!raw) return null;
-            if (typeof raw === "object") return raw;
-            try { return JSON.parse(raw); } catch (_) { return null; }
-          }).filter(Boolean);
+          members = await redis.smembers(setKey);
         } catch (e) {
-          console.error("[records] fetch failed:", setKey, e.message);
-          return [];
+          console.error("[records] smembers failed:", setKey, e.message);
+          return { list: [], total: 0, truncated: false };
         }
+        members = Array.isArray(members) ? members : [];
+        var total = members.length;
+        var truncated = false;
+        if (members.length > recCap) {
+          members = members.slice(-recCap);
+          truncated = true;
+        }
+        var list = [];
+        var orphan = 0;
+        for (var i = 0; i < members.length; i += BATCH) {
+          var batch = members.slice(i, i + BATCH);
+          var vals = [];
+          try {
+            vals = await redis.mget(batch.map(function (k) { return keyPrefix ? keyPrefix + k : k; }));
+          } catch (e) {
+            console.error("[records] mget failed:", setKey, e.message);
+            vals = [];
+          }
+          for (var j = 0; j < batch.length; j++) {
+            var raw = vals && vals[j];
+            if (!raw) { orphan++; continue; }
+            var obj = null;
+            if (typeof raw === "object") obj = raw;
+            else { try { obj = JSON.parse(raw); } catch (_) { obj = null; } }
+            if (obj) list.push(obj); else orphan++;
+          }
+        }
+        // 孤儿 member（sadd 成功但 set 失败，见 activate.js 的 pipeline 吞错）会让记录凭空消失，
+        // 必须留下痕迹，否则又是一次"没人知道"的记录缺失。
+        if (orphan > 0) console.error("[records] orphan members:", setKey, "count=" + orphan);
+        return { list: list, total: total, truncated: truncated, orphan: orphan };
       }
 
       var recAll = [];
+      var recTotal = 0;
+      var recTruncated = false;
       if (recStatus === "all" || recStatus === "success") {
-        recAll = recAll.concat(await fetchRecordsFromSet("auth:activation_codes", "auth:activation:"));
+        var recSetS = await fetchRecordsFromSet("auth:activation_codes", "auth:activation:");
+        recAll = recAll.concat(recSetS.list);
+        recTotal += recSetS.total;
+        if (recSetS.truncated) recTruncated = true;
       }
       if (recStatus === "all" || recStatus === "failure") {
-        recAll = recAll.concat(await fetchRecordsFromSet("auth:activation_failures", ""));
+        var recSetF = await fetchRecordsFromSet("auth:activation_failures", "");
+        recAll = recAll.concat(recSetF.list);
+        recTotal += recSetF.total;
+        if (recSetF.truncated) recTruncated = true;
       }
       if (req.query.product_id) {
         recAll = recAll.filter(function (r) { return r.product_id === req.query.product_id; });
@@ -2905,7 +2946,20 @@ if ((isCron || isCronBackup) && isBackup) {
       recAll.sort(function (a, b) {
         return (Number(b.generated_at) || 0) - (Number(a.generated_at) || 0);
       });
-      return res.json({ success: true, records: recAll, cursor: 0, hasMore: false });
+      // count 只裁剪「返回条数」（保留历史行为），但必须如实告知前端被裁掉了多少 ——
+      // 静默裁剪正是这次「记录凭空少了」的观感来源，不能再犯。
+      var recFetched = recAll.length;
+      if (recAll.length > recLimit) recAll = recAll.slice(0, recLimit);
+      return res.json({
+        success: true,
+        records: recAll,
+        total: recTotal,
+        fetched: recFetched,
+        returned: recAll.length,
+        truncated: recTruncated || recFetched > recAll.length,
+        cursor: 0,
+        hasMore: false,
+      });
     } catch (error) {
       console.error("Records error:", error);
       var recMsg = "Internal server error";
