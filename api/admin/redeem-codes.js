@@ -177,7 +177,8 @@ module.exports = async (req, res) => {
       var months = body.months;
       var visitorInfo = notify.collectRequestInfo(req);
 
-      var deviceCheck = validateDeviceId(deviceId);
+      // strict:false —— 后台直开刻意放宽：允许 NA / 短 ID，便于为设备取不到 ID 的用户手工开码或联调
+      var deviceCheck = validateDeviceId(deviceId, { strict: false });
       if (!deviceCheck.valid) {
         saveFailureRecord(deviceCheck.error, deviceId, "", months, visitorInfo);
         notify.sendActivationFailure(req, {

@@ -345,9 +345,14 @@ module.exports = async (req, res) => {
     var deviceCheck = validateDeviceId(deviceId);
     var device = deviceCheck.value;
     if (!deviceCheck.valid) {
-      saveFailureRecord(deviceCheck.error, deviceId, redeemCode, "", "", visitorInfo, deviceInfo);
+      // 无效设备ID（如手环取不到 ID 回落的 "NA"）单独成一档，后台漏斗可见、可告警
+      // 详见 docs/设备ID为NA无效值拦截与反馈引导方案.md
+      var deviceFailReason = deviceCheck.code === "DEVICE_ID_INVALID"
+        ? "设备ID无效(" + (deviceCheck.raw || "") + ")"
+        : deviceCheck.error;
+      saveFailureRecord(deviceFailReason, deviceId, redeemCode, "", "", visitorInfo, deviceInfo);
       var deviceNotifyResult = await notify.sendActivationFailure(req, {
-        reason: deviceCheck.error,
+        reason: deviceFailReason,
         redeemCode: redeemCode || "",
         deviceId: deviceId || "",
         productId: "",
@@ -355,7 +360,7 @@ module.exports = async (req, res) => {
         source: "user",
       }).catch(function () {});
       await notify.pushNotification("activation_failure", {
-        reason: deviceCheck.error,
+        reason: deviceFailReason,
         redeem_code: redeemCode || "",
         device_id: deviceId || "",
         source: "user",
@@ -370,7 +375,8 @@ module.exports = async (req, res) => {
         district_zh: geo.district_zh,
         location_full_zh: geo.location_full_zh,
       }).catch(function () {});
-      return res.status(400).json({ success: false, error: deviceCheck.error, debug: { visitor: visitorInfo, notification: buildNotificationStatus(deviceNotifyResult), reason: deviceCheck.error } });
+      // code 供前端分支（DEVICE_ID_INVALID / DEVICE_ID_EMPTY）；群号不写在这里，前端去页面底部取
+      return res.status(400).json({ success: false, code: deviceCheck.code, error: deviceCheck.error, debug: { visitor: visitorInfo, notification: buildNotificationStatus(deviceNotifyResult), reason: deviceFailReason } });
     }
 
     var codeCheck = validateRedeemCode(redeemCode);

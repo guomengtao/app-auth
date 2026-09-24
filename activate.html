@@ -164,6 +164,83 @@
       color: #9ca3af;
       margin-top: 20px;
     }
+
+    /* 设备ID无效提示卡片 */
+    .invalid-card {
+      background: #fff8e1;
+      border: 1px solid #ffe082;
+      border-left: 4px solid #f59e0b;
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .invalid-card .invalid-icon { font-size: 28px; margin-bottom: 6px; }
+    .invalid-card .invalid-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #92400e;
+      margin-bottom: 8px;
+    }
+    .invalid-card .invalid-desc {
+      font-size: 0.78rem;
+      color: #7c5a17;
+      line-height: 1.7;
+      text-align: left;
+    }
+    .invalid-card .invalid-steps {
+      font-size: 0.75rem;
+      color: #7c5a17;
+      line-height: 1.9;
+      text-align: left;
+      margin-top: 10px;
+    }
+    .jump-btn {
+      display: inline-block;
+      margin-top: 14px;
+      padding: 8px 18px;
+      background: #12b7f5;
+      color: #fff;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .ghost-btn {
+      margin-top: 12px;
+      width: 100%;
+      padding: 10px;
+      background: #fff;
+      border: 1px solid #e0c98a;
+      border-radius: 10px;
+      color: #8a6d1f;
+      font-size: 0.78rem;
+      cursor: pointer;
+    }
+    .diag-tip { font-size: 0.7rem; color: #2e7d32; margin-top: 6px; height: 14px; }
+
+    /* 页面底部：全站唯一写群号的地方（群满换群只改这一段，不涉及逻辑代码） */
+    .page-footer {
+      margin-top: 22px;
+      padding-top: 16px;
+      border-top: 1px dashed #e5e7eb;
+      text-align: center;
+      font-size: 0.75rem;
+      color: #6b7280;
+      line-height: 1.9;
+    }
+    .page-footer .qq-num { color: #1a1a2e; font-weight: 700; letter-spacing: 0.5px; }
+    .page-footer .qq-btn {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 4px 12px;
+      background: #12b7f5;
+      color: #fff;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-decoration: none;
+    }
   </style>
 </head>
 <body>
@@ -171,6 +248,23 @@
     <div class="icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#6c63ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
     <h1>设备激活</h1>
     <p class="subtitle">输入兑换码获取激活码</p>
+
+    <div id="invalidCard" class="invalid-card" style="display:none">
+      <div class="invalid-icon">⚠️</div>
+      <div class="invalid-title">未能读取到您的设备信息</div>
+      <div class="invalid-desc">
+        检测到设备返回的标识为「<b id="invalidRaw">NA</b>」，这是一个无效值，<b>不是您的操作问题</b>。
+        继续激活会导致激活码无效，请先按下方方式联系我们处理。
+      </div>
+      <div class="invalid-steps">
+        ① 请先<b>重启手环</b>，从手环端重新打开激活二维码再扫一次；<br>
+        ② 若仍显示相同提示，请携带下方信息到<b>页面底部</b>的交流群反馈。
+      </div>
+      <!-- 群号刻意不写在这里：加群入口统一由页面底部提供，换群只改底部那段 HTML -->
+      <a class="jump-btn" href="#qq-group">前往底部加群 →</a>
+      <button class="ghost-btn" id="copyDiagBtn" onclick="copyDiagInfo()">复制设备信息（反馈给作者）</button>
+      <div class="diag-tip" id="diagTip"></div>
+    </div>
 
     <div class="steps">
       <div class="steps-title">激活步骤</div>
@@ -186,15 +280,24 @@
       <label>设备ID</label>
       <input type="text" id="deviceId" class="readonly" readonly>
     </div>
-    <div class="field">
-      <label>兑换码</label>
-      <input type="text" id="redeemCode" placeholder="输入4位兑换码" maxlength="4" autocomplete="off">
+    <div id="activateForm">
+      <div class="field">
+        <label>兑换码</label>
+        <input type="text" id="redeemCode" placeholder="输入4位兑换码" maxlength="4" autocomplete="off">
+      </div>
+      <button class="btn" id="activateBtn" onclick="activate()">立即激活</button>
     </div>
-    <button class="btn" id="activateBtn" onclick="activate()">立即激活</button>
 
     <div class="result" id="result"></div>
     <div class="device-info" id="deviceInfo"></div>
     <div class="version-footer" id="version-text"></div>
+
+    <!-- 交流群：全站唯一群号来源。群满换群只改下面这两处文本，不涉及任何逻辑代码。 -->
+    <div class="page-footer" id="qq-group">
+      遇到问题？加入用户交流 QQ 群：<span class="qq-num">936886288</span>
+      <a class="qq-btn" href="https://qm.qq.com/q/6lmyuev7VY" target="_blank" rel="noopener">一键加群</a><br>
+      问题反馈、版本更新通知、用户交流都在群里
+    </div>
   </div>
 
   <script>
@@ -268,6 +371,22 @@
       return params['deviceId'] || params['deviceid'] || params['id'] || '';
     }
 
+    // 手环端取不到设备标识时的常见回落值。放行会得到 "NA" → "00NA" 这种共用设备指纹，
+    // 导致一码一机失效。校验的是原始值（不能先归一化，否则 NA 已被补成 00NA 看不出来）。
+    var INVALID_DEVICE_TOKENS = {
+      'NA': 1, 'N/A': 1, 'NULL': 1, 'UNDEFINED': 1, 'NONE': 1, 'UNKNOWN': 1,
+      'UNKNOW': 1, 'NIL': 1, 'NAN': 1, '-': 1, '--': 1, 'TEST': 1,
+      'EMPTY': 1, 'DEFAULT': 1, 'FALSE': 1, '0': 1, '0000': 1
+    };
+
+    function isValidDeviceId(raw) {
+      var s = String(raw || '').trim();
+      if (!s) return false;
+      if (INVALID_DEVICE_TOKENS[s.toUpperCase()]) return false;
+      var alnum = s.replace(/[^0-9A-Za-z]/g, '');
+      return alnum.length >= 4;
+    }
+
     function getDeviceInfoFromUrl() {
       var params = parseQueryParams(window.location.search);
       return {
@@ -286,44 +405,41 @@
       };
     }
 
-    function populateDevicePanel(info) {
-      var hasInfo = info.model || info.product || info.deviceType;
-      if (!hasInfo) return;
-      document.getElementById('devicePanel').style.display = 'block';
-      if (info.model) document.getElementById('dModel').textContent = info.model;
-      if (info.product) document.getElementById('dProduct').textContent = info.product;
-      if (info.osVersionCode) document.getElementById('dOsVer').textContent = info.osVersionCode;
-      if (info.platformVersionCode) document.getElementById('dPlatVer').textContent = info.platformVersionCode;
-      if (info.deviceType) document.getElementById('dType').textContent = info.deviceType;
-      if (info.screenShape) {
-        var screenText = info.screenShape;
-        if (info.screenWidth && info.screenHeight) screenText += ' (' + info.screenWidth + 'x' + info.screenHeight + ')';
-        document.getElementById('dScreen').textContent = screenText;
-      }
-      if (info.apiLevel) document.getElementById('dApiLevel').textContent = info.apiLevel;
-      if (info.language) document.getElementById('dLang').textContent = info.language;
-    }
-
     var deviceInfo = getDeviceInfoFromUrl();
 
-    var deviceId = getDeviceIdFromUrl();
+    var urlDeviceId = getDeviceIdFromUrl();
+    var deviceId = urlDeviceId;
+    var deviceIdInvalid = false;
+
     if (!deviceId) {
+      // 空值：沿用本地兜底（用户直接浏览器打开的场景）
       deviceId = localStorage.getItem('deviceId') || '';
-    }
-    if (!deviceId) {
-      var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-      deviceId = '';
-      for (var i = 0; i < 4; i++) {
-        deviceId += chars.charAt(Math.floor(Math.random() * chars.length));
+      if (!deviceId) {
+        var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        deviceId = '';
+        for (var i = 0; i < 4; i++) {
+          deviceId += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        localStorage.setItem('deviceId', deviceId);
       }
-      localStorage.setItem('deviceId', deviceId);
+    } else if (!isValidDeviceId(deviceId)) {
+      // 无效值：绝不落库、绝不发码，直接走引导加群
+      deviceIdInvalid = true;
     }
 
-    document.getElementById('deviceId').value = deviceId;
-    document.getElementById('deviceInfo').textContent = '设备ID来源: ' + (getDeviceIdFromUrl() ? 'URL参数' : '本地生成');
+    document.getElementById('deviceId').value = deviceId || '未获取到';
+    document.getElementById('deviceInfo').textContent = '设备ID来源: ' + (urlDeviceId ? 'URL参数' : '本地生成');
+    if (deviceIdInvalid) showInvalidDeviceCard(urlDeviceId);
 
     function setLoading(loading) {
       var btn = document.getElementById('activateBtn');
+      // 无效设备ID 状态下按钮恒锁死：否则页面底部那个 xhrFetch 收尾时的 setLoading(false)
+      // 会把按钮重新点亮（表单虽已隐藏，但状态不一致）
+      if (deviceIdInvalid) {
+        btn.disabled = true;
+        btn.textContent = '设备信息异常，暂不可激活';
+        return;
+      }
       if (loading) {
         btn.disabled = true;
         btn.innerHTML = '<span class="loading"></span>激活中...';
@@ -331,6 +447,65 @@
         btn.disabled = false;
         btn.innerHTML = '立即激活';
       }
+    }
+
+    // 设备ID无效：隐藏表单，展示引导卡片（加群入口统一在页面底部 #qq-group）
+    function showInvalidDeviceCard(raw) {
+      var card = document.getElementById('invalidCard');
+      if (card) card.style.display = 'block';
+      var rawEl = document.getElementById('invalidRaw');
+      if (rawEl) rawEl.textContent = String(raw || '').slice(0, 40);
+      var form = document.getElementById('activateForm');
+      if (form) form.style.display = 'none';
+      var btn = document.getElementById('activateBtn');
+      if (btn) { btn.disabled = true; btn.textContent = '设备信息异常，暂不可激活'; }
+    }
+
+    // 诊断信息：一次性打包，用户粘贴到群里即可
+    function buildDiagText() {
+      var lines = [];
+      lines.push('[EV激活异常] 设备ID无效');
+      lines.push('deviceId=' + (getDeviceIdFromUrl() || '(空)'));
+      lines.push('型号=' + (deviceInfo.model || '-') + ' / 产品=' + (deviceInfo.product || '-'));
+      lines.push('设备类型=' + (deviceInfo.deviceType || '-') + ' 屏幕=' + (deviceInfo.screenWidth || '-') + 'x' + (deviceInfo.screenHeight || '-') + ' ' + (deviceInfo.screenShape || '-'));
+      lines.push('ROM=' + (deviceInfo.romVersion || '-') + ' 平台版本=' + (deviceInfo.platformVersionCode || '-') + ' 渠道=' + (deviceInfo.source || '-'));
+      lines.push('UA=' + String(navigator.userAgent || '').slice(0, 200));
+      lines.push('URL=' + window.location.href);
+      lines.push('时间=' + new Date().toString());
+      return lines.join('\n');
+    }
+
+    function copyDiagInfo() {
+      var text = buildDiagText();
+      var tipEl = document.getElementById('diagTip');
+      var showTip = function(ok) {
+        if (tipEl) tipEl.textContent = ok ? '已复制，粘贴到群里发给作者即可' : '复制失败，请手动截图本页';
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function() {
+          showTip(true);
+        }).catch(function() {
+          showTip(fallbackCopyText(text));
+        });
+      } else {
+        showTip(fallbackCopyText(text));
+      }
+    }
+
+    function fallbackCopyText(text) {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        ta.style.top = '-9999px';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        var ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        return ok;
+      } catch (_) { return false; }
     }
 
     function fmtCode(code) {
@@ -387,6 +562,13 @@
     }
 
     function activate() {
+      // 无效设备ID 硬拦截：防控制台绕过、防按钮被误启用
+      if (deviceIdInvalid) {
+        showInvalidDeviceCard(getDeviceIdFromUrl() || '(空)');
+        showResult('error', '设备信息异常，请按页面提示加群反馈后重试');
+        return;
+      }
+
       var codeInput = document.getElementById('redeemCode');
       var code = codeInput.value.trim();
 
@@ -453,6 +635,10 @@
           if (data.success) {
             showResult('success', '请将激活码输入到手环应用中', data.activationCode);
             codeInput.value = '';
+          } else if (data.code === 'DEVICE_ID_INVALID' || data.code === 'DEVICE_ID_EMPTY') {
+            // 后端兜底拦截：按 code 分支，不拼群号（群号只在页面底部）
+            showInvalidDeviceCard(getDeviceIdFromUrl() || '(空)');
+            showResult('error', '设备信息异常，请前往页面底部加群反馈');
           } else {
             showResult('error', data.error || '激活失败，请重试');
           }
