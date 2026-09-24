@@ -213,6 +213,35 @@ Vercel Serverless 中 Node.js 进程内的 JavaScript 变量（总内存 1024 MB
 | Supabase | 500MB 存储, 2GB 出流量 | 闲置 7 天自动暂停 |
 | Neon | 100h 计算/月, 512MB 存储 | 闲置 5 分钟自动休眠 |
 | Vercel | 100GB 带宽, 100GB-小时 | 冷启动，10 秒超时 |
+| **Vercel 函数文件数** | **平台允许 12 个，本项目硬性限制 ≤ 10 个** | 超限直接部署失败 |
+
+### ⚠️ 硬性规则：`api/` 下的 JS 函数文件数不得超过 10 个
+
+Vercel 免费版对**每个部署的 Serverless Function 数量**有上限，实测约 12 个，**超了就部署失败**（不是运行时降级，是整个部署起不来）。本项目主动收紧到 **10 个，留 2 个安全余量**用于应急新增。
+
+**统计口径**：`find api -name "*.js" -type f | wc -l` —— `api/` 目录下**递归**统计的每个 `.js` 文件都算 1 个函数（`api/admin/*.js`、`api/afdian/*.js` 各算 1 个）。
+`lib/` 下的文件**不算**（它们是被 import 的普通模块）。
+
+**新增功能的正确做法**：
+
+1. **首选：在已有文件里加 `section=` / `sub=` 分支**，不要新建文件。
+   例：所有统计类接口都挂在 `api/admin/health.js` 的 `section=stats&sub=xxx` 下。
+2. 确需新文件时，**先腾出名额**（合并或删除已废弃的接口），再新增。
+3. 提交前跑一次数量检查：
+
+   ```bash
+   find api -name "*.js" -type f | wc -l    # 必须 ≤ 10
+   ```
+
+**当前清单（2026-09-24，共 12 个 —— 已超限，需处理）**：
+
+```
+api/activate.js              api/go.js                 api/oauth.js              api/visitor/ip.js
+api/admin/clear-rate-limit.js  api/admin/go-links.js   api/admin/health.js       api/admin/products.js
+api/admin/records.js         api/admin/redeem-codes.js api/afdian/query-orders.js api/afdian/webhook.js
+```
+
+> ⚠️ 待办：`api/admin/clear-rate-limit.js` 已无任何前端调用（仅文档提及），是候选清理项；清理后为 11 个，仍需再合并 1 个才能回到 10 个以内。
 
 ## 添加新数据库
 
