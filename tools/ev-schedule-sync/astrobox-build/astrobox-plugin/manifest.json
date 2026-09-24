@@ -1,7 +1,7 @@
 {
   "name": "EV 课程表同步器",
   "icon": "icon.png",
-  "version": "1.0.58",
+  "version": "1.0.59",
   "description": "导入导出课程表 - 支持 WakeUp、sgschedule、StarLink、CSES、EV 课程表格式",
   "author": "EV Team",
   "website": "https://app-auth.gudq.com/user-guide.html?r=astrobox",

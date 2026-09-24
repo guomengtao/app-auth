@@ -783,7 +783,8 @@ fn build_log_page() -> ui_v3::Element {
     root = root.child(
         ui_v3::Element::new(ui_v3::ElementType::Textarea, Some(&text))
             .width_full()
-            .height(160)
+            // 高度 160 → 480（用户要求日志框加大 3 倍，排错时一屏能看到更多步骤）
+            .height(480)
             .size(11)
             .text_color(FG_PRIMARY)
             .bg(BG_INPUT)

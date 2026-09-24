@@ -36,7 +36,7 @@ use device::{DeviceEntry, EvInstallStatus};
 /// ⚠️ 必须与 `manifest.json` 的 `version` **保持一致**（打包前核对一次）。
 /// 之所以在界面上显示它：设备里到底装成功了哪个版本，光看文件名很容易搞混，
 /// 打开插件看一眼版本号是最快的核对方式（也方便远程让用户报版本排查）。
-pub const PLUGIN_VERSION: &str = "1.0.58";
+pub const PLUGIN_VERSION: &str = "1.0.59";
 
 /// 页面状态机：导入 Tab ⇄ 导出 Tab，两者都能临时跳到选择设备页
 #[derive(Clone, Debug, PartialEq)]
@@ -115,6 +115,10 @@ struct PluginState {
     demo_hint: String,
     /// 内存运行日志（WASI 无系统日志，排错信息都累积这里，由「日志」页渲染）
     log_lines: Vec<String>,
+    /// 已向手环发出的请求序号（每次 send 递增）
+    tx_seq: u64,
+    /// 已收到的回包序号（每次收到 InterconnectMessage 递增）
+    rx_seq: u64,
 }
 
 impl PluginState {
@@ -158,6 +162,8 @@ impl PluginState {
             demo_error: String::new(),
             demo_hint: String::new(),
             log_lines: Vec::new(),
+            tx_seq: 0,
+            rx_seq: 0,
         }
     }
 }
@@ -204,6 +210,13 @@ impl event::Guest for EvScheduleSyncPlugin {
             handle_device_message(&event_payload);
 
             // 与 on_ui_event 同理：render 必须同步，不能 spawn 延后
+            let target = STATE.lock().unwrap().render_target.clone();
+            if !target.is_empty() {
+                ui::render_main_ui(&target);
+            }
+        } else if matches!(event_type, EventType::Timer) && event_payload.contains("tx-timeout-") {
+            // 发出去的请求 5 秒没回包 → 给用户一条明确结论（而不是一直停在「已发送」）
+            handle_tx_timeout(&event_payload);
             let target = STATE.lock().unwrap().render_target.clone();
             if !target.is_empty() {
                 ui::render_main_ui(&target);
@@ -308,6 +321,7 @@ fn handle_device_message(raw: &str) {
     let decoded = protocol::decode_event_payload(raw);
 
     let mut state = STATE.lock().unwrap();
+    state.rx_seq += 1;
     state.last_response = decoded.clone();
     push_log_locked(
         &mut state,
@@ -573,6 +587,67 @@ fn push_log_locked(s: &mut PluginState, msg: impl Into<String>) {
     }
 }
 
+/// 每次向手环发消息后调用：登记一次「待回包」并排一个 5 秒超时定时器。
+///
+/// 背景：QAIC 下发**没有 ACK**，`send_qaic_message` 返回 `Ok` 只代表宿主受理。
+/// 手环侧不回包时（手环息屏、EV 被系统挂起、未开「后台运行」等），
+/// 界面上会一直停在「已发送」，用户无法判断是"手环没回"还是"插件卡了"。
+fn schedule_tx_timeout(label: &str) {
+    let n = {
+        let mut s = STATE.lock().unwrap();
+        s.tx_seq += 1;
+        s.tx_seq
+    };
+    let payload = format!("tx-timeout-{}|{}", n, label);
+    let _ = wit_bindgen::block_on(async { timer::set_timeout(5000, &payload).await });
+}
+
+/// `on_event` 收到 `Timer` 且 payload 是本模块排的 `tx-timeout-<n>|<label>` 时调用。
+///
+/// ⚠️ 不要在持有 `STATE` 锁时调 `push_log()`（会死锁，见 `push_log_locked` 注释）。
+fn handle_tx_timeout(event_payload: &str) {
+    let Some(rest) = event_payload.split("tx-timeout-").nth(1) else {
+        return;
+    };
+    let digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+    let Ok(n) = digits.parse::<u64>() else {
+        return;
+    };
+    let label: String = rest
+        .split_once('|')
+        .map(|(_, l)| {
+            l.chars()
+                .take_while(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+                .collect::<String>()
+        })
+        .unwrap_or_default();
+    let label = if label.is_empty() {
+        "请求".to_string()
+    } else {
+        label
+    };
+
+    let pending = {
+        let mut s = STATE.lock().unwrap();
+        if n > s.rx_seq {
+            s.status_message = format!(
+                "⚠️ {} 发出 5 秒内没有收到回包（已发出 {} 次 / 收到 {} 次）",
+                label, s.tx_seq, s.rx_seq
+            );
+            true
+        } else {
+            false
+        }
+    };
+
+    if pending {
+        push_log(format!(
+            "[TIMEOUT] {} 5 秒内没有收到回包。持续出现时：① 手环息屏/回桌面会挂起 EV，请在 EV 设置里开「后台运行」；② 确认蓝牙连接正常；③ 可再点一次重试",
+            label
+        ));
+    }
+}
+
 /// 启动手环上的 EV 课程表快应用（`thirdpartyapp::launch-qa`）。
 ///
 /// 关键根因（v1.0.54）：EV 快应用只在自身 `onCreate()` 里注册 interconnect 接收器；
@@ -625,6 +700,9 @@ fn send_ping() -> bool {
         send,
         protocol::truncate(&msg, 80)
     ));
+
+    // 5 秒内没回包就给明确提示（QAIC 无 ACK）
+    schedule_tx_timeout("ping");
 
     let mut state = STATE.lock().unwrap();
     state.status_message = match send {
@@ -860,6 +938,9 @@ fn handle_ui_event_inner(event_id: &str, event: &event::Event, event_payload: &s
                     protocol::truncate(&msg, 80)
                 ));
 
+                // 5 秒内没回包就给明确提示（QAIC 无 ACK）
+                schedule_tx_timeout("export");
+
                 let mut state = STATE.lock().unwrap();
                 state.status_message = match send {
                     Ok(()) => {
@@ -966,6 +1047,9 @@ fn handle_ui_event_inner(event_id: &str, event: &event::Event, event_payload: &s
                 });
 
                 push_log(format!("[TX] update_settings(nickname) send={:?}", send));
+
+                // 5 秒内没回包就给明确提示（QAIC 无 ACK）
+                schedule_tx_timeout("update_settings");
 
                 let mut state = STATE.lock().unwrap();
                 if send.is_ok() {
@@ -1311,6 +1395,9 @@ fn handle_ui_event_inner(event_id: &str, event: &event::Event, event_payload: &s
                 // ⚠️ 这里原来用的是 push_log()，而 state 守卫还活着 → 永久死锁
                 // （表现为「点导入到手环没反应、日志不动」），必须用 _locked 版本
                 push_log_locked(&mut state, format!("[TX] import send={:?}", send_result));
+                drop(state);
+                schedule_tx_timeout("import");
+                let mut state = STATE.lock().unwrap();
                 state.status_message = match send_result {
                     Ok(()) => format!(
                         "已发送 {} 门课程到手环（import 已投递，导入为覆盖式）",
@@ -1365,6 +1452,9 @@ fn handle_ui_event_inner(event_id: &str, event: &event::Event, event_payload: &s
                 state.export_result = json;
                 // ⚠️ 同上：持锁期间只能用 _locked 版本，否则死锁
                 push_log_locked(&mut state, format!("[TX] sgschedule send={:?}", send_result));
+                drop(state);
+                schedule_tx_timeout("sgschedule");
+                let mut state = STATE.lock().unwrap();
                 state.status_message = match send_result {
                     Ok(()) => format!(
                         "已发送 {} 门课程到 EV 课程表（sgschedule 格式）",
