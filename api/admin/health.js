@@ -2826,6 +2826,38 @@ if ((isCron || isCronBackup) && isBackup) {
       return res.status(auth2.status).json({ success: false, error: auth2.error });
     }
 
+    // ⚠️ 下面两个 sub 是**写操作**，必须放在 GET 守卫之前处理（stats 整体默认只允许 GET）
+    var statsSub0 = req.query && req.query.sub;
+
+    if (statsSub0 === "tracking-backfill") {
+      try {
+        if (req.method !== "POST") return res.status(405).json({ success: false, error: "Use POST" });
+        var bDays = parseInt(req.query && req.query.days, 10) || 90;
+        if (bDays > 365) bDays = 365;
+        var resBackfill = await require("../../lib/tracking").backfill(bDays);
+        return res.json({ success: true, days: bDays, imported: resBackfill });
+      } catch (e) {
+        return res.status(500).json({ success: false, error: e.message });
+      }
+    }
+
+    if (statsSub0 === "identity-overrides") {
+      try {
+        var identityMod = require("../../lib/identity");
+        if (req.method === "POST") {
+          var ibody = req.body || {};
+          if (ibody.removeId) return res.json(await identityMod.remove(ibody.removeId));
+          return res.json(await identityMod.add({
+            kind: ibody.kind, value_a: ibody.value_a, value_b: ibody.value_b,
+            op: ibody.op, note: ibody.note,
+          }));
+        }
+        return res.json({ success: true, items: await identityMod.list() });
+      } catch (e) {
+        return res.status(500).json({ success: false, error: e.message });
+      }
+    }
+
     if (req.method !== "GET") {
       return res.status(405).json({ success: false, error: "Method not allowed" });
     }
@@ -3314,23 +3346,6 @@ if ((isCron || isCronBackup) && isBackup) {
         }
       }
 
-      // 身份校正（人工合并 / 拆分）：GET 列表，POST 新增 或 删除
-      if (sub === "identity-overrides") {
-        try {
-          var identityMod = require("../../lib/identity");
-          if (req.method === "POST") {
-            var ibody = req.body || {};
-            if (ibody.removeId) return res.json(await identityMod.remove(ibody.removeId));
-            return res.json(await identityMod.add({
-              kind: ibody.kind, value_a: ibody.value_a, value_b: ibody.value_b,
-              op: ibody.op, note: ibody.note,
-            }));
-          }
-          return res.json({ success: true, items: await identityMod.list() });
-        } catch (e) {
-          return res.status(500).json({ success: false, error: e.message });
-        }
-      }
       // 转化漏斗（基于 tracking_events 统一事件流）
       if (sub === "funnel") {
         try {
@@ -3349,19 +3364,6 @@ if ((isCron || isCronBackup) && isBackup) {
           return res.status(500).json({ success: false, error: e.message });
         }
       }
-      // 历史数据回填 → tracking_events（幂等，可反复执行）
-      if (sub === "tracking-backfill") {
-        try {
-          if (req.method !== "POST") return res.status(405).json({ success: false, error: "Use POST" });
-          var bDays = parseInt(req.query && req.query.days, 10) || 90;
-          if (bDays > 365) bDays = 365;
-          var res2 = await require("../../lib/tracking").backfill(bDays);
-          return res.json({ success: true, days: bDays, imported: res2 });
-        } catch (e) {
-          return res.status(500).json({ success: false, error: e.message });
-        }
-      }
-
       return res.json(await handleStats2());
     } catch (error) {
       console.error("Stats error:", error);
