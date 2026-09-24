@@ -1145,5 +1145,17 @@
   } catch(_) {}
 })();
 </script>
+<script>
+// 全链路追踪：写 visitor_logs（区别于上面的 section=visit，那个只推通知不落库）
+// URL 上的 ?d=<deviceId> / ?c=<渠道> 会被服务端拆到 params 列，用于把文档浏览归到具体设备
+(function(){
+  try {
+    var t = new XMLHttpRequest();
+    t.open('POST', '/api/activate?section=visitor-track', true);
+    t.setRequestHeader('Content-Type', 'application/json');
+    t.send(JSON.stringify({ path: location.pathname + location.search }));
+  } catch(_) {}
+})();
+</script>
 </body>
 </html>

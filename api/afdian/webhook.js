@@ -72,6 +72,10 @@ module.exports = async (req, res) => {
           total_amount: amountCents,
           activation_code: result.activation_code || "",
           redeem_code: result.redeem_code || "",
+          // 全链路追踪：真实支付时间 + 备注里的设备 ID（订单 ↔ 访问侧的桥）
+          paid_at: result.paid_at || null,
+          device_id: result.device_id || "",
+          remark: result.remark || "",
         });
         console.log("[afdian:webhook] pushNotification sent OK");
       } catch (e) {

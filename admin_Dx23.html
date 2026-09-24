@@ -8121,7 +8121,7 @@
           var detail = '';
           var d = e.detail || {};
           if (e.kind === 'visit' || e.kind === 'go_click') detail = (d.path || '') + (d.query ? '?' + d.query : '');
-          else if (e.kind === 'order' || e.kind === 'order_notify') detail = (d.user_name ? d.user_name + ' · ' : '') + (d.plan_title || '') + ' · ' + (d.out_trade_no || '');
+          else if (e.kind === 'order' || e.kind === 'order_notify') detail = (d.user_name ? d.user_name + ' · ' : '') + (d.plan_title || '') + ' · ' + (d.out_trade_no || '') + (d.tsIsProcessedAt ? ' <span style="color:var(--warn)">（缺真实支付时间，显示的是系统处理时间）</span>' : '');
           else if (e.kind === 'redeem') detail = (d.code || '') + (d.out_trade_no ? ' ← ' + d.out_trade_no : '') + (d.source ? ' (' + d.source + ')' : '');
           else if (e.kind === 'activation') detail = (d.activation_code || '') + ' · 码 ' + (d.redeem_code || '') + ' · ' + (d.months == 99 ? '永久' : d.months + '月');
           else if (e.kind === 'failure') detail = d.reason || '';
@@ -8130,7 +8130,7 @@
           html += '<tr style="border-bottom:1px solid var(--line)">' +
             '<td style="padding:6px 4px;white-space:nowrap;color:var(--muted)">' + escapeHtml(new Date(e.ts).toLocaleString()) + '</td>' +
             '<td style="padding:6px 4px;white-space:nowrap">' + meta.icon + ' ' + escapeHtml(meta.label) + '</td>' +
-            '<td style="padding:6px 4px;font-family:monospace;font-size:0.75rem">' + escapeHtml(e.ip || '—') + '</td>' +
+            '<td style="padding:6px 4px;font-family:monospace;font-size:0.75rem" title="' + (e.ipInferred ? '该 IP 由同设备临近访问反推' : '实测') + '">' + escapeHtml(e.ip || '—') + (e.ipInferred ? '<span style="color:var(--warn)">*</span>' : '') + '</td>' +
             '<td style="padding:6px 4px;font-size:0.75rem;color:var(--muted);word-break:break-all">' + escapeHtml(detail) + '</td>' +
             '<td style="padding:6px 4px;font-size:0.6875rem;color:var(--muted);white-space:nowrap">' + escapeHtml(e.source || '') + '</td>' +
             '</tr>';
