@@ -6252,6 +6252,10 @@
     }
 
     function openCodeModal() {
+      var sel = document.getElementById('codeProduct');
+      if (sel.options.length <= 1) {
+        loadProducts().catch(function () {});
+      }
       document.getElementById('codeModal').classList.add('show');
     }
 
