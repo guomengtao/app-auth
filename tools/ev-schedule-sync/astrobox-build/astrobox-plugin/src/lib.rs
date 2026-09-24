@@ -36,7 +36,7 @@ use device::{DeviceEntry, EvInstallStatus};
 /// ⚠️ 必须与 `manifest.json` 的 `version` **保持一致**（打包前核对一次）。
 /// 之所以在界面上显示它：设备里到底装成功了哪个版本，光看文件名很容易搞混，
 /// 打开插件看一眼版本号是最快的核对方式（也方便远程让用户报版本排查）。
-pub const PLUGIN_VERSION: &str = "1.0.57";
+pub const PLUGIN_VERSION: &str = "1.0.58";
 
 /// 页面状态机：导入 Tab ⇄ 导出 Tab，两者都能临时跳到选择设备页
 #[derive(Clone, Debug, PartialEq)]
@@ -360,18 +360,19 @@ fn handle_device_message(raw: &str) {
                 if let Some(vc) = protocol::json_u32(&data.version_code) {
                     state.version_code = vc.to_string();
                 }
-                if let Some(days) = data.schedule.clone() {
-                    let mut courses = Vec::new();
-                    for d in days.iter() {
-                        let day = parse_day_name(d.day.as_deref().unwrap_or(""));
-                        for c in d.classes.iter().flatten() {
-                            let (start, end) = split_time_range(c.time.as_deref().unwrap_or(""));
-                            courses.push(UnifiedCourse {
+                // 课表：宽容扁平化（任何字段类型不符只跳过单条，不会让整包解析失败）
+                let flat = protocol::flatten_schedule(&data.schedule);
+                if !flat.is_empty() {
+                    let courses: Vec<UnifiedCourse> = flat
+                        .iter()
+                        .map(|c| {
+                            let (start, end) = split_time_range(&c.time);
+                            UnifiedCourse {
                                 id: c.id.clone().unwrap_or_else(generate_id),
-                                name: c.name.clone().unwrap_or_default(),
-                                teacher: c.teacher.clone().unwrap_or_default(),
-                                location: c.location.clone().unwrap_or_default(),
-                                day,
+                                name: c.name.clone(),
+                                teacher: c.teacher.clone(),
+                                location: c.location.clone(),
+                                day: parse_day_name(&c.day),
                                 start_time: start,
                                 end_time: end,
                                 // v1 手环不返回周次与单双周，留空
@@ -380,10 +381,28 @@ fn handle_device_message(raw: &str) {
                                 color: None,
                                 credit: None,
                                 remark: c.notes.clone(),
-                            });
-                        }
-                    }
+                            }
+                        })
+                        .collect();
                     state.courses = courses;
+                } else if data
+                    .schedule
+                    .as_ref()
+                    .and_then(|v| v.as_array())
+                    .map(|a| !a.is_empty())
+                    .unwrap_or(false)
+                {
+                    // 有 schedule 却一条都没拍出来 → 把原文打出来，别静默
+                    push_log_locked(
+                        &mut state,
+                        format!(
+                            "[RX] schedule 解析出 0 条，原文：{}",
+                            protocol::truncate(
+                                &data.schedule.as_ref().map(|v| v.to_string()).unwrap_or_default(),
+                                200
+                            )
+                        ),
+                    );
                 }
                 let mut msg = protocol::summarize_export(&data);
                 // 昵称缺失时给明确原因，避免「读不出来」却无任何说明

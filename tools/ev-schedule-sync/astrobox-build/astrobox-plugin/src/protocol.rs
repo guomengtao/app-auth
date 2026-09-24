@@ -143,7 +143,10 @@ pub struct ExportResponse {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ExportData {
-    pub schedule: Option<Vec<DaySchedule>>,
+    /// 课表：格式 A（`[{"day":"星期一","classes":[…]}]`）。
+    /// 收成裸 JSON 后手工拍平（`flatten_schedule`）—— 强类型一旦某字段类型不符，
+    /// 会让**整包** export 反序列化失败，代价太大。
+    pub schedule: Option<serde_json::Value>,
     pub nickname: Option<serde_json::Value>,
     /// 首页设置：字段随版本变化，**必须原样保存原样回写**，故用裸 JSON
     pub homepage: Option<serde_json::Value>,
@@ -183,6 +186,11 @@ pub fn json_bool(v: &Option<serde_json::Value>) -> Option<bool> {
 
 /// `Value` → `String`：数字/字符串都收（`versionName` 之类的容错）
 pub fn json_string(v: &Option<serde_json::Value>) -> Option<String> {
+    json_string_value(v.as_ref())
+}
+
+/// `Option<&Value>` 版本（手工取值时用）
+pub fn json_string_value(v: Option<&serde_json::Value>) -> Option<String> {
     match v {
         Some(serde_json::Value::String(s)) => Some(s.clone()),
         Some(serde_json::Value::Number(n)) => Some(n.to_string()),
@@ -191,33 +199,51 @@ pub fn json_string(v: &Option<serde_json::Value>) -> Option<String> {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
-pub struct DaySchedule {
-    pub day: Option<String>,
-    pub classes: Option<Vec<ClassEntry>>,
+/// 扁平化后的一节课（宽容解析产物）
+#[derive(Clone, Debug, Default)]
+pub struct FlatClass {
+    pub day: String,
+    pub id: Option<String>,
+    pub name: String,
+    /// 形如 "08:00 - 08:45"
+    pub time: String,
+    pub teacher: String,
+    pub location: String,
+    pub notes: Option<String>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
-pub struct ClassEntry {
-    pub id: Option<String>,
-    pub name: Option<String>,
-    /// 形如 "08:00 - 08:45"
-    pub time: Option<String>,
-    pub teacher: Option<String>,
-    pub location: Option<String>,
-    pub notes: Option<String>,
+/// 把 `data.schedule`（格式 A：`[{"day":"星期一","classes":[{…}]}]`）拍平成课程列表。
+///
+/// 全程用 `Value` 手工取值：**任何字段缺失或类型不符都只跳过那一条**，
+/// 绝不会让整个 export 回包解析失败（这是 v1.0.57 之后仍读不出课表的第二个坑）。
+pub fn flatten_schedule(schedule: &Option<serde_json::Value>) -> Vec<FlatClass> {
+    let mut out = Vec::new();
+    let Some(arr) = schedule.as_ref().and_then(|v| v.as_array()) else {
+        return out;
+    };
+    for day in arr {
+        let day_name = json_string_value(day.get("day")).unwrap_or_default();
+        let Some(classes) = day.get("classes").and_then(|c| c.as_array()) else {
+            continue;
+        };
+        for c in classes {
+            out.push(FlatClass {
+                day: day_name.clone(),
+                id: json_string_value(c.get("id")),
+                name: json_string_value(c.get("name")).unwrap_or_default(),
+                time: json_string_value(c.get("time")).unwrap_or_default(),
+                teacher: json_string_value(c.get("teacher")).unwrap_or_default(),
+                location: json_string_value(c.get("location")).unwrap_or_default(),
+                notes: json_string_value(c.get("notes")),
+            });
+        }
+    }
+    out
 }
 
 /// 统计 export 回包里一共有多少门课
 pub fn count_export_classes(data: &ExportData) -> usize {
-    data.schedule
-        .as_ref()
-        .map(|days| {
-            days.iter()
-                .map(|d| d.classes.as_ref().map(|c| c.len()).unwrap_or(0))
-                .sum()
-        })
-        .unwrap_or(0)
+    flatten_schedule(&data.schedule).len()
 }
 
 /// 把 export 回包转成一行摘要（用于状态栏）
@@ -341,23 +367,31 @@ pub fn parse_ping_response(raw: &str) -> Result<PingResponse, String> {
 ///
 /// 协议文档 §1.2：手环回包在通道上以 `{ "data": "<JSON字符串>" }` 形式发送，
 /// `data` 是**字符串**。插件必须先 `JSON.parse(msg.data)` 还原出真正的业务报文
-/// `{ ok, action, data? }`。同时兼容两种实现：
-/// - `data` 是字符串 → 再 `JSON.parse` 一层
-/// - `data` 已是对象/数字 → 直接用它
-/// - 根本没有 `data` 字段 → `raw` 本身就是业务 JSON（旧实现或不包装的情况）
+/// `{ ok, action, data? }`。
+///
+/// ⚠️ **只有在"外层看起来不是业务报文"时才剥**：
+/// export 的业务回包本身长这样 —— `{"ok":true,"action":"export",…,"data":{…}}`，
+/// 它**也有 `data` 字段**，但那是数据本身。无条件剥一层会把 `action`/`ok` 全丢掉，
+/// 于是 export 解析失败、报「回包无法识别」 —— 这是 v1.0.57 上线后仍读不出课表的原因。
+///
+/// 判定规则：外层含 `ok` 或 `action` → 它本身就是业务报文，**原样返回**；
+/// 否则若含 `data` → `data` 是字符串则再解析一层，是对象则直接用它；否则原样返回。
 pub fn unwrap_envelope(raw: &str) -> String {
     match serde_json::from_str::<serde_json::Value>(raw) {
         Ok(v) if v.is_object() => {
-            if let Some(data) = v.get("data") {
-                match data {
-                    serde_json::Value::String(s) => {
-                        // data 是字符串：尝试再解析一层；失败则原样返回
-                        if let Ok(inner) = serde_json::from_str::<serde_json::Value>(s) {
-                            return inner.to_string();
+            let looks_like_business = v.get("ok").is_some() || v.get("action").is_some();
+            if !looks_like_business {
+                if let Some(data) = v.get("data") {
+                    match data {
+                        serde_json::Value::String(s) => {
+                            // data 是字符串：尝试再解析一层；失败则原样返回
+                            if let Ok(inner) = serde_json::from_str::<serde_json::Value>(s) {
+                                return inner.to_string();
+                            }
+                            return s.clone();
                         }
-                        return s.clone();
+                        other => return other.to_string(),
                     }
-                    other => return other.to_string(),
                 }
             }
             v.to_string()
