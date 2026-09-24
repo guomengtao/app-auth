@@ -6048,6 +6048,10 @@
             if (actSeq > 1) {
               statusBadge += ' <span class="badge" style="background: var(--accent-bg);color: var(--accent-text);border:1px solid var(--accent-line);white-space:nowrap" title="该设备用同一兑换码第 ' + actSeq + ' 次激活（非首次）">第 ' + actSeq + ' 次激活</span>';
             }
+            if (r.is_na) {
+              var naIdx = Number(r.na_device_index) || 0;
+              statusBadge += ' <span class="badge" style="background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;white-space:nowrap" title="该设备使用临时UUID标识（NA设备），此兑换码第' + naIdx + '次被NA设备使用">NA·第' + naIdx + '次</span>';
+            }
           }
 
           var di = r.device_info || {};
@@ -6417,9 +6421,21 @@
       var hasVisitor = vi.ip || vi.os || vi.browser;
       var hasChannel = di.source;
 
-      if (!hasDevice && !hasVisitor && !isFailure && !hasChannel) return '<span style="color: var(--ink-3)">No detail</span>';
+      if (!hasDevice && !hasVisitor && !isFailure && !hasChannel && !r.is_na) return '<span style="color: var(--ink-3)">No detail</span>';
 
       var html = '<div class="record-detail">';
+
+      if (r.is_na) {
+        var naIdx = Number(r.na_device_index) || 0;
+        var fullDevId = r.device_id_full || r.device_id || '';
+        html += '<div class="detail-section">';
+        html += '<div class="detail-section-title" style="color:#1565c0">\uD83D\uDD35 NA \u8bbe\u5907\uff08\u4e34\u65f6 UUID \u6807\u8bc6\uff09</div>';
+        html += '<table class="detail-table">';
+        html += '<tr><td>\u8bbe\u5907 ID</td><td style="font-family:monospace;font-size:0.75rem;word-break:break-all;max-width:380px">' + escapeHtml(fullDevId) + '</td></tr>';
+        html += '<tr><td>\u5151\u6362\u7801\u4f7f\u7528\u6b21\u6570</td><td><b style="color:#1565c0">\u7b2c ' + naIdx + ' \u6b21</b>\uff08\u6b64\u5151\u6362\u7801\u5df2\u88ab ' + naIdx + ' \u4e2a NA \u8bbe\u5907\u4f7f\u7528\uff09</td></tr>';
+        html += '</table>';
+        html += '</div>';
+      }
 
       if (hasChannel) {
         var channelParts = (di.source || '').split('-');
