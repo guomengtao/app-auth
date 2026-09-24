@@ -3314,6 +3314,37 @@ if ((isCron || isCronBackup) && isBackup) {
         }
       }
 
+      // 转化漏斗（基于 tracking_events 统一事件流）
+      if (sub === "funnel") {
+        try {
+          var fDays = parseInt(req.query && req.query.days, 10) || 30;
+          return res.json(await require("../../lib/tracking").funnel(fDays));
+        } catch (e) {
+          return res.status(500).json({ success: false, error: e.message });
+        }
+      }
+      // 画像汇总（设备 / 地区 / 渠道 / 生命周期分布）
+      if (sub === "portrait") {
+        try {
+          var pDays = parseInt(req.query && req.query.days, 10) || 30;
+          return res.json(await require("../../lib/tracking").portrait(pDays));
+        } catch (e) {
+          return res.status(500).json({ success: false, error: e.message });
+        }
+      }
+      // 历史数据回填 → tracking_events（幂等，可反复执行）
+      if (sub === "tracking-backfill") {
+        try {
+          if (req.method !== "POST") return res.status(405).json({ success: false, error: "Use POST" });
+          var bDays = parseInt(req.query && req.query.days, 10) || 90;
+          if (bDays > 365) bDays = 365;
+          var res2 = await require("../../lib/tracking").backfill(bDays);
+          return res.json({ success: true, days: bDays, imported: res2 });
+        } catch (e) {
+          return res.status(500).json({ success: false, error: e.message });
+        }
+      }
+
       return res.json(await handleStats2());
     } catch (error) {
       console.error("Stats error:", error);

@@ -29,6 +29,13 @@ var geoDistrict = require("../lib/geo-district");
 var visitorLog = require("../lib/visitor-log");
 var background = require("../lib/background");
 var ipWarmup = require("../lib/ip-warmup");
+var tracking = require("../lib/tracking");
+
+// 从渠道参数里取设备 ID（购买页链接上的 deviceId）
+function paramDeviceId(params) {
+  if (!params) return "";
+  return String(params.deviceId || params.d || "");
+}
 var md = null;
 try { md = require("../lib/message-delivery"); } catch(e) { console.log("[go] message-delivery not available"); }
 
@@ -370,6 +377,22 @@ module.exports = async (req, res) => {
     // 中文归属地自动补齐：ip_lookups 此前只有「腾讯成功」才会写，境外 IP 永远落不进去，
     //    只能显示 Vercel 原始头部（IL / 06 / Z）。这里在响应之后补一次（不占用跳转时间）。
     background.run(ipWarmup.warmup(ip), "ip-warmup");
+
+    // 统一事件流：购买点击（漏斗的「访问 → 支付」这一步的关键节点）
+    background.run(tracking.record({
+      ts: ts,
+      kind: "purchase_click",
+      ip: ip,
+      visitorHash: vHash,
+      deviceId: paramDeviceId(queryParams),
+      channel: String((queryParams && queryParams.c) || req.query.utm_source || ""),
+      payload: {
+        slug: slug, target_url: entry.target_url || "",
+        query: fullQuery, params: queryParams || {}, ua: ua, ref: ref,
+        country: country, region: region, city: city,
+      },
+      dedupeKey: null,
+    }), "tracking");
 
     // 3) 302 跳转
     res.setHeader("Location", entry.target_url);

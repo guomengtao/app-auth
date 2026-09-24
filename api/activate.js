@@ -9,6 +9,7 @@ var geoDistrict = require("../lib/geo-district");
 var visitorLog = require("../lib/visitor-log");
 var background = require("../lib/background");
 var ipWarmup = require("../lib/ip-warmup");
+var tracking = require("../lib/tracking");
 
 // Vercel 免费头部 + 腾讯位置服务区县 → geo 字段（中文由 lib/geo-zh.js 统一产出）
 async function getGeoFields(req) {
@@ -152,6 +153,18 @@ async function handleVisitorTrack(req, res) {
     // 中文归属地自动补齐（境外 IP 靠腾讯永远写不进 ip_lookups，必须补一次境外源）
     background.run(ipWarmup.warmup(ip), "ip-warmup");
 
+    // 统一事件流（tracking_events）：供漏斗 / 画像汇总使用，失败不影响埋点响应
+    background.run(tracking.record({
+      ts: ts,
+      kind: "visit",
+      ip: ip,
+      visitorHash: vHash,
+      deviceId: queryParams ? queryParams.deviceId || "" : "",
+      channel: queryParams ? queryParams.c || "" : "",
+      payload: { path: path, query: fullQuery, params: queryParams || {}, ua: ua.slice(0, 200), ref: ref.slice(0, 200) },
+      dedupeKey: null,
+    }), "tracking");
+
     return res.json({ success: true, isNewVisitor: isNew === 1 });
   } catch (e) {
     console.error("[visitor/track]", e);
@@ -202,6 +215,17 @@ function saveFailureRecord(reason, deviceId, redeemCode, productId, months, visi
   var now = Date.now();
   var rnd = Math.random().toString(36).slice(2, 6);
   var key = "auth:activation_failure:" + now + ":" + rnd;
+  // 统一事件流：所有激活失败（含限流 / 校验失败 / 码不存在）都记一条，漏斗里能看到卡在哪一步
+  background.run(tracking.record({
+    ts: now,
+    kind: "failure",
+    deviceId: deviceId || "",
+    ip: (visitorInfo && visitorInfo.ip) || "",
+    redeemCode: redeemCode || "",
+    channel: (deviceInfo && deviceInfo.source) || "",
+    payload: { reason: reason, product_id: productId || "", months: months || "", model: (deviceInfo && (deviceInfo.model || deviceInfo.product)) || "" },
+    dedupeKey: null,
+  }), "tracking");
   var record = {
     status: "failure",
     reason: reason,
@@ -409,6 +433,7 @@ module.exports = async (req, res) => {
     }
 
     var info = parseRedisJson(codeData);
+    var infoOutTradeNo = (info && info.out_trade_no) || "";   // 爱发电渠道的码才有，用于事件流关联订单
     if (!info) {
       saveFailureRecord("兑换码数据已损坏", device, code, "", "", visitorInfo, deviceInfo);
       var corruptNotifyResult = await notify.sendActivationFailure(req, {
@@ -527,6 +552,22 @@ module.exports = async (req, res) => {
         }
         await reusePipeline.exec();
 
+        background.run(tracking.record({
+          ts: reuseNow,
+          kind: "activation",
+          deviceId: rawDeviceId || device,
+          ip: (visitorInfo && visitorInfo.ip) || "",
+          redeemCode: code,
+          outTradeNo: infoOutTradeNo,
+          activationCode: activationCodeReuse,
+          channel: (deviceInfo && deviceInfo.source) || "",
+          payload: {
+            product_id: productId, months: months, reuse: true,
+            model: (deviceInfo && (deviceInfo.model || deviceInfo.product)) || "",
+          },
+          dedupeKey: "ac:" + activationCodeReuse,
+        }), "tracking");
+
         notify.sendActivationNotification(req, {
           redeemCode: code,
           activationCode: activationCodeReuse,
@@ -617,6 +658,24 @@ module.exports = async (req, res) => {
       created_at: info.created_at || now,
       used_at: now,
     };
+
+    // 统一事件流：激活成功节点（激活码唯一 → dedupe 用 ac:<code>）
+    background.run(tracking.record({
+      ts: now,
+      kind: "activation",
+      deviceId: rawDeviceId || device,
+      ip: (visitorInfo && visitorInfo.ip) || "",
+      redeemCode: code,
+      outTradeNo: infoOutTradeNo,
+      activationCode: activationCode,
+      channel: (deviceInfo && deviceInfo.source) || "",
+      payload: {
+        product_id: productId, months: months,
+        model: (deviceInfo && (deviceInfo.model || deviceInfo.product)) || "",
+        rom: (deviceInfo && deviceInfo.romVersion) || "",
+      },
+      dedupeKey: "ac:" + activationCode,
+    }), "tracking");
 
     var record = {
       activation_code: activationCode,

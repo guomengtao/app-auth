@@ -4306,6 +4306,7 @@
             <button class="logs-tab active" onclick="switchDirectActivateTab('generate')" id="daSubTabGenerate" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color: var(--accent-text);cursor:pointer;border-bottom:2px solid var(--accent);margin-bottom:-2px;transition:all 0.15s;">⚡ 生成激活码</button>
             <button class="logs-tab" onclick="switchDirectActivateTab('decrypt')" id="daSubTabDecrypt" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">🔍 解密验证</button>
             <button class="logs-tab" onclick="switchDirectActivateTab('profile')" id="daSubTabProfile" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">👤 用户画像</button>
+            <button class="logs-tab" onclick="switchDirectActivateTab('summary')" id="daSubTabSummary" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">📊 画像汇总</button>
           </div>
 
           <div id="daSubGenerate">
@@ -4425,6 +4426,24 @@
               </div>
             </div>
             <div id="ujResult"></div>
+          </div>
+
+          <!-- 画像汇总 / 漏斗 -->
+          <div id="daSubSummary" style="display:none;">
+            <div class="decrypt-box" style="margin-bottom:16px">
+              <h3>画像汇总与转化漏斗</h3>
+              <p class="decrypt-desc">基于 tracking_events 统一事件流（设备 / 地区 / 渠道 / 生命周期分布 + 各步转化率与中位耗时）</p>
+              <div class="decrypt-input-row">
+                <select id="pjDays" onchange="loadPortraitSummary()" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card-bg);color:var(--ink);font-size:0.875rem">
+                  <option value="7">近 7 天</option>
+                  <option value="30" selected>近 30 天</option>
+                  <option value="90">近 90 天</option>
+                </select>
+                <button class="btn btn-primary" onclick="loadPortraitSummary()">刷新</button>
+                <button class="da-bulk-btn" onclick="runTrackingBackfill()">⬇️ 回填历史数据</button>
+              </div>
+            </div>
+            <div id="pjResult"></div>
           </div>
         </div>
 
@@ -7988,13 +8007,17 @@
       var generateTab = document.getElementById('daSubTabGenerate');
       var decryptTab = document.getElementById('daSubTabDecrypt');
       var profileTab = document.getElementById('daSubTabProfile');
+      var summarySub = document.getElementById('daSubSummary');
+      var summaryTab = document.getElementById('daSubTabSummary');
 
       if (generateSub) generateSub.style.display = 'none';
       if (decryptSub) decryptSub.style.display = 'none';
       if (profileSub) profileSub.style.display = 'none';
+      if (summarySub) summarySub.style.display = 'none';
       if (generateTab) { generateTab.classList.remove('active'); generateTab.style.color = 'var(--muted)'; generateTab.style.borderBottomColor = 'transparent'; }
       if (decryptTab) { decryptTab.classList.remove('active'); decryptTab.style.color = 'var(--muted)'; decryptTab.style.borderBottomColor = 'transparent'; }
       if (profileTab) { profileTab.classList.remove('active'); profileTab.style.color = 'var(--muted)'; profileTab.style.borderBottomColor = 'transparent'; }
+      if (summaryTab) { summaryTab.classList.remove('active'); summaryTab.style.color = 'var(--muted)'; summaryTab.style.borderBottomColor = 'transparent'; }
 
       if (tab === 'generate') {
         if (generateSub) generateSub.style.display = '';
@@ -8005,7 +8028,113 @@
       } else if (tab === 'profile') {
         if (profileSub) profileSub.style.display = '';
         if (profileTab) { profileTab.classList.add('active'); profileTab.style.color = 'var(--accent)'; profileTab.style.borderBottomColor = 'var(--accent)'; }
+      } else if (tab === 'summary') {
+        if (summarySub) summarySub.style.display = '';
+        if (summaryTab) { summaryTab.classList.add('active'); summaryTab.style.color = 'var(--accent)'; summaryTab.style.borderBottomColor = 'var(--accent)'; }
+        loadPortraitSummary();
       }
+    }
+
+    // ---- 画像汇总 / 转化漏斗 ----
+
+    function pjPct(v) { return v === null || v === undefined ? '—' : Math.round(v * 100) + '%'; }
+
+    function loadPortraitSummary() {
+      var days = (document.getElementById('pjDays') || {}).value || '30';
+      var box = document.getElementById('pjResult');
+      if (!box) return;
+      box.innerHTML = '<div style="color:var(--muted);font-size:0.875rem">加载中…</div>';
+      Promise.all([
+        api('/api/admin/health?section=stats&sub=funnel&days=' + encodeURIComponent(days)).catch(function () { return null; }),
+        api('/api/admin/health?section=stats&sub=portrait&days=' + encodeURIComponent(days)).catch(function () { return null; }),
+      ]).then(function (rs) { box.innerHTML = renderPortraitSummary(rs[0], rs[1]); })
+        .catch(function (e) { box.innerHTML = '<div style="color:var(--err);font-size:0.875rem">Error: ' + escapeHtml(e.message) + '</div>'; });
+    }
+
+    function runTrackingBackfill() {
+      var days = (document.getElementById('pjDays') || {}).value || '90';
+      showToast('开始回填近 ' + days + ' 天历史数据…', 'info');
+      api('/api/admin/health?section=stats&sub=tracking-backfill&days=' + encodeURIComponent(days), { method: 'POST' })
+        .then(function (r) {
+          if (!r || !r.success) { showToast('回填失败：' + ((r && r.error) || '未知错误'), 'error'); return; }
+          var im = r.imported || {};
+          showToast('回填完成：访问 ' + (im.visitorLogs || 0) + ' / 订单 ' + (im.orders || 0) + ' / 兑换码 ' + (im.redeems || 0) + ' / 激活 ' + (im.activations || 0) + ' / 失败 ' + (im.failures || 0), 'success');
+          loadPortraitSummary();
+        })
+        .catch(function (e) { showToast('回填失败：' + e.message, 'error'); });
+    }
+
+    function pjBar(v, max) {
+      var w = max > 0 ? Math.max(2, Math.round((v / max) * 100)) : 0;
+      return '<span style="display:inline-block;vertical-align:middle;width:' + w + '%;max-width:120px;height:6px;background:var(--accent);border-radius:3px"></span>';
+    }
+
+    function renderPortraitSummary(funnel, portrait) {
+      var html = '';
+      if (!funnel || !funnel.success) {
+        html += '<div style="color:var(--err);font-size:0.875rem">漏斗加载失败：' + escapeHtml((funnel && funnel.error) || '未知错误') + '</div>';
+      } else {
+        var stages = funnel.stages || [];
+        var maxV = 0;
+        stages.forEach(function (s) { if (s.value > maxV) maxV = s.value; });
+        html += '<div class="da-card" style="margin-bottom:16px"><div class="da-card-header"><div class="da-card-icon i-duration">📉</div><div><div class="da-card-title">转化漏斗</div><div class="da-card-sub">近 ' + escapeHtml(String(funnel.days)) + ' 天</div></div></div>';
+        html += '<table style="width:100%;border-collapse:collapse;font-size:0.8125rem">';
+        stages.forEach(function (s, i) {
+          html += '<tr style="border-bottom:1px solid var(--line)">' +
+            '<td style="padding:6px 4px;width:130px">' + escapeHtml(s.label) + '</td>' +
+            '<td style="padding:6px 4px;width:90px;font-weight:600">' + escapeHtml(String(s.value)) + '</td>' +
+            '<td style="padding:6px 4px;width:140px">' + pjBar(s.value, maxV) + '</td>' +
+            '<td style="padding:6px 4px;color:var(--muted);font-size:0.75rem" title="' + escapeHtml(s.rateNote || '') + '">' + (i === 0 ? '—' : '较上一步 ' + pjPct(s.rate) + (s.rateNote ? ' ⚠' : '')) + '</td>' +
+            '</tr>';
+        });
+        html += '</table>';
+        var du = funnel.durations || {};
+        html += '<div style="margin-top:8px;font-size:0.75rem;color:var(--muted)">中位耗时（样本数）：访问→支付 ' + ujFmtDur(du.visitToOrderMs) + '(' + ((du.samples || {}).visitToOrder || 0) + ') ｜ 支付→发码 ' + ujFmtDur(du.orderToRedeemMs) + '(' + ((du.samples || {}).orderToRedeem || 0) + ') ｜ 发码→激活 ' + ujFmtDur(du.redeemToActivationMs) + '(' + ((du.samples || {}).redeemToActivation || 0) + ')</div>';
+        html += '</div>';
+      }
+
+      if (!portrait || !portrait.success) {
+        html += '<div style="color:var(--err);font-size:0.875rem">画像汇总加载失败：' + escapeHtml((portrait && portrait.error) || '未知错误') + '</div>';
+        return html;
+      }
+
+      var p = portrait;
+      html += '<div style="display:flex;gap:16px;flex-wrap:wrap">';
+
+      var life = p.lifecycle || {};
+      html += '<div class="da-card" style="flex:1;min-width:220px"><div class="da-card-header"><div class="da-card-icon i-device">🧬</div><div><div class="da-card-title">生命周期</div><div class="da-card-sub">按设备判定，共 ' + (life.total || 0) + ' 台</div></div></div>';
+      html += '<table style="width:100%;font-size:0.8125rem;border-collapse:collapse">';
+      html += '<tr><td style="color:var(--muted);padding:3px 0">已激活</td><td><b>' + (life.activated || 0) + '</b></td></tr>';
+      html += '<tr><td style="color:var(--muted);padding:3px 0">已付费未激活</td><td style="color:var(--err)">' + (life.paidNotActivated || 0) + '</td></tr>';
+      html += '<tr><td style="color:var(--muted);padding:3px 0">仅浏览</td><td>' + (life.onlyVisit || 0) + '</td></tr>';
+      html += '<tr><td style="color:var(--muted);padding:3px 0">有过激活失败</td><td>' + (life.hasFailure || 0) + '</td></tr>';
+      html += '</table></div>';
+
+      function listCard(title, icon, rows, keyName, valName) {
+        var max = 0;
+        (rows || []).forEach(function (x) { if (x[valName] > max) max = x[valName]; });
+        var h = '<div class="da-card" style="flex:1;min-width:220px"><div class="da-card-header"><div class="da-card-icon i-product">' + icon + '</div><div><div class="da-card-title">' + title + '</div><div class="da-card-sub">Top ' + (rows || []).length + '</div></div></div>';
+        if (!rows || !rows.length) return h + '<div style="color:var(--muted);font-size:0.8125rem">暂无数据</div></div>';
+        h += '<table style="width:100%;font-size:0.8125rem;border-collapse:collapse">';
+        rows.forEach(function (x) {
+          h += '<tr><td style="padding:3px 0">' + escapeHtml(String(x[keyName] || '—')) + '</td>' +
+            '<td style="padding:3px 0;width:70px">' + x[valName] + '</td>' +
+            '<td style="padding:3px 0;width:80px">' + pjBar(x[valName], max) + '</td></tr>';
+        });
+        return h + '</table></div>';
+      }
+
+      html += listCard('设备分布', '📱', p.devices, 'model', 'devices');
+      html += listCard('渠道分布', '🧭', p.channels, 'channel', 'events');
+      html += listCard('地区分布', '🌍', p.cities, 'city', 'events');
+      html += '</div>';
+
+      var evs = p.events || [];
+      if (evs.length) {
+        html += '<div class="da-card" style="margin-top:16px"><div class="da-card-header"><div class="da-card-icon i-redeem">🗂️</div><div><div class="da-card-title">事件流构成</div><div class="da-card-sub">tracking_events 各类型条数</div></div></div>';
+        html += '<div style="font-size:0.8125rem">' + evs.map(function (e) { return escapeHtml(e.kind) + ' × ' + e.count; }).join('　') + '</div></div>';
+      }
+      return html;
     }
 
     // ---- 用户画像 / 全链路追踪 ----
@@ -9064,7 +9193,10 @@
         if (daQ) _pendingJourneyQuery = daQ;
       } catch (_) {}
       var _ujOpened = false;
-      if (_pendingJourneyQuery || daSub === 'profile') {
+      if (daSub === 'summary') {
+        switchDirectActivateTab('summary');
+        _ujOpened = true;
+      } else if (_pendingJourneyQuery || daSub === 'profile') {
         var jq = _pendingJourneyQuery || '';
         _pendingJourneyQuery = null;
         _ujOpened = true;
