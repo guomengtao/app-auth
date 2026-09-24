@@ -4420,7 +4420,28 @@
                 </select>
                 <button class="btn btn-primary" onclick="loadUserJourney()">检索</button>
               </div>
-              <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+              <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                <span style="font-size:0.75rem;color:var(--muted);margin-right:4px">类型：</span>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:5px 12px;border:1px solid var(--line);border-radius:8px;font-size:0.75rem;color:var(--ink)" id="ujTypeLabelAuto">
+                  <input type="radio" name="ujType" value="auto" checked onchange="onUjTypeChange()"> 自动识别
+                </label>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:5px 12px;border:1px solid var(--line);border-radius:8px;font-size:0.75rem;color:var(--ink)" id="ujTypeLabelDevice">
+                  <input type="radio" name="ujType" value="device" onchange="onUjTypeChange()"> 设备 ID
+                </label>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:5px 12px;border:1px solid var(--line);border-radius:8px;font-size:0.75rem;color:var(--ink)" id="ujTypeLabelIp">
+                  <input type="radio" name="ujType" value="ip" onchange="onUjTypeChange()"> IP 地址
+                </label>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:5px 12px;border:1px solid var(--line);border-radius:8px;font-size:0.75rem;color:var(--ink)" id="ujTypeLabelRedeem">
+                  <input type="radio" name="ujType" value="redeem" onchange="onUjTypeChange()"> 兑换码
+                </label>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:5px 12px;border:1px solid var(--line);border-radius:8px;font-size:0.75rem;color:var(--ink)" id="ujTypeLabelOrder">
+                  <input type="radio" name="ujType" value="order" onchange="onUjTypeChange()"> 订单号
+                </label>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:5px 12px;border:1px solid var(--line);border-radius:8px;font-size:0.75rem;color:var(--ink)" id="ujTypeLabelName">
+                  <input type="radio" name="ujType" value="name" onchange="onUjTypeChange()"> 用户名
+                </label>
+              </div>
+              <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
                 <button class="da-bulk-btn" onclick="ujQuick('paid-not-activated')">已付费未激活</button>
                 <button class="da-bulk-btn" onclick="ujQuick('failed')">激活失败</button>
                 <button class="da-bulk-btn" onclick="toggleIdentityPanel()">⚙️ 人工校正（合并 / 拆分）</button>
@@ -8460,13 +8481,36 @@
       return Math.floor(h / 24) + 'd' + (h % 24) + 'h';
     }
 
+    function getUjType() {
+      var radios = document.getElementsByName('ujType');
+      for (var i = 0; i < radios.length; i++) {
+        if (radios[i].checked) return radios[i].value;
+      }
+      return 'auto';
+    }
+
+    function onUjTypeChange() {
+      var type = getUjType();
+      var labels = document.querySelectorAll('[id^="ujTypeLabel"]');
+      for (var i = 0; i < labels.length; i++) {
+        labels[i].style.borderColor = 'var(--line)';
+        labels[i].style.background = '';
+      }
+      var activeLabel = document.getElementById('ujTypeLabel' + type.charAt(0).toUpperCase() + type.slice(1));
+      if (activeLabel) {
+        activeLabel.style.borderColor = 'var(--accent)';
+        activeLabel.style.background = 'var(--accent-bg)';
+      }
+    }
+
     function loadUserJourney() {
       var q = (document.getElementById('ujQuery').value || '').trim();
       var days = document.getElementById('ujDays').value || '30';
+      var type = getUjType();
       var box = document.getElementById('ujResult');
       if (!q) { box.innerHTML = '<div style="color:var(--muted);font-size:0.875rem">请输入检索值</div>'; return; }
       box.innerHTML = '<div style="color:var(--muted);font-size:0.875rem">检索中…</div>';
-      api('/api/admin/health?section=stats&sub=user-journey&days=' + encodeURIComponent(days) + '&q=' + encodeURIComponent(q))
+      api('/api/admin/health?section=stats&sub=user-journey&days=' + encodeURIComponent(days) + '&q=' + encodeURIComponent(q) + '&type=' + encodeURIComponent(type))
         .then(function (data) {
           if (!data || !data.success) {
             box.innerHTML = '<div style="color:var(--err);font-size:0.875rem">加载失败：' + escapeHtml((data && data.error) || '未知错误') + '</div>';

@@ -3489,8 +3489,9 @@ if ((isCron || isCronBackup) && isBackup) {
           var ujQuery = String((req.query && req.query.q) || "").trim();
           if (!ujQuery) return res.json({ success: false, error: "请输入 deviceId / IP / 兑换码 / 订单号 / 用户名" });
           var ujDays = parseInt(req.query && req.query.days, 10) || 30;
+          var ujType = String((req.query && req.query.type) || "").trim() || "auto";
           var userJourney = require("../../lib/user-journey");
-          return res.json(await userJourney.resolve(ujQuery, { days: ujDays }));
+          return res.json(await userJourney.resolve(ujQuery, { days: ujDays, type: ujType }));
         } catch (e) {
           return res.status(500).json({ success: false, error: e.message });
         }
