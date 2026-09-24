@@ -554,12 +554,29 @@ if ((isCron || isCronBackup) && isBackup) {
     try { vaRecord = typeof vaRecordRaw === "string" ? JSON.parse(vaRecordRaw) : vaRecordRaw; } catch (e) {
       return res.status(500).json({ success: false, error: "Failed to parse activation record" });
     }
+    // 复用（同码同设备二次激活）会**追加** auth:activation:<激活码>:<第几次>，首次那条保留不动。
+    // 因此「当前状态」（时长合并后的 expires_at）在最后一条上：顺着兑换码记录里的 activation_seq 取最新那条。
+    try {
+      if (vaRecord.redeem_code) {
+        var vaRedeemRaw = await redis.get("auth:redeem:" + String(vaRecord.redeem_code).trim().toUpperCase());
+        var vaRedeem = null;
+        if (vaRedeemRaw) { try { vaRedeem = typeof vaRedeemRaw === "string" ? JSON.parse(vaRedeemRaw) : vaRedeemRaw; } catch (_) {} }
+        var vaSeq = Number(vaRedeem && vaRedeem.activation_seq) || 0;
+        if (vaSeq > 1) {
+          var vaLatestRaw = await redis.get("auth:activation:" + vaRaw + ":" + vaSeq);
+          var vaLatest = null;
+          if (vaLatestRaw) { try { vaLatest = typeof vaLatestRaw === "string" ? JSON.parse(vaLatestRaw) : vaLatestRaw; } catch (_) {} }
+          if (vaLatest) vaRecord = vaLatest;
+        }
+      }
+    } catch (_) {}
     var vaNow = Date.now();
     var vaExpiresAt = vaRecord.expires_at || null;
+    var vaSeqOut = Number(vaRecord.activation_seq) || 1;
     if (vaExpiresAt && Number(vaExpiresAt) < vaNow) {
-      return res.status(200).json({ success: true, valid: false, reason: "expired", productId: vaRecord.product_id || "", months: vaRecord.duration_months || 0, message: "Activation code has expired" });
+      return res.status(200).json({ success: true, valid: false, reason: "expired", productId: vaRecord.product_id || "", months: vaRecord.duration_months || 0, activation_seq: vaSeqOut, message: "Activation code has expired" });
     }
-    return res.status(200).json({ success: true, valid: true, productId: vaRecord.product_id || "", months: vaRecord.duration_months || 0, permanent: (vaRecord.duration_months || 0) === 99, expiresAt: vaExpiresAt, message: "Activation code is valid" });
+    return res.status(200).json({ success: true, valid: true, productId: vaRecord.product_id || "", months: vaRecord.duration_months || 0, permanent: (vaRecord.duration_months || 0) === 99, expiresAt: vaExpiresAt, activation_seq: vaSeqOut, message: "Activation code is valid" });
   }
 
   if (req.query && req.query.section === "visit") {
@@ -898,7 +915,9 @@ if ((isCron || isCronBackup) && isBackup) {
             var pip = redis.pipeline();
             for (var i = 0; i < backup.activations.length; i++) {
               var act = backup.activations[i];
-              var acode = act.activation_code || act._backup_member;
+              // 用 _backup_member（= 集合成员）优先：复用追加的成员形如 <激活码>:<第几次>，
+              // 只取 activation_code 会把多次激活压成同一条 key（丢历史）。
+              var acode = act._backup_member || act.activation_member || act.activation_code;
               if (acode) {
                 pip.set("auth:activation:" + acode, JSON.stringify(act));
                 pip.sadd("auth:activation_codes", acode);
@@ -3364,6 +3383,37 @@ if ((isCron || isCronBackup) && isBackup) {
           return res.status(500).json({ success: false, error: e.message });
         }
       }
+      // 用户数据完善度评分 + 缺口聚合榜（只读）
+      // ⚠️ 不新增 api/ 文件：Vercel 函数文件数硬性上限 10 个（详见 docs/architecture.md）
+      if (sub === "user-score" || sub === "data-gaps") {
+        try {
+          var usOpts = {
+            days: parseInt(req.query && req.query.days, 10) || 7,
+            from: req.query && req.query.from,
+            to: req.query && req.query.to,
+            scope: req.query && req.query.scope,
+            limit: parseInt(req.query && req.query.limit, 10) || 5,
+            compare: !(req.query && req.query.compare === "0"),
+          };
+          var report = await require("../../lib/user-score").analyze(usOpts);
+          if (sub === "data-gaps") {
+            return res.json({
+              success: true,
+              window: report.window,
+              scope: report.gaps.scope,
+              sample: report.gaps.sample,
+              lowSample: report.gaps.lowSample,
+              gaps: report.gaps.items,
+              gapsAllScope: report.gapsAllScope,
+              coverage: report.coverage,
+            });
+          }
+          return res.json(report);
+        } catch (e) {
+          return res.status(500).json({ success: false, error: e.message });
+        }
+      }
+
       return res.json(await handleStats2());
     } catch (error) {
       console.error("Stats error:", error);

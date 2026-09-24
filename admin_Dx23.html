@@ -4462,9 +4462,14 @@
               <p class="decrypt-desc">基于 tracking_events 统一事件流（设备 / 地区 / 渠道 / 生命周期分布 + 各步转化率与中位耗时）</p>
               <div class="decrypt-input-row">
                 <select id="pjDays" onchange="loadPortraitSummary()" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card-bg);color:var(--ink);font-size:0.875rem">
-                  <option value="7">近 7 天</option>
-                  <option value="30" selected>近 30 天</option>
+                  <option value="1">近 1 天</option>
+                  <option value="7" selected>近 7 天</option>
+                  <option value="30">近 30 天</option>
                   <option value="90">近 90 天</option>
+                </select>
+                <select id="pjScope" onchange="loadPortraitSummary()" title="缺口口径：新设备只统计窗口内首次出现的设备（反映当前采集水平）；全部设备含历史遗留" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card-bg);color:var(--ink);font-size:0.875rem">
+                  <option value="new" selected>只看新设备</option>
+                  <option value="active">全部设备</option>
                 </select>
                 <button class="btn btn-primary" onclick="loadPortraitSummary()">刷新</button>
                 <button class="da-bulk-btn" onclick="runTrackingBackfill()">⬇️ 回填历史数据</button>
@@ -6020,6 +6025,10 @@
             statusBadge = '<span class="badge" style="background: var(--warn-bg);color: var(--warn);border: 1px solid var(--warn-line)">失败</span>';
           } else {
             statusBadge = '<span class="badge badge-success">成功</span>';
+            var actSeq = Number(r.activation_seq) || 0;
+            if (actSeq > 1) {
+              statusBadge += ' <span class="badge" style="background: var(--accent-bg);color: var(--accent-text);border:1px solid var(--accent-line);white-space:nowrap" title="该设备用同一兑换码第 ' + actSeq + ' 次激活（非首次）">第 ' + actSeq + ' 次激活</span>';
+            }
           }
 
           var di = r.device_info || {};
@@ -6419,6 +6428,22 @@
         html += '<div class="detail-section-title" style="color: var(--warn)">Failure Info</div>';
         html += '<table class="detail-table">';
         html += '<tr><td>Reason</td><td style="color: var(--warn);font-weight:600">' + escapeHtml(r.reason || 'Unknown') + '</td></tr>';
+        html += '</table></div>';
+      }
+
+      // 复用（同一兑换码 + 同一设备多次激活）：首次那条记录不动，这里是追加的第 N 次
+      if (Number(r.activation_seq) > 1) {
+        html += '<div class="detail-section">';
+        html += '<div class="detail-section-title">Activation History</div>';
+        html += '<table class="detail-table">';
+        html += '<tr><td>激活次数</td><td><b>第 ' + Number(r.activation_seq) + ' 次</b> <span style="color: var(--accent-text)">（非首次激活）</span></td></tr>';
+        if (r.first_activated_at) {
+          html += '<tr><td>首次激活时间</td><td>' + new Date(Number(r.first_activated_at)).toLocaleString('zh-CN') + '</td></tr>';
+        }
+        html += '<tr><td>本次激活时间</td><td>' + new Date(Number(r.generated_at) || 0).toLocaleString('zh-CN') + '</td></tr>';
+        if (r.activation_member) {
+          html += '<tr><td>记录 Key</td><td style="font-family:monospace;font-size:0.75rem">auth:activation:' + escapeHtml(r.activation_member) + '</td></tr>';
+        }
         html += '</table></div>';
       }
 
@@ -8067,14 +8092,17 @@
     function pjPct(v) { return v === null || v === undefined ? '—' : Math.round(v * 100) + '%'; }
 
     function loadPortraitSummary() {
-      var days = (document.getElementById('pjDays') || {}).value || '30';
+      var days = (document.getElementById('pjDays') || {}).value || '7';
+      var scope = (document.getElementById('pjScope') || {}).value || 'new';
       var box = document.getElementById('pjResult');
       if (!box) return;
       box.innerHTML = '<div style="color:var(--muted);font-size:0.875rem">加载中…</div>';
       Promise.all([
         api('/api/admin/health?section=stats&sub=funnel&days=' + encodeURIComponent(days)).catch(function () { return null; }),
         api('/api/admin/health?section=stats&sub=portrait&days=' + encodeURIComponent(days)).catch(function () { return null; }),
-      ]).then(function (rs) { box.innerHTML = renderPortraitSummary(rs[0], rs[1]); })
+        api('/api/admin/health?section=stats&sub=user-score&days=' + encodeURIComponent(days) +
+            '&scope=' + encodeURIComponent(scope) + '&limit=5').catch(function () { return null; }),
+      ]).then(function (rs) { box.innerHTML = renderPortraitSummary(rs[0], rs[1], rs[2]); })
         .catch(function (e) { box.innerHTML = '<div style="color:var(--err);font-size:0.875rem">Error: ' + escapeHtml(e.message) + '</div>'; });
     }
 
@@ -8096,8 +8124,120 @@
       return '<span style="display:inline-block;vertical-align:middle;width:' + w + '%;max-width:120px;height:6px;background:var(--accent);border-radius:3px"></span>';
     }
 
-    function renderPortraitSummary(funnel, portrait) {
+    // 缺口/覆盖率趋势箭头
+    function pjTrend(g) {
+      if (g.delta === null || g.delta === undefined) return '<span style="color:var(--muted)">—</span>';
+      var pct = Math.round(Math.abs(g.delta) * 100);
+      if (g.trend === 'down') return '<span style="color:var(--ok,#16a34a)">↓ ' + pct + '%</span>';
+      if (g.trend === 'up') return '<span style="color:var(--err)">↑ ' + pct + '%</span>';
+      return '<span style="color:var(--muted)">— 持平</span>';
+    }
+
+    function pjGapTable(items, sample, lowSample) {
+      if (!items || !items.length) return '<div style="color:var(--muted);font-size:0.8125rem">暂无数据</div>';
+      var h = '<table style="width:100%;border-collapse:collapse;font-size:0.8125rem">';
+      items.forEach(function (g) {
+        var pct = g.pct === null ? 0 : g.pct;
+        h += '<tr style="border-bottom:1px solid var(--line)">' +
+          '<td style="padding:5px 4px">' + escapeHtml(g.label) + '</td>' +
+          '<td style="padding:5px 4px;white-space:nowrap;color:var(--muted)">' + g.miss + '/' + g.total + '</td>' +
+          '<td style="padding:5px 4px;white-space:nowrap;font-weight:' + (pct >= 0.5 ? '600' : '400') + ';color:' + (pct >= 0.5 ? 'var(--err)' : 'var(--ink)') + '">' + Math.round(pct * 100) + '%</td>' +
+          '<td style="padding:5px 4px;width:80px">' + pjBar(g.miss, g.total || 1) + '</td>' +
+          '<td style="padding:5px 4px;white-space:nowrap;font-size:0.75rem">' + (lowSample ? '<span style="color:var(--warn)">样本少</span>' : pjTrend(g)) + '</td>' +
+          '</tr>';
+      });
+      return h + '</table>';
+    }
+
+    function renderUserScore(score) {
       var html = '';
+      if (!score || !score.success) {
+        return '<div style="color:var(--err);font-size:0.875rem">完善度评分加载失败：' + escapeHtml((score && score.error) || '未知错误') + '</div>';
+      }
+      var s = score.summary || {};
+      var w = score.window || {};
+
+      if (w.epochWarning) {
+        html += '<div style="background:var(--warn-bg,#fff7ed);border:1px solid var(--warn-line,#fed7aa);color:var(--warn,#b45309);padding:8px 10px;border-radius:8px;font-size:0.8125rem;margin-bottom:12px">' +
+          '⚠ 该窗口（' + escapeHtml(w.from) + ' ~ ' + escapeHtml(w.to) + '）包含埋点补齐日（' + escapeHtml(w.epoch) + '）之前的数据，分数与缺口天然偏低，<b>不代表当前采集水平</b>。看改进效果请选「近 1 天 / 近 7 天」并对照环比。</div>';
+      }
+
+      // 🏆 TOP5
+      html += '<div class="da-card" style="margin-bottom:16px"><div class="da-card-header"><div class="da-card-icon i-device">🏆</div>' +
+        '<div><div class="da-card-title">数据完善度 TOP5</div>' +
+        '<div class="da-card-sub">窗口 ' + escapeHtml(w.from) + ' ~ ' + escapeHtml(w.to) + ' ｜ 样本 ' + (s.devices || 0) + ' 台（其中新设备 ' + (s.newDevices || 0) + '）｜ 平均 ' + (s.avgScore || 0) + ' 分 ｜ 🟢' + ((s.byGrade || {}).A || 0) + ' 🔵' + ((s.byGrade || {}).B || 0) + ' 🟡' + ((s.byGrade || {}).C || 0) + ' 🔴' + ((s.byGrade || {}).D || 0) + '</div></div></div>';
+      html += '<div style="font-size:0.75rem;color:var(--muted);margin-bottom:5px">⚠ 这是「数据完整度」评分，不是用户价值/消费能力</div>';
+      var lb = score.leaderboard || [];
+      if (!lb.length) {
+        html += '<div style="color:var(--muted);font-size:0.8125rem">该窗口内没有产生订单或激活的设备</div>';
+      } else {
+        html += '<table style="width:100%;border-collapse:collapse;font-size:0.8125rem">';
+        html += '<thead><tr style="color:var(--muted);font-size:0.6875rem">' +
+          '<th style="text-align:left;padding:4px">#</th><th style="text-align:left;padding:4px">分数</th>' +
+          '<th style="text-align:left;padding:4px">设备</th><th style="text-align:left;padding:4px">机型 / 版本</th>' +
+          '<th style="text-align:left;padding:4px">渠道</th><th style="text-align:left;padding:4px">地区</th>' +
+          '<th style="text-align:left;padding:4px">链路</th><th style="text-align:left;padding:4px">主要缺口</th>' +
+          '<th style="padding:4px"></th></tr></thead><tbody>';
+        lb.forEach(function (x) {
+          var gradeColor = x.grade === 'A' ? 'var(--ok,#16a34a)' : (x.grade === 'B' ? 'var(--accent)' : (x.grade === 'C' ? 'var(--warn,#b45309)' : 'var(--err)'));
+          var stepsHtml = (x.steps || []).map(function (st) {
+            return '<span title="' + escapeHtml(st.label) + '" style="color:' + (st.ok ? 'var(--ok,#16a34a)' : 'var(--line)') + '">●</span>';
+          }).join('');
+          html += '<tr style="border-bottom:1px solid var(--line)">' +
+            '<td style="padding:5px 4px;color:var(--muted)">' + x.rank + '</td>' +
+            '<td style="padding:5px 4px;white-space:nowrap"><b>' + x.score + '</b> <span style="color:' + gradeColor + ';font-size:0.6875rem">' + x.grade + '</span></td>' +
+            '<td style="padding:5px 4px;font-family:monospace;font-size:0.75rem">' + escapeHtml(x.deviceMasked) + (x.emulator ? ' <span title="模拟器" style="color:var(--warn)">⚠</span>' : '') + '</td>' +
+            '<td style="padding:5px 4px;font-size:0.75rem">' + escapeHtml(x.model || '(未上报)') + (x.rom ? ' · ' + escapeHtml(x.rom) : '') + '</td>' +
+            '<td style="padding:5px 4px;font-size:0.75rem">' + escapeHtml(x.channel || '-') + '</td>' +
+            '<td style="padding:5px 4px;font-size:0.75rem">' + escapeHtml(((x.region || '') + (x.city || '')).trim() || '-') + (x.district ? ' · ' + escapeHtml(x.district) : '') + '</td>' +
+            '<td style="padding:5px 4px;letter-spacing:1px">' + stepsHtml + '</td>' +
+            '<td style="padding:5px 4px;font-size:0.6875rem;color:var(--muted)">' + escapeHtml((x.missing || []).slice(0, 3).join('、') || '无') + '</td>' +
+            '<td style="padding:5px 4px;white-space:nowrap"><button class="btn btn-outline" style="padding:2px 6px;font-size:0.6875rem;border-radius:6px" onclick="openUserJourney(\'' + escapeJs(x.device) + '\')">详情</button></td>' +
+            '</tr>';
+        });
+        html += '</tbody></table>';
+        html += '<div style="margin-top:6px;font-size:0.75rem;color:var(--muted)">链路顺序：访问 · 点击 · 支付 · 发码 · 激活（实心=有记录）</div>';
+      }
+      html += '</div>';
+
+      // 📉 缺口榜
+      var g = score.gaps || {};
+      var ga = score.gapsAllScope || {};
+      html += '<div class="da-card" style="margin-bottom:16px"><div class="da-card-header"><div class="da-card-icon i-redeem">📉</div>' +
+        '<div><div class="da-card-title">数据缺口排行（开发优先级）</div>' +
+        '<div class="da-card-sub">' + (g.scope === 'new' ? '仅新设备' : '全部设备') + ' ' + (g.sample || 0) + ' 台样本' +
+        (g.lowSample ? ' ｜ <span style="color:var(--warn)">⚠ 样本不足 10 台，趋势仅供参考</span>' : '') + ' ｜ 环比为上一等长窗口</div></div></div>';
+      html += pjGapTable(g.items, g.sample, g.lowSample);
+      if (g.scope === 'new' && (ga.items || []).length) {
+        html += '<div style="margin-top:12px;font-size:0.75rem;color:var(--muted);border-top:1px dashed var(--line);padding-top:8px">整体口径（含历史设备 ' + (ga.sample || 0) + ' 台）—— 历史缺口几乎无法回补，用于对照</div>';
+        html += pjGapTable((ga.items || []).slice(0, 6), ga.sample, false);
+      }
+      html += '</div>';
+
+      // 📊 事件口径覆盖率
+      var cov = score.coverage || [];
+      if (cov.length) {
+        html += '<div class="da-card" style="margin-bottom:16px"><div class="da-card-header"><div class="da-card-icon i-duration">🎯</div>' +
+          '<div><div class="da-card-title">采集覆盖率（事件口径）</div>' +
+          '<div class="da-card-sub">按事件统计，不区分设备新旧 —— 反映埋点本身的打通程度</div></div></div>';
+        html += '<table style="width:100%;border-collapse:collapse;font-size:0.8125rem">';
+        cov.forEach(function (c) {
+          var pct = c.pct === null ? 0 : c.pct;
+          html += '<tr style="border-bottom:1px solid var(--line)">' +
+            '<td style="padding:5px 4px">' + escapeHtml(c.label) + '</td>' +
+            '<td style="padding:5px 4px;white-space:nowrap;color:var(--muted)">' + c.miss + '/' + c.total + '</td>' +
+            '<td style="padding:5px 4px;white-space:nowrap;font-weight:' + (pct >= 0.5 ? '600' : '400') + ';color:' + (pct >= 0.5 ? 'var(--err)' : 'var(--ink)') + '">' + Math.round(pct * 100) + '%</td>' +
+            '<td style="padding:5px 4px;width:80px">' + pjBar(c.miss, c.total || 1) + '</td>' +
+            '<td style="padding:5px 4px;white-space:nowrap;font-size:0.75rem">' + pjTrend(c) + '</td>' +
+            '</tr>';
+        });
+        html += '</table></div>';
+      }
+      return html;
+    }
+
+    function renderPortraitSummary(funnel, portrait, score) {
+      var html = renderUserScore(score);
       if (!funnel || !funnel.success) {
         html += '<div style="color:var(--err);font-size:0.875rem">漏斗加载失败：' + escapeHtml((funnel && funnel.error) || '未知错误') + '</div>';
       } else {
