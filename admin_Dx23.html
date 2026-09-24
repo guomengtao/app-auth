@@ -4423,8 +4423,35 @@
               <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
                 <button class="da-bulk-btn" onclick="ujQuick('paid-not-activated')">已付费未激活</button>
                 <button class="da-bulk-btn" onclick="ujQuick('failed')">激活失败</button>
+                <button class="da-bulk-btn" onclick="toggleIdentityPanel()">⚙️ 人工校正（合并 / 拆分）</button>
               </div>
             </div>
+
+            <!-- 身份校正：人工合并 / 拆分 -->
+            <div id="ujIdentity" class="da-card" style="display:none;margin-bottom:16px">
+              <div class="da-card-header"><div class="da-card-icon i-device">⚙️</div>
+                <div><div class="da-card-title">身份校正</div>
+                  <div class="da-card-sub">自动关联出错时人工拍板：合并=视为同一人，拆分=禁止合并。规则优先级高于所有自动证据</div></div>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+                <select id="ioKind" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card-bg);color:var(--ink);font-size:0.8125rem">
+                  <option value="device">设备 ID</option>
+                  <option value="ip">IP</option>
+                  <option value="redeem">兑换码</option>
+                  <option value="order">订单号</option>
+                </select>
+                <input type="text" id="ioA" placeholder="A 值" style="flex:1;min-width:120px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card-bg);color:var(--ink);font-size:0.8125rem">
+                <select id="ioOp" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card-bg);color:var(--ink);font-size:0.8125rem">
+                  <option value="merge">合并</option>
+                  <option value="split">拆分</option>
+                </select>
+                <input type="text" id="ioB" placeholder="B 值" style="flex:1;min-width:120px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card-bg);color:var(--ink);font-size:0.8125rem">
+                <input type="text" id="ioNote" placeholder="备注（可选）" style="flex:1;min-width:120px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card-bg);color:var(--ink);font-size:0.8125rem">
+                <button class="btn btn-primary" onclick="addIdentityRule()">保存</button>
+              </div>
+              <div id="ioList" style="font-size:0.8125rem"></div>
+            </div>
+
             <div id="ujResult"></div>
           </div>
 
@@ -8150,6 +8177,89 @@
       }, 60);
     }
 
+    // ---- 身份校正（人工合并 / 拆分）----
+
+    var IO_KIND_LABEL = { device: '设备', ip: 'IP', redeem: '兑换码', order: '订单' };
+
+    function toggleIdentityPanel() {
+      var el = document.getElementById('ujIdentity');
+      if (!el) return;
+      var show = el.style.display === 'none' || el.style.display === '';
+      el.style.display = show ? '' : 'none';
+      if (show) loadIdentityRules();
+    }
+
+    function loadIdentityRules() {
+      var box = document.getElementById('ioList');
+      if (!box) return;
+      box.innerHTML = '<span style="color:var(--muted)">加载中…</span>';
+      api('/api/admin/health?section=stats&sub=identity-overrides').then(function (r) {
+        var items = (r && r.items) || [];
+        if (!items.length) { box.innerHTML = '<span style="color:var(--muted)">暂无人工规则</span>'; return; }
+        var h = '<table style="width:100%;border-collapse:collapse">';
+        items.forEach(function (it) {
+          h += '<tr style="border-bottom:1px solid var(--line)">' +
+            '<td style="padding:4px;width:60px">' + escapeHtml(IO_KIND_LABEL[it.kind] || it.kind) + '</td>' +
+            '<td style="padding:4px;font-family:monospace;font-size:0.75rem">' + escapeHtml(it.value_a) + '</td>' +
+            '<td style="padding:4px;width:70px;color:' + (it.op === 'merge' ? 'var(--accent)' : 'var(--err)') + '">' + (it.op === 'merge' ? '合并' : '拆分') + '</td>' +
+            '<td style="padding:4px;font-family:monospace;font-size:0.75rem">' + escapeHtml(it.value_b) + '</td>' +
+            '<td style="padding:4px;color:var(--muted);font-size:0.75rem">' + escapeHtml(it.note || '') + '</td>' +
+            '<td style="padding:4px;width:40px"><span style="cursor:pointer;opacity:0.5" onclick="delIdentityRule(\'' + escapeJs(it.id) + '\')" title="删除">✕</span></td>' +
+            '</tr>';
+        });
+        box.innerHTML = h + '</table>';
+      }).catch(function (e) { box.innerHTML = '<span style="color:var(--err)">加载失败：' + escapeHtml(e.message) + '</span>'; });
+    }
+
+    // 从「弱候选」一键合并：以当前检索值为 A、候选 IP 为 B
+    function quickMerge(a, kind, b) {
+      if (!a) { showToast('请先在上方执行一次检索', 'error'); return; }
+      api('/api/admin/health?section=stats&sub=identity-overrides', {
+        method: 'POST',
+        body: JSON.stringify({ kind: kind, value_a: a, value_b: b, op: 'merge', note: '从弱候选一键合并' }),
+        headers: { 'Content-Type': 'application/json' },
+      }).then(function (r) {
+        if (!r || !r.success) { showToast('合并失败：' + ((r && r.error) || '未知错误'), 'error'); return; }
+        showToast('已合并，重新检索…', 'success');
+        loadUserJourney();
+      }).catch(function (e) { showToast('合并失败：' + e.message, 'error'); });
+    }
+
+    function addIdentityRule() {
+      var kind = document.getElementById('ioKind').value;
+      var a = (document.getElementById('ioA').value || '').trim();
+      var b = (document.getElementById('ioB').value || '').trim();
+      var op = document.getElementById('ioOp').value;
+      var note = (document.getElementById('ioNote').value || '').trim();
+      if (!a || !b) { showToast('请填写 A 与 B 值', 'error'); return; }
+      api('/api/admin/health?section=stats&sub=identity-overrides', {
+        method: 'POST',
+        body: JSON.stringify({ kind: kind, value_a: a, value_b: b, op: op, note: note }),
+        headers: { 'Content-Type': 'application/json' },
+      }).then(function (r) {
+        if (!r || !r.success) { showToast('保存失败：' + ((r && r.error) || '未知错误'), 'error'); return; }
+        showToast('已保存', 'success');
+        document.getElementById('ioA').value = '';
+        document.getElementById('ioB').value = '';
+        document.getElementById('ioNote').value = '';
+        loadIdentityRules();
+        if ((document.getElementById('ujQuery').value || '').trim()) loadUserJourney();
+      }).catch(function (e) { showToast('保存失败：' + e.message, 'error'); });
+    }
+
+    function delIdentityRule(id) {
+      api('/api/admin/health?section=stats&sub=identity-overrides', {
+        method: 'POST',
+        body: JSON.stringify({ removeId: id }),
+        headers: { 'Content-Type': 'application/json' },
+      }).then(function (r) {
+        if (!r || !r.success) { showToast('删除失败', 'error'); return; }
+        showToast('已删除', 'success');
+        loadIdentityRules();
+        if ((document.getElementById('ujQuery').value || '').trim()) loadUserJourney();
+      }).catch(function (e) { showToast('删除失败：' + e.message, 'error'); });
+    }
+
     function ujQuick(kind) {
       // 一期只做单用户检索，这两个快捷入口给出引导（不扫全库，避免超时）
       if (kind === 'paid-not-activated') showToast('请在上方输入订单号 / 兑换码 / 用户名查看单用户链路；全量漏斗待三期事件表', 'info');
@@ -8279,6 +8389,8 @@
             '<td style="padding:4px;font-family:monospace">' + escapeHtml(c.ip) + '</td>' +
             '<td style="padding:4px">' + escapeHtml(c.path) + '</td>' +
             '<td style="padding:4px;color:var(--muted)">' + escapeHtml(String(c.score)) + '</td>' +
+            '<td style="padding:4px;width:60px"><button class="btn btn-outline" style="padding:2px 6px;font-size:0.6875rem;border-radius:6px" ' +
+              'onclick="quickMerge(\'' + escapeJs(String(data.query || '')) + '\',\'ip\',\'' + escapeJs(c.ip) + '\')" title="把该 IP 与当前检索值合并为同一人">合并</button></td>' +
             '</tr>';
         });
         html += '</table></div>';
