@@ -8117,6 +8117,9 @@
         html += '</table>';
         var du = funnel.durations || {};
         html += '<div style="margin-top:8px;font-size:0.75rem;color:var(--muted)">中位耗时（样本数）：访问→支付 ' + ujFmtDur(du.visitToOrderMs) + '(' + ((du.samples || {}).visitToOrder || 0) + ') ｜ 支付→发码 ' + ujFmtDur(du.orderToRedeemMs) + '(' + ((du.samples || {}).orderToRedeem || 0) + ') ｜ 发码→激活 ' + ujFmtDur(du.redeemToActivationMs) + '(' + ((du.samples || {}).redeemToActivation || 0) + ')</div>';
+        (funnel.notes || []).forEach(function (n) {
+          html += '<div style="margin-top:6px;font-size:0.75rem;color:var(--warn)">ℹ ' + escapeHtml(n) + '</div>';
+        });
         html += '</div>';
       }
 
@@ -8134,6 +8137,7 @@
       html += '<tr><td style="color:var(--muted);padding:3px 0">已激活</td><td><b>' + (life.activated || 0) + '</b></td></tr>';
       html += '<tr><td style="color:var(--muted);padding:3px 0">已付费未激活</td><td style="color:var(--err)">' + (life.paidNotActivated || 0) + '</td></tr>';
       html += '<tr><td style="color:var(--muted);padding:3px 0">仅浏览</td><td>' + (life.onlyVisit || 0) + '</td></tr>';
+      html += '<tr><td style="color:var(--muted);padding:3px 0">只有激活失败</td><td>' + (life.onlyFailure || 0) + '</td></tr>';
       html += '<tr><td style="color:var(--muted);padding:3px 0">有过激活失败</td><td>' + (life.hasFailure || 0) + '</td></tr>';
       html += '</table></div>';
 
