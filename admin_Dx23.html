@@ -6038,9 +6038,6 @@
             }
             expiresText = new Date(d).toLocaleDateString('zh-CN') + '<span style="color: var(--warn);font-size:0.75rem;margin-left:4px">(est)</span>';
           }
-          var rcCell = r.redeem_code
-            ? ('<span class="mono" style="font-weight:700">' + escapeHtml(String(r.redeem_code).slice(0, 4)) + '</span>')
-            : '<span style="color: var(--ink-3)">-</span>';
           var rawDeviceId = r.device_id || '';
           var hashDeviceId = r.device_id_hash || r.used_device_id || '';
           var displayDeviceId = rawDeviceId;
@@ -6092,12 +6089,16 @@
           tableHtml += '<td>' + statusBadge + '</td>';
           var ac = r.activation_code || '';
           if (ac) {
-            tableHtml += '<td class="mono" style="font-size:0.8125rem;letter-spacing:0.5px"><a href="javascript:void(0)" class="redeem-link" onclick="openDecryptForActivationCode(\'' + escapeJs(ac) + '\')">' + formatActivationCode(ac) + ' -></a></td>';
+            tableHtml += '<td class="mono" style="font-size:0.8125rem;letter-spacing:0.5px"><a href="javascript:void(0)" class="redeem-link" onclick="openUserJourney(\'' + escapeJs(ac) + '\', \'activation\')">' + formatActivationCode(ac) + ' -></a></td>';
           } else if (isFailure) {
             tableHtml += '<td style="color: var(--ink-3);font-size:0.8125rem">' + escapeHtml(r.reason || 'Failed') + '</td>';
           } else {
             tableHtml += '<td style="color: var(--ink-3)">-</td>';
           }
+          var rcVal = r.redeem_code || '';
+          var rcCell = rcVal
+            ? ('<a href="javascript:void(0)" class="redeem-link" onclick="openUserJourney(\'' + escapeJs(rcVal) + '\', \'redeem\')" title="查看该兑换码的用户画像"><span class="mono" style="font-weight:700">' + escapeHtml(String(rcVal).slice(0, 4)) + ' -></span></a>')
+            : '<span style="color: var(--ink-3)">-</span>';
           tableHtml += '<td>' + rcCell + '</td>';
           tableHtml += '<td>' + deviceCell + '</td>';
           var ch = (di && di.source) || '';
