@@ -633,7 +633,14 @@
           console.groupEnd();
 
           if (data.success) {
-            showResult('success', '请将激活码输入到手环应用中', data.activationCode);
+            var msg = '请将激活码输入到手环应用中';
+            if (data.naDevice) {
+              var naParts = (data.naUsage || '1/5').split('/');
+              var naRemain = Number(naParts[1]) - Number(naParts[0]);
+              msg = '激活成功！\u26a0\ufe0f 您的设备使用临时标识，重装应用后可能需要重新激活' +
+                '（该兑换码还可使用 ' + naRemain + ' 次）';
+            }
+            showResult('success', msg, data.activationCode);
             codeInput.value = '';
           } else if (data.code === 'DEVICE_ID_INVALID' || data.code === 'DEVICE_ID_EMPTY') {
             // 后端兜底拦截：按 code 分支，不拼群号（群号只在页面底部）

@@ -1,6 +1,7 @@
 var redis = require("../lib/redis");
 var crypto = require("../lib/crypto");
-var { validateRedeemCode, validateDeviceId } = require("../lib/validate");
+var { validateRedeemCode, validateDeviceId, isNaDeviceId } = require("../lib/validate");
+var NA_USAGE_LIMIT_DEFAULT = 5;
 var quota = require("../lib/quota");
 var rateLimit = require("../lib/rate-limit");
 var notify = require("../lib/notify");
@@ -671,9 +672,130 @@ module.exports = async (req, res) => {
 
         return res.json({ success: true, activationCode: activationCodeReuse, debug: { visitor: visitorInfo, notification: "success", productId: productId, months: months } });
       }
+
+      // 不同设备使用同一兑换码 → 先判断是否 NA 设备且在次数上限内
+      var deviceIsNa = isNaDeviceId(rawDeviceId);
+      var naLimit = Number(info.na_usage_limit) || NA_USAGE_LIMIT_DEFAULT;
+      var naCount = Number(info.na_usage_count) || 0;
+
+      if (deviceIsNa && naCount < naLimit) {
+        var activationCodeNa = crypto.generateActivationCode(productId, device, months, code);
+        var naNow = Date.now();
+        var naPrevSeq = Number(info.activation_seq) || 0;
+        var naPrevRecord = parseRedisJson(await redis.get("auth:activation:" + activationCodeNa));
+        var naFirstActivatedAt = naNow;
+        if (naPrevRecord) {
+          naFirstActivatedAt = naPrevRecord.first_activated_at || naPrevRecord.generated_at || naNow;
+          if ((Number(naPrevRecord.activation_seq) || 0) > naPrevSeq) naPrevSeq = Number(naPrevRecord.activation_seq);
+        }
+        var naFinalSeq = naPrevSeq + 1;
+        var naMember = activationCodeNa + ":" + naFinalSeq;
+
+        var naExpiresAt = null;
+        if (months !== 99) {
+          var naBaseTs = naNow;
+          if (naPrevRecord && naPrevRecord.expires_at && Number(naPrevRecord.expires_at) > naBaseTs) {
+            naBaseTs = Number(naPrevRecord.expires_at);
+          }
+          var naExpiryDate = new Date(naBaseTs);
+          naExpiryDate.setUTCMonth(naExpiryDate.getUTCMonth() + months);
+          naExpiresAt = naExpiryDate.getTime();
+        }
+
+        var naUpdated = JSON.parse(JSON.stringify(info));
+        naUpdated.na_usage_count = naCount + 1;
+        naUpdated.used_device_id = deviceHash;
+        naUpdated.used_at = naNow;
+        naUpdated.activation_seq = naFinalSeq;
+        naUpdated.generated_activation_code = activationCodeNa;
+
+        var naRecord = {
+          activation_code: activationCodeNa,
+          activation_member: naMember,
+          activation_seq: naFinalSeq,
+          is_repeat: true,
+          is_na: true,
+          na_device_index: naCount + 1,
+          first_activated_at: naFirstActivatedAt,
+          device_id_hash: deviceHash,
+          device_id: device,
+          device_id_full: rawDeviceId,
+          product_id: productId,
+          duration_months: months,
+          redeem_code: code,
+          generated_at: naNow,
+          expires_at: naExpiresAt,
+          device_info: deviceInfo || null,
+          visitor_info: visitorInfo,
+        };
+
+        var naPipeline = redis.pipeline();
+        naPipeline.set("auth:redeem:" + code, JSON.stringify(naUpdated));
+        naPipeline.set("auth:activation:" + naMember, JSON.stringify(naRecord));
+        naPipeline.sadd("auth:activation_codes", naMember);
+        naPipeline.set("auth:device:" + deviceHash, activationCodeNa);
+        var naResults = await naPipeline.exec();
+        await reportPipelineFailures(naResults, ["set auth:redeem:" + code, "set auth:activation:" + naMember], {
+          reasonPrefix: "NA设备激活写库部分失败",
+          redeemCode: code,
+          device: device,
+          activationCode: naMember,
+          source: "user-na",
+          visitorInfo: visitorInfo,
+          deviceInfo: deviceInfo,
+          geo: geo,
+        });
+
+        background.run(tracking.record({
+          ts: naNow,
+          kind: "activation",
+          deviceId: rawDeviceId || device,
+          ip: (visitorInfo && visitorInfo.ip) || "",
+          redeemCode: code,
+          activationCode: activationCodeNa,
+          channel: (deviceInfo && deviceInfo.source) || "",
+          payload: {
+            product_id: productId, months: months,
+            is_na: true, na_device_index: naCount + 1, activation_seq: naFinalSeq,
+            model: (deviceInfo && tracking.pickModel(deviceInfo.model, deviceInfo.product)) || "",
+            product: (deviceInfo && deviceInfo.product) || "",
+          },
+          dedupeKey: "ac:" + naMember,
+        }), "tracking");
+
+        await notify.pushNotification("new_activation", {
+          redeem_code: code,
+          activation_code: activationCodeNa,
+          product_id: productId,
+          device_id: device,
+          months: months,
+          is_na: true,
+          na_usage: (naCount + 1) + "/" + naLimit,
+          source: "user-na",
+          ip: visitorInfo ? visitorInfo.ip : "",
+          user_agent: visitorInfo ? visitorInfo.userAgent : "",
+          country: geo.country,
+          region: geo.region,
+          city: geo.city,
+          location_zh: geo.location_zh,
+          district_zh: geo.district_zh,
+          location_full_zh: geo.location_full_zh,
+        }).catch(function () {});
+
+        rateLimit.clearDeviceRateLimit(device).catch(function () {});
+
+        return res.json({
+          success: true,
+          activationCode: activationCodeNa,
+          naDevice: true,
+          naUsage: (naCount + 1) + "/" + naLimit,
+          debug: { visitor: visitorInfo, notification: "success", productId: productId, months: months },
+        });
+      }
+
       saveFailureRecord("该兑换码已被其他设备使用过", device, code, productId, months, visitorInfo, deviceInfo);
       var alreadyUsedNotifyResult = await notify.sendActivationFailure(req, {
-        reason: "该兑换码已被其他设备使用过，无法重复激活。如需解绑请联系作者（QQ群/微信）",
+        reason: "该兑换码已被其他设备使用过，无法重复激活。如需解绑请联系作者（QQ群/微信）" + (deviceIsNa ? "（NA设备使用次数已达上限 " + naCount + "/" + naLimit + "）" : ""),
         redeemCode: code,
         deviceId: device,
         productId: productId,
@@ -698,7 +820,7 @@ module.exports = async (req, res) => {
       }).catch(function () {});
       return res.status(400).json({
         success: false,
-        error: "该兑换码已被其他设备使用过，无法重复激活。如需解绑请联系作者（QQ群/微信）",
+        error: "该兑换码已被其他设备使用过，无法重复激活。如需解绑请联系作者（QQ群/微信）" + (deviceIsNa ? "（NA设备使用次数已达上限 " + naCount + "/" + naLimit + "）" : ""),
         debug: { visitor: visitorInfo, notification: buildNotificationStatus(alreadyUsedNotifyResult), reason: "该兑换码已被其他设备使用过" },
       });
     }
