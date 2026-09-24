@@ -11,6 +11,8 @@ var dbRegistry = require("../../lib/db-registry");
 var notify = require("../../lib/notify");
 var geoZh = require("../../lib/geo-zh");
 var geoDistrict = require("../../lib/geo-district");
+var background = require("../../lib/background");
+var ipWarmup = require("../../lib/ip-warmup");
 var verifySwitch = null;
 try { verifySwitch = require("../../lib/verify-switch"); } catch(e) { console.warn("verify-switch module not available:", e.message); }
 
@@ -573,14 +575,18 @@ if ((isCron || isCronBackup) && isBackup) {
       // 中文省市优先取 ip_lookups（ip-api lang=zh-CN，国内 IP 往往只有这里有值），Vercel 头部仅兜底
       var visitStored = await geoDistrict.getStoredGeo(visitIp);
       var visitDistrict = (await geoDistrict.getDistrict(visitIp)) || (visitStored && visitStored.district) || "";
+      // ⚠️ x-vercel-ip-city 是 percent-encoded（Maghār → Magh%C4%81r），解码后再用
+      var visitCityRaw = geoZh.decodeGeoValue(visitHeaders["x-vercel-ip-city"]);
       var visitGeo = geoZh.resolveZhLocationFull({
         country: visitHeaders["x-vercel-ip-country"],
         region: visitHeaders["x-vercel-ip-country-region"],
-        city: visitHeaders["x-vercel-ip-city"],
+        city: visitCityRaw,
         zh_region: visitStored && visitStored.region,
         zh_city: visitStored && visitStored.city,
         district: visitDistrict,
       });
+      // 中文归属地自动补齐（境外 IP 靠腾讯永远写不进 ip_lookups）
+      background.run(ipWarmup.warmup(String(visitIp).split(",")[0].trim()), "ip-warmup");
 
       var visitMsg = {
         page: visitPayload.page || "",
@@ -590,7 +596,7 @@ if ((isCron || isCronBackup) && isBackup) {
         ip: visitIp,
         country: String(visitHeaders["x-vercel-ip-country"] || "").slice(0, 8),
         region: String(visitHeaders["x-vercel-ip-country-region"] || "").slice(0, 16),
-        city: String(visitHeaders["x-vercel-ip-city"] || "").slice(0, 40),
+        city: String(visitCityRaw || "").slice(0, 40),
         location_zh: visitGeo.location_zh,
         district_zh: visitGeo.district_zh,
         location_full_zh: visitGeo.location_full_zh,
@@ -2424,7 +2430,10 @@ if ((isCron || isCronBackup) && isBackup) {
         }
 
         // 4. Save to Supabase for future lookups
-        ipStore.saveToStore(ip, merged, individual);
+        // ⚠️ 原来没有 await：函数可能先返回，写入被截断 → 手工查完「还没落入 ip_lookups」
+        await ipStore.saveToStore(ip, merged, individual).catch(function (e) {
+          console.log("[ip-lookup-once] saveToStore failed:", e && e.message);
+        });
 
         results.push({
           ip: ip,
@@ -3062,6 +3071,7 @@ if ((isCron || isCronBackup) && isBackup) {
             return {
               h: row.hash, p: row.path, u: row.ua, r: row.ref, t: row.time,
               ip: row.ip, c: row.country, rg: row.region, ci: row.city, tz: "",
+              q: row.query || "",
             };
           });
           console.log("[visitor-recent] visitor_logs rows:", records.length);
@@ -3120,15 +3130,20 @@ if ((isCron || isCronBackup) && isBackup) {
           try {
             var obj = typeof records[i] === "string" ? JSON.parse(records[i]) : records[i];
             var sg = storeGeo[obj.ip] || null;
-            // 中文省市按「来源成组」取（腾讯整组优先，其次 ip-api 整组），避免混搭出「上海 · 杭州」
-            var pair = geoZh.pickCnPair(sg || {});
-            // 都没有时，用 Vercel 头部兜底（国内是 SD/GD/BJ 这类省级代码，需翻译）
-            var region = pair.region || geoZh.regionZhOf(obj.rg, obj.c) || obj.rg || "";
-            var city = pair.city || geoZh.cityZhOf(obj.ci) || obj.ci || "";
+            // ⚠️ 历史 bug：region 与 city 各自独立回落 → 「ip_lookups 的中文市」+「Vercel 的英文州码」
+            //    混搭成 `IL · 芝加哥`。改成按来源成组挑一套，英文州码翻译不出来时用国家中文名顶上。
+            var pair = geoZh.resolveDisplayGeo({
+              region_zh: sg && sg.region_zh, city_zh: sg && sg.city_zh,
+              region: sg && sg.region, city: sg && sg.city,
+              raw_region: obj.rg, raw_city: obj.ci, country: obj.c,
+            });
+            var region = pair.region || "";
+            var city = pair.city || "";
             var entry = {
               hash: obj.h || "", path: obj.p || "/", ua: obj.u || "", ref: obj.r || "",
+              query: obj.q || "",
               time: obj.t || 0,
-              country: (sg && sg.country) || (/^CN$/i.test(obj.c || "") ? "中国" : (obj.c || "")),
+              country: (sg && sg.country) || geoZh.resolveZhLocation({ country: obj.c }) || (/^CN$/i.test(obj.c || "") ? "中国" : (obj.c || "")),
               region: region,
               city: city,
               district: (sg && sg.district) || "",

@@ -27,6 +27,8 @@ var rateLimit = require("../lib/rate-limit");
 var geoZh = require("../lib/geo-zh");
 var geoDistrict = require("../lib/geo-district");
 var visitorLog = require("../lib/visitor-log");
+var background = require("../lib/background");
+var ipWarmup = require("../lib/ip-warmup");
 var md = null;
 try { md = require("../lib/message-delivery"); } catch(e) { console.log("[go] message-delivery not available"); }
 
@@ -62,10 +64,46 @@ function pickSlug(req) {
   // 优先 query，其次路径最后一段（用于 vercel rewrite 后的 path-info 形式）
   var q = req.query && req.query.slug ? String(req.query.slug).trim().toLowerCase() : "";
   if (q) return q;
-  var url = req.url || "";
+  var url = String(req.url || "").split("?")[0];
   var m = url.match(/^\/?(?:api\/go|go)\/([a-z0-9-]+)\/?$/i);
   if (m) return m[1].toLowerCase();
   return "";
+}
+
+// ⚠️ 渠道参数留存：/go/ev-timetable?deviceId=666 这类链接的 query string 以前被整条丢掉
+//    （path 硬编码成 "/go/"+slug，表里也没有字段承载）。这里把完整 query 与解析后的
+//    参数对象单独留下来，path 仍保持 "/go/"+slug，保证「热门页面」聚合不被参数分裂。
+function pickQuery(req) {
+  var url = String(req.url || "");
+  var raw = "";
+  var i = url.indexOf("?");
+  if (i >= 0) {
+    raw = url.slice(i + 1);
+  } else {
+    var q = (req.query && typeof req.query === "object" && req.query) || {};
+    raw = Object.keys(q).map(function (k) {
+      return encodeURIComponent(k) + "=" + encodeURIComponent(String(q[k]));
+    }).join("&");
+  }
+  if (!raw) return "";
+  // 去掉 Vercel rewrite 自己塞进来的 slug（/go/:slug → /api/go?slug=...），只留业务渠道参数
+  return raw.split("&").filter(function (pair) {
+    return pair.split("=")[0] !== "slug";
+  }).join("&");
+}
+
+function queryToParams(query) {
+  var out = {};
+  String(query || "").split("&").forEach(function (pair) {
+    if (!pair) return;
+    var i = pair.indexOf("=");
+    var k = i >= 0 ? pair.slice(0, i) : pair;
+    var v = i >= 0 ? pair.slice(i + 1) : "";
+    try {
+      out[decodeURIComponent(k)] = decodeURIComponent(v.replace(/\+/g, " "));
+    } catch (e) {}
+  });
+  return Object.keys(out).length ? out : null;
 }
 
 function notFound(res, msg) {
@@ -245,10 +283,14 @@ module.exports = async (req, res) => {
     var ua = String(req.headers["user-agent"] || "unknown").slice(0, 200);
     var ip = getClientIp(req).slice(0, 45);
     var ref = String(req.headers["referer"] || "").slice(0, 200);
+    // ⚠️ Vercel 的 x-vercel-ip-city 对非 ASCII 城市名是 percent-encoded（Maghār → Magh%C4%81r），
+    //    以前原样入库、原样展示，后台出现 `Z · Magh%C4%81r`。这里统一解码。
     var country = String(req.headers["x-vercel-ip-country"] || "").slice(0, 8);
     var region = String(req.headers["x-vercel-ip-country-region"] || "").slice(0, 16);
-    var city = String(req.headers["x-vercel-ip-city"] || "").slice(0, 40);
+    var city = geoZh.decodeGeoValue(String(req.headers["x-vercel-ip-city"] || "")).slice(0, 40);
     var vHash = visitorHashKey(ip + "|" + ua).slice(0, 12);
+    var fullQuery = pickQuery(req).slice(0, 500);
+    var queryParams = queryToParams(fullQuery);
 
     var dateKey = todayKey(ts);
     var record = {
@@ -264,6 +306,8 @@ module.exports = async (req, res) => {
       utm_source: String(req.query.utm_source || "").slice(0, 40),
       utm_medium: String(req.query.utm_medium || "").slice(0, 40),
       utm_campaign: String(req.query.utm_campaign || "").slice(0, 40),
+      q: fullQuery,
+      params: queryParams || {},
     };
 
     var tasks = [
@@ -284,14 +328,16 @@ module.exports = async (req, res) => {
     var visitorRecord = {
       h: vHash, p: "/go/" + slug, u: ua, r: ref,
       t: ts, c: country, rg: region, ci: city, ip: ip,
+      q: fullQuery,
       source: "go-link", slug: slug
     };
     tasks.push(redis.lpush("stats:recent", JSON.stringify(visitorRecord)).catch(function () { return null; }));
-    // 永久日志（业务表）：与通知一样都是 fire-and-forget，不影响 302
+    // 永久日志（业务表）：不影响 302，但必须走 waitUntil（见下方 background.run）
     tasks.push(
       visitorLog.logVisit({
         ts: ts, ip: ip, path: "/go/" + slug, ua: ua, ref: ref,
         country: country, region: region, city: city, hash: vHash, source: "go-link",
+        query: fullQuery, params: queryParams,
       }).catch(function () { return null; })
     );
     tasks.push(redis.ltrim("stats:recent", 0, 99).catch(function () { return null; }));
@@ -316,10 +362,14 @@ module.exports = async (req, res) => {
     } catch (pushErr) {
       console.error("[go] purchase_click push error:", pushErr && pushErr.message ? pushErr.message : pushErr);
     }
-    // fire-and-forget: stats failure never blocks redirect
-    Promise.all(tasks).catch(function (e) {
-      console.error("[go] stats write failed:", e && e.message ? e.message : e);
-    });
+    // ⚠️ 这里原来是裸 fire-and-forget：Vercel 在 res.end() 后会冻结函数实例，
+    //    visitor_logs 的 INSERT 有被中途掐断的风险（整条访问记录丢失）。
+    //    改成 background.run() 注册到 waitUntil，由平台保证跑完。
+    background.run(Promise.all(tasks), "go-stats");
+
+    // 中文归属地自动补齐：ip_lookups 此前只有「腾讯成功」才会写，境外 IP 永远落不进去，
+    //    只能显示 Vercel 原始头部（IL / 06 / Z）。这里在响应之后补一次（不占用跳转时间）。
+    background.run(ipWarmup.warmup(ip), "ip-warmup");
 
     // 3) 302 跳转
     res.setHeader("Location", entry.target_url);

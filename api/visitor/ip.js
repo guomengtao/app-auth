@@ -47,8 +47,10 @@ module.exports = async (req, res) => {
     var tencentFailed = Boolean(tencent && tencent.tencentFailed);
 
     // 兜底：Vercel 头部也能给省级（国内返回的是 SD/GD/BJ 这类省级代码）→ 至少把「省/直辖市」显示出来
+    // x-vercel-ip-city 是 percent-encoded，解码后再查字典
+    var vercelCityRaw = geoZh.decodeGeoValue(headers["x-vercel-ip-city"]);
     var vercelRegionZh = geoZh.regionZhOf(headers["x-vercel-ip-country-region"], headers["x-vercel-ip-country"]);
-    var vercelCityZh = geoZh.cityZhOf(headers["x-vercel-ip-city"]);
+    var vercelCityZh = geoZh.cityZhOf(vercelCityRaw);
     var regionFromVercel = false;
     if (!regionZh && vercelRegionZh) {
       regionZh = vercelRegionZh;
@@ -59,7 +61,7 @@ module.exports = async (req, res) => {
     var full = geoZh.resolveZhLocationFull({
       country: headers["x-vercel-ip-country"],
       region: headers["x-vercel-ip-country-region"],
-      city: headers["x-vercel-ip-city"],
+      city: vercelCityRaw,
       zh_region: regionZh,
       zh_city: cityZh,
       district: districtZh,
@@ -116,7 +118,7 @@ module.exports = async (req, res) => {
       vercel: {
         country: headers["x-vercel-ip-country"] || "",
         region: headers["x-vercel-ip-country-region"] || "",
-        city: headers["x-vercel-ip-city"] || "",
+        city: vercelCityRaw || "",
         timezone: headers["x-vercel-ip-timezone"] || "",
       },
       network: stored

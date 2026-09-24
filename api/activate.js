@@ -8,12 +8,14 @@ var geoZh = require("../lib/geo-zh");
 var geoDistrict = require("../lib/geo-district");
 var visitorLog = require("../lib/visitor-log");
 var background = require("../lib/background");
+var ipWarmup = require("../lib/ip-warmup");
 
 // Vercel 免费头部 + 腾讯位置服务区县 → geo 字段（中文由 lib/geo-zh.js 统一产出）
 async function getGeoFields(req) {
   var country = String(req.headers["x-vercel-ip-country"] || "").slice(0, 8);
   var region = String(req.headers["x-vercel-ip-country-region"] || "").slice(0, 16);
-  var city = String(req.headers["x-vercel-ip-city"] || "").slice(0, 40);
+  // Vercel 的 city 头对非 ASCII 是 percent-encoded，必须解码后再用
+  var city = geoZh.decodeGeoValue(String(req.headers["x-vercel-ip-city"] || "")).slice(0, 40);
   var ip = String(req.headers["x-forwarded-for"] || req.headers["x-real-ip"] || "").split(",")[0].trim();
   // 中文省市优先取 ip_lookups（ip-api lang=zh-CN，国内 IP 往往只有这里有值），Vercel 头部仅兜底
   var storedGeo = await geoDistrict.getStoredGeo(ip);
@@ -63,7 +65,29 @@ async function handleVisitorTrack(req, res) {
       return res.status(429).json({ success: false, error: ipCheck.reason });
     }
     var body = parseBody(req);
-    var path = String(body.path || (req.query && req.query.path) || "/");
+    // 前端发的是 pathname + search；这里拆成两列：
+    //   path  → 只留 pathname（否则「热门页面」会被 ?deviceId=1 / ?deviceId=2 分裂成无数条）
+    //   query → 完整参数串，长期留存在 visitor_logs.query / params，供渠道归因
+    var rawPath = String(body.path || body.href || (req.query && req.query.path) || "/");
+    var splitAt = rawPath.indexOf("?");
+    var path = splitAt >= 0 ? rawPath.slice(0, splitAt) : rawPath;
+    var fullQuery = splitAt >= 0
+      ? rawPath.slice(splitAt + 1)
+      : String(body.query || (req.query && req.query.query) || "");
+    if (!path) path = "/";
+    var queryParams = null;
+    if (fullQuery) {
+      queryParams = {};
+      fullQuery.split("&").forEach(function (pair) {
+        if (!pair) return;
+        var i = pair.indexOf("=");
+        try {
+          queryParams[decodeURIComponent(i >= 0 ? pair.slice(0, i) : pair)] =
+            decodeURIComponent((i >= 0 ? pair.slice(i + 1) : "").replace(/\+/g, " "));
+        } catch (e) {}
+      });
+      if (Object.keys(queryParams).length === 0) queryParams = null;
+    }
     var ua = String((req.headers && req.headers["user-agent"]) || "unknown");
     var ref = String(body.ref || (req.query && req.query.ref) || "");
     var ts = Date.now();
@@ -99,8 +123,9 @@ async function handleVisitorTrack(req, res) {
       ip: ip.slice(0, 45),
       c: String(req.headers["x-vercel-ip-country"] || "").slice(0, 8),
       rg: String(req.headers["x-vercel-ip-country-region"] || "").slice(0, 16),
-      ci: String(req.headers["x-vercel-ip-city"] || "").slice(0, 40),
+      ci: geoZh.decodeGeoValue(String(req.headers["x-vercel-ip-city"] || "")).slice(0, 40),
       tz: String(req.headers["x-vercel-ip-timezone"] || "").slice(0, 40),
+      q: fullQuery.slice(0, 500),
     }));
     await redis.ltrim(recentKey, 0, 99);
 
@@ -115,12 +140,17 @@ async function handleVisitorTrack(req, res) {
         ref: ref,
         country: req.headers["x-vercel-ip-country"] || "",
         region: req.headers["x-vercel-ip-country-region"] || "",
-        city: req.headers["x-vercel-ip-city"] || "",
+        city: geoZh.decodeGeoValue(req.headers["x-vercel-ip-city"] || ""),
         hash: vHash,
         source: "visit",
+        query: fullQuery,
+        params: queryParams,
       }),
       "visitor-log"
     );
+
+    // 中文归属地自动补齐（境外 IP 靠腾讯永远写不进 ip_lookups，必须补一次境外源）
+    background.run(ipWarmup.warmup(ip), "ip-warmup");
 
     return res.json({ success: true, isNewVisitor: isNew === 1 });
   } catch (e) {

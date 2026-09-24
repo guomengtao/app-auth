@@ -6428,13 +6428,14 @@
       html += '<div class="detail-section-title">Page Info</div>';
       html += '<table class="detail-table">';
 
+      // path 现在只存 pathname；渠道参数在独立的 query 字段（兼容老数据：path 里还带 ?）
       var path = v.path || '/';
       var pageName = path;
-      var queryStr = '';
+      var queryStr = String(v.query || '').replace(/^\?/, '');
       var qIdx = path.indexOf('?');
       if (qIdx >= 0) {
         pageName = path.substring(0, qIdx);
-        queryStr = path.substring(qIdx + 1);
+        if (!queryStr) queryStr = path.substring(qIdx + 1);
       }
 
       html += '<tr><td>Page</td><td>' + escapeHtml(pageName) + '</td></tr>';
@@ -9625,15 +9626,18 @@
                 var t = v.time ? new Date(v.time).toLocaleString() : '-';
                 var uaShort = (v.ua || '').replace(/\(.*?\)/g, '').trim().slice(0, 50);
                 var locStr = fmtVisitorLoc(v);
+                // 渠道参数（?deviceId=666 …）以前整条丢失，现在单独存 query，这里拼回完整 URL 展示/复制
+                var fullUrl = (v.path || '/') + (v.query ? (String(v.query).charAt(0) === '?' ? v.query : '?' + v.query) : '');
+                var queryHint = v.query ? '<div style="font-size:0.6875rem;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px" title="' + escapeHtml('?' + String(v.query).replace(/^\?/, '')) + '">?' + escapeHtml(String(v.query).replace(/^\?/, '')) + '</div>' : '';
                 var ispHint = v.isp ? '<div style="font-size:0.6875rem;color: var(--accent-text);margin-top: 2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px">' + escapeHtml(v.isp) + '</div>' : '';
                 var vidx = 'visitorDetail' + idx;
                 rowsHtml += '<tr class="visitor-row" onclick="toggleVisitorDetail(event, this)" data-vidx="' + vidx + '">' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-family:monospace;color: var(--accent-text);font-size:0.75rem">' + escapeHtml(v.hash || '-') + '</td>' +
-                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(v.path || '/') + '">' +
+                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(fullUrl) + '">' +
                   '<span style="display:inline-flex;align-items:center;gap:4px;max-width:100%">' +
                   '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;max-width:90px">' + escapeHtml(v.path || '/') + '</span>' +
-                  '<span class="copy-url-btn" onclick="event.stopPropagation();copyPageUrl(\'' + escapeJs(v.path || '/') + '\')" title="Copy URL" style="cursor:pointer;flex-shrink:0;font-size:0.6875rem;opacity:0.4;transition:opacity 0.15s">Copy</span>' +
-                  '</span></td>' +
+                  '<span class="copy-url-btn" onclick="event.stopPropagation();copyPageUrl(\'' + escapeJs(fullUrl) + '\')" title="Copy URL" style="cursor:pointer;flex-shrink:0;font-size:0.6875rem;opacity:0.4;transition:opacity 0.15s">Copy</span>' +
+                  '</span>' + queryHint + '</td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-family:monospace;font-size:0.75rem;white-space:nowrap"><a href="javascript:void(0)" onclick="event.stopPropagation();showIpCompare(\'' + escapeJs(v.ip) + '\')" style="color: var(--accent-text);text-decoration:none;font-weight:600">' + escapeHtml(v.ip) + '</a></td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:0.75rem">' + t + '</td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-size:0.75rem">' + escapeHtml(locStr) + ispHint + '</td>' +
