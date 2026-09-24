@@ -36,7 +36,7 @@ use device::{DeviceEntry, EvInstallStatus};
 /// ⚠️ 必须与 `manifest.json` 的 `version` **保持一致**（打包前核对一次）。
 /// 之所以在界面上显示它：设备里到底装成功了哪个版本，光看文件名很容易搞混，
 /// 打开插件看一眼版本号是最快的核对方式（也方便远程让用户报版本排查）。
-pub const PLUGIN_VERSION: &str = "1.0.54";
+pub const PLUGIN_VERSION: &str = "1.0.56";
 
 /// 页面状态机：导入 Tab ⇄ 导出 Tab，两者都能临时跳到选择设备页
 #[derive(Clone, Debug, PartialEq)]
@@ -300,7 +300,7 @@ fn is_valid_date(value: &str) -> bool {
 fn handle_device_message(raw: &str) {
     let mut state = STATE.lock().unwrap();
     state.last_response = raw.to_string();
-    push_log(format!("[RX] 收到回包 len={}", raw.len()));
+    push_log_locked(&mut state, format!("[RX] 收到回包 len={}", raw.len()));
 
     // interconnect 传输层把业务报文包进了 { "data": "<JSON字符串>" }（文档 §1.2），
     // 先剥信封拿到真正的 { ok, action, data? }。兼容不包装的旧实现。
@@ -321,7 +321,7 @@ fn handle_device_message(raw: &str) {
                 state.version_name,
                 state.version_code
             );
-            push_log("[RX] ping 回包解析成功（通道双向通）".to_string());
+            push_log_locked(&mut state, "[RX] ping 回包解析成功（通道双向通）".to_string());
             return;
         }
     }
@@ -382,14 +382,17 @@ fn handle_device_message(raw: &str) {
                     msg = format!("{}（手环未返回课程：课表可能为空）", msg);
                 }
                 state.status_message = msg;
-                push_log("[RX] export 回包解析成功（已填充昵称/版本/课程）".to_string());
+                push_log_locked(
+                    &mut state,
+                    "[RX] export 回包解析成功（已填充昵称/版本/课程）".to_string(),
+                );
                 return;
             } else {
                 // 回了 export 但 data 为空
                 state.status_message =
                     "手环回了 export，但 data 为空（课表可能为空，或 schedule/profile 未开放读）"
                         .to_string();
-                push_log("[RX] export 回包无 data 字段".to_string());
+                push_log_locked(&mut state, "[RX] export 回包无 data 字段".to_string());
                 return;
             }
         }
@@ -398,13 +401,16 @@ fn handle_device_message(raw: &str) {
     // ② import / update_settings 的回包：{ ok, count?, reason? }
     if let Ok(resp) = protocol::parse_basic_response(&inner) {
         state.status_message = resp.describe("手环已确认");
-        push_log("[RX] 收到 basic 回包（import/update_settings）".to_string());
+        push_log_locked(
+            &mut state,
+            "[RX] 收到 basic 回包（import/update_settings）".to_string(),
+        );
         return;
     }
 
     // ③ 两种都解析失败：把原始回包暴露出来，避免静默无提示
     let err = format!("回包无法解析（可能格式不符）：{}", protocol::truncate(raw, 120));
-    push_log(format!("[RX] {}", err));
+    push_log_locked(&mut state, format!("[RX] {}", err));
     state.status_message = err;
 }
 
@@ -498,6 +504,20 @@ fn fail_guard() -> bool {
 /// 由 UI 的「运行日志」页渲染。环形保留最近 300 条，避免无限增长。
 fn push_log(msg: impl Into<String>) {
     let mut s = STATE.lock().unwrap();
+    push_log_locked(&mut s, msg);
+}
+
+/// ⚠️ **已经持有 `STATE` 锁时必须用这个版本**。
+///
+/// `STATE` 是不可重入的 `Mutex`。已持锁的情况下再调 `push_log()`（它会再 lock 一次），
+/// 在 wasm 单线程里**没有任何人会释放那把锁** → 永久死锁：宿主调用永不返回，
+/// 表现为「点了没反应、日志不动」，而且此后**所有事件（含 timer）都不再派发**，
+/// 看起来像插件"死了"。
+///
+/// 历史上有 8 处踩坑：`handle_device_message` 6 处 + `export-ev-btn` 1 处 + `export-sg-btn` 1 处。
+/// 其中 `export-ev-btn`（导入到手环）那处会让「点一下就卡死」。
+/// 新增日志语句时：先看当前作用域里有没有活着的 `state` 守卫。
+fn push_log_locked(s: &mut PluginState, msg: impl Into<String>) {
     s.log_lines.push(msg.into());
     let len = s.log_lines.len();
     if len > 300 {
@@ -541,11 +561,10 @@ fn send_ping() -> bool {
         register::register_interconnect_recv(&addr, device::EV_PACKAGE_NAME).await
     });
 
-    if reg.is_ok() {
-        let _ = wit_bindgen::block_on(async {
-            timer::set_timeout(300, "interconnect-ready").await
-        });
-    }
+    // 注：原实现在这里 set_timeout(300, "interconnect-ready")「等 300ms 让注册生效」，
+    // 但 set_timeout 是异步立即返回的、该 payload 也没有任何消费方 → 实际什么都没等，
+    // 而且日志里的「注册后等待 300ms 完成」是假的，排错时极具误导性。已删除。
+    // 真要等注册生效，必须像 auto-ping 那样「设 timer → 立即 return → 在 on_event 里再发送」。
 
     let msg = protocol::build_ping_request();
     let send = wit_bindgen::block_on(async {
@@ -775,13 +794,11 @@ fn handle_ui_event_inner(event_id: &str, event: &event::Event, event_payload: &s
                 });
 
                 // 预注册已在选设备时完成，这里再注册一次是安全网。
-                // 注册后等 300ms 让宿主完成内部状态同步，避免「注册刚返回 Ok 但实际未就绪」的竞态。
-                if reg.is_ok() {
-                    let _ = wit_bindgen::block_on(async {
-                        timer::set_timeout(300, "interconnect-ready").await
-                    });
-                    push_log("[TX] 注册后等待 300ms 完成".to_string());
-                }
+                // 注：原实现在这里 set_timeout(300, "interconnect-ready") 并打印
+                //     「注册后等待 300ms 完成」，但 set_timeout 异步立即返回、payload 无人消费，
+                //     实际是「注册后立刻发送」，那句日志是假的。已删除（不做假等待）。
+                // ⚠️ 待办：若确认存在「注册刚返回 Ok 但宿主未就绪」的竞态，
+                //    正确做法是「设 timer → 立即 return → 在 on_event 里再发送」。
 
                 let msg = protocol::build_export_request();
                 let send = wit_bindgen::block_on(async {
@@ -842,9 +859,17 @@ fn handle_ui_event_inner(event_id: &str, event: &event::Event, event_payload: &s
                 };
                 push_log(format!("[WAKE] 向 {} 发起启动 EV 课程表", addr));
                 let ok = launch_ev_app(&addr, &app_info);
+                if ok {
+                    // 与「选设备」流程保持一致：启动后 1.5s 自动 ping（payload 由 on_event 消费）。
+                    // 之前手动启动分支漏了这一步，用户必须自己记得点 Ping，行为不一致。
+                    let _ = wit_bindgen::block_on(async {
+                        timer::set_timeout(1500, "auto-ping-after-launch").await
+                    });
+                    push_log("[WAKE] 已请求启动 EV 课程表，1.5s 后自动 ping".to_string());
+                }
                 let mut state = STATE.lock().unwrap();
                 state.status_message = if ok {
-                    "已请求启动 EV 课程表：等 1~2 秒后再点「Ping 探针」即可".to_string()
+                    "已请求启动 EV 课程表：1.5 秒后会自动 Ping，也可手动点「Ping 探针」".to_string()
                 } else {
                     "启动 EV 课程表失败（launch-qa 返回 Err）".to_string()
                 };
@@ -1235,7 +1260,9 @@ fn handle_ui_event_inner(event_id: &str, event: &event::Event, event_payload: &s
                 let mut state = STATE.lock().unwrap();
                 state.export_result = json;
                 state.last_response.clear();
-                push_log(format!("[TX] import send={:?}", send_result));
+                // ⚠️ 这里原来用的是 push_log()，而 state 守卫还活着 → 永久死锁
+                // （表现为「点导入到手环没反应、日志不动」），必须用 _locked 版本
+                push_log_locked(&mut state, format!("[TX] import send={:?}", send_result));
                 state.status_message = match send_result {
                     Ok(()) => format!(
                         "已发送 {} 门课程到手环（import 已投递，导入为覆盖式）",
@@ -1288,7 +1315,8 @@ fn handle_ui_event_inner(event_id: &str, event: &event::Event, event_payload: &s
 
                 let mut state = STATE.lock().unwrap();
                 state.export_result = json;
-                push_log(format!("[TX] sgschedule send={:?}", send_result));
+                // ⚠️ 同上：持锁期间只能用 _locked 版本，否则死锁
+                push_log_locked(&mut state, format!("[TX] sgschedule send={:?}", send_result));
                 state.status_message = match send_result {
                     Ok(()) => format!(
                         "已发送 {} 门课程到 EV 课程表（sgschedule 格式）",
