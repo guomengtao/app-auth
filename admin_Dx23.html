@@ -4408,7 +4408,7 @@
 
           <!-- 用户画像 / 全链路追踪 -->
           <div id="daSubProfile" style="display:none;">
-            <div class="decrypt-box" style="margin-bottom:16px">
+            <div class="decrypt-box" style="margin-bottom:16px;max-width:none">
               <h3>全链路追踪</h3>
               <p class="decrypt-desc">按 deviceId / IP / 兑换码 / 订单号 / 用户名 检索，还原「访问 → 购买 → 支付 → 发码 → 激活 → 后续使用」的完整链路</p>
               <div class="decrypt-input-row">
@@ -4433,6 +4433,9 @@
                 </label>
                 <label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:5px 12px;border:1px solid var(--line);border-radius:8px;font-size:0.75rem;color:var(--ink)" id="ujTypeLabelRedeem">
                   <input type="radio" name="ujType" value="redeem" onchange="onUjTypeChange()"> 兑换码
+                </label>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:5px 12px;border:1px solid var(--line);border-radius:8px;font-size:0.75rem;color:var(--ink)" id="ujTypeLabelActivation">
+                  <input type="radio" name="ujType" value="activation" onchange="onUjTypeChange()"> 激活码
                 </label>
                 <label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:5px 12px;border:1px solid var(--line);border-radius:8px;font-size:0.75rem;color:var(--ink)" id="ujTypeLabelOrder">
                   <input type="radio" name="ujType" value="order" onchange="onUjTypeChange()"> 订单号
@@ -6047,7 +6050,7 @@
           var deviceCell;
           if (rawDeviceId) {
             deviceCell = '<a href="javascript:void(0)" class="device-link" onclick="toggleRecordDetailByIdx(' + idx + ')" title="' + escapeHtml(rawDeviceId) + '">' + escapeHtml(displayDeviceId) + '</a>' +
-              ' <a href="javascript:void(0)" onclick="openUserJourney(\'' + escapeJs(rawDeviceId) + '\')" title="查看该设备的用户画像" style="text-decoration:none;font-size:0.6875rem;opacity:0.5">👤</a>';
+              ' <a href="javascript:void(0)" onclick="openUserJourney(\'' + escapeJs(rawDeviceId) + '\', \'device\')" title="查看该设备的用户画像" style="text-decoration:none;font-size:0.6875rem;opacity:0.5">👤</a>';
           } else if (hashDeviceId) {
             var hDisplay = hashDeviceId;
             if (hDisplay.length > 5) hDisplay = hDisplay.slice(0, 5) + '…';
@@ -8252,7 +8255,7 @@
             '<td style="padding:5px 4px;font-size:0.75rem">' + escapeHtml(((x.region || '') + (x.city || '')).trim() || '-') + (x.district ? ' · ' + escapeHtml(x.district) : '') + '</td>' +
             '<td style="padding:5px 4px;letter-spacing:1px">' + stepsHtml + '</td>' +
             '<td style="padding:5px 4px;font-size:0.6875rem;color:var(--muted)">' + escapeHtml((x.missingLabels || x.missing || []).slice(0, 3).join('、') || '无') + '</td>' +
-            '<td style="padding:5px 4px;white-space:nowrap"><button class="btn btn-outline" style="padding:2px 6px;font-size:0.6875rem;border-radius:6px" onclick="openUserJourney(\'' + escapeJs(x.device) + '\')">详情</button></td>' +
+            '<td style="padding:5px 4px;white-space:nowrap"><button class="btn btn-outline" style="padding:2px 6px;font-size:0.6875rem;border-radius:6px" onclick="openUserJourney(\'' + escapeJs(x.device) + '\', \'device\')">详情</button></td>' +
             '</tr>';
         });
         html += '</tbody></table>';
@@ -8370,15 +8373,26 @@
 
     // ---- 用户画像 / 全链路追踪 ----
 
-    // 跨页面入口：其它面板调用 openUserJourney('IP 或 deviceId 或 兑换码 …') 直接跳过来
-    function openUserJourney(q) {
+    // 跨页面入口：其它面板调用 openUserJourney('IP 或 deviceId 或 兑换码 …', '类型') 直接跳过来
+    function openUserJourney(q, type) {
       switchTab('direct-activate');
       setTimeout(function () {
         switchDirectActivateTab('profile');
         var inp = document.getElementById('ujQuery');
         if (inp) inp.value = q || '';
+        if (type) {
+          setUjType(type);
+        }
         loadUserJourney();
       }, 60);
+    }
+
+    function setUjType(type) {
+      var radios = document.getElementsByName('ujType');
+      for (var i = 0; i < radios.length; i++) {
+        radios[i].checked = (radios[i].value === type);
+      }
+      onUjTypeChange();
     }
 
     // ---- 身份校正（人工合并 / 拆分）----
@@ -10037,7 +10051,7 @@
             '<td class="mono" style="cursor:pointer;color: var(--accent-text)" onclick="toggleAfdianExpand(\'' + expandId + '\')" title="Click to view raw API response">' + escapeHtml(outTradeNoShort) + '</td>' +
             '<td title="' + escapeHtml(userId) + '">' + escapeHtml(userName) +
               ' <button class="btn btn-outline" style="padding: 2px 6px;font-size:0.6875rem;border-radius:6px" onclick="openDmModal(\'' + escapeJs(userId) + '\',\'' + escapeJs(userName) + '\')" title="Send DM">📨</button>' +
-              ' <button class="btn btn-outline" style="padding: 2px 6px;font-size:0.6875rem;border-radius:6px" onclick="openUserJourney(\'' + escapeJs(o.out_trade_no || '') + '\')" title="查看该订单的用户画像">👤</button>' +
+              ' <button class="btn btn-outline" style="padding: 2px 6px;font-size:0.6875rem;border-radius:6px" onclick="openUserJourney(\'' + escapeJs(o.out_trade_no || '') + '\', \'order\')" title="查看该订单的用户画像">👤</button>' +
             '</td>' +
             '<td>' + (planTitle || '-') + '</td>' +
             '<td>' + escapeHtml(o.total_amount || '-') + '</td>' +
@@ -10364,7 +10378,7 @@
                   '<span class="copy-url-btn" onclick="event.stopPropagation();copyPageUrl(\'' + escapeJs(fullUrl) + '\')" title="Copy URL" style="cursor:pointer;flex-shrink:0;font-size:0.6875rem;opacity:0.4;transition:opacity 0.15s">Copy</span>' +
                   '</span>' + queryHint + '</td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-family:monospace;font-size:0.75rem;white-space:nowrap"><a href="javascript:void(0)" onclick="event.stopPropagation();showIpCompare(\'' + escapeJs(v.ip) + '\')" style="color: var(--accent-text);text-decoration:none;font-weight:600">' + escapeHtml(v.ip) + '</a>' +
-                  '<span onclick="event.stopPropagation();openUserJourney(\'' + escapeJs(v.ip) + '\')" title="查看该 IP 的用户画像" style="cursor:pointer;margin-left:4px;font-size:0.6875rem;opacity:0.45">👤</span></td>' +
+                  '<span onclick="event.stopPropagation();openUserJourney(\'' + escapeJs(v.ip) + '\', \'ip\')" title="查看该 IP 的用户画像" style="cursor:pointer;margin-left:4px;font-size:0.6875rem;opacity:0.45">👤</span></td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:0.75rem">' + t + '</td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-size:0.75rem">' + escapeHtml(locStr) + ispHint + '</td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:0.75rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(v.ua || '') + '">' + escapeHtml(uaShort) + '</td>' +
