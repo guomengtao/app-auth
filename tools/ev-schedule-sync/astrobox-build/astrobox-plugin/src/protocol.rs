@@ -127,12 +127,16 @@ fn reason_hint(reason: &str) -> &'static str {
     }
 }
 
-/// export 回包：`{ ok, action:"export", version, data:{...} }`
+/// export 回包：`{ ok, action:"export", version, scopes?, data:{...} }`
+///
+/// 注意：`ok` / `version` 等字段手环侧可能给数字也可能给字符串（历史上有过 `"890"` 这类），
+/// 所以数值字段一律先收成 `serde_json::Value`，用 `json_u32` / `json_bool` 转换 ——
+/// 一个类型不匹配会让**整个** export 回包反序列化失败，代价太大。
 #[derive(Debug, Deserialize)]
 pub struct ExportResponse {
-    pub ok: Option<bool>,
+    pub ok: Option<serde_json::Value>,
     pub action: Option<String>,
-    pub version: Option<u32>,
+    pub version: Option<serde_json::Value>,
     pub data: Option<ExportData>,
     pub reason: Option<String>,
 }
@@ -140,18 +144,51 @@ pub struct ExportResponse {
 #[derive(Debug, Clone, Deserialize)]
 pub struct ExportData {
     pub schedule: Option<Vec<DaySchedule>>,
-    pub nickname: Option<String>,
+    pub nickname: Option<serde_json::Value>,
     /// 首页设置：字段随版本变化，**必须原样保存原样回写**，故用裸 JSON
     pub homepage: Option<serde_json::Value>,
     #[serde(rename = "homepageTemplate")]
-    pub homepage_template: Option<String>,
+    pub homepage_template: Option<serde_json::Value>,
     #[serde(rename = "baseFontSize")]
-    pub base_font_size: Option<u32>,
+    pub base_font_size: Option<serde_json::Value>,
     /// 版本号（只读）：随 export 一起回传，插件用它判断手环端能力
     #[serde(rename = "versionName")]
-    pub version_name: Option<String>,
+    pub version_name: Option<serde_json::Value>,
     #[serde(rename = "versionCode")]
-    pub version_code: Option<u32>,
+    pub version_code: Option<serde_json::Value>,
+}
+
+/// `Value` → `u32`：兼容数字与数字字符串
+pub fn json_u32(v: &Option<serde_json::Value>) -> Option<u32> {
+    match v {
+        Some(serde_json::Value::Number(n)) => n.as_u64().map(|x| x as u32),
+        Some(serde_json::Value::String(s)) => s.trim().parse::<u32>().ok(),
+        _ => None,
+    }
+}
+
+/// `Value` → `bool`：兼容 true/false 与 "true"/"false"/1/0
+pub fn json_bool(v: &Option<serde_json::Value>) -> Option<bool> {
+    match v {
+        Some(serde_json::Value::Bool(b)) => Some(*b),
+        Some(serde_json::Value::Number(n)) => n.as_u64().map(|x| x != 0),
+        Some(serde_json::Value::String(s)) => match s.trim().to_lowercase().as_str() {
+            "true" | "1" | "yes" => Some(true),
+            "false" | "0" | "no" => Some(false),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// `Value` → `String`：数字/字符串都收（`versionName` 之类的容错）
+pub fn json_string(v: &Option<serde_json::Value>) -> Option<String> {
+    match v {
+        Some(serde_json::Value::String(s)) => Some(s.clone()),
+        Some(serde_json::Value::Number(n)) => Some(n.to_string()),
+        Some(serde_json::Value::Bool(b)) => Some(b.to_string()),
+        _ => None,
+    }
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -186,8 +223,75 @@ pub fn count_export_classes(data: &ExportData) -> usize {
 /// 把 export 回包转成一行摘要（用于状态栏）
 pub fn summarize_export(data: &ExportData) -> String {
     let total = count_export_classes(data);
-    let nickname = data.nickname.clone().unwrap_or_else(|| "未设置".to_string());
+    let nickname = json_string(&data.nickname).unwrap_or_else(|| "未设置".to_string());
     format!("读到 {} 门课程，昵称：{}", total, nickname)
+}
+
+// ══════════════════════════ 宿主事件信封 ══════════════════════════
+
+/// 解开宿主 `EventType::InterconnectMessage` 的事件信封，取出真正的业务报文。
+///
+/// 宿主给 `on_event` 的 `event_payload` **不是**业务 JSON，而是一个事件对象：
+/// ```json
+/// {"addr":"3333238b-…","payloadHex":"7b226f6b22…","payloadText":"{\"ok\":true,…}"}
+/// ```
+/// 历史 bug（v1.0.56 之前一直存在）：插件直接把整个信封当业务报文喂给各 `parse_*`，
+/// 于是 export/ping/update_settings 的回包**全部**被判为「无法识别」，
+/// 最后又因为 `BasicResponse` 字段全 `Option` 而被伪装成「收到 basic 回包」，
+/// 表象就是"通道不通、永远读不到数据"。实际通道一直是好的。
+///
+/// 取值优先级：`payloadText` → `payloadHex`（hex 解码）→ 原样返回。
+pub fn decode_event_payload(raw: &str) -> String {
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(raw) else {
+        return raw.to_string();
+    };
+    if !v.is_object() {
+        return raw.to_string();
+    }
+
+    if let Some(t) = v.get("payloadText").and_then(|x| x.as_str()) {
+        if !t.is_empty() {
+            return t.to_string();
+        }
+    }
+    if let Some(hex) = v.get("payloadHex").and_then(|x| x.as_str()) {
+        if let Some(text) = hex_to_utf8(hex) {
+            return text;
+        }
+    }
+    raw.to_string()
+}
+
+/// hex 字符串 → UTF-8 字符串（宿主用 `payloadHex` 传原始字节）
+pub fn hex_to_utf8(hex: &str) -> Option<String> {
+    let bytes = hex_to_bytes(hex)?;
+    String::from_utf8(bytes).ok()
+}
+
+fn hex_to_bytes(hex: &str) -> Option<Vec<u8>> {
+    let s = hex.trim();
+    if s.is_empty() || s.len() % 2 != 0 {
+        return None;
+    }
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(s.len() / 2);
+    let mut i = 0;
+    while i < b.len() {
+        let hi = hex_val(b[i])?;
+        let lo = hex_val(b[i + 1])?;
+        out.push((hi << 4) | lo);
+        i += 2;
+    }
+    Some(out)
+}
+
+fn hex_val(c: u8) -> Option<u8> {
+    match c {
+        b'0'..=b'9' => Some(c - b'0'),
+        b'a'..=b'f' => Some(c - b'a' + 10),
+        b'A'..=b'F' => Some(c - b'A' + 10),
+        _ => None,
+    }
 }
 
 /// 解析回包字符串，失败时给出带原文的提示
@@ -196,20 +300,36 @@ pub fn parse_export_response(raw: &str) -> Result<ExportResponse, String> {
         .map_err(|e| format!("回包解析失败：{}（原文前 80 字：{}）", e, truncate(raw, 80)))
 }
 
+/// basic 回包：`{ ok, count?, reason? }`
+///
+/// ⚠️ 必须显式要求 `ok` 存在。`BasicResponse` 的字段全是 `Option`，serde 对未知字段又是忽略，
+/// 所以**任何** JSON 对象（包括宿主事件信封）都能"解析成功" —— 这是历史 bug 的根源：
+/// export 回包解析失败时会落到这里，被伪装成「收到 basic 回包」，错误被静默吃掉。
 pub fn parse_basic_response(raw: &str) -> Result<BasicResponse, String> {
-    serde_json::from_str(raw)
+    let v: serde_json::Value = serde_json::from_str(raw)
+        .map_err(|e| format!("回包解析失败：{}（原文前 80 字：{}）", e, truncate(raw, 80)))?;
+    if !v.is_object() {
+        return Err(format!("回包不是 JSON 对象（原文前 80 字：{}）", truncate(raw, 80)));
+    }
+    if v.get("ok").is_none() {
+        return Err(format!(
+            "回包缺少 ok 字段，不能当作 basic 响应（原文前 80 字：{}）",
+            truncate(raw, 80)
+        ));
+    }
+    serde_json::from_value(v)
         .map_err(|e| format!("回包解析失败：{}（原文前 80 字：{}）", e, truncate(raw, 80)))
 }
 
 /// ping 回包：`{ ok, pong, versionName, versionCode }`
 #[derive(Debug, Deserialize)]
 pub struct PingResponse {
-    pub ok: Option<bool>,
-    pub pong: Option<bool>,
+    pub ok: Option<serde_json::Value>,
+    pub pong: Option<serde_json::Value>,
     #[serde(rename = "versionName")]
-    pub version_name: Option<String>,
+    pub version_name: Option<serde_json::Value>,
     #[serde(rename = "versionCode")]
-    pub version_code: Option<u32>,
+    pub version_code: Option<serde_json::Value>,
 }
 
 pub fn parse_ping_response(raw: &str) -> Result<PingResponse, String> {

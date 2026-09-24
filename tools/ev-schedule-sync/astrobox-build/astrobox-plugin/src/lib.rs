@@ -36,7 +36,7 @@ use device::{DeviceEntry, EvInstallStatus};
 /// ⚠️ 必须与 `manifest.json` 的 `version` **保持一致**（打包前核对一次）。
 /// 之所以在界面上显示它：设备里到底装成功了哪个版本，光看文件名很容易搞混，
 /// 打开插件看一眼版本号是最快的核对方式（也方便远程让用户报版本排查）。
-pub const PLUGIN_VERSION: &str = "1.0.56";
+pub const PLUGIN_VERSION: &str = "1.0.57";
 
 /// 页面状态机：导入 Tab ⇄ 导出 Tab，两者都能临时跳到选择设备页
 #[derive(Clone, Debug, PartialEq)]
@@ -298,28 +298,43 @@ fn is_valid_date(value: &str) -> bool {
 /// 之前「点了读没有任何提示」就是因为回包没 data / 解析失败时静默返回，
 /// 用户以为没反应。现在 export 无 data、basic 回包、以及两种都解析失败，都会明确提示。
 fn handle_device_message(raw: &str) {
+    // ⓪ **先解开宿主事件信封**：`on_event` 给的不是业务报文，而是
+    //    {"addr":"3333238b-…","payloadHex":"7b22…","payloadText":"{\"ok\":…}"}
+    //
+    // 历史 bug（v1.0.56 及之前）：插件直接把整个信封当业务报文喂给各 parse_*，
+    // 于是 export / ping / update_settings 的回包**全部**解析失败，又被
+    // BasicResponse 的"空洞成功"伪装成「收到 basic 回包」→ 表象是"通道不通、读不到数据"。
+    // 实际上通道一直是通的（回包一直在到达）。
+    let decoded = protocol::decode_event_payload(raw);
+
     let mut state = STATE.lock().unwrap();
-    state.last_response = raw.to_string();
-    push_log_locked(&mut state, format!("[RX] 收到回包 len={}", raw.len()));
+    state.last_response = decoded.clone();
+    push_log_locked(
+        &mut state,
+        format!(
+            "[RX] 收到回包 len={}（信封 {}）；原文：{}",
+            decoded.len(),
+            raw.len(),
+            protocol::truncate(&decoded, 200)
+        ),
+    );
 
-    // interconnect 传输层把业务报文包进了 { "data": "<JSON字符串>" }（文档 §1.2），
-    // 先剥信封拿到真正的 { ok, action, data? }。兼容不包装的旧实现。
-    let inner = protocol::unwrap_envelope(raw);
+    // interconnect 传输层可能还把业务报文包进 { "data": "<JSON字符串>" }（文档 §1.2），
+    // 再剥一层；兼容不包装的实现。
+    let inner = protocol::unwrap_envelope(&decoded);
 
-    // ⓪ ping 探针回包：{ ok, pong, versionName, versionCode }（联调第一步：验证通道双向通）
+    // ① ping 探针回包：{ ok, pong, versionName, versionCode }（联调第一步：验证通道双向通）
     if let Ok(pong) = protocol::parse_ping_response(&inner) {
-        if pong.pong.is_some() {
-            if let Some(vn) = pong.version_name.clone() {
+        if let Some(p) = protocol::json_bool(&pong.pong) {
+            if let Some(vn) = protocol::json_string(&pong.version_name) {
                 state.version_name = vn;
             }
-            if let Some(vc) = pong.version_code {
+            if let Some(vc) = protocol::json_u32(&pong.version_code) {
                 state.version_code = vc.to_string();
             }
             state.status_message = format!(
                 "Ping 成功：pong={}，手环版本 {}（code {}）→ 通道双向通",
-                pong.pong.unwrap_or(false),
-                state.version_name,
-                state.version_code
+                p, state.version_name, state.version_code
             );
             push_log_locked(&mut state, "[RX] ping 回包解析成功（通道双向通）".to_string());
             return;
@@ -330,7 +345,7 @@ fn handle_device_message(raw: &str) {
     if let Ok(resp) = protocol::parse_export_response(&inner) {
         if resp.action.as_deref() == Some("export") {
             if let Some(data) = resp.data.clone() {
-                if let Some(n) = data.nickname.clone() {
+                if let Some(n) = protocol::json_string(&data.nickname) {
                     state.nickname = n.clone();
                     state.edit_nickname = n;
                 }
@@ -339,10 +354,10 @@ fn handle_device_message(raw: &str) {
                     state.homepage_json = h.to_string();
                 }
                 // 版本号（只读）
-                if let Some(vn) = data.version_name.clone() {
+                if let Some(vn) = protocol::json_string(&data.version_name) {
                     state.version_name = vn;
                 }
-                if let Some(vc) = data.version_code {
+                if let Some(vc) = protocol::json_u32(&data.version_code) {
                     state.version_code = vc.to_string();
                 }
                 if let Some(days) = data.schedule.clone() {
@@ -372,7 +387,7 @@ fn handle_device_message(raw: &str) {
                 }
                 let mut msg = protocol::summarize_export(&data);
                 // 昵称缺失时给明确原因，避免「读不出来」却无任何说明
-                if data.nickname.is_none() {
+                if protocol::json_string(&data.nickname).is_none() {
                     msg = format!(
                         "{}（手环未返回昵称：可能未设置，或 profile 域未开放）",
                         msg
@@ -398,6 +413,17 @@ fn handle_device_message(raw: &str) {
         }
     }
 
+    // ①′ 诊断：报文看起来是 export，但反序列化失败 → 明确报出来，别再静默落到 basic 分支
+    if inner.contains("\"action\"") && inner.contains("export") {
+        let reason = match protocol::parse_export_response(&inner) {
+            Ok(r) => format!("action={:?}，但 data 缺失或字段类型不符", r.action),
+            Err(e) => e,
+        };
+        state.status_message = format!("export 回包解析失败：{}", reason);
+        push_log_locked(&mut state, format!("[RX] export 回包解析失败：{}", reason));
+        return;
+    }
+
     // ② import / update_settings 的回包：{ ok, count?, reason? }
     if let Ok(resp) = protocol::parse_basic_response(&inner) {
         state.status_message = resp.describe("手环已确认");
@@ -408,8 +434,11 @@ fn handle_device_message(raw: &str) {
         return;
     }
 
-    // ③ 两种都解析失败：把原始回包暴露出来，避免静默无提示
-    let err = format!("回包无法解析（可能格式不符）：{}", protocol::truncate(raw, 120));
+    // ③ 全都不匹配：把原文暴露出来，避免静默无提示
+    let err = format!(
+        "回包无法识别（可能格式不符）：{}",
+        protocol::truncate(&inner, 200)
+    );
     push_log_locked(&mut state, format!("[RX] {}", err));
     state.status_message = err;
 }

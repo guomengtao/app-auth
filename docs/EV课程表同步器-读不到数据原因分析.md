@@ -1,6 +1,7 @@
 # EV 课程表同步器「能启动 EV、但读不到数据」原因分析
 
-> 分析对象：AstroBox 插件 `ev-schedule-sync`（`tools/ev-schedule-sync/astrobox-build/astrobox-plugin/`，manifest v1.0.55）
+> 分析对象：AstroBox 插件 `ev-schedule-sync`（`tools/ev-schedule-sync/astrobox-build/astrobox-plugin/`）
+> 版本轨迹：问题发生在 **v1.0.55**；修复落在 **v1.0.56**（死锁/假等待/版本号）与 **v1.0.57**（信封解包/空洞成功/解析容错）
 > 分析依据：用户提供的运行日志 + 插件源码 + WIT 接口定义 + `docs/EV课程表 同步对接协议文档.md`
 > 日期：2026-09-24
 
@@ -11,12 +12,12 @@
 | 问题 | 结论 |
 |---|---|
 | AstroBox 平台**是否支持**读手环数据？ | **支持**。WIT 层有完整的双向能力：`register-interconnect-recv`（订阅回包）+ `interconnect-message`（事件回调）。见「五、证据索引」 |
-| 插件调用有没有失败？ | **没有**。日志里 `register=Ok(())`、`send=Ok(())`，说明插件→宿主两步都过了 |
-| 那为什么读不到？ | 因为 **`Ok` 只代表"宿主受理了"，不代表"手环收到了"**。QAIC 是**无 ACK 的单向下发**，链路后半段（蓝牙下发 → 手环分发给快应用 → 快应用回包 → 宿主路由回插件）**完全不可观测**，日志里 0 条 `InterconnectMessage` 就是断在这段的证据 |
-| 最可能的原因 | 经过两轮实测，只剩两个方向：**A. EV 收到了但没回**（首选手环上 EV 版本不支持 `ping`/`export`）；**B. EV 根本没收到**（下发通道问题）。<br>**下一步只需做一件事**：用 `import` 发一门课，看手环课表变不变（详见「零之三」E1）——它能把 A/B 一次分清<br>（"是否能启动 EV"已实测排除，"时机/重试"已用 5+ 次重试排除） |
-| 插件自身有没有 bug？ | **有两个，且都直接影响读数据**：`interconnect-ready` 的"等 300ms"是**空操作**（`set_timeout` 不阻塞，实际是注册后立即发送），以及全程**没有回包超时判定**（用户永远只看到"已发送"）。详见「六」 |
+| 手环上 EV 支持不支持？ | **支持**。`payloadHex` 解出来，`ping` / `export` / `update_settings` 三条回包**全部**严格符合协议 v1（见「零之五」）。EV 侧无需任何改动 |
+| 那到底为什么读不到？ | **插件自己把回包认错了**：宿主 `on_event` 给的是**事件信封**（`{"addr","payloadHex","payloadText"}`），插件却把它当业务报文解析 → 三层解析器全部"解析成功但字段全空" → 最后落进 "basic 回包" 分支。数据一直在回，只是从没被解出来 |
+| 为什么会瞒这么久？ | 两个 bug 叠加：① 死锁（回包一到就卡死在 `[RX]` 日志那行，见「零之四」）；② `parse_basic_response` 的**空洞成功**（字段全 `Option` + serde 忽略未知字段 → 任何 JSON 对象都"成功"），把 ① 的错误伪装成"收到 basic 回包" |
+| 现在状态 | 死锁 **v1.0.56 已修**；信封解包 + 空洞成功 **v1.0.57 已修**。复测预期见「零之五」末尾 |
 
-**一句话**：不是平台不支持，是"消息发出去了，但没有任何一方告诉我们它到没到"。
+**一句话**：平台支持、EV 支持、通道一直是通的 —— 从头到尾都是插件在自说自话。
 
 ---
 
@@ -148,7 +149,91 @@ wasm 单线程里没有任何人会释放那把锁 → 宿主调用**永不返�
 1. 装上 `EV-Schedule-Sync-v1.0.56.abp`；
 2. 点「导入到手环」（1 门课即可）→ 日志**应当出现** `[TX] import send=Ok(())`，**不再卡死**；
 3. 看手环 EV 课表是否真的多了那门课 → 按「零之三」E1 的判定表分 A/B；
-4. 再点 Ping / 读：**如果回包真的来了**，现在也会打印 `[RX] 收到回包 len=…`（之前会被死锁吞掉）。
+4. 再点 Ping / 读：**如果回包真的来了**，现在也会打印 `[RX] 收到回包 len=…`（之前会被死锁吞掉）；
+
+### 零之四续：复测结果 —— 死锁修掉后，**回包立刻出现了**
+
+装 v1.0.56 后第一次点「读」，日志立刻变成：
+
+```
+[TX] register=Ok(()) send=Ok(()) msg={"action":"export"}
+[event] EventType::InterconnectMessage payload={"addr":"3333238b-…","payloadHex":"7b226f6b223a…","payloadText":"…"}
+[RX] 收到回包 len=10369
+[RX] 收到 basic 回包（import/update_settings）      ← ❌ 分支走错了
+```
+
+**回包一直都在，只是被死锁吞掉了。** 这一条直接推翻了此前所有"收不到回包"的判断。
+
+---
+
+## 零之五、真因揭晓：宿主事件信封没解包 + basic 解析"空洞成功"（**已修复 v1.0.57**）
+
+### 证据：回包内容完全合法
+
+把日志里的 `payloadHex` 解出来（三条都实测解过）：
+
+| 动作 | 解出的报文（前缀） |
+|---|---|
+| export | `{"ok":true,"action":"export","version":1,"scopes":…` → 后面还有 `"data":{…}`（总长 10369） |
+| ping | `{"ok":true,"action":"ping","pong":true,"versionNa…` |
+| update_settings | `{"ok":true,"action":"update_settings"}` |
+
+**与《EV课程表 同步对接协议文档》v1 完全一致** —— 也就是说：
+
+- ✅ 手环上 EV **认识并正确响应** `ping` / `export` / `update_settings`（R2「EV 版本不支持」**排除**）
+- ✅ 宿主**一直在把回包派发给插件**（R6「宿主不派发」**排除**）
+- ❌ 是插件自己把回包认错了
+
+### Bug 1（主因）：把**宿主的信封**当成了业务报文
+
+`on_event(InterconnectMessage, payload)` 给的 payload **不是**业务 JSON，而是宿主的事件对象：
+
+```json
+{"addr":"3333238b-004e-58ff-d3d9-65e1a2e73f04",
+ "payloadHex":"7b226f6b223a747275652c…",
+ "payloadText":"{\"ok\":true,…}"}
+```
+
+而 `handle_device_message()` 直接把这个信封喂给 `parse_ping/export/basic`：
+
+| 解析器 | 对信封的结果 |
+|---|---|
+| `parse_ping_response` | 反序列化"成功"（字段全 `Option`），但 `pong` 为 `None` → 跳过 |
+| `parse_export_response` | 反序列化"成功"，但 `action` 为 `None` → 不走 export 分支 |
+| `parse_basic_response` | 反序列化"成功"（同理）→ **落到"收到 basic 回包"** |
+
+三层都"成功"、三层都错，最后落在一个看起来无害的分支上 —— 于是日志显示"收到 basic 回包"，UI 显示"手环已确认"，实际什么数据都没解析出来。
+
+### Bug 2（放大器）：`parse_basic_response` 是**空洞成功**
+
+```rust
+#[derive(Deserialize, Default)]
+pub struct BasicResponse { ok: Option<bool>, count: Option<u32>, reason: Option<String> }
+// serde 默认忽略未知字段 + 全部 Option → 任意 JSON 对象都能 from_str 成功
+```
+
+所以任何解析不出来的东西都会"成功"变成 basic 回包 → **把 Bug 1 完全掩盖了**，让"通道不通"这个假象维持了整整几轮排查。
+
+### 修复内容（v1.0.57）
+
+| # | 改动 | 位置 |
+|---|---|---|
+| 1 | 新增 `protocol::decode_event_payload()`：`payloadText` → `payloadHex`（hex 解码）→ 原样兜底；`handle_device_message` 先解信封再用 | `protocol.rs` / `lib.rs` |
+| 2 | 新增 `hex_to_utf8()`（手写 hex 解码，不引依赖） | `protocol.rs` |
+| 3 | `parse_basic_response()` 强制要求存在 `ok` 字段，否则返回 Err | `protocol.rs` |
+| 4 | export / ping 的数值与布尔字段改为 `serde_json::Value` + `json_u32` / `json_bool` / `json_string` 容错（避免一个类型不符就让整包解析失败） | `protocol.rs` |
+| 5 | 新增「看起来是 export 但解析失败」的独立诊断分支，不再静默落到 basic | `lib.rs` |
+| 6 | `[RX]` 日志打印**解码后的原文**（截断 200 字）+ 信封长度，以后排错一眼可见 | `lib.rs` |
+
+构建产物：`dist/EV-Schedule-Sync-v1.0.57.abp`（453K）。
+
+### 复测预期（v1.0.57）
+
+| 操作 | 期望日志 |
+|---|---|
+| Ping | `[RX] 收到回包 len=…；原文：{"ok":true,"action":"ping","pong":true,"versionName":…}` + `[RX] ping 回包解析成功（通道双向通）` + 界面显示手环 EV 版本号 |
+| 读（export） | `[RX] export 回包解析成功（已填充昵称/版本/课程）` + 界面显示「读到 N 门课程，昵称：xxx」 |
+| 改昵称 | `[RX] 收到 basic 回包（import/update_settings）` + 界面「手环已确认」 |
 
 ---
 
@@ -225,12 +310,11 @@ wasm 单线程里没有任何人会释放那把锁 → 宿主调用**永不返�
 - **要彻底关掉这一条**，只能由 EV 侧确认：接收器注册是否只在 `onCreate`、有没有 `onShow`/`onHide` 兜底、被挂起后是否重注册。
 - **顺带**：这也意味着"启动后 1.5s 自动 ping"这一次发送，正好落在 EV 冷启动/热唤起的**不确定窗口**内，且**只发一次、不重试** —— 见 R7。
 
-### R2 ★★★★☆ 手环上的 EV 版本较老，不认识 `ping` / `export`
+### R2 ★★★★☆ 手环上的 EV 版本较老，不认识 `ping` / `export` —— **已排除（v1.0.57 复测）**
 
-- **依据**：协议文档 §1 兼容规则写着「不带 `action` 的报文一律按 `import` 处理（保证旧版插件可用）」。反过来说：**老版本 EV 不认识 `action:"ping"` / `action:"export"`，很可能不回复**（或按 import 解析后直接静默返回）。
-- `ping` / `export` 是协议 v1（`docs/EV课程表 同步对接协议文档.md`）才定义的；该文档依据的 EV 版本示例是 `versionName: 1.6.61 / 1.6.62`（§3.2、§6）。
-- **判定方法**：把 EV 课程表升级到与协议文档同代的版本；或让 EV 端用 `data/version.js` 的版本号对照确认 `< 该能力引入版本`。
-- **注意**：插件目前**拿不到**手环上 EV 的版本号（版本号本来要靠 ping/export 回包拿），所以这是**死循环**——必须先在设备侧确认版本。
+- **排除依据**：装上 v1.0.56（修掉死锁）后点一下「读」，立刻收到 `len=10369` 的回包；`payloadHex` 解出来是 `{"ok":true,"action":"export","version":1,"scopes":…}`，ping / update_settings 同样正常。**手环上 EV 的响应完全符合协议 v1**，不存在"不认识 action"。
+- **依据（原）**：协议文档 §1 兼容规则写着「不带 `action` 的报文一律按 `import` 处理（保证旧版插件可用）」。反过来说：老版本 EV 可能不认识 `action:"ping"` / `action:"export"` 而不回复 —— 这个推理方向没错，只是**事实不成立**。
+- **保留价值**：如果将来在**别的机型/别的 EV 版本**上出现同样现象，这一条仍值得第一个排查。
 
 ### R3 ★★★☆☆ 手环未开启「后台运行」（`system.resident`）
 
@@ -248,10 +332,10 @@ wasm 单线程里没有任何人会释放那把锁 → 宿主调用**永不返�
 
 - **排除**：日志已明确 `检测EV=Ev课程表/com.application.watch.classschedule`、`插件用EV包名=com.application.watch.classschedule`，且 `lib.rs:1040-1044` 有专门的不一致告警（未触发）。这一项可以划掉。
 
-### R6 ★★☆☆☆ 宿主侧只在特定时机派发 `interconnect-message`
+### R6 ★★☆☆☆ 宿主侧只在特定时机派发 `interconnect-message` —— **已排除（v1.0.57 复测）**
 
-- **依据**：协议文档 §5 提到过 `Plugin thread dropped the response`（宿主回话时插件线程已结束）。虽然日志显示 Timer 事件能到达（说明插件还活着），但**每次事件回调都是独立生命周期**，回包如果在回调窗口之外到达，是否会被丢弃取决于宿主实现。
-- **判定方法**：对照实验——用最小 HelloWorld 插件（只做 register + send + 打印事件）复测，排除业务代码干扰。
+- **排除依据**：修掉插件的 push_log 死锁后，`EventType::InterconnectMessage` **每次请求都能派发到插件**（export / ping / update_settings 三条都有 `[event] EventType::InterconnectMessage` + `[RX]`）。宿主派发完全正常。
+- **反推**：之前"0 条 InterconnectMessage"其实是**死锁把插件卡住了**，卡住之后宿主自然无法再派发 —— 我们把这个现象误读成了"宿主不派发"。
 
 ### R7 ★★★★☆（新增）只发一次、不重试，发送时机落在启动窗口内
 
@@ -371,7 +455,10 @@ let send = ... send_qaic_message(...).await;                   // ← 立即发�
 
 | 提问 | 回答 |
 |---|---|
-| 是不是平台不支持？ | **不是。** WIT 明确提供 `register-interconnect-recv` + `interconnect-message` 双向能力，日志也证明插件侧订阅/发送都成功 |
-| 那到底卡在哪？ | 卡在**不可观测的半段**：宿主→手环→EV→回包。`Ok` 只表示受理，QAIC 无 ACK |
-| 最该先做什么？ | 按 S0→S3 二分：**先在手环上手动打开 EV + 开后台运行 + Ping**。这一步就能把 R1/R2/R3 分辨出来 |
-| 插件能立刻改善什么？ | 修 B1（把"等 300ms"做成真的等待）、B2（加超时结论）、B3（页面名可配 + 启动失败可诊断），让"读不到"从静默变成有结论 |
+| 是不是平台不支持？ | **不是。** WIT 明确提供 `register-interconnect-recv` + `interconnect-message` 双向能力 |
+| 是不是手环上 EV 不支持？ | **不是。** 三条回包实测解出来全部符合协议 v1，EV 侧零改动 |
+| 那到底卡在哪？ | **全在插件自己**：① push_log 死锁（回包一到就卡死，回包被吞）② 宿主事件信封没解包（把 `{"addr","payloadHex",…}` 当业务报文）③ `parse_basic_response` 空洞成功（把 ② 的错误伪装成"收到 basic 回包"） |
+| 为什么排查了这么多轮？ | 三个 bug 互相掩护：死锁让回包"看起来不存在"；空洞成功让解析错误"看起来成功"；再加上 QAIC 无 ACK，"发出去了"与"收到了"在日志上无法区分 |
+| 已修复到哪一步？ | v1.0.56 修死锁 + C1/C2/C3；v1.0.57 修信封解包 + 空洞成功 + 解析容错 + 诊断日志 |
+| 还欠什么？ | B1 真正的"等注册生效"（设 timer → return → on_event 里发送）、B2 回包超时判定。二者都不是当前阻塞项 |
+| 下次遇到类似问题先做什么？ | **先看 `[RX] 收到回包 len=` 有没有出现**；没有就查死锁/订阅，有就看 `[RX] 原文：` 打印的报文；**结论不要建立在"解析器说成功"上 —— 检查它是否只是"空洞成功"** |
