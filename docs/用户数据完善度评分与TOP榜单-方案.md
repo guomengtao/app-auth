@@ -395,6 +395,36 @@ scoreDevices(days, opts) → {
 1. **缺失项 key 静默失配**：打分往 `missing` 里推的是 `has_click`，而缺口榜定义用的是 `no_click` → **缺口榜全是 0 且不报错**。现在两边 key 逐字一致，并在 `GAP_DEFS` 上加了注释强制同步。
 2. **`scoreOne` 忘返回 `device_full`** → TOP5 的设备掩码与「详情」跳转全空。已补。
 
+### 6.3 补充修正（同日追加）
+
+**① 机型字段取错了来源（假缺口）**
+
+原实现取 `device_info.model`（激活 URL 的 `m` 参数），但实际数据里 `m=ap` 是**垃圾值**，真正的机型在 `p` 参数（product）：
+
+```
+/activate.html?deviceId=220cf976…&m=ap&p=REDMI%20Watch%206&o=0&v=1200&t=watch&s=rect&w=432&h=514
+                     ↑ 垃圾值              ↑ 真机型
+```
+
+修复：
+
+- 新增 `lib/tracking.js pickModel(model, product)`：长度 ≥ 3 才算有效，两者都有效取更长的（`m=ap` → 取 `p=REDMI Watch 6`）。
+- `api/activate.js`（激活成功 / 复用 / 失败 / 推送 payload）、`lib/tracking.js` 回填、`lib/user-journey.js` 全部改走 `pickModel`；事件的 `payload` 额外存 `product`。
+- 新增 `tracking.enrichModels()` 回填历史：扫 `auth:activation_codes` 反查 `device_info.product`，用一条 multi-row `UPDATE ... FROM (VALUES ...)` 修正 `payload.model`（本机执行修正 **92 行**）；它被放进 `background.run`（后台执行）以免阻塞读接口，并有独立 10 分钟节流。
+- 结果：TOP1 从 78 分 → **84 分**，机型列从 `(未上报)` → `REDMI Watch 6`，**「缺机型 100%」这条假缺口从榜上消失**，平均分 59 → 62。
+
+> 教训：**缺口榜的第一名先别急着当开发任务**，要先用真实样本核对"这个字段到底是没采，还是取了错的字段"。这次就是后者。
+
+**② 用户画像页显示该用户自己的得分**
+
+- `lib/user-score.js` 新增 `scoreDevice(device, days)`：只查这一台设备（2 条查询，不走 `analyze()` 拉全库），返回同一套口径的得分 / 维度 / 链路 / 缺口。
+- 接口复用：`section=stats&sub=user-score&device=<deviceId>`。
+- 「快捷激活 → 👤 用户画像」页在身份卡下方新增评分卡：总分 + 四维度进度条 + 五步链路 + 「还差 xxx」。
+
+**③ Vercel 函数文件数 12 → 10（达标）**
+
+见 `docs/architecture.md`：删除无人调用的 `api/admin/clear-rate-limit.js`；`api/admin/records.js` 合并进 `health.js` 的 `section=records`（前端 `loadRecords()` 改调 `/api/admin/health?section=records&...`，参数与返回不变），并把内部 `pipeline` 换成 `mget`。
+
 ### 性能（重要）
 
 生产库单次查询 RTT 实测 ≈ 300ms（本地直连；Vercel 同区更低），**首连接可达 4~10s**。因此实现上做了三件事：

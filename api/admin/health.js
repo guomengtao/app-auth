@@ -2838,6 +2838,83 @@ if ((isCron || isCronBackup) && isBackup) {
     return res.status(401).json({ success: false, error: "Not authenticated" });
   }
 
+  // === Merged from api/admin/records.js（把 Vercel 函数文件数降到 10 以内，接口地址改为
+  //     /api/admin/health?section=records，参数与返回结构完全不变）===
+  if (req.query && req.query.section === "records") {
+    var recAuth = requireAuth(req);
+    if (!recAuth.authorized) {
+      return res.status(recAuth.status).json({ success: false, error: recAuth.error });
+    }
+    if (req.method !== "GET") {
+      return res.status(405).json({ success: false, error: "Method not allowed" });
+    }
+    try {
+      var recCount = Math.min(parseInt(req.query.count, 10) || 500, 500);
+      var recStatus = req.query.status || "all";
+
+      // ⚠️ 用 mget（一次 SELECT ... IN）而不是 pipeline —— 后者在 lib/redis.js 里是逐条 await
+      async function fetchRecordsFromSet(setKey, keyPrefix) {
+        try {
+          var ss = await redis.sscan(setKey, 0, { count: recCount });
+          var keys = Array.isArray(ss) ? (ss[1] || []) : (ss && ss.keys) || [];
+          if (!keys.length) return [];
+          var vals = await redis.mget(keys.map(function (k) { return keyPrefix ? keyPrefix + k : k; }));
+          return (vals || []).map(function (raw) {
+            if (!raw) return null;
+            if (typeof raw === "object") return raw;
+            try { return JSON.parse(raw); } catch (_) { return null; }
+          }).filter(Boolean);
+        } catch (e) {
+          console.error("[records] fetch failed:", setKey, e.message);
+          return [];
+        }
+      }
+
+      var recAll = [];
+      if (recStatus === "all" || recStatus === "success") {
+        recAll = recAll.concat(await fetchRecordsFromSet("auth:activation_codes", "auth:activation:"));
+      }
+      if (recStatus === "all" || recStatus === "failure") {
+        recAll = recAll.concat(await fetchRecordsFromSet("auth:activation_failures", ""));
+      }
+      if (req.query.product_id) {
+        recAll = recAll.filter(function (r) { return r.product_id === req.query.product_id; });
+      }
+      if (req.query.redeem_code) {
+        var recRc = String(req.query.redeem_code).trim().toUpperCase();
+        if (recRc) recAll = recAll.filter(function (r) { return String(r.redeem_code || "").toUpperCase() === recRc; });
+      }
+      if (req.query.device_id) {
+        var recDid = String(req.query.device_id).trim().toLowerCase();
+        if (recDid) {
+          recAll = recAll.filter(function (r) {
+            return String(r.device_id || r.device_id_full || "").toLowerCase().indexOf(recDid) >= 0;
+          });
+        }
+      }
+      if (req.query.ip) {
+        var recIp = String(req.query.ip).trim().toLowerCase();
+        if (recIp) {
+          recAll = recAll.filter(function (r) {
+            var vi = r.visitor_info;
+            if (!vi) return false;
+            return String(vi.ip || "").toLowerCase().indexOf(recIp) >= 0;
+          });
+        }
+      }
+      recAll.sort(function (a, b) {
+        return (Number(b.generated_at) || 0) - (Number(a.generated_at) || 0);
+      });
+      return res.json({ success: true, records: recAll, cursor: 0, hasMore: false });
+    } catch (error) {
+      console.error("Records error:", error);
+      var recMsg = "Internal server error";
+      if (error && error.code === "PG_ENV_MISSING") recMsg = "Server database (Postgres) not configured, contact admin";
+      else if (error && /connection|ECONNREFUSED|ENOTFOUND/i.test(String(error.message || ""))) recMsg = "Server database connection failed, try again later or contact admin";
+      return res.status(500).json({ success: false, error: recMsg });
+    }
+  }
+
   // === Merged from api/admin/stats.js ===
   if (req.query && req.query.section === "stats") {
     var auth2 = requireAuth(req);
@@ -3385,6 +3462,16 @@ if ((isCron || isCronBackup) && isBackup) {
       }
       // 用户数据完善度评分 + 缺口聚合榜（只读）
       // ⚠️ 不新增 api/ 文件：Vercel 函数文件数硬性上限 10 个（详见 docs/architecture.md）
+      if (sub === "user-score" && req.query && req.query.device) {
+        try {
+          return res.json(await require("../../lib/user-score").scoreDevice(
+            String(req.query.device),
+            parseInt(req.query && req.query.days, 10) || 30
+          ));
+        } catch (e) {
+          return res.status(500).json({ success: false, error: e.message });
+        }
+      }
       if (sub === "user-score" || sub === "data-gaps") {
         try {
           var usOpts = {

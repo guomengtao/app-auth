@@ -223,7 +223,7 @@ function saveFailureRecord(reason, deviceId, redeemCode, productId, months, visi
     ip: (visitorInfo && visitorInfo.ip) || "",
     redeemCode: redeemCode || "",
     channel: (deviceInfo && deviceInfo.source) || "",
-    payload: { reason: reason, product_id: productId || "", months: months || "", model: (deviceInfo && (deviceInfo.model || deviceInfo.product)) || "" },
+    payload: { reason: reason, product_id: productId || "", months: months || "", model: (deviceInfo && tracking.pickModel(deviceInfo.model, deviceInfo.product)) || "" },
     dedupeKey: null,
   }), "tracking");
   var record = {
@@ -509,46 +509,57 @@ module.exports = async (req, res) => {
           code
         );
         var reuseNow = Date.now();
+        // ⚠️ 复用（同一兑换码 + 同一设备二次激活）**不再覆盖首次那条记录**：
+        //    首次记录 auth:activation:<激活码> 原样保留（历史不许丢），
+        //    本次追加 auth:activation:<激活码>:<第几次>（带 activation_seq，后台标「第 N 次激活」）。
+        //    详见 docs/激活记录丢失问题分析与修复方案.md
+        var firstRecordRaw = await redis.get("auth:activation:" + activationCodeReuse);
+        var firstRecord = parseRedisJson(firstRecordRaw) || {};
         var reuseExpires = null;
         if (months !== 99) {
-          var existingRecordRaw = await redis.get("auth:activation:" + activationCodeReuse);
-          var existing = parseRedisJson(existingRecordRaw);
           var baseTs = reuseNow;
-          if (existing && existing.expires_at && Number(existing.expires_at) > baseTs) {
-            baseTs = Number(existing.expires_at);
+          if (firstRecord.expires_at && Number(firstRecord.expires_at) > baseTs) {
+            baseTs = Number(firstRecord.expires_at);
           }
           var rd = new Date(baseTs);
           rd.setUTCMonth(rd.getUTCMonth() + months);
           reuseExpires = rd.getTime();
         }
-        var mergedRecord = null;
+        // 序号：优先用兑换码记录上累计的（不依赖首次记录），退回首次记录上的，最后兜底 1
+        var prevSeq = Number(info.activation_seq) || Number(firstRecord.activation_seq) || 1;
+        var reuseSeq = prevSeq + 1;
+        var reuseMember = activationCodeReuse + ":" + reuseSeq;
+        var repeatRecord = null;
         if (activationCodeReuse) {
-          var _existingRaw = await redis.get("auth:activation:" + activationCodeReuse);
-          var _existing = parseRedisJson(_existingRaw) || {};
-          mergedRecord = Object.assign({}, _existing, {
+          repeatRecord = {
             activation_code: activationCodeReuse,
+            activation_member: reuseMember,
+            activation_seq: reuseSeq,
+            is_repeat: true,
+            first_activated_at: firstRecord.first_activated_at || firstRecord.generated_at || reuseNow,
             device_id_hash: deviceHash,
             device_id: device,
             device_id_full: rawDeviceId,
             product_id: productId,
             duration_months: months,
             redeem_code: code,
-            generated_at: _existing.generated_at || reuseNow,
+            generated_at: reuseNow,
             expires_at: reuseExpires,
-            device_info: deviceInfo || _existing.device_info || null,
+            device_info: deviceInfo || firstRecord.device_info || null,
             visitor_info: visitorInfo,
-          });
+          };
         }
         info.generated_activation_code = activationCodeReuse;
         info.product_id = productId;
         info.duration_months = months;
         info.used_at = reuseNow;
+        info.activation_seq = reuseSeq;
         var reusePipeline = redis.pipeline();
         reusePipeline.set("auth:redeem:" + code, JSON.stringify(info));
         reusePipeline.set("auth:device:" + deviceHash, activationCodeReuse);
-        if (mergedRecord) {
-          reusePipeline.set("auth:activation:" + activationCodeReuse, JSON.stringify(mergedRecord));
-          reusePipeline.sadd("auth:activation_codes", activationCodeReuse);
+        if (repeatRecord) {
+          reusePipeline.set("auth:activation:" + reuseMember, JSON.stringify(repeatRecord));
+          reusePipeline.sadd("auth:activation_codes", reuseMember);
         }
         await reusePipeline.exec();
 
@@ -562,10 +573,11 @@ module.exports = async (req, res) => {
           activationCode: activationCodeReuse,
           channel: (deviceInfo && deviceInfo.source) || "",
           payload: {
-            product_id: productId, months: months, reuse: true,
-            model: (deviceInfo && (deviceInfo.model || deviceInfo.product)) || "",
+            product_id: productId, months: months, reuse: true, activation_seq: reuseSeq,
+            model: (deviceInfo && tracking.pickModel(deviceInfo.model, deviceInfo.product)) || "",
+            product: (deviceInfo && deviceInfo.product) || "",
           },
-          dedupeKey: "ac:" + activationCodeReuse,
+          dedupeKey: "ac:" + reuseMember,
         }), "tracking");
 
         notify.sendActivationNotification(req, {
@@ -586,6 +598,7 @@ module.exports = async (req, res) => {
           product_id: productId,
           device_id: device,
           months: months,
+          activation_seq: reuseSeq,
           source: "user-reuse",
           ip: visitorInfo ? visitorInfo.ip : "",
           user_agent: visitorInfo ? visitorInfo.userAgent : "",
@@ -648,6 +661,23 @@ module.exports = async (req, res) => {
       expiresAt = d.getTime();
     }
 
+    // 同一激活码之前已有记录（典型：解绑后在同一设备重新激活）→ 同样**追加** <激活码>:<第几次>，
+    // 不覆盖首次那条（历史不许丢）。激活码是确定性函数，解绑再激活算出的还是同一个码。
+    // 注意：解绑后也可能换了设备 → 激活码不同、老记录不存在 → 这种情况仍算该码的第 1 次。
+    var prevSeq = Number(info.activation_seq) || 0;
+    var firstActivatedAt = now;
+    if (prevSeq >= 1) {
+      var prevRecord = parseRedisJson(await redis.get("auth:activation:" + activationCode));
+      if (prevRecord) {
+        firstActivatedAt = prevRecord.first_activated_at || prevRecord.generated_at || now;
+        if ((Number(prevRecord.activation_seq) || 0) > prevSeq) prevSeq = Number(prevRecord.activation_seq);
+      } else {
+        prevSeq = 0;
+      }
+    }
+    var activationSeq = prevSeq + 1;
+    var activationMember = activationSeq > 1 ? (activationCode + ":" + activationSeq) : activationCode;
+
     var updated = {
       code: info.code || code,
       product_id: productId,
@@ -657,9 +687,10 @@ module.exports = async (req, res) => {
       generated_activation_code: activationCode,
       created_at: info.created_at || now,
       used_at: now,
+      activation_seq: activationSeq,
     };
 
-    // 统一事件流：激活成功节点（激活码唯一 → dedupe 用 ac:<code>）
+    // 统一事件流：激活成功节点（dedupe 用集合成员，保证多次激活各自成条）
     background.run(tracking.record({
       ts: now,
       kind: "activation",
@@ -670,15 +701,20 @@ module.exports = async (req, res) => {
       activationCode: activationCode,
       channel: (deviceInfo && deviceInfo.source) || "",
       payload: {
-        product_id: productId, months: months,
-        model: (deviceInfo && (deviceInfo.model || deviceInfo.product)) || "",
+        product_id: productId, months: months, activation_seq: activationSeq,
+        model: (deviceInfo && tracking.pickModel(deviceInfo.model, deviceInfo.product)) || "",
+        product: (deviceInfo && deviceInfo.product) || "",
         rom: (deviceInfo && deviceInfo.romVersion) || "",
       },
-      dedupeKey: "ac:" + activationCode,
+      dedupeKey: "ac:" + activationMember,
     }), "tracking");
 
     var record = {
       activation_code: activationCode,
+      activation_member: activationMember,
+      activation_seq: activationSeq,
+      is_repeat: activationSeq > 1,
+      first_activated_at: firstActivatedAt,
       device_id_hash: deviceHash,
       device_id: device,
       device_id_full: rawDeviceId,
@@ -694,8 +730,8 @@ module.exports = async (req, res) => {
     var USED_COUNTER_KEY = "auth:counter:used_redeem_codes";
     var writePipeline = redis.pipeline();
     writePipeline.set("auth:redeem:" + code, JSON.stringify(updated));
-    writePipeline.set("auth:activation:" + activationCode, JSON.stringify(record));
-    writePipeline.sadd("auth:activation_codes", activationCode);
+    writePipeline.set("auth:activation:" + activationMember, JSON.stringify(record));
+    writePipeline.sadd("auth:activation_codes", activationMember);
     writePipeline.set("auth:device:" + deviceHash, activationCode);
     writePipeline.incr(USED_COUNTER_KEY);
     var writeResults = await writePipeline.exec();
@@ -706,6 +742,8 @@ module.exports = async (req, res) => {
     console.log("✅ Activate success:", {
       redeemCode: code,
       activationCode: activationCode,
+      activationMember: activationMember,
+      activationSeq: activationSeq,
       productId: productId,
       deviceHash: deviceHash.slice(0, 8) + "...",
       months: months,
@@ -718,13 +756,14 @@ module.exports = async (req, res) => {
       product_id: productId,
       device_id: device,
       months: months,
+      activation_seq: activationSeq,
       source: "user",
       user_name: (info && info.user_name) || "",
       ip: visitorInfo ? visitorInfo.ip : "",
       user_agent: visitorInfo ? visitorInfo.userAgent : "",
       visitor_info: visitorInfo || {},
       device_info: deviceInfo || {},
-      device_model: (deviceInfo && (deviceInfo.model || deviceInfo.product)) || "",
+      device_model: (deviceInfo && tracking.pickModel(deviceInfo.model, deviceInfo.product)) || "",
       country: geo.country,
       region: geo.region,
       city: geo.city,

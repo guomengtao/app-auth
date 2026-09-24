@@ -5896,7 +5896,8 @@
           if (deviceId) params.set('device_id', deviceId);
           if (ip) params.set('ip', ip);
           params.set('count', '500');
-          var data = await api('/api/admin/records?' + params.toString());
+          // 注：原来是独立函数 /api/admin/records，为把 Vercel 函数文件数降到 10 以内已合并进 health.js
+          var data = await api('/api/admin/health?section=records&' + params.toString());
           if (data && data.success && Array.isArray(data.records)) {
             allRecords = data.records;
           } else {
@@ -8191,7 +8192,7 @@
             '<td style="padding:5px 4px;font-size:0.75rem">' + escapeHtml(x.channel || '-') + '</td>' +
             '<td style="padding:5px 4px;font-size:0.75rem">' + escapeHtml(((x.region || '') + (x.city || '')).trim() || '-') + (x.district ? ' · ' + escapeHtml(x.district) : '') + '</td>' +
             '<td style="padding:5px 4px;letter-spacing:1px">' + stepsHtml + '</td>' +
-            '<td style="padding:5px 4px;font-size:0.6875rem;color:var(--muted)">' + escapeHtml((x.missing || []).slice(0, 3).join('、') || '无') + '</td>' +
+            '<td style="padding:5px 4px;font-size:0.6875rem;color:var(--muted)">' + escapeHtml((x.missingLabels || x.missing || []).slice(0, 3).join('、') || '无') + '</td>' +
             '<td style="padding:5px 4px;white-space:nowrap"><button class="btn btn-outline" style="padding:2px 6px;font-size:0.6875rem;border-radius:6px" onclick="openUserJourney(\'' + escapeJs(x.device) + '\')">详情</button></td>' +
             '</tr>';
         });
@@ -8433,7 +8434,19 @@
             box.innerHTML = '<div style="color:var(--err);font-size:0.875rem">加载失败：' + escapeHtml((data && data.error) || '未知错误') + '</div>';
             return;
           }
-          box.innerHTML = renderUserJourney(data);
+          // 「这个用户自己的数据完善度得分」——用主设备去算，与画像汇总页同一套评分口径
+          var dev = (data.user && data.user.primaryDevice && data.user.primaryDevice.full) || '';
+          if (!dev) {
+            window._ujScore = null;
+            box.innerHTML = renderUserJourney(data);
+            return;
+          }
+          api('/api/admin/health?section=stats&sub=user-score&device=' + encodeURIComponent(dev) + '&days=' + encodeURIComponent(days))
+            .catch(function () { return null; })
+            .then(function (sc) {
+              window._ujScore = sc;
+              box.innerHTML = renderUserJourney(data);
+            });
         })
         .catch(function (e) {
           box.innerHTML = '<div style="color:var(--err);font-size:0.875rem">Error: ' + escapeHtml(e.message) + '</div>';
@@ -8451,6 +8464,41 @@
       failure: { icon: '❌', label: '激活失败' },
       page_visit: { icon: '📖', label: '浏览页面' },
     };
+
+    // 该用户的数据完善度评分卡（数据完整度 ≠ 用户价值）
+    function ujScoreCard(sc) {
+      if (!sc || !sc.success) return '';
+      var gradeColor = sc.grade === 'A' ? 'var(--ok)' : (sc.grade === 'B' ? 'var(--accent)' : (sc.grade === 'C' ? 'var(--warn)' : 'var(--err)'));
+      var dims = sc.dims || {};
+      var max = { identity: 25, journey: 40, attribute: 20, geo: 15 };
+      var dimLabel = { identity: '身份', journey: '链路', attribute: '属性', geo: '归属地' };
+      var html = '<div class="da-card" style="margin-bottom:16px"><div class="da-card-header"><div class="da-card-icon i-duration">🎯</div>' +
+        '<div><div class="da-card-title">数据完善度评分: ' + sc.score + ' / ' + (sc.maxScore || 100) + '</div>' +
+        '<div class="da-card-sub">' + escapeHtml(sc.grade) + ' · ' + escapeHtml(sc.gradeLabel || '') +
+        ' ｜ 近 ' + escapeHtml(String((sc.window || {}).days || 30)) + ' 天 ' + escapeHtml((sc.window || {}).from || '') + ' ~ ' + escapeHtml((sc.window || {}).to || '') +
+        ' ｜ 事件 ' + (sc.events || 0) + ' 条</div></div></div>';
+      html += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">';
+      ['identity', 'journey', 'attribute', 'geo'].forEach(function (k) {
+        var v = dims[k] || 0;
+        var m = max[k];
+        html += '<div style="flex:1;min-width:110px">' +
+          '<div style="font-size:0.75rem;color:var(--muted)">' + dimLabel[k] + ' ' + v + '/' + m + '</div>' +
+          '<div style="height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:3px"><div style="height:100%;width:' + Math.round(v / m * 100) + '%;background:' + gradeColor + '"></div></div>' +
+          '</div>';
+      });
+      html += '</div>';
+      html += '<div style="font-size:0.8125rem;margin-top:4px">链路：' + (sc.steps || []).map(function (st) {
+        return '<span style="margin-right:8px;color:' + (st.ok ? 'var(--ok)' : 'var(--muted)') + '">' + (st.ok ? '●' : '○') + ' ' + escapeHtml(st.label) + '</span>';
+      }).join('') + '</div>';
+      var ml = sc.missingLabels || [];
+      if (ml.length) {
+        html += '<div style="font-size:0.8125rem;color:var(--warn);margin-top:6px">还差：' + escapeHtml(ml.join('、')) + '</div>';
+      } else {
+        html += '<div style="font-size:0.8125rem;color:var(--ok);margin-top:6px">✅ 各项齐全</div>';
+      }
+      html += '<div style="font-size:0.75rem;color:var(--muted);margin-top:6px">⚠ 这是「数据完整度」评分，不是用户价值 / 消费能力</div>';
+      return html + '</div>';
+    }
 
     function renderUserJourney(data) {
       var u = data.user || {};
@@ -8479,6 +8527,9 @@
       html += '</table>';
       html += '<div style="margin-top:8px;font-size:0.75rem;color:var(--muted)">订单 ' + (data.stats ? data.stats.orders : 0) + ' · 兑换码 ' + (data.stats ? data.stats.redeems : 0) + ' · 激活 ' + (data.stats ? data.stats.activations : 0) + ' · 失败 ' + (data.stats ? data.stats.failures : 0) + ' · 访问 ' + (data.stats ? data.stats.visits : 0) + '</div>';
       html += '</div></div>';
+
+      // ②' 这个用户自己的数据完善度得分（与画像汇总页同一套口径）
+      html += ujScoreCard(window._ujScore);
 
       // ③ 冲突提示 / 证据
       var warns = data.warnings || [];

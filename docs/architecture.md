@@ -233,15 +233,24 @@ Vercel 免费版对**每个部署的 Serverless Function 数量**有上限，实
    find api -name "*.js" -type f | wc -l    # 必须 ≤ 10
    ```
 
-**当前清单（2026-09-24，共 12 个 —— 已超限，需处理）**：
+**当前清单（2026-09-24，共 10 个 —— 已达标）**：
 
 ```
-api/activate.js              api/go.js                 api/oauth.js              api/visitor/ip.js
-api/admin/clear-rate-limit.js  api/admin/go-links.js   api/admin/health.js       api/admin/products.js
-api/admin/records.js         api/admin/redeem-codes.js api/afdian/query-orders.js api/afdian/webhook.js
+api/activate.js              api/go.js                  api/oauth.js               api/visitor/ip.js
+api/admin/go-links.js        api/admin/health.js        api/admin/products.js      api/admin/redeem-codes.js
+api/afdian/query-orders.js   api/afdian/webhook.js
 ```
 
-> ⚠️ 待办：`api/admin/clear-rate-limit.js` 已无任何前端调用（仅文档提及），是候选清理项；清理后为 11 个，仍需再合并 1 个才能回到 10 个以内。
+**本轮为达标所做的合并/清理（12 → 10）**：
+
+| 动作 | 文件 | 说明 |
+|---|---|---|
+| 🗑 删除 | `api/admin/clear-rate-limit.js` | 30 行，**全仓库无任何调用**（仅 `REPLY.md` 文档提及），是限流绕过漏洞修复时的应急接口 |
+| 🔀 合并 | `api/admin/records.js` → `api/admin/health.js` 的 `section=records` | 前端调用点从 `/api/admin/records?...` 改为 `/api/admin/health?section=records&...`（`admin_Dx23.html` 的 `loadRecords()`）；参数与返回结构完全不变。顺带把内部 `pipeline` 换成 `mget`（`pipeline.exec()` 是逐条 await，500 个 key 会串行 500 次查询） |
+
+> 再要新增接口时，优先挂到已有文件的 `section=` 下；确需新文件，**必须先腾出名额**。
+
+**统计口径提醒**：`api/` 目录下**递归**每个 `.js` 都算 1 个函数（`api/admin/*.js`、`api/afdian/*.js` 各算 1）。`lib/`、`scripts/`、`tools/` 下的文件不算。
 
 ## 添加新数据库
 
