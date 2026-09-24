@@ -4305,6 +4305,7 @@
           <div class="logs-tabs" style="display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid var(--line,#e5e7eb);">
             <button class="logs-tab active" onclick="switchDirectActivateTab('generate')" id="daSubTabGenerate" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color: var(--accent-text);cursor:pointer;border-bottom:2px solid var(--accent);margin-bottom:-2px;transition:all 0.15s;">⚡ 生成激活码</button>
             <button class="logs-tab" onclick="switchDirectActivateTab('decrypt')" id="daSubTabDecrypt" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">🔍 解密验证</button>
+            <button class="logs-tab" onclick="switchDirectActivateTab('profile')" id="daSubTabProfile" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">👤 用户画像</button>
           </div>
 
           <div id="daSubGenerate">
@@ -4402,6 +4403,28 @@
               </div>
               <div class="decrypt-result" id="decryptResult" style="display:none"></div>
             </div>
+          </div>
+
+          <!-- 用户画像 / 全链路追踪 -->
+          <div id="daSubProfile" style="display:none;">
+            <div class="decrypt-box" style="margin-bottom:16px">
+              <h3>全链路追踪</h3>
+              <p class="decrypt-desc">按 deviceId / IP / 兑换码 / 订单号 / 用户名 检索，还原「访问 → 购买 → 支付 → 发码 → 激活 → 后续使用」的完整链路</p>
+              <div class="decrypt-input-row">
+                <input type="text" id="ujQuery" class="decrypt-input" placeholder="deviceId / IP / 兑换码 / 订单号 / 用户名" autocomplete="off">
+                <select id="ujDays" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card-bg);color:var(--ink);font-size:0.875rem">
+                  <option value="7">近 7 天</option>
+                  <option value="30" selected>近 30 天</option>
+                  <option value="90">近 90 天</option>
+                </select>
+                <button class="btn btn-primary" onclick="loadUserJourney()">检索</button>
+              </div>
+              <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+                <button class="da-bulk-btn" onclick="ujQuick('paid-not-activated')">已付费未激活</button>
+                <button class="da-bulk-btn" onclick="ujQuick('failed')">激活失败</button>
+              </div>
+            </div>
+            <div id="ujResult"></div>
           </div>
         </div>
 
@@ -5775,6 +5798,7 @@
     }
 
     var _pendingDecryptCode = null;
+    var _pendingJourneyQuery = null;
 
     function openDecryptForActivationCode(activationCode) {
       var ac = String(activationCode || '').replace(/\s/g, '');
@@ -5931,7 +5955,8 @@
           }
           var deviceCell;
           if (rawDeviceId) {
-            deviceCell = '<a href="javascript:void(0)" class="device-link" onclick="toggleRecordDetailByIdx(' + idx + ')" title="' + escapeHtml(rawDeviceId) + '">' + escapeHtml(displayDeviceId) + '</a>';
+            deviceCell = '<a href="javascript:void(0)" class="device-link" onclick="toggleRecordDetailByIdx(' + idx + ')" title="' + escapeHtml(rawDeviceId) + '">' + escapeHtml(displayDeviceId) + '</a>' +
+              ' <a href="javascript:void(0)" onclick="openUserJourney(\'' + escapeJs(rawDeviceId) + '\')" title="查看该设备的用户画像" style="text-decoration:none;font-size:0.6875rem;opacity:0.5">👤</a>';
           } else if (hashDeviceId) {
             var hDisplay = hashDeviceId;
             if (hDisplay.length > 5) hDisplay = hDisplay.slice(0, 5) + '…';
@@ -7959,13 +7984,17 @@
     function switchDirectActivateTab(tab) {
       var generateSub = document.getElementById('daSubGenerate');
       var decryptSub = document.getElementById('daSubDecrypt');
+      var profileSub = document.getElementById('daSubProfile');
       var generateTab = document.getElementById('daSubTabGenerate');
       var decryptTab = document.getElementById('daSubTabDecrypt');
+      var profileTab = document.getElementById('daSubTabProfile');
 
       if (generateSub) generateSub.style.display = 'none';
       if (decryptSub) decryptSub.style.display = 'none';
+      if (profileSub) profileSub.style.display = 'none';
       if (generateTab) { generateTab.classList.remove('active'); generateTab.style.color = 'var(--muted)'; generateTab.style.borderBottomColor = 'transparent'; }
       if (decryptTab) { decryptTab.classList.remove('active'); decryptTab.style.color = 'var(--muted)'; decryptTab.style.borderBottomColor = 'transparent'; }
+      if (profileTab) { profileTab.classList.remove('active'); profileTab.style.color = 'var(--muted)'; profileTab.style.borderBottomColor = 'transparent'; }
 
       if (tab === 'generate') {
         if (generateSub) generateSub.style.display = '';
@@ -7973,7 +8002,160 @@
       } else if (tab === 'decrypt') {
         if (decryptSub) decryptSub.style.display = '';
         if (decryptTab) { decryptTab.classList.add('active'); decryptTab.style.color = 'var(--accent)'; decryptTab.style.borderBottomColor = 'var(--accent)'; }
+      } else if (tab === 'profile') {
+        if (profileSub) profileSub.style.display = '';
+        if (profileTab) { profileTab.classList.add('active'); profileTab.style.color = 'var(--accent)'; profileTab.style.borderBottomColor = 'var(--accent)'; }
       }
+    }
+
+    // ---- 用户画像 / 全链路追踪 ----
+
+    // 跨页面入口：其它面板调用 openUserJourney('IP 或 deviceId 或 兑换码 …') 直接跳过来
+    function openUserJourney(q) {
+      switchTab('direct-activate');
+      setTimeout(function () {
+        switchDirectActivateTab('profile');
+        var inp = document.getElementById('ujQuery');
+        if (inp) inp.value = q || '';
+        loadUserJourney();
+      }, 60);
+    }
+
+    function ujQuick(kind) {
+      // 一期只做单用户检索，这两个快捷入口给出引导（不扫全库，避免超时）
+      if (kind === 'paid-not-activated') showToast('请在上方输入订单号 / 兑换码 / 用户名查看单用户链路；全量漏斗待三期事件表', 'info');
+      if (kind === 'failed') showToast('请在上方输入 deviceId 或 IP 查看该设备的激活失败记录', 'info');
+    }
+
+    function ujFmtDur(ms) {
+      if (ms === null || ms === undefined) return '—';
+      var s = Math.round(ms / 1000);
+      if (s < 60) return s + 's';
+      var m = Math.floor(s / 60);
+      if (m < 60) return m + 'm' + (s % 60) + 's';
+      var h = Math.floor(m / 60);
+      if (h < 24) return h + 'h' + (m % 60) + 'm';
+      return Math.floor(h / 24) + 'd' + (h % 24) + 'h';
+    }
+
+    function loadUserJourney() {
+      var q = (document.getElementById('ujQuery').value || '').trim();
+      var days = document.getElementById('ujDays').value || '30';
+      var box = document.getElementById('ujResult');
+      if (!q) { box.innerHTML = '<div style="color:var(--muted);font-size:0.875rem">请输入检索值</div>'; return; }
+      box.innerHTML = '<div style="color:var(--muted);font-size:0.875rem">检索中…</div>';
+      api('/api/admin/health?section=stats&sub=user-journey&days=' + encodeURIComponent(days) + '&q=' + encodeURIComponent(q))
+        .then(function (data) {
+          if (!data || !data.success) {
+            box.innerHTML = '<div style="color:var(--err);font-size:0.875rem">加载失败：' + escapeHtml((data && data.error) || '未知错误') + '</div>';
+            return;
+          }
+          box.innerHTML = renderUserJourney(data);
+        })
+        .catch(function (e) {
+          box.innerHTML = '<div style="color:var(--err);font-size:0.875rem">Error: ' + escapeHtml(e.message) + '</div>';
+        });
+    }
+
+    var UJ_KIND = {
+      visit: { icon: '👁', label: '访问页面' },
+      go_click: { icon: '🔗', label: '扫码/点击购买短链' },
+      purchase_click: { icon: '⚡', label: '购买点击' },
+      order: { icon: '💰', label: '支付成功' },
+      order_notify: { icon: '💰', label: '新订单通知' },
+      redeem: { icon: '🎟', label: '发放兑换码' },
+      activation: { icon: '✅', label: '激活成功' },
+      failure: { icon: '❌', label: '激活失败' },
+      page_visit: { icon: '📖', label: '浏览页面' },
+    };
+
+    function renderUserJourney(data) {
+      var u = data.user || {};
+      var tl = data.timeline || [];
+      var m = data.metrics || {};
+      var html = '';
+
+      // ① 身份卡
+      html += '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px">';
+      html += '<div class="da-card" style="flex:1;min-width:260px"><div class="da-card-header"><div class="da-card-icon i-device">👤</div><div><div class="da-card-title">身份卡</div><div class="da-card-sub">' + escapeHtml(u.lifecycle || '') + '</div></div></div>';
+      html += '<table style="width:100%;font-size:0.8125rem;border-collapse:collapse">';
+      html += '<tr><td style="color:var(--muted);padding:3px 0;width:88px">主设备</td><td style="font-family:monospace">' + escapeHtml(u.primaryDevice ? u.primaryDevice.masked : '—') + (u.primaryDevice ? ' <span style="color:var(--muted)">(4位 ' + escapeHtml(u.primaryDevice.norm) + ')</span>' : '') + '</td></tr>';
+      html += '<tr><td style="color:var(--muted);padding:3px 0">设备数</td><td>' + ((u.devices || []).length) + '</td></tr>';
+      html += '<tr><td style="color:var(--muted);padding:3px 0;vertical-align:top">指纹</td><td>' + ((u.fingerprints || []).length ? (u.fingerprints || []).map(function (f) { return '<div style="font-size:0.75rem">' + escapeHtml(f) + '</div>'; }).join('') : '—') + '</td></tr>';
+      html += '<tr><td style="color:var(--muted);padding:3px 0;vertical-align:top">IP / 地区</td><td>' + ((u.ips || []).length ? (u.ips || []).map(function (x) { return '<div style="font-size:0.75rem;font-family:monospace">' + escapeHtml(x.ip) + ' ' + escapeHtml((x.region ? x.region + ' · ' : '') + (x.city || '')) + (x.isp ? ' <span style="color:var(--muted)">' + escapeHtml(x.isp) + '</span>' : '') + '</div>'; }).join('') : '—') + '</td></tr>';
+      html += '<tr><td style="color:var(--muted);padding:3px 0">渠道</td><td>' + ((u.channels || []).length ? (u.channels || []).map(function (c) { return escapeHtml(c.channel) + '×' + c.count; }).join('，') : '—') + '</td></tr>';
+      html += '</table></div>';
+
+      // ② 转化与耗时
+      html += '<div class="da-card" style="flex:1;min-width:260px"><div class="da-card-header"><div class="da-card-icon i-duration">⏱️</div><div><div class="da-card-title">转化与耗时</div><div class="da-card-sub">共 ' + (data.stats ? data.stats.events : 0) + ' 条事件</div></div></div>';
+      html += '<table style="width:100%;font-size:0.8125rem;border-collapse:collapse">';
+      html += '<tr><td style="color:var(--muted);padding:3px 0">访问 → 支付</td><td>' + ujFmtDur(m.visitToOrder) + '</td></tr>';
+      html += '<tr><td style="color:var(--muted);padding:3px 0">支付 → 发码</td><td>' + ujFmtDur(m.orderToRedeem) + '</td></tr>';
+      html += '<tr><td style="color:var(--muted);padding:3px 0">发码 → 激活</td><td>' + ujFmtDur(m.redeemToActivation) + '</td></tr>';
+      html += '<tr><td style="color:var(--muted);padding:3px 0">全流程</td><td><b>' + ujFmtDur(m.total) + '</b></td></tr>';
+      html += '</table>';
+      html += '<div style="margin-top:8px;font-size:0.75rem;color:var(--muted)">订单 ' + (data.stats ? data.stats.orders : 0) + ' · 兑换码 ' + (data.stats ? data.stats.redeems : 0) + ' · 激活 ' + (data.stats ? data.stats.activations : 0) + ' · 失败 ' + (data.stats ? data.stats.failures : 0) + ' · 访问 ' + (data.stats ? data.stats.visits : 0) + '</div>';
+      html += '</div></div>';
+
+      // ③ 冲突提示 / 证据
+      var warns = data.warnings || [];
+      var evids = data.evidence || [];
+      if (warns.length || evids.length) {
+        html += '<div class="da-card" style="margin-bottom:16px"><div class="da-card-header"><div class="da-card-icon i-redeem">🔎</div><div><div class="da-card-title">关联证据与冲突提示</div><div class="da-card-sub">判定依据全部列出，便于人工复核</div></div></div>';
+        (evids || []).forEach(function (e) { html += '<div style="font-size:0.8125rem;padding:3px 0">✅ ' + escapeHtml(e) + '</div>'; });
+        (warns || []).forEach(function (w) {
+          var color = w.level === 'warn' ? 'var(--err)' : 'var(--muted)';
+          html += '<div style="font-size:0.8125rem;padding:3px 0;color:' + color + '">' + (w.level === 'warn' ? '⚠️ ' : 'ℹ️ ') + escapeHtml(w.text) + '</div>';
+        });
+        html += '</div>';
+      }
+
+      // ④ 时间线
+      html += '<div class="da-card" style="margin-bottom:16px"><div class="da-card-header"><div class="da-card-icon i-product">🧭</div><div><div class="da-card-title">全链路追踪</div><div class="da-card-sub">按时间正序，弱关联事件以虚线标注</div></div></div>';
+      if (!tl.length) {
+        html += '<div style="color:var(--muted);font-size:0.875rem">该检索值在近 ' + escapeHtml(String(data.days || 30)) + ' 天内没有任何事件</div>';
+      } else {
+        html += '<table style="width:100%;border-collapse:collapse;font-size:0.8125rem">';
+        tl.forEach(function (e) {
+          var meta = UJ_KIND[e.kind] || { icon: '•', label: e.kind };
+          var detail = '';
+          var d = e.detail || {};
+          if (e.kind === 'visit' || e.kind === 'go_click') detail = (d.path || '') + (d.query ? '?' + d.query : '');
+          else if (e.kind === 'order' || e.kind === 'order_notify') detail = (d.user_name ? d.user_name + ' · ' : '') + (d.plan_title || '') + ' · ' + (d.out_trade_no || '');
+          else if (e.kind === 'redeem') detail = (d.code || '') + (d.out_trade_no ? ' ← ' + d.out_trade_no : '') + (d.source ? ' (' + d.source + ')' : '');
+          else if (e.kind === 'activation') detail = (d.activation_code || '') + ' · 码 ' + (d.redeem_code || '') + ' · ' + (d.months == 99 ? '永久' : d.months + '月');
+          else if (e.kind === 'failure') detail = d.reason || '';
+          else if (e.kind === 'purchase_click') detail = d.slug || '';
+          else if (e.kind === 'page_visit') detail = d.page || '';
+          html += '<tr style="border-bottom:1px solid var(--line)">' +
+            '<td style="padding:6px 4px;white-space:nowrap;color:var(--muted)">' + escapeHtml(new Date(e.ts).toLocaleString()) + '</td>' +
+            '<td style="padding:6px 4px;white-space:nowrap">' + meta.icon + ' ' + escapeHtml(meta.label) + '</td>' +
+            '<td style="padding:6px 4px;font-family:monospace;font-size:0.75rem">' + escapeHtml(e.ip || '—') + '</td>' +
+            '<td style="padding:6px 4px;font-size:0.75rem;color:var(--muted);word-break:break-all">' + escapeHtml(detail) + '</td>' +
+            '<td style="padding:6px 4px;font-size:0.6875rem;color:var(--muted);white-space:nowrap">' + escapeHtml(e.source || '') + '</td>' +
+            '</tr>';
+        });
+        html += '</table>';
+      }
+      html += '</div>';
+
+      // ⑤ 弱候选
+      var cand = data.candidates || [];
+      if (cand.length) {
+        html += '<div class="da-card"><div class="da-card-header"><div class="da-card-icon i-device">❓</div><div><div class="da-card-title">弱关联候选（未合并）</div><div class="da-card-sub">同 IP 但未携带 deviceId，可能是同一人的电脑，也可能是 NAT 下的其他人</div></div></div>';
+        html += '<table style="width:100%;border-collapse:collapse;font-size:0.75rem">';
+        cand.slice(0, 10).forEach(function (c) {
+          html += '<tr style="border-bottom:1px solid var(--line)">' +
+            '<td style="padding:4px;white-space:nowrap;color:var(--muted)">' + escapeHtml(new Date(c.ts).toLocaleString()) + '</td>' +
+            '<td style="padding:4px;font-family:monospace">' + escapeHtml(c.ip) + '</td>' +
+            '<td style="padding:4px">' + escapeHtml(c.path) + '</td>' +
+            '<td style="padding:4px;color:var(--muted)">' + escapeHtml(String(c.score)) + '</td>' +
+            '</tr>';
+        });
+        html += '</table></div>';
+      }
+
+      return html;
     }
 
     function doDecrypt() {
@@ -8873,6 +9055,27 @@
       daLoadProducts();
       daUpdateRedeemPreview();
 
+      // 深链：?tab=direct-activate&da=profile&q=<deviceId/IP/兑换码/订单号>
+      try {
+        var usp = new URLSearchParams(window.location.search);
+        var daSub = usp.get('da');
+        var daQ = usp.get('q');
+        if (usp.get('ujq')) daQ = usp.get('ujq');
+        if (daQ) _pendingJourneyQuery = daQ;
+      } catch (_) {}
+      var _ujOpened = false;
+      if (_pendingJourneyQuery || daSub === 'profile') {
+        var jq = _pendingJourneyQuery || '';
+        _pendingJourneyQuery = null;
+        _ujOpened = true;
+        switchDirectActivateTab('profile');
+        setTimeout(function () {
+          var inp = document.getElementById('ujQuery');
+          if (inp && jq) inp.value = jq;
+          if (jq) loadUserJourney();
+        }, 50);
+      }
+
       if (_pendingDecryptCode) {
         var code = _pendingDecryptCode;
         _pendingDecryptCode = null;
@@ -8885,7 +9088,7 @@
           showToast('已跳转解密验证：' + code, 'success');
           try { doDecrypt(); } catch (e) { console.error(e); }
         }, 50);
-      } else {
+      } else if (!_ujOpened) {
         switchDirectActivateTab('generate');
       }
 
@@ -9313,6 +9516,7 @@
             '<td class="mono" style="cursor:pointer;color: var(--accent-text)" onclick="toggleAfdianExpand(\'' + expandId + '\')" title="Click to view raw API response">' + escapeHtml(outTradeNoShort) + '</td>' +
             '<td title="' + escapeHtml(userId) + '">' + escapeHtml(userName) +
               ' <button class="btn btn-outline" style="padding: 2px 6px;font-size:0.6875rem;border-radius:6px" onclick="openDmModal(\'' + escapeJs(userId) + '\',\'' + escapeJs(userName) + '\')" title="Send DM">📨</button>' +
+              ' <button class="btn btn-outline" style="padding: 2px 6px;font-size:0.6875rem;border-radius:6px" onclick="openUserJourney(\'' + escapeJs(o.out_trade_no || '') + '\')" title="查看该订单的用户画像">👤</button>' +
             '</td>' +
             '<td>' + (planTitle || '-') + '</td>' +
             '<td>' + escapeHtml(o.total_amount || '-') + '</td>' +
@@ -9638,7 +9842,8 @@
                   '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;max-width:90px">' + escapeHtml(v.path || '/') + '</span>' +
                   '<span class="copy-url-btn" onclick="event.stopPropagation();copyPageUrl(\'' + escapeJs(fullUrl) + '\')" title="Copy URL" style="cursor:pointer;flex-shrink:0;font-size:0.6875rem;opacity:0.4;transition:opacity 0.15s">Copy</span>' +
                   '</span>' + queryHint + '</td>' +
-                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-family:monospace;font-size:0.75rem;white-space:nowrap"><a href="javascript:void(0)" onclick="event.stopPropagation();showIpCompare(\'' + escapeJs(v.ip) + '\')" style="color: var(--accent-text);text-decoration:none;font-weight:600">' + escapeHtml(v.ip) + '</a></td>' +
+                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-family:monospace;font-size:0.75rem;white-space:nowrap"><a href="javascript:void(0)" onclick="event.stopPropagation();showIpCompare(\'' + escapeJs(v.ip) + '\')" style="color: var(--accent-text);text-decoration:none;font-weight:600">' + escapeHtml(v.ip) + '</a>' +
+                  '<span onclick="event.stopPropagation();openUserJourney(\'' + escapeJs(v.ip) + '\')" title="查看该 IP 的用户画像" style="cursor:pointer;margin-left:4px;font-size:0.6875rem;opacity:0.45">👤</span></td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:0.75rem">' + t + '</td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-size:0.75rem">' + escapeHtml(locStr) + ispHint + '</td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);color:var(--muted);font-size:0.75rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(v.ua || '') + '">' + escapeHtml(uaShort) + '</td>' +

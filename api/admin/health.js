@@ -3301,6 +3301,19 @@ if ((isCron || isCronBackup) && isBackup) {
         }
       }
 
+      // 用户全链路追踪 / 画像汇总页（后台「快捷激活 → 用户画像」子 tab）
+      if (sub === "user-journey") {
+        try {
+          var ujQuery = String((req.query && req.query.q) || "").trim();
+          if (!ujQuery) return res.json({ success: false, error: "请输入 deviceId / IP / 兑换码 / 订单号 / 用户名" });
+          var ujDays = parseInt(req.query && req.query.days, 10) || 30;
+          var userJourney = require("../../lib/user-journey");
+          return res.json(await userJourney.resolve(ujQuery, { days: ujDays }));
+        } catch (e) {
+          return res.status(500).json({ success: false, error: e.message });
+        }
+      }
+
       return res.json(await handleStats2());
     } catch (error) {
       console.error("Stats error:", error);
