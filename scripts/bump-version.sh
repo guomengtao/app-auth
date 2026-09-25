@@ -43,9 +43,12 @@ bump_json_version() {
 
 get_changed_files() {
   local staged unstaged untracked
-  staged=$(git diff --cached --name-only 2>/dev/null || true)
-  unstaged=$(git diff --name-only 2>/dev/null || true)
-  untracked=$(git ls-files --others --exclude-standard 2>/dev/null || true)
+  # ⚠️ 必须加 `-c core.quotepath=false`：默认 git 会把中文路径转义成
+  #    "tools/ev-notifier/\347\246\273\347\272\277...md"，导致下面 is_main_file()
+  #    的 case 匹配失败 → 改 tools/ev-notifier/ 下的中文名文档会误 bump main。
+  staged=$(git -c core.quotepath=false diff --cached --name-only 2>/dev/null || true)
+  unstaged=$(git -c core.quotepath=false diff --name-only 2>/dev/null || true)
+  untracked=$(git -c core.quotepath=false ls-files --others --exclude-standard 2>/dev/null || true)
   echo -e "$staged\n$unstaged\n$untracked" | sort -u | grep -v '^$' || true
 }
 
