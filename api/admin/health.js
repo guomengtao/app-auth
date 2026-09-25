@@ -2907,22 +2907,8 @@ if ((isCron || isCronBackup) && isBackup) {
 
     var cookies = parseCookies2(req.headers.cookie || "");
 
-    var vercelJwt = cookies["_vercel_jwt"];
-    if (vercelJwt) {
-      try {
-        var parts = vercelJwt.split(".");
-        if (parts.length === 3) {
-          var payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
-          return res.json({
-            success: true,
-            email: payload.email || "",
-            name: payload.name || "",
-            provider: "vercel"
-          });
-        }
-      } catch (e) {}
-    }
-
+    // 同 lib/auth.js：不再信任 `_vercel_jwt`（Vercel 平台种的 cookie，无法验签 → 可被伪造）。
+    // 只信本服务自签的 `token`，且必须验签通过。
     var token = cookies["token"];
     if (token) {
       var payload = verify2(token);
