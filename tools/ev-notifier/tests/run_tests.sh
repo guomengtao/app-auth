@@ -6,31 +6,35 @@
 set -e
 cd "$(dirname "$0")/../../.."
 
-echo "===== 1/7 静态 lint（被丢弃的字符串 / 未声明 global）====="
+echo "===== 1/8 静态 lint（被丢弃的字符串 / 未声明 global）====="
 python3 tools/ev-notifier/tests/test_static_lint.py
 
 echo
-echo "===== 2/7 鉴权回归（伪造 _vercel_jwt 必须被拒）====="
+echo "===== 2/8 鉴权回归（伪造 _vercel_jwt 必须被拒）====="
 node test/auth-forged-cookie.test.js
 
 echo
-echo "===== 3/7 服务端 lib/message-delivery.js（mock Postgres，断言 SQL）====="
+echo "===== 3/8 服务端 lib/device-token.js（设备令牌：只存哈希/撤销/节流）====="
+node test/device-token.test.js
+
+echo
+echo "===== 4/8 服务端 lib/message-delivery.js（mock Postgres，断言 SQL）====="
 node test/message-delivery.sync.test.js
 
 echo
-echo "===== 4/7 服务端 api/admin/health.js 客户端访问控制 ====="
+echo "===== 5/8 服务端 api/admin/health.js 客户端访问控制 ====="
 node test/admin-client-access.test.js
 
 echo
-echo "===== 5/7 后台面板 admin_Dx23.html 内联 JS 语法 ====="
+echo "===== 6/8 后台面板 admin_Dx23.html 内联 JS 语法 ====="
 node test/admin-panel.inline-js.test.js
 
 echo
-echo "===== 6/7 客户端（幂等 / 水位线 / 并发 / 已读 / 补拉 / 性能门槛）====="
+echo "===== 7/8 客户端（幂等 / 水位线 / 并发 / 已读 / 补拉 / 凭据 / 性能门槛）====="
 python3 tools/ev-notifier/tests/test_offline_sync.py
 
 echo
-echo "===== 7/7 客户端面板渲染 + 内嵌 JS 语法校验 ====="
+echo "===== 8/8 客户端面板渲染 + 内嵌 JS 语法校验 ====="
 python3 tools/ev-notifier/tests/test_panel_render.py
 
 echo

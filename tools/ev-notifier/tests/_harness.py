@@ -69,6 +69,8 @@ def load_ev(home="/tmp/ev_notifier_test_home", live=False):
     E.notify_macos = lambda *a, **k: None
     E.enqueue_voice = lambda *a, **k: None
     if not live:
+        # 注意：sync_since 走的是 _api_get_status（要拿状态码区分 401），两个都要打桩
+        E._api_get_status = lambda url, timeout=10: (0, None)
         E._api_get_json = lambda url, timeout=10: None
     return E
 

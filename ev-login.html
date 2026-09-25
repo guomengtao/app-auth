@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>授权设备 - EvNotifier</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      background: rgba(255,255,255,0.97);
+      border-radius: 24px;
+      padding: 44px 36px;
+      max-width: 420px;
+      width: 100%;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+      animation: slideUp 0.4s ease-out;
+      text-align: center;
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .icon { font-size: 44px; margin-bottom: 14px; }
+    h1 { font-size: 1.45rem; color: #1a1a2e; margin-bottom: 6px; }
+    .subtitle { font-size: 0.85rem; color: #888; margin-bottom: 26px; line-height: 1.6; }
+    .device {
+      text-align: left;
+      background: #f7f7fb;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 20px;
+      font-size: 0.85rem;
+      color: #333;
+    }
+    .device .row { display: flex; justify-content: space-between; padding: 4px 0; }
+    .device .k { color: #999; }
+    .device .v { font-weight: 600; word-break: break-all; text-align: right; max-width: 62%; }
+    .code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 1.5rem;
+      letter-spacing: 0.14em;
+      font-weight: 700;
+      color: #1a1a2e;
+      background: #f0eeff;
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 18px;
+    }
+    .status-text {
+      font-size: 0.85rem;
+      color: #6c63ff;
+      margin-bottom: 16px;
+      padding: 10px;
+      background: #f0eeff;
+      border-radius: 8px;
+      line-height: 1.5;
+    }
+    .status-text.err { color: #c53030; background: #fff5f5; }
+    .status-text.ok { color: #276749; background: #f0fff4; }
+    .btn {
+      width: 100%;
+      padding: 15px;
+      background: #000;
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 1.02rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      text-decoration: none;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn.ghost { background: #eee; color: #333; margin-top: 10px; }
+    .hint {
+      margin-top: 22px;
+      font-size: 0.75rem;
+      color: #aaa;
+      line-height: 1.7;
+      text-align: left;
+    }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">🔐</div>
+    <h1>授权设备</h1>
+    <p class="subtitle">允许 EvNotifier 在这台 Mac 上接收通知</p>
+
+    <div id="codeBox" class="code hidden"></div>
+    <div id="status" class="status-text">正在检查登录状态...</div>
+
+    <div id="deviceBox" class="device hidden">
+      <div class="row"><span class="k">设备</span><span class="v" id="dLabel">-</span></div>
+      <div class="row"><span class="k">账号</span><span class="v" id="dEmail">-</span></div>
+      <div class="row"><span class="k">用途</span><span class="v">接收消息通知 / 离线补拉</span></div>
+    </div>
+
+    <button class="btn hidden" id="approveBtn" type="button">授权此设备</button>
+    <a class="btn hidden" id="loginBtn" href="#">先登录管理员账号</a>
+
+    <p class="hint" id="hint">
+      授权后本机将获得一个长期令牌（保存在 macOS 钥匙串），
+      换机器或怀疑泄露时可在后台「设备」列表中撤销，不影响其它设备。
+    </p>
+  </div>
+
+  <script>
+    // 与 login_aXs12.html 保持一致的写法：只用 var + XMLHttpRequest
+    // （本项目对老旧 WebView 有兼容约定）
+    function xhrFetch(url, options) {
+      options = options || {};
+      var result = {};
+      var callbacks = [];
+      var errCallbacks = [];
+      result.then = function (cb) { callbacks.push(cb); return result; };
+      result.catch = function (cb) { errCallbacks.push(cb); return result; };
+      var xhr = new XMLHttpRequest();
+      xhr.open(options.method || 'GET', url, true);
+      xhr.withCredentials = true;
+      if (options.headers) {
+        for (var k in options.headers) {
+          if (options.headers.hasOwnProperty(k)) xhr.setRequestHeader(k, options.headers[k]);
+        }
+      }
+      xhr.onload = function () {
+        for (var i = 0; i < callbacks.length; i++) {
+          callbacks[i]({
+            status: xhr.status,
+            ok: xhr.status >= 200 && xhr.status < 300,
+            json: function () { var d = JSON.parse(xhr.responseText); return { then: function (cb) { cb(d); } }; },
+            text: function () { var t = xhr.responseText; return { then: function (cb) { cb(t); } }; }
+          });
+        }
+      };
+      xhr.onerror = function () {
+        for (var i = 0; i < errCallbacks.length; i++) { errCallbacks[i](new Error('Network error')); }
+      };
+      xhr.send(options.body || null);
+      return result;
+    }
+
+    function $(id) { return document.getElementById(id); }
+    function setStatus(text, cls) {
+      var el = $('status');
+      el.textContent = text;
+      el.className = 'status-text' + (cls ? ' ' + cls : '');
+      el.classList.remove('hidden');
+    }
+    function getParam(name) {
+      var m = new RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+      return m ? decodeURIComponent(m[1]) : '';
+    }
+
+    var CHALLENGE = getParam('c');
+
+    function showLoginButton() {
+      $('deviceBox').classList.add('hidden');
+      $('approveBtn').classList.add('hidden');
+      var next = encodeURIComponent(window.location.pathname + window.location.search);
+      var btn = $('loginBtn');
+      btn.href = '/api/oauth?next=' + next;
+      btn.classList.remove('hidden');
+    }
+
+    function start() {
+      if (!CHALLENGE) {
+        setStatus('缺少授权参数：请重新从 EvNotifier 菜单发起登录。', 'err');
+        $('hint').textContent = '正确入口：EvNotifier 状态栏菜单 →「登录 / 重新登录」，由客户端自动打开本页。';
+        return;
+      }
+
+      xhrFetch('/api/admin/health?section=me').then(function (res) {
+        if (!res.ok) {
+          setStatus('需要先登录管理员账号，登录后会自动回到本页。', 'err');
+          showLoginButton();
+          return;
+        }
+        return res.json().then(function (data) {
+          if (!data || !data.success) {
+            setStatus('需要先登录管理员账号，登录后会自动回到本页。', 'err');
+            showLoginButton();
+            return;
+          }
+          $('dEmail').textContent = data.email || '-';
+          $('dLabel').textContent = (data.name || '') ? (data.name + ' 的 Mac') : '这台 Mac';
+          $('deviceBox').classList.remove('hidden');
+          $('approveBtn').classList.remove('hidden');
+          setStatus('已登录：' + (data.email || '') + '。请确认下面的设备并授权。');
+        });
+      }).catch(function () {
+        setStatus('无法连接服务器，请稍后重试。', 'err');
+      });
+    }
+
+    $('approveBtn').onclick = function () {
+      var btn = $('approveBtn');
+      btn.disabled = true;
+      btn.textContent = '授权中...';
+      setStatus('正在授权...');
+      xhrFetch('/api/ev?action=device-approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ challenge: CHALLENGE })
+      }).then(function (res) {
+        return res.json().then(function (data) {
+          if (res.ok && data && data.success) {
+            btn.classList.add('hidden');
+            $('loginBtn').classList.add('hidden');
+            setStatus('授权成功！EvNotifier 会在几秒内自动完成登录，以后不用再操作。', 'ok');
+            $('hint').textContent = '现在可以关闭本页。若客户端没有反应，在它的菜单里点「重新登录」再来一次。';
+          } else {
+            btn.disabled = false;
+            btn.textContent = '授权此设备';
+            var msg = (data && data.error) || '未知错误';
+            if (msg === 'challenge_expired') {
+              setStatus('授权请求已过期（超过 10 分钟）。请回到 EvNotifier 重新发起登录。', 'err');
+            } else {
+              setStatus('授权失败：' + msg, 'err');
+            }
+          }
+        });
+      }).catch(function () {
+        btn.disabled = false;
+        btn.textContent = '授权此设备';
+        setStatus('网络错误，请重试。', 'err');
+      });
+    };
+
+    start();
+  </script>
+</body>
+</html>

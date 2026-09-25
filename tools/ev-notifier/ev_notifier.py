@@ -56,7 +56,8 @@ DOTENV = [
 ]
 REST_API_URL = None
 UPSTASH_TOKEN = None
-SYNC_TOKEN = None   # 可选：与服务端 EV_SYNC_TOKEN 配对，给 delivery-* 端点做访问控制
+SYNC_TOKEN = None   # 过渡期兼容：与服务端 EV_SYNC_TOKEN 配对的共享密钥
+DEVICE_TOKEN = None # 设备授权令牌（存 macOS 钥匙串，走菜单「登录 EvNotifier…」获取）
 STREAM_KEY = "auth:notifications:stream"
 LAST_ID_FILE = os.path.expanduser("~/.ev_last_id_v1.5.0")
 RECEIVED_FILE = os.path.expanduser("~/.ev_received.json")
@@ -107,6 +108,7 @@ def _safe_str(s):
 
 
 _status = "starting"
+_auth_state = "unknown"   # unknown / ok / invalid（凭据失效，需重新登录）
 _last_msg_ts = 0
 _new_msg_count = 0
 _paused = False
@@ -115,6 +117,7 @@ _app_ref = None
 
 # 同步水位线状态：{ client_id, last_seq, last_sync_at }
 _sync_state = {"client_id": "", "last_seq": 0, "last_sync_at": 0}
+_device_login_running = False   # 防重复点击「登录」
 _sync_inflight = False
 _sync_pending = False
 _sync_last_attempt = 0.0
@@ -166,10 +169,163 @@ def load_env():
 
 
 def _auth_headers():
-    """给 delivery-* 端点带上共享密钥（服务端配了 EV_SYNC_TOKEN 才需要）。"""
-    if not SYNC_TOKEN:
-        return []
-    return ["-H", f"x-ev-sync-token: {SYNC_TOKEN}"]
+    """给 delivery-* 端点带上凭据。
+
+    优先设备令牌（走一次「授权登录」拿到、存在 macOS 钥匙串、可在后台逐台撤销）；
+    回退到共享密钥 EV_SYNC_TOKEN（过渡期兼容，服务端配了才有意义）。
+    """
+    if DEVICE_TOKEN:
+        return ["-H", f"x-ev-device-token: {DEVICE_TOKEN}"]
+    if SYNC_TOKEN:
+        return ["-H", f"x-ev-sync-token: {SYNC_TOKEN}"]
+    return []
+
+
+# ══ 设备授权登录（替代手工配置共享密钥）═══════════════════════════════════════
+# 设计见 tools/ev-notifier/后台登录鉴权改造方案.md §4
+# 令牌存 macOS 钥匙串（系统自带 security 命令，零依赖），换机器只需重新登录一次。
+
+KEYCHAIN_SERVICE = "ev-notifier"
+KEYCHAIN_ACCOUNT = "device-token"
+DEVICE_API = CALLBACK_BASE_URL + "/api/ev"
+
+
+def _keychain_get_token():
+    try:
+        r = subprocess.run(
+            ["security", "find-generic-password", "-a", KEYCHAIN_ACCOUNT,
+             "-s", KEYCHAIN_SERVICE, "-w"],
+            capture_output=True, text=True, timeout=8)
+        if r.returncode == 0:
+            t = (r.stdout or "").strip()
+            return t or None
+    except Exception as e:
+        _debug_log(f"keychain read failed: {e}")
+    return None
+
+
+def _keychain_set_token(token):
+    try:
+        subprocess.run(
+            ["security", "add-generic-password", "-a", KEYCHAIN_ACCOUNT,
+             "-s", KEYCHAIN_SERVICE, "-w", token, "-U"],
+            capture_output=True, text=True, timeout=8)
+        return True
+    except Exception as e:
+        _debug_log(f"keychain write failed: {e}")
+        return False
+
+
+def _keychain_delete_token():
+    try:
+        subprocess.run(
+            ["security", "delete-generic-password", "-a", KEYCHAIN_ACCOUNT,
+             "-s", KEYCHAIN_SERVICE],
+            capture_output=True, text=True, timeout=8)
+    except Exception as e:
+        _debug_log(f"keychain delete failed: {e}")
+
+
+def _load_device_token():
+    """启动时读钥匙串。返回 True 表示拿到设备令牌。"""
+    global DEVICE_TOKEN
+    DEVICE_TOKEN = _keychain_get_token()
+    if DEVICE_TOKEN:
+        _debug_log(f"device token loaded (fingerprint {DEVICE_TOKEN[:8]}…)")
+    return bool(DEVICE_TOKEN)
+
+
+def _post_json(url, body, timeout=15):
+    """POST JSON，返回 (http_status, dict|None)。"""
+    fd, tmp = tempfile.mkstemp(suffix=".json", prefix="ev_post_")
+    os.close(fd)
+    try:
+        p = subprocess.run(
+            ["curl", "-s", "--connect-timeout", "5", "--max-time", str(timeout),
+             "-X", "POST", url, "-H", "Content-Type: application/json",
+             "-d", json.dumps(body or {}), "-w", "%{http_code}", "-o", tmp],
+            capture_output=True, text=True, timeout=timeout + 5)
+        raw = open(tmp, encoding="utf-8").read().strip()
+        code = (p.stdout or "").strip().splitlines()[-1] if (p.stdout or "").strip() else "0"
+    except Exception as e:
+        _debug_log(f"POST failed {url}: {e}")
+        return 0, None
+    finally:
+        try:
+            os.unlink(tmp)
+        except Exception:
+            pass
+    try:
+        return int(code), (json.loads(raw) if raw else None)
+    except Exception:
+        return int(code or 0), None
+
+
+def device_login(interactive=True, timeout=600):
+    """设备授权登录：start → 打开浏览器 → 轮询 → 令牌存钥匙串。
+
+    返回 (ok, message)。可安全地在后台线程调用。
+    """
+    global DEVICE_TOKEN, _auth_state
+    try:
+        hostname = socket.gethostname()
+    except Exception:
+        hostname = "mac"
+    label = hostname[:64]
+
+    status, data = _post_json(DEVICE_API + "?action=device-start",
+                              {"label": label, "app_version": VERSION})
+    if status != 200 or not data or not data.get("success"):
+        msg = "无法连接服务器发起登录" if status == 0 else f"发起登录失败（HTTP {status}）"
+        _debug_log(f"device_login: start failed status={status} data={data}")
+        return False, msg
+
+    challenge = data.get("challenge")
+    user_code = data.get("user_code") or ""
+    verify_url = data.get("verify_url") or ""
+    interval = max(2, int(data.get("interval") or 2))
+    _debug_log(f"device_login: challenge started, user_code={user_code}")
+
+    if interactive and verify_url:
+        try:
+            subprocess.run(["open", verify_url], capture_output=True, timeout=10)
+        except Exception as e:
+            _debug_log(f"device_login: open browser failed: {e}")
+
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        time.sleep(interval)
+        st, d = _post_json(DEVICE_API + "?action=device-poll", {"challenge": challenge})
+        if st == 200 and d and d.get("device_token"):
+            tok = d["device_token"]
+            if not _keychain_set_token(tok):
+                _debug_log("device_login: keychain write failed")
+                return False, "令牌已获取但写入钥匙串失败"
+            DEVICE_TOKEN = tok
+            _auth_state = "ok"
+            _debug_log(f"device_login: OK, token stored (fingerprint {tok[:8]}…), user_code={user_code}")
+            return True, "登录成功"
+        if st == 404:
+            return False, "授权请求已过期，请重新登录"
+        # 202 pending / 其它状态 → 继续等
+
+    return False, "登录超时（浏览器里未确认授权）"
+
+
+def _on_auth_failed(reason=""):
+    """服务端返回 401：凭据已失效（被撤销 / 服务端换了密钥）→ 清掉并明确告知用户。"""
+    global DEVICE_TOKEN, _auth_state
+    if _auth_state == "invalid":
+        return          # 只提示一次，别刷屏
+    _auth_state = "invalid"
+    _debug_log(f"auth failed ({reason}) -> clearing device token")
+    if DEVICE_TOKEN:
+        _keychain_delete_token()
+    DEVICE_TOKEN = None
+    try:
+        notify_macos("EvNotifier 需要重新登录", "本机凭据已失效", "菜单 →「登录 EvNotifier…」", sound=False)
+    except Exception:
+        pass
 
 
 def ensure_auto_start():
@@ -777,28 +933,36 @@ def _claim_message(seq, mid, msg_id):
 
 
 def _api_get_json(url, timeout=10):
-    """带超时的 GET + JSON 解析，任何失败返回 None。"""
+    """带超时的 GET + JSON 解析，任何失败返回 None（兼容旧调用点）。"""
+    return _api_get_status(url, timeout)[1]
+
+
+def _api_get_status(url, timeout=10):
+    """带超时的 GET，返回 (http_status, dict|None)。status=0 表示网络层就失败了。
+
+    需要状态码是因为要区分「401 凭据失效」和「网络抖动」——
+    前者要清掉钥匙串并提示用户重新登录，后者只需稍后重试。
+    """
     fd, tmp = tempfile.mkstemp(suffix=".json", prefix="ev_sy_")
+    os.close(fd)
     try:
-        os.close(fd)
-        subprocess.run(
-            ["curl", "-s", "--connect-timeout", "5", "--max-time", str(timeout), url, "-o", tmp]
-            + _auth_headers(),
-            timeout=timeout + 5)
-        raw = open(tmp).read().strip()
+        p = subprocess.run(
+            ["curl", "-s", "--connect-timeout", "5", "--max-time", str(timeout),
+             "-w", "%{http_code}", "-o", tmp, url] + _auth_headers(),
+            capture_output=True, text=True, timeout=timeout + 5)
+        raw = open(tmp, encoding="utf-8").read().strip()
+        code = (p.stdout or "").strip().splitlines()[-1] if (p.stdout or "").strip() else "0"
     except Exception:
-        return None
+        return 0, None
     finally:
         try:
             os.unlink(tmp)
         except Exception:
             pass
-    if not raw:
-        return None
     try:
-        return json.loads(raw)
+        return int(code or 0), (json.loads(raw) if raw else None)
     except Exception:
-        return None
+        return int(code or 0), None
 
 
 def _msg_from_row(row):
@@ -874,7 +1038,12 @@ def sync_since(reason=""):
 
     if after <= 0:
         # 首次上线：跳到当前水位线，不重放历史（否则会把几个月的 page_visit 全灌进来）
-        head = _api_get_json(base + "&action=head&client_id=" + qcid, timeout=10)
+        code, head = _api_get_status(base + "&action=head&client_id=" + qcid, timeout=10)
+        if code == 401:
+            _on_auth_failed("delivery-sync head 401")
+            _last_sync_result = {"reason": reason or "bootstrap", "added": 0,
+                                 "at": int(time.time()), "error": "unauthorized"}
+            return 0
         if head and head.get("success") and head.get("max_seq"):
             _advance_seq(int(head["max_seq"]), force=True)
             _save_sync_state(force=True)
@@ -892,7 +1061,11 @@ def sync_since(reason=""):
     err = ""
     while pages < SYNC_MAX_PAGES:
         url = base + "&client_id=" + qcid + "&after=" + str(cursor) + "&limit=" + str(SYNC_PAGE_SIZE)
-        data = _api_get_json(url, timeout=15)
+        code, data = _api_get_status(url, timeout=15)
+        if code == 401:
+            err = "unauthorized"
+            _on_auth_failed("delivery-sync 401")
+            break
         if not data or not data.get("success"):
             err = "delivery-sync unavailable"
             break
@@ -918,8 +1091,9 @@ def sync_since(reason=""):
     _flush_receipts()
     _flush_messages_sync()          # 补拉进来的消息立即落盘，不等 2s 节流
 
-    if not added and err:
-        # 新接口不可用 → 降级到旧的「状态式」补拉，保证不比改之前更差
+    if not added and err and err != "unauthorized":
+        # 新接口不可用 → 降级到旧的「状态式」补拉，保证不比改之前更差。
+        # （凭据失效时不降级：legacy 走同一个鉴权，只会再撞一次 401）
         _debug_log(f"sync[{reason}]: {err} -> fallback legacy undelivered")
         _startup_recovery()
 
@@ -1695,6 +1869,16 @@ def redis_loop():
     # 启动一次：已入库 id 集合（去重用）+ 稳定 client_id + 两个后台线程
     _rebuild_known_ids()
     _get_client_id()
+    # 凭据：优先钥匙串里的设备令牌；没有则回退 .env 的共享密钥（过渡期）
+    global _auth_state
+    if _load_device_token():
+        _auth_state = "ok"
+    elif SYNC_TOKEN:
+        _auth_state = "ok"
+        _debug_log("no device token; using legacy EV_SYNC_TOKEN from env")
+    else:
+        _auth_state = "missing"
+        _debug_log("no device token and no EV_SYNC_TOKEN -> delivery API will be rejected")
     threading.Thread(target=_periodic_sync_loop, daemon=True).start()
     threading.Thread(target=_watchdog_loop, daemon=True).start()
     threading.Thread(target=_message_writer_loop, daemon=True).start()
@@ -3596,10 +3780,22 @@ function filterVisitors(filter) {
   }
 }
 </script>"""
+        # 授权状态横幅：未登录/凭据失效时必须显眼 —— 否则用户只会觉得"通知莫名其妙不来了"
+        auth_banner = ""
+        if _auth_state == "missing":
+            auth_banner = ('<div style="margin:10px 0 0;padding:10px 12px;border-radius:10px;'
+                           'background:#fff5f5;color:#c53030;font-size:12px;line-height:1.6;">'
+                           '⚠️ <b>未登录</b>：无法接收通知与离线补拉。'
+                           '请点状态栏菜单 →「登录 EvNotifier…」，在浏览器里确认一次即可。</div>')
+        elif _auth_state == "invalid":
+            auth_banner = ('<div style="margin:10px 0 0;padding:10px 12px;border-radius:10px;'
+                           'background:#fffaf0;color:#b7791f;font-size:12px;line-height:1.6;">'
+                           '⚠️ <b>本机凭据已失效</b>（可能已在后台被撤销）：'
+                           '请点状态栏菜单 →「登录 EvNotifier…」重新授权。</div>')
         return f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>{_DASH_CSS}</style></head>
-<body><div class="layout">{sidebar}<div class="main">{topbar}<div class="content">{content}</div></div></div>{common_js}{scripts}</body></html>"""
+<body><div class="layout">{sidebar}<div class="main">{topbar}<div class="content">{auth_banner}{content}</div></div></div>{common_js}{scripts}</body></html>"""
 
     def _html_messages(self):
         msgs = load_messages()
@@ -5423,6 +5619,9 @@ class EvNotifier(rumps.App):
         self._dash = DashboardWindow(self)
         ensure_auto_start()
         self.menu.add(self._version_menu())
+        # 设备授权登录（替代手工配置共享密钥）：走一次浏览器确认，令牌存钥匙串
+        self.menu.add(rumps.MenuItem("登录 EvNotifier…", callback=self.login_device))
+        self.menu.add(rumps.MenuItem("退出登录（清除本机凭据）", callback=self.logout_device))
         try:
             self.menu.add(rumps.separator)
         except Exception:
@@ -5586,6 +5785,48 @@ class EvNotifier(rumps.App):
         nsdict['events'].before_start.emit()
         _rm.AppHelper.runEventLoop()
 
+    def login_device(self, _):
+        """设备授权登录。
+
+        AppKit 的弹窗只能在主线程，所以这里只做「发起 + 提示」，
+        真正的轮询/等授权放后台线程，绝不阻塞菜单。
+        """
+        global _device_login_running
+        if _device_login_running:
+            notify_macos(f"Ev {VERSION}", "登录进行中", "请在弹出的浏览器页面里完成授权", sound=False)
+            return
+        _device_login_running = True
+        notify_macos(f"Ev {VERSION}", "已打开浏览器", "请在页面里点「授权此设备」", sound=False)
+        threading.Thread(target=self._device_login_worker, daemon=True).start()
+
+    def _device_login_worker(self):
+        global _device_login_running
+        try:
+            ok, msg = device_login()
+            if ok:
+                _debug_log("device login OK (menu)")
+                notify_macos(f"Ev {VERSION}", "登录成功", "通知功能已就绪", sound=False)
+                _request_sync("after-login", force=True)
+                self._refresh_content()
+            else:
+                _debug_log(f"device login not completed: {msg}")
+                notify_macos(f"Ev {VERSION}", "登录未完成", msg, sound=False)
+        except Exception as e:
+            _debug_log(f"device login worker ERROR: {e}")
+            notify_macos(f"Ev {VERSION}", "登录出错", str(e)[:80], sound=False)
+        finally:
+            _device_login_running = False
+
+    def logout_device(self, _):
+        """清除本机凭据（钥匙串）。"""
+        global DEVICE_TOKEN, _auth_state
+        _keychain_delete_token()
+        DEVICE_TOKEN = None
+        _auth_state = "missing"
+        _debug_log("device logout: token cleared from keychain")
+        notify_macos(f"Ev {VERSION}", "已退出登录", "本机凭据已清除，通知将无法接收", sound=False)
+        self._refresh_content()
+
     @rumps.clicked("打开面板")
     def open_dashboard(self, _):
         """只做「投递」：真正的建窗/导航延到主线程下一轮 runloop 执行。
@@ -5622,7 +5863,10 @@ class EvNotifier(rumps.App):
             lt = _safe_localtime(_last_msg_ts)
             ts_str = time.strftime("%H:%M:%S", lt) if lt else "无"
             status_str = "Online" if _status == "connected" else ("Reconnecting" if "retry" in _status else "Offline")
-            text = (f"Status: {status_str}\nUnread: {count_unread()}\nLast message: {ts_str}\n"
+            auth_cn = {"ok": "已登录", "missing": "未登录（菜单 →「登录 EvNotifier…」）",
+                       "invalid": "凭据失效（需重新登录）"}.get(_auth_state, "未知")
+            text = (f"Status: {status_str}\nAuth: {auth_cn}\nUnread: {count_unread()}\n"
+                    f"Last message: {ts_str}\n"
                     f"Cursor: {_sync_state.get('last_seq', 0)}\nClient: {_sync_state.get('client_id', '-')}")
             rumps.alert(f"Ev {VERSION}", text)
         except Exception as e:

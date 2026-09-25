@@ -4,7 +4,8 @@
     { "source": "/go/:slug", "destination": "/api/go?slug=:slug" },
     { "source": "/go/:slug/", "destination": "/api/go?slug=:slug" },
     { "source": "/my-ip", "destination": "/my-ip.html" },
-    { "source": "/ip", "destination": "/my-ip.html" }
+    { "source": "/ip", "destination": "/my-ip.html" },
+    { "source": "/ev-login", "destination": "/ev-login.html" }
   ],
   "redirects": [
     { "source": "/api/oauth/login", "destination": "/api/oauth", "permanent": false },

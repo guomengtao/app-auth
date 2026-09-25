@@ -223,7 +223,7 @@ seq_cursor = {"v": 5}
 def fake_api(url, timeout=10):
     api_calls["n"] += 1
     seq_cursor["v"] += 10
-    return {
+    return 200, {
         "success": True,
         "messages": [{"seq": str(seq_cursor["v"] - 10 + i), "message_id": "s%d" % (seq_cursor["v"] - 10 + i),
                       "message_type": "page_visit", "payload": {}, "created_at": "2026-09-25T00:00:00Z"}
@@ -233,7 +233,7 @@ def fake_api(url, timeout=10):
     }
 
 
-E._api_get_json = fake_api
+E._api_get_status = fake_api
 added = E.sync_since("test-paging")
 c.check("分页循环受 SYNC_MAX_PAGES 限制", api_calls["n"] == E.SYNC_MAX_PAGES, api_calls["n"])
 c.check("分页补回条数 = 页数 × 页大小", added == E.SYNC_MAX_PAGES * 10, added)
@@ -268,14 +268,14 @@ def fake_legacy():
 
 
 E._startup_recovery = fake_legacy
-E._api_get_json = lambda url, timeout=10: None
+E._api_get_status = lambda url, timeout=10: (0, None)
 E._sync_state["last_seq"] = 0
 E.sync_since("test-fallback")
 c.check("冷启动 head 不可用 → 降级 legacy", legacy["n"] == 1, legacy["n"])
 
 E._sync_state["last_seq"] = 0
 E._startup_recovery = fake_legacy
-E._api_get_json = lambda url, timeout=10: {"success": True, "max_seq": 777}
+E._api_get_status = lambda url, timeout=10: (200, {"success": True, "max_seq": 777})
 E.sync_since("test-bootstrap")
 c.check("冷启动 bootstrap 跳到 max_seq", E._sync_state["last_seq"] == 777, E._sync_state["last_seq"])
 c.check("bootstrap 不重放历史（不调 legacy）", legacy["n"] == 1, legacy["n"])
@@ -293,13 +293,39 @@ c.check("补拉来源不弹窗", popup["notify"] == 0, popup)
 c.check("补拉来源不念语音", popup["voice"] == 0, popup)
 c.check("补拉消息已入库", any(m.get("messageId") == "quiet-1" for m in E.load_messages()))
 
-# ══ 7. 共享密钥（与服务端 EV_SYNC_TOKEN 配对）══════════════════════
+# ══ 7. 凭据与请求头（设备令牌优先，共享密钥回退）══════════════════
+E.DEVICE_TOKEN = None
 E.SYNC_TOKEN = None
-c.check("未配 token：不带鉴权 header", E._auth_headers() == [])
+c.check("都没配：不带鉴权 header", E._auth_headers() == [])
 E.SYNC_TOKEN = "abc123"
-c.check("配了 token：带 x-ev-sync-token header",
+c.check("只有共享密钥：带 x-ev-sync-token",
         E._auth_headers() == ["-H", "x-ev-sync-token: abc123"], E._auth_headers())
+E.DEVICE_TOKEN = "dev-token-xyz"
+c.check("★有设备令牌：优先用 x-ev-device-token（不再发共享密钥）",
+        E._auth_headers() == ["-H", "x-ev-device-token: dev-token-xyz"], E._auth_headers())
+E.DEVICE_TOKEN = None
 E.SYNC_TOKEN = None
+
+# _on_auth_failed：401 时清凭据 + 置状态 + 只提示一次
+notified = {"n": 0}
+E.notify_macos = lambda *a, **k: notified.__setitem__("n", notified["n"] + 1)
+deleted = {"n": 0}
+E._keychain_delete_token = lambda: deleted.__setitem__("n", deleted["n"] + 1)
+E.DEVICE_TOKEN = "stale-token"
+E._auth_state = "ok"
+E._on_auth_failed("test 401")
+c.check("401 后清掉设备令牌", E.DEVICE_TOKEN is None, E.DEVICE_TOKEN)
+c.check("401 后删除钥匙串条目", deleted["n"] == 1, deleted["n"])
+c.check("401 后状态置为 invalid", E._auth_state == "invalid", E._auth_state)
+c.check("401 后提示用户一次", notified["n"] == 1, notified["n"])
+E._on_auth_failed("test 401 again")
+c.check("重复 401 不再刷屏（只提示一次）", notified["n"] == 1, notified["n"])
+E._auth_state = "ok"
+
+# 未登录状态判定（redis_loop 启动逻辑的等价形式）
+E.DEVICE_TOKEN = None
+E.SYNC_TOKEN = None
+c.check("无任何凭据时判为未登录", (bool(E.DEVICE_TOKEN) or bool(E.SYNC_TOKEN)) is False)
 
 # ══ 8. 性能门槛（消息全量保留后必须仍然流畅）══════════════════════
 # 历史 bug：取消 500 上限后，insert(0) 是 O(n) + store_visitor 每条都全量读写文件

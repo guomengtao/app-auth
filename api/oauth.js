@@ -7,6 +7,18 @@ var VERCEL_OAUTH_CLIENT_SECRET = process.env.VERCEL_OAUTH_CLIENT_SECRET || "";
 var ADMIN_EMAIL = process.env.ADMIN_EMAIL || "guomengtao@gmail.com";
 var REDIRECT_URI = "https://app-auth.gudq.com/api/oauth";
 
+/**
+ * 只允许站内相对路径，防止开放重定向（`//evil.com`、`/\evil.com`、http(s):// 一律拒绝）。
+ * 用途：设备授权页 `/ev-login?c=...` 在未登录时会先跳 OAuth，登录后需要回到这一页。
+ */
+function safeNext(next) {
+  if (!next || typeof next !== "string") return "";
+  if (next.charAt(0) !== "/") return "";
+  if (next.charAt(1) === "/" || next.charAt(1) === "\\") return "";
+  if (next.indexOf("\\") >= 0) return "";
+  return next.slice(0, 200);
+}
+
 function postForm(url, body) {
   return new Promise(function (resolve, reject) {
     var u = new URL(url);
@@ -133,9 +145,14 @@ async function handleCallback(req, res) {
     });
 
     var cookieValue = "token=" + jwt + "; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=" + (24 * 60 * 60);
+    // 支持登录后回到原页面（设备授权页 /ev-login 会用）；没带 next 时行为与以前完全一致
+    var nextPath = safeNext(parseCookies(req.headers.cookie || "")["oauth_next"]);
     res.writeHead(302, {
-      Location: "/admin_Dx23.html",
-      "Set-Cookie": cookieValue
+      Location: nextPath || "/admin_Dx23.html",
+      "Set-Cookie": [
+        cookieValue,
+        "oauth_next=; Path=/api/oauth; HttpOnly; Secure; SameSite=Lax; Max-Age=0"
+      ]
     });
     res.end();
   } catch (e) {
@@ -169,9 +186,19 @@ function handleLogin(req, res) {
 
   var authorizeUrl = "https://vercel.com/oauth/authorize?" + params.toString();
 
+  var loginCookies = [
+    "oauth_code_verifier=" + codeVerifier + "; Path=/api/oauth; HttpOnly; Secure; SameSite=Lax; Max-Age=600"
+  ];
+  // 登录后要回到哪一页（仅站内路径）。设备授权页依赖它，否则登录完会被丢到后台首页。
+  var next = safeNext(req.query && req.query.next);
+  if (next) {
+    loginCookies.push("oauth_next=" + encodeURIComponent(next) +
+      "; Path=/api/oauth; HttpOnly; Secure; SameSite=Lax; Max-Age=600");
+  }
+
   res.writeHead(302, {
     Location: authorizeUrl,
-    "Set-Cookie": "oauth_code_verifier=" + codeVerifier + "; Path=/api/oauth; HttpOnly; Secure; SameSite=Lax; Max-Age=600"
+    "Set-Cookie": loginCookies
   });
   res.end();
 }

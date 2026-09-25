@@ -35,23 +35,54 @@ var SYNC_RETENTION_HOURS = 336; // 14 天
 // 方案：配了环境变量 EV_SYNC_TOKEN 就要求携带它（header `x-ev-sync-token` 或 `?token=`），
 //      同时仍放行后台面板的 cookie 鉴权；**没配就维持原状**（不会因为没配而中断补拉）。
 //      => 想真正生效，需要同时配置：Vercel 环境变量 EV_SYNC_TOKEN + 本机 .env / ~/.ev-notifier.env。
-function clientHasAccess(req) {
-  var expected = process.env.EV_SYNC_TOKEN || "";
-  if (!expected) {
-    return true; // 未配置 → 维持现状（控制台会用 warn 提示）
-  }
-  var got = "";
+async function clientHasAccess(req) {
+  var mode = String(process.env.EV_AUTH_MODE || "").toLowerCase();
+  // strict：只认「设备令牌」或「后台 cookie」，不再放行匿名、不再接受共享密钥。
+  // 默认（未设置）：保持历史行为 —— 配了 EV_SYNC_TOKEN 就必须带对，没配则放行。
+  var strict = (mode === "strict");
+
+  // ── 1) 设备令牌（推荐通道：可逐台撤销、可审计、泄漏不牵连其它设备）──
+  var devTok = "";
   try {
-    got = (req.headers && (req.headers["x-ev-sync-token"] || req.headers["X-Ev-Sync-Token"])) || "";
+    devTok = (req.headers && (req.headers["x-ev-device-token"] || req.headers["X-Ev-Device-Token"])) || "";
   } catch (e) {}
-  if (!got && req.query) got = req.query.token || "";
-  // 必须是字符串：`?token=a&token=b` 在部分解析器下会变成数组，而 String(['a']) === 'a'
-  // 会让数组形式绕过比较。这里显式挡掉非字符串。
-  if (typeof got === "string" && got !== "" && got === String(expected)) return true;
+  if (typeof devTok === "string" && devTok) {
+    try {
+      var dt = require("../../lib/device-token");
+      var ip = "";
+      try {
+        ip = String((req.headers && (req.headers["x-forwarded-for"] || req.headers["x-real-ip"])) || "")
+          .split(",")[0].trim().slice(0, 60);
+      } catch (e2) {}
+      var dev = await dt.verifyDeviceToken(devTok, ip);
+      if (dev) return true;
+    } catch (e) {
+      console.warn("[health:client-access] device token verify error:", e.message || e);
+    }
+  }
+
+  // ── 2) 共享密钥（过渡期兼容；strict 模式下不再接受）──
+  if (!strict) {
+    var expected = process.env.EV_SYNC_TOKEN || "";
+    if (!expected) {
+      return true; // 未配置 → 维持历史行为（旧客户端仍可用）
+    }
+    var got = "";
+    try {
+      got = (req.headers && (req.headers["x-ev-sync-token"] || req.headers["X-Ev-Sync-Token"])) || "";
+    } catch (e) {}
+    if (!got && req.query) got = req.query.token || "";
+    // 必须是字符串：`?token=a&token=b` 在部分解析器下会变成数组，而 String(['a']) === 'a'
+    // 会让数组形式绕过比较。这里显式挡掉非字符串。
+    if (typeof got === "string" && got !== "" && got === String(expected)) return true;
+  }
+
+  // ── 3) 后台面板走 cookie ──
   try {
     var a = requireAuth(req);
-    if (a && a.authorized) return true;   // 后台面板走 cookie
+    if (a && a.authorized) return true;
   } catch (e) {}
+
   return false;
 }
 
@@ -666,7 +697,7 @@ if ((isCron || isCronBackup) && isBackup) {
     if (req.method !== "POST") {
       return res.status(405).json({ success: false, error: "Use POST" });
     }
-    if (!clientHasAccess(req)) {
+    if (!(await clientHasAccess(req))) {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
     var md = null;
@@ -715,7 +746,7 @@ if ((isCron || isCronBackup) && isBackup) {
     if (req.method !== "GET") {
       return res.status(405).json({ success: false, error: "Use GET" });
     }
-    if (!clientHasAccess(req)) {
+    if (!(await clientHasAccess(req))) {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
     var mdSync = null;
@@ -761,7 +792,7 @@ if ((isCron || isCronBackup) && isBackup) {
     if (req.method !== "GET" && req.method !== "POST") {
       return res.status(405).json({ success: false, error: "Use GET or POST" });
     }
-    if (!clientHasAccess(req)) {
+    if (!(await clientHasAccess(req))) {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
     var md = null;
