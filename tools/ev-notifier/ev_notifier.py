@@ -92,6 +92,9 @@ MSG_SAVE_INTERVAL = 2.0                # 消息落盘节流（秒）：消息全
                                        # 每条都全量重写会卡死，改成后台线程合并落盘
 MSG_RENDER_LIMIT = 80                  # 面板一次最多渲染多少条（存储无上限，渲染必须有上限，
                                        # 否则 base64 data URL 过大 → WebKit 加载失败 = 面板打不开）
+CLOSE_WATCH_INTERVAL = 1.0             # 「关窗即已读」兜底轮询间隔（秒）：WindowDelegate 万一
+                                       # 不回调，用窗口可见性 True→False 边沿补上（见
+                                       # tools/ev-notifier/关闭面板自动已读设计.md §3）
 
 
 def _safe_str(s):
@@ -488,6 +491,58 @@ def _enqueue_read_receipts_for_all():
                 _enqueue_receipt(m["messageId"], "read")
     except Exception as e:
         _debug_log(f"enqueue read receipts failed: {e}")
+
+
+def mark_all_read_on_close(reason="window_close"):
+    """关窗 → 全部已读（需求：关掉面板 = 这些消息我都不看了）。
+
+    与面板「Mark All Read」按钮（`DashboardWindow._mark_all_read()`）**动作一致**，
+    差别只在触发源：那个会顺带切页 + `_refresh_content()`，而关窗场景绝对不能刷新
+    （窗口已关，往 WebView 灌 data URL 正是历史 SIGTRAP 的成因类型）——这里只碰数据层。
+
+    设计约束（详见 tools/ev-notifier/关闭面板自动已读设计.md）：
+    - **只清「关窗这一刻已存在」的消息**：关窗后新到的消息必须保持未读，
+      所以延迟路径（可见性轮询）请改用 `mark_read_on_close_snapshot()`。
+    - 幂等：`mark_all_messages_read()` 没有 False→True 就不落盘、不发回执，重复调用零副作用。
+    - 回执在 daemon 线程发，不阻塞 AppKit 回调栈 / runloop。
+    """
+    try:
+        n = mark_all_messages_read()
+        if n:
+            _enqueue_read_receipts_for_all()
+            threading.Thread(target=_flush_receipts, daemon=True).start()
+        _debug_log(f"mark_all_read_on_close({reason}): marked {n} as read")
+        return n
+    except Exception as e:
+        _debug_log(f"mark_all_read_on_close ERROR: {e}")
+        return 0
+
+
+def close_keys_snapshot():
+    """窗口「可见」期间刷新一次消息 key 快照（轮询兜底专用）。
+
+    轮询发现窗口不可见时最多已晚 CLOSE_WATCH_INTERVAL 秒；直接 mark_all 会把这段窗口内
+    新到的消息误标已读，所以用「关窗前最后一次快照」里的 key 做精确标记。
+    """
+    try:
+        with _MSG_LOCK:
+            return [_msg_key(m) for m in load_messages()]
+    except Exception as e:
+        _debug_log(f"close_keys_snapshot ERROR: {e}")
+        return []
+
+
+def mark_read_on_close_snapshot(keys, reason="poll"):
+    """只标记快照内的消息（关窗后新到的消息不会被误标已读）。"""
+    try:
+        n = mark_read(keys or [])
+        if n:
+            _flush_receipts()          # mark_read 已把回执入队，这里只负责发出
+        _debug_log(f"mark_read_on_close_snapshot({reason}): marked {n} as read")
+        return n
+    except Exception as e:
+        _debug_log(f"mark_read_on_close_snapshot ERROR: {e}")
+        return 0
 
 
 def load_visitors():
@@ -2962,6 +3017,30 @@ def _settle_navigation(listener, allow):
         _debug_log(f"_settle_navigation({allow}) failed: {e}")
 
 
+class WindowDelegate(NSObject):
+    """真正的窗口 delegate —— 只有 NSObject 子类注册的方法才会被 AppKit 回调。
+
+    ⚠️ 背景（2026-09-23 实测，见 关闭面板自动已读设计.md §3）：
+    把 `windowWillClose:` 注册到**纯 Python 对象**（DashboardWindow 自己）上时，
+    那个 selector 从未被调用过（`_retired` 恒为 0），observer 等于是死的。
+    所以「关窗即已读」必须从这个类进入。
+
+    ⚠️ `NSWindow.delegate` 在 AppKit 里是 **weak（assign）** 引用 → DashboardWindow
+    必须用 `self._window_delegate` 强引用住，否则 delegate 被回收，回调静默消失。
+    """
+
+    def init(self):
+        self._dashboard = None
+        return self
+
+    def windowWillClose_(self, notification):
+        try:
+            if self._dashboard is not None:
+                self._dashboard._on_window_closed("delegate")
+        except Exception as e:
+            _debug_log(f"WindowDelegate.windowWillClose_ ERROR: {e}")
+
+
 class WebNavDelegate(NSObject):
     def init(self):
         self._dashboard = None
@@ -3116,7 +3195,13 @@ class DashboardWindow:
         self._current_page = "messages"
         self._webview_thread = None
         self._nav_delegate = None
-        self._retired = []   # 已关闭的 (window, webview, delegate)，持有引用防止悬挂
+        self._retired = []   # 已关闭的 (window, webview, nav_delegate, window_delegate)，持有引用防止悬挂
+        # ── 关窗即已读状态（见 tools/ev-notifier/关闭面板自动已读设计.md）──────────
+        self._window_delegate = None   # 强引用：NSWindow.delegate 在 AppKit 里是 weak
+        self._close_marked = False     # 门闩：delegate 事件与轮询兜底双触发只处理一次
+        self._close_watch_armed = False
+        self._last_visible = None      # 可见性边沿检测（True→False = 关窗）
+        self._close_keys = []          # 关窗前最后一次消息 key 快照（轮询路径用）
         _debug_log("DashboardWindow.__init__")
 
     def show(self):
@@ -3138,6 +3223,9 @@ class DashboardWindow:
 
     def _show_impl(self):
         _debug_log("show() called, _HAS_WEBKIT=%s, _HAS_WEBVIEW=%s" % (str(_HAS_WEBKIT), str(_HAS_WEBVIEW)))
+
+        # 关窗兜底探针：只挂一次，之后随 runloop 一直走（面板开着时每 1s 记一次可见性）
+        self._start_close_watch()
 
         if _HAS_WEBKIT:
             if self._window is not None and self._is_window_visible():
@@ -3213,20 +3301,23 @@ class DashboardWindow:
         提前让 Python 释放会产生悬挂对象，正是那个 SIGTRAP 的成因类型。
         """
         old_window, old_webview, old_delegate = self._window, self._webview, self._nav_delegate
+        old_window_delegate = self._window_delegate
         self._window = None
         self._webview = None
         self._nav_delegate = None
+        self._window_delegate = None
         self._msg_text = None
         self._create_window()
         if old_window is not None:
-            self._teardown_window(old_window, old_webview, old_delegate)
+            self._teardown_window(old_window, old_webview, old_delegate, old_window_delegate)
 
-    def _teardown_window(self, window, webview, delegate):
+    def _teardown_window(self, window, webview, delegate, window_delegate=None):
         try:
-            NSNotificationCenter.defaultCenter().removeObserver_name_object_(
-                self, NSWindowWillCloseNotification, window)
+            # 断掉旧窗口的 delegate：NSWindow.delegate 是 weak，但迟到的回调仍会打到
+            # 已经「退役」的 DashboardWindow 上（门闩能兜住，但没必要让它发生）。
+            window.setDelegate_(None)
         except Exception as e:
-            _debug_log(f"_teardown_window: removeObserver failed: {e}")
+            _debug_log(f"_teardown_window: setDelegate failed: {e}")
         try:
             if webview is not None:
                 webview.setPolicyDelegate_(None)   # 旧页面残留的 JS/导航不再回调我们
@@ -3241,7 +3332,7 @@ class DashboardWindow:
             window.close()
         except Exception as e:
             _debug_log(f"_teardown_window: close failed: {e}")
-        self._retired.append((window, webview, delegate))
+        self._retired.append((window, webview, delegate, window_delegate))
         del self._retired[:-3]   # 只留最近 3 份，防无限增长
         _debug_log(f"_teardown_window: retired={len(self._retired)}")
 
@@ -3261,9 +3352,18 @@ class DashboardWindow:
         self._window.setTitle_(f"Ev Notifier {VERSION}")
         self._window.setMinSize_(NSMakeSize(900, 560))
 
-        nc = NSNotificationCenter.defaultCenter()
-        nc.addObserver_selector_name_object_(
-            self, 'windowWillClose:', NSWindowWillCloseNotification, self._window)
+        # ── 关窗事件入口（2026-09-26 改为真 delegate）─────────────────────────
+        # 旧写法是给「纯 Python 对象自己」注册 `windowWillClose:` notification observer，
+        # 实测该 selector **从不被回调**（_retired 恒为 0），所以关窗即已读挂在那个 observer
+        # 上等于没有。现在改用 NSObject 子类 + setDelegate_（AppKit 只认 objc 方法表）。
+        # 详见 tools/ev-notifier/关闭面板自动已读设计.md §3。
+        self._window_delegate = WindowDelegate.alloc().init()
+        self._window_delegate._dashboard = self
+        self._window.setDelegate_(self._window_delegate)
+        # 新窗口 = 新生命周期：重置关窗门闩与可见性基线
+        self._close_marked = False
+        self._last_visible = None
+        self._close_keys = []
 
         if _HAS_WEBKIT:
             self._nav_delegate = WebNavDelegate.alloc().init()
@@ -5205,20 +5305,114 @@ document.addEventListener('DOMContentLoaded',function(){{
 </script>"""
         return self._html_wrap(tab_html, title, subtitle, scripts=scripts)
 
-    def windowWillClose_(self, notification):
-        # 用户关掉面板 → 立即丢弃窗口/WebView/delegate 引用，下次打开一律重建。
-        # ⚠️ 实测（2026-09-23）：用**纯 Python 对象**注册的 selector 在应用里**从未被调用**（_retired 恒为 0），
-        # 所以别依赖它做关键清理；真正的兜底是 _create_window() 里的 setReleasedWhenClosed_(False)
-        # + _show_impl() 里"不可见就重建"。这里保留只为将来换成 NSObject 子类/窗口 delegate 时可用。
-        _debug_log("windowWillClose_: 丢弃窗口引用，下次打开重建")
-        self._retired.append((self._window, self._webview, self._nav_delegate))
-        del self._retired[:-3]
+    # ── 关窗即已读（2026-09-26，需求/方案见 tools/ev-notifier/关闭面板自动已读设计.md）──
+
+    def _on_window_closed(self, reason="delegate"):
+        """关窗唯一入口：WindowDelegate 精确事件 与 可见性轮询兜底 共用（门闩只处理一次）。
+
+        ⚠️ 只碰数据层：这里**绝不能**调 `_mark_all_read()` / `_refresh_content()` ——
+        窗口已经关了，往 WebView 灌 data URL 正是历史 SIGTRAP 的成因类型。
+        """
+        if self._close_marked:
+            return
+        self._close_marked = True
+        _debug_log(f"_on_window_closed: reason={reason}")
+        if reason == "poll":
+            # 轮询最多晚 CLOSE_WATCH_INTERVAL 才发现关窗 → 用关窗前的 key 快照，
+            # 避免把「关窗后新到」的消息一并误标已读。
+            mark_read_on_close_snapshot(self._close_keys, reason)
+        else:
+            mark_all_read_on_close(reason)
+        self._discard_window_refs()
+
+    def _discard_window_refs(self):
+        """丢弃窗口/WebView/delegate 引用（下次打开一律重建）。
+
+        与旧 `windowWillClose_` 的清理等价，额外多了一件事：先塞进 `_retired` 再置空。
+        WebKit / pyobjc 内部可能仍持有它们的裸指针，提前让 Python 释放会产生悬挂对象
+        （SIGTRAP 的成因类型）。`setReleasedWhenClosed_(False)` + 这里置 None 共同保证
+        「关窗后 `_show_impl()` 走重建分支」。
+        """
+        try:
+            self._retired.append((self._window, self._webview,
+                                  self._nav_delegate, self._window_delegate))
+            del self._retired[:-3]   # 只留最近 3 份，防无限增长
+        except Exception as e:
+            _debug_log(f"_discard_window_refs: retire failed: {e}")
         self._window = None
         self._webview = None
         self._nav_delegate = None
+        self._window_delegate = None
         self._msg_text = None
-        NSApplication.sharedApplication().setActivationPolicy_(
-            NSApplicationActivationPolicyAccessory)
+        self._last_visible = None
+        try:
+            NSApplication.sharedApplication().setActivationPolicy_(
+                NSApplicationActivationPolicyAccessory)
+        except Exception as e:
+            _debug_log(f"_discard_window_refs: setActivationPolicy failed: {e}")
+
+    def _start_close_watch(self):
+        """挂一次兜底探针（幂等）。
+
+        为什么需要：`windowWillClose:` 这类 selector 在本项目历史上**从未被回调**过，
+        delegate 也属于同一套 objc 派发机制 —— 不能把「关窗即已读」单点押在它身上。
+        探针只读 `isVisible()`（窗口对象因为 setReleasedWhenClosed_(False) 始终有效），
+        不碰导航、不刷新内容，所以不会引入新的崩溃面。
+        """
+        if self._close_watch_armed:
+            return
+        self._close_watch_armed = True
+        self._schedule_close_watch()
+
+    def _schedule_close_watch(self):
+        """排到主线程下一轮 runloop（同 `open_dashboard` 的理由：不能在 AppKit 回调同步栈里干活）。"""
+        try:
+            from PyObjCTools import AppHelper
+            AppHelper.callLater(CLOSE_WATCH_INTERVAL, self._close_watch_tick)
+        except Exception as e:
+            _debug_log(f"close watch unavailable ({e})：关窗事件仅依赖 WindowDelegate")
+
+    def _close_watch_tick(self):
+        try:
+            self._poll_window_closed()
+        except Exception as e:
+            _debug_log(f"close watch tick ERROR: {e}")
+        self._schedule_close_watch()
+
+    def _poll_window_closed(self):
+        """可见性边沿兜底：True→False（且不是最小化）视为关窗。
+
+        - 首次看到可见只记基线，不触发（避免「刚打开就当关窗」）。
+        - 最小化（`isMiniaturized()`）算「收起来」不算「关掉」，不触发（也不作为新基线）。
+        - 可见期间每秒刷新一次消息 key 快照，供 `_on_window_closed("poll")` 精确标记。
+        """
+        win = self._window
+        if win is None:
+            self._last_visible = None
+            return
+        try:
+            visible = bool(win.isVisible())
+        except Exception as e:
+            _debug_log(f"_poll_window_closed: isVisible failed: {e}")
+            self._last_visible = None
+            return
+        try:
+            mini = bool(win.isMiniaturized())
+        except Exception:
+            mini = False
+        now_visible = visible and not mini
+        if self._last_visible and not now_visible and not mini:
+            self._on_window_closed("poll")
+            return
+        if now_visible:
+            self._close_keys = close_keys_snapshot()
+        self._last_visible = now_visible
+
+    def windowWillClose_(self, notification):
+        # 兼容残留调用点：真正入口是 `WindowDelegate`（NSObject 子类）。
+        # 旧写法（在 DashboardWindow 自己这个纯 Python 对象上注册 selector）实测从不回调，
+        # 现在这里只是薄转发，见 关闭面板自动已读设计.md §3。
+        self._on_window_closed("notification")
 
 
 class EvNotifier(rumps.App):

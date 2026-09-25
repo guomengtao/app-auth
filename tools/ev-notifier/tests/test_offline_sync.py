@@ -389,4 +389,103 @@ E._sync_state.update({"client_id": "", "last_seq": 0, "last_sync_at": 0})
 c.check("复用磁盘上的 client_id（不漂移）",
         E._get_client_id() == "preexisting-client", E._get_client_id())
 
+# ══ 11. 关窗 → 自动全部已读（见 关闭面板自动已读设计.md）══════════════
+# 需求：用户关掉面板 = "这些消息我都不看了" → 关窗瞬间把本地消息全标已读 + 补发 read 回执。
+# 关键约束：关窗后**新到**的消息必须仍然是未读（不能被顺手标掉）。
+reset_cache()
+E.store_message(1700050000, "new_order", {"a": 1}, message_id="close-1", seq=600001)
+E.store_message(1700050001, "new_order", {"a": 2}, message_id="close-2", seq=600002)
+c.check("关窗前未读 = 2", E.count_unread() == 2, E.count_unread())
+
+sent = []
+E._delivery_callback = lambda mid, event="delivered", batch_ids=None: sent.append(event)
+E._pending_receipts = []
+c.check("关窗标记返回变更数", E.mark_all_read_on_close("test") == 2)
+time.sleep(0.3)   # 回执走 daemon 线程，不阻塞调用方
+c.check("关窗后未读 = 0", E.count_unread() == 0, E.count_unread())
+E.save_messages()
+disk = json.load(open(E.MESSAGES_FILE, encoding="utf-8"))
+c.check("关窗已读已落盘（read + read_at）",
+        all(m.get("read") is True and m.get("read_at") for m in disk), disk)
+c.check("关窗补发 read 回执", bool(sent) and all(e == "read" for e in sent), sent)
+c.check("关窗补发不阻塞：回执队列已清空", E._pending_receipts == [], E._pending_receipts)
+c.check("关窗标记幂等（无变更不再补发）", E.mark_all_read_on_close("test") == 0)
+
+# 关窗后新到的消息必须仍是未读
+E.store_message(1700050002, "new_order", {"a": 3}, message_id="close-3", seq=600003)
+c.check("关窗后新到的消息仍是未读", E.count_unread() == 1, E.count_unread())
+
+# 轮询兜底走「关窗瞬间快照」：快照外的消息（关窗后才到）不能被标已读
+keys = E.close_keys_snapshot()
+E.store_message(1700050003, "new_order", {"a": 4}, message_id="close-4", seq=600004)
+marked = E.mark_read_on_close_snapshot(keys, "test")
+c.check("快照标记只标快照内的消息", marked == 1, marked)
+c.check("快照外的（关窗后新到）仍未被标已读", E.count_unread() == 1, E.count_unread())
+c.check("未读的那条正是 close-4",
+        [m.get("messageId") for m in E.load_messages() if not m.get("read")] == ["close-4"])
+
+# ── 触发链路（无 GUI，直接驱动判定函数）─────────────────────────────
+calls = []
+E.mark_all_read_on_close = lambda reason="x": calls.append(("all", reason)) or 0
+E.mark_read_on_close_snapshot = lambda keys, reason="poll": calls.append(("snap", reason)) or 0
+
+d = E.DashboardWindow(None)
+refreshed = []
+d._refresh_content = lambda: refreshed.append(1)   # 关窗路径绝不能刷新 UI
+d._on_window_closed("delegate")
+d._on_window_closed("poll")
+c.check("delegate 之后轮询不再重复处理（门闩）", calls == [("all", "delegate")], calls)
+c.check("关窗路径不刷新 UI（防往已关闭 WebView 灌 data URL）", refreshed == [], refreshed)
+c.check("关窗后窗口引用已丢弃（下次打开重建）",
+        d._window is None and d._window_delegate is None)
+c.check("WindowDelegate 存在且转发关窗事件", hasattr(E, "WindowDelegate"))
+wd = E.WindowDelegate.__new__(E.WindowDelegate)
+
+
+class _FakeDash:
+    def __init__(self):
+        self.reasons = []
+
+    def _on_window_closed(self, reason="delegate"):
+        self.reasons.append(reason)
+
+
+wd._dashboard = _FakeDash()
+wd.windowWillClose_(None)
+c.check("WindowDelegate.windowWillClose_ 转发到 DashboardWindow",
+        wd._dashboard.reasons == ["delegate"], wd._dashboard.reasons)
+
+
+class _FakeWin:
+    def __init__(self):
+        self.vis = True
+        self.mini = False
+
+    def isVisible(self):
+        return self.vis
+
+    def isMiniaturized(self):
+        return self.mini
+
+
+d2 = E.DashboardWindow(None)
+d2._window = _FakeWin()
+d2._poll_window_closed()
+c.check("首次轮询只记基线，不触发关窗已读",
+        d2._close_marked is False and d2._last_visible is True,
+        (d2._close_marked, d2._last_visible))
+d2._window.mini = True
+d2._poll_window_closed()
+c.check("最小化（收起来）不算关窗", not any(r == "poll" for _, r in calls), calls)
+d2._window.mini = False
+d2._poll_window_closed()
+c.check("从最小化还原不触发", not any(r == "poll" for _, r in calls), calls)
+d2._window.vis = False
+d2._poll_window_closed()
+c.check("可见性 True→False 触发关窗已读（轮询兜底）", ("snap", "poll") in calls, calls)
+
+d3 = E.DashboardWindow(None)   # 窗口引用为 None（测试环境）时轮询不得抛异常
+d3._poll_window_closed()
+c.check("无窗口引用时轮询安全退出", d3._last_visible is None)
+
 sys.exit(c.done())
