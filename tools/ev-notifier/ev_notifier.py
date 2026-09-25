@@ -87,6 +87,10 @@ SYNC_MIN_INTERVAL = 30                 # 补拉最小间隔（秒），防重连
 SYNC_PERIODIC_INTERVAL = 300           # 稳态对账间隔（秒）
 SYNC_PAGE_SIZE = 200                   # 单页条数
 SYNC_MAX_PAGES = 10                    # 单次同步最大页数（上限 2000 条）
+MSG_SAVE_INTERVAL = 2.0                # 消息落盘节流（秒）：消息全量保留后文件会很大，
+                                       # 每条都全量重写会卡死，改成后台线程合并落盘
+MSG_RENDER_LIMIT = 80                  # 面板一次最多渲染多少条（存储无上限，渲染必须有上限，
+                                       # 否则 base64 data URL 过大 → WebKit 加载失败 = 面板打不开）
 
 
 def _safe_str(s):
@@ -114,6 +118,11 @@ _sync_dirty = False
 _sync_last_save = 0.0
 _last_sync_result = None      # 面板展示：{"reason","added","at","error"}
 _pending_receipts = []        # 批量回执队列（delivered / read）
+_MSG_CACHE = None             # 消息内存缓存（唯一真源；磁盘只是快照，见 save_messages）
+_MSG_DIRTY = False            # 缓存已改、待落盘
+_VISITOR_CACHE = None         # 访客内存缓存（同上；page_visit 高频，必须缓存）
+_VISITOR_DIRTY = False
+_msg_writer_event = None      # 落盘线程唤醒信号（延迟创建，避免导入期建 threading 对象）
 _unread_cache = None          # I5：未读数缓存，store/mark_read 时失效
 _known_ids = set()            # 已入库的 messageId 集合（避免每条消息都全量扫文件）
 _conn_ref = {}                # 看门狗用：{"r": redis 连接, "host": ...}
@@ -211,12 +220,22 @@ def save_notify_settings(settings):
 
 
 def load_messages():
-    try:
-        with open(MESSAGES_FILE, "r") as f:
-            msgs = json.load(f)
-        return [m for m in msgs if m.get("type") not in ("test", "test_curl")]
-    except Exception:
-        return []
+    """返回消息列表（内存缓存）。
+
+    消息**全量保留**，文件会随时间变大，所以：
+    - 结果走内存缓存，避免每条消息都全量解析一次 JSON（O(n²)）；
+    - 返回的是缓存本体，调用方就地修改后请调 `_mark_messages_dirty()` 触发落盘。
+    """
+    global _MSG_CACHE
+    with _MSG_LOCK:
+        if _MSG_CACHE is None:
+            try:
+                with open(MESSAGES_FILE, "r") as f:
+                    raw = json.load(f)
+                _MSG_CACHE = [m for m in raw if m.get("type") not in ("test", "test_curl")]
+            except Exception:
+                _MSG_CACHE = []
+        return _MSG_CACHE
 
 
 def _atomic_write_json(path, data):
@@ -235,8 +254,78 @@ def _atomic_write_json(path, data):
         raise
 
 
-def save_messages(data):
-    _atomic_write_json(MESSAGES_FILE, data)
+def save_messages(data=None):
+    """立即落盘（阻塞）。data 省略时写内存缓存。
+
+    正常路径不要直接调它：消息全量保留后文件很大，高频写入会卡。
+    改调 `_mark_messages_dirty()`，由后台线程合并落盘。
+    """
+    global _MSG_DIRTY
+    with _MSG_LOCK:
+        payload = data if data is not None else (_MSG_CACHE if _MSG_CACHE is not None else [])
+        _atomic_write_json(MESSAGES_FILE, payload)
+        _MSG_DIRTY = False
+
+
+def _mark_messages_dirty():
+    """标记消息已改，通知后台线程落盘（合并 2 秒内的连续改动）。"""
+    global _MSG_DIRTY, _msg_writer_event
+    with _MSG_LOCK:
+        _MSG_DIRTY = True
+        ev = _msg_writer_event
+    if ev is not None:
+        ev.set()
+
+
+def _message_writer_loop():
+    """后台落盘线程：把连续的消息改动合并成一次写，避免每条消息全量重写大 JSON。"""
+    global _msg_writer_event
+    _msg_writer_event = threading.Event()
+    while True:
+        try:
+            _msg_writer_event.wait(MSG_SAVE_INTERVAL)
+            _msg_writer_event.clear()
+            if _MSG_DIRTY:
+                save_messages()
+            if _VISITOR_DIRTY:
+                save_visitors()
+        except Exception as e:
+            _debug_log(f"message writer error: {e}")
+            time.sleep(5)
+
+
+def _flush_messages_sync():
+    """退出前 / 补拉结束时强制落盘。"""
+    try:
+        if _MSG_DIRTY:
+            save_messages()
+        if _VISITOR_DIRTY:
+            save_visitors()
+    except Exception as e:
+        _debug_log(f"flush messages failed: {e}")
+
+
+atexit.register(_flush_messages_sync)
+
+
+def recent_messages(limit=MSG_RENDER_LIMIT):
+    """取最新的 limit 条消息，**最新在前**。
+
+    存储是「按时间升序追加」（append 是 O(1)；insert(0) 是 O(n)，消息全量保留后会拖垮写入），
+    所以读取侧统一走这个函数取最新，调用方不要直接切 msgs[:N]。
+    """
+    with _MSG_LOCK:
+        msgs = load_messages()
+        start = max(0, len(msgs) - max(1, int(limit or MSG_RENDER_LIMIT)))
+        return msgs[start:][::-1]
+
+
+def recent_visitors(limit=100):
+    """取最新的 limit 条访客记录，最新在前（同 recent_messages 的原因）。"""
+    with _MSG_LOCK:
+        vs = load_visitors()
+        start = max(0, len(vs) - max(1, int(limit or 100)))
+        return vs[start:][::-1]
 
 
 def _msg_key(m):
@@ -274,15 +363,16 @@ def store_message(ts, mtype, payload, message_id=None, is_read=False, seq=None):
         }
         if seq:
             entry["seq"] = seq
-        msgs.insert(0, entry)
-        if len(msgs) > 500:
-            msgs = msgs[:500]
-        save_messages(msgs)
+        # 消息全量保留：不再截断到 500 条。
+        # 追加到末尾（O(1)）；insert(0) 是 O(n)，存量上万后会拖垮写入。
+        # 落盘由后台线程合并（不在这里全量重写）。
+        msgs.append(entry)
         if message_id:
             _known_ids.add(str(message_id))
         if seq:
             _known_ids.add("s:" + str(seq))
         _unread_cache = None
+    _mark_messages_dirty()
     if mtype == "page_visit":
         store_visitor(ts, payload)
 
@@ -299,7 +389,7 @@ def count_unread():
 def mark_read(keys):
     """批量、幂等标记已读；keys 为 _msg_key() 的值。返回真正发生变化的条数。
 
-    设计要点：dirty 才落盘（没有 False→True 就不写文件），避免每次刷新都全量序列化 500 条。
+    设计要点：dirty 才落盘（没有 False→True 就不写文件），避免每次刷新都全量序列化整个消息库。
     """
     global _unread_cache
     wanted = set(str(k) for k in (keys or []) if k)
@@ -321,8 +411,9 @@ def mark_read(keys):
                 if m.get("messageId"):
                     read_ids.append(str(m["messageId"]))
         if dirty:
-            save_messages(msgs)
             _unread_cache = None
+    if dirty:
+        _mark_messages_dirty()
     for mid in read_ids:
         _enqueue_receipt(mid, "read")     # 回执只入队，由调用方 flush，不在 UI 线程发网络请求
     return changed
@@ -342,8 +433,9 @@ def mark_all_messages_read():
                 if m.get("messageId"):
                     read_ids.append(str(m["messageId"]))
         if changed:
-            save_messages(msgs)
             _unread_cache = None
+    if changed:
+        _mark_messages_dirty()
     for mid in read_ids:
         _enqueue_receipt(mid, "read")
     return changed
@@ -360,19 +452,28 @@ def _enqueue_read_receipts_for_all():
 
 
 def load_visitors():
-    try:
-        with open(VISITORS_FILE, "r") as f:
-            return json.load(f)
-    except Exception:
-        return []
+    """访客记录（内存缓存）。page_visit 是最高频的消息，每条都全量读写文件会卡死。"""
+    global _VISITOR_CACHE
+    with _MSG_LOCK:
+        if _VISITOR_CACHE is None:
+            try:
+                with open(VISITORS_FILE, "r") as f:
+                    _VISITOR_CACHE = json.load(f)
+            except Exception:
+                _VISITOR_CACHE = []
+        return _VISITOR_CACHE
 
 
-def save_visitors(data):
-    with open(VISITORS_FILE, "w") as f:
-        json.dump(data, f, indent=2)
+def save_visitors(data=None):
+    global _VISITOR_DIRTY
+    with _MSG_LOCK:
+        payload = data if data is not None else (_VISITOR_CACHE if _VISITOR_CACHE is not None else [])
+        _atomic_write_json(VISITORS_FILE, payload)
+        _VISITOR_DIRTY = False
 
 
 def store_visitor(ts, payload):
+    global _VISITOR_DIRTY
     visitors = load_visitors()
     raw_url = payload.get("page", "") or payload.get("url", "") or payload.get("title", "") or ""
     parsed = urllib.parse.urlparse(raw_url) if raw_url.startswith(("http://", "https://")) else None
@@ -416,10 +517,15 @@ def store_visitor(ts, payload):
         "device": device_type,
         "ua": ua[:200],
     }
-    visitors.insert(0, entry)
+    # 追加（O(1)）+ 上限保护；落盘交给后台线程合并，不再每条都全量重写 2000 条
+    visitors.append(entry)
     if len(visitors) > 2000:
-        visitors = visitors[:2000]
-    save_visitors(visitors)
+        del visitors[0:len(visitors) - 2000]
+    with _MSG_LOCK:
+        _VISITOR_DIRTY = True
+    ev = _msg_writer_event
+    if ev is not None:
+        ev.set()
 
 
 def upstash_http(cmd, *args, timeout=10):
@@ -694,6 +800,7 @@ def sync_since(reason=""):
     _sync_dirty = True
     _save_sync_state(force=True)
     _flush_receipts()
+    _flush_messages_sync()          # 补拉进来的消息立即落盘，不等 2s 节流
 
     if not added and err:
         # 新接口不可用 → 降级到旧的「状态式」补拉，保证不比改之前更差
@@ -1473,6 +1580,7 @@ def redis_loop():
     _get_client_id()
     threading.Thread(target=_periodic_sync_loop, daemon=True).start()
     threading.Thread(target=_watchdog_loop, daemon=True).start()
+    threading.Thread(target=_message_writer_loop, daemon=True).start()
     print(f"Ev online: PUB/SUB mode, channel=auth:push_channel, host={redis_host}, client={_sync_state.get('client_id')}")
 
     while True:
@@ -3130,10 +3238,9 @@ class DashboardWindow:
         return f"状态: {status_cn} | 未读: {count_unread()} | 版本: {VERSION}"
 
     def _build_messages_text(self):
-        msgs = load_messages()
         polls = load_poll_log()
         entries = []
-        for m in msgs[:100]:
+        for m in recent_messages(100):
             type_label, detail = _format_message_detail(m)
             entries.append({"time": m.get("time", ""), "type": type_label, "detail": detail})
         for date_str in sorted(polls.keys(), reverse=True):
@@ -3380,7 +3487,9 @@ function filterVisitors(filter) {
         </div>"""
 
         entries = []
-        for m in msgs[:80]:
+        # 存储全量保留，但渲染必须有上限：整页 HTML 要走 base64 data URL 灌给 WebKit，
+        # 太大就会加载失败（表现为面板打不开）。存储是升序，取最新用 recent_messages()。
+        for m in recent_messages(MSG_RENDER_LIMIT):
             type_label, detail = _format_message_detail(m)
             css_cls, badge_cls = _TYPE_STYLES.get(type_label, ("type-other", "badge-other"))
             is_read = m.get("read", False)
@@ -3394,7 +3503,7 @@ function filterVisitors(filter) {
                 entries.append((t, "Recovery", detail, "type-recover", "badge-recover", True, ""))
 
         msg_html = ""
-        for t, tp, detail, css_cls, badge_cls, is_read, mid in entries[:50]:
+        for t, tp, detail, css_cls, badge_cls, is_read, mid in entries[:MSG_RENDER_LIMIT]:
             time_short = _safe_str(t[-16:] if len(t) >= 16 else t)
             detail_safe = _safe_str(detail)
             read_class = "msg-read" if is_read else "msg-unread"
@@ -3424,10 +3533,15 @@ function filterVisitors(filter) {
                 txt += f" · {_safe_str(r['error'])}"
         else:
             txt = "尚未同步"
-        sync_html = ('<div style="font-size:11px;color:var(--text-tertiary,#8b95a5);'
-                     'padding:6px 2px 0;">' + _safe_str(txt) +
-                     ' · 游标 ' + str(_sync_state.get("last_seq", 0)) +
-                     ' · 客户端 ' + _safe_str(_sync_state.get("client_id", "")) + '</div>')
+        shown = min(total_count, MSG_RENDER_LIMIT)
+        count_hint = "共 %d 条" % total_count + ("，显示最新 %d 条" % shown if total_count > shown else "")
+        sync_html = (
+            '<div style="font-size:11px;color:var(--text-tertiary,#8b95a5);padding:6px 2px 0;">'
+            + _safe_str(count_hint) + " · " + _safe_str(txt)
+            + " · 游标 " + str(_sync_state.get("last_seq", 0))
+            + " · 客户端 " + _safe_str(_sync_state.get("client_id", ""))
+            + '</div>'
+        )
 
         # ⚠️ 这里原本漏了 {stats_html}：那一整块「统计卡」定义了却从未被渲染（死变量），
         #    面板上根本没有「今日消息」。2026-09-25 接上，并把口径改成未读（I5）。
@@ -4349,7 +4463,7 @@ document.addEventListener('DOMContentLoaded',function(){{
 
         rows = ""
         vidx = 0
-        for v in visitors[:100]:
+        for v in recent_visitors(100):
             path = v.get("path", "") or "/"
             is_afdian = path.startswith("/go/")
             t = _safe_str(v.get("time", "")[-16:] if len(v.get("time", "")) >= 16 else v.get("time", ""))

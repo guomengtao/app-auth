@@ -15,16 +15,32 @@ from _harness import load_ev, Checker  # noqa: E402
 E = load_ev()
 c = Checker()
 
+
+def reset_cache():
+    """消息走内存缓存后，测试之间必须显式清缓存 + 清磁盘，否则会互相污染。"""
+    if os.path.exists(E.MESSAGES_FILE):
+        os.remove(E.MESSAGES_FILE)
+    E._MSG_CACHE = None
+    E._known_ids.clear()
+    E._seen_ids.clear()
+    E._unread_cache = None
+    E._MSG_DIRTY = False
+
+
 # ══ 1. 存储 / 未读 / 已读 ══════════════════════════════════════════
-E._rebuild_known_ids()
+reset_cache()
 E.store_message(1700000000, "new_order", {"a": 1}, message_id="m1", seq=1)
 E.store_message(1700000001, "page_visit", {"b": 2}, message_id="m2", seq=2)
 c.check("store 2 条", len(E.load_messages()) == 2, len(E.load_messages()))
 c.check("未读 = 2", E.count_unread() == 2, E.count_unread())
 
 msgs = E.load_messages()
-c.check("最新消息在 index 0", msgs[0].get("seq") == 2 and msgs[1].get("seq") == 1,
+# 存储按时间升序追加（append 是 O(1)），读取侧用 recent_messages() 取「最新在前」
+c.check("存储为时间升序（老的在前）", msgs[0].get("seq") == 1 and msgs[-1].get("seq") == 2,
         [m.get("seq") for m in msgs])
+recent = E.recent_messages(10)
+c.check("recent_messages 最新在前", recent[0].get("seq") == 2 and recent[1].get("seq") == 1,
+        [m.get("seq") for m in recent])
 
 # _msg_key 优先级：seq > messageId > time|type
 c.check("_msg_key 优先 seq", E._msg_key({"seq": 9, "messageId": "zz"}) == "s:9")
@@ -32,30 +48,52 @@ c.check("_msg_key 次选 messageId", E._msg_key({"messageId": "zz"}) == "m:zz")
 c.check("_msg_key 兜底 time|type", E._msg_key({"time": "t", "type": "x"}) == "t:t|x")
 
 # 已读：幂等 + dirty 才落盘
-real_save = E.save_messages
-calls = {"n": 0}
+real_awj = E._atomic_write_json
+writes = {"n": 0}
 
 
-def counting_save(data):
-    calls["n"] += 1
-    return real_save(data)
+def counting_awj(path, data):
+    writes["n"] += 1
+    return real_awj(path, data)
 
 
-E.save_messages = counting_save
-k_top = E._msg_key(E.load_messages()[0])
+E._atomic_write_json = counting_awj
+k_top = E._msg_key(E.recent_messages(1)[0])
 c.check("mark_read 首次变化 1 条", E.mark_read([k_top]) == 1)
-calls["n"] = 0
+writes["n"] = 0
 c.check("mark_read 重复调用 0 变化", E.mark_read([k_top]) == 0)
-c.check("无变化不落盘（dirty 判定）", calls["n"] == 0, calls["n"])
-E.save_messages = real_save
+c.check("无变化不落盘（dirty 判定）", writes["n"] == 0, writes["n"])
+E.save_messages()
+c.check("显式落盘生效", writes["n"] == 1, writes["n"])
+E._atomic_write_json = real_awj
 c.check("已读后未读 = 1", E.count_unread() == 1, E.count_unread())
-c.check("已读标记已持久化", E.load_messages()[0].get("read") is True)
+c.check("已读标记已持久化", E.recent_messages(1)[0].get("read") is True)
 
-# 存储上限 500
-for i in range(520):
+# ══ 1b. 消息全量保留（取消 500 条上限）════════════════════════════
+reset_cache()
+N_BULK = 1200
+for i in range(N_BULK):
     E.store_message(1700001000 + i, "page_visit", {"i": i}, message_id="bulk%d" % i, seq=100 + i)
-c.check("消息上限截断到 500", len(E.load_messages()) == 500, len(E.load_messages()))
-c.check("截断后 JSON 仍可读", isinstance(E.load_messages(), list))
+c.check("消息全量保留（%d 条不截断）" % N_BULK, len(E.load_messages()) == N_BULK, len(E.load_messages()))
+E.save_messages()
+disk = json.load(open(E.MESSAGES_FILE, encoding="utf-8"))
+c.check("落盘后磁盘同样是 %d 条" % N_BULK, len(disk) == N_BULK, len(disk))
+c.check("超出旧上限 500 后 JSON 仍合法", isinstance(disk, list))
+
+# 落盘节流：高频写入不能每条都全量重写
+reset_cache()
+E._atomic_write_json = counting_awj
+writes["n"] = 0
+for i in range(100):
+    E.store_message(1700020000 + i, "page_visit", {"i": i}, message_id="thr%d" % i, seq=30000 + i)
+c.check("连续 100 条写入被合并（未逐条落盘）", writes["n"] == 0, writes["n"])
+c.check("dirty 标记已置位", E._MSG_DIRTY is True)
+E.save_messages()
+c.check("合并后一次落盘", writes["n"] == 1, writes["n"])
+E._atomic_write_json = real_awj
+
+# 缓存：第二次读取不应再解析文件
+c.check("load_messages 走内存缓存（同一对象）", E.load_messages() is E.load_messages())
 
 # ══ 2. 幂等入口 _claim_message ════════════════════════════════════
 E._sync_state["last_seq"] = 0
@@ -105,10 +143,9 @@ c.check("client_id 可从磁盘恢复", E._get_client_id() == cid1, cid1)
 
 # ══ 5. 并发安全（I4）══════════════════════════════════════════════
 E._sync_state["last_seq"] = 0
-E._seen_ids.clear()
-E._known_ids.clear()
-os.remove(E.MESSAGES_FILE) if os.path.exists(E.MESSAGES_FILE) else None
-E._rebuild_known_ids()
+reset_cache()
+if os.path.exists(E.MESSAGES_FILE):
+    os.remove(E.MESSAGES_FILE)
 
 errors = []
 N_THREADS, N_EACH = 8, 25
@@ -134,11 +171,15 @@ try:
     got = E.load_messages()
     c.check("并发写后 JSON 仍合法", isinstance(got, list))
     c.check("并发写不丢消息（%d 条）" % (N_THREADS * N_EACH),
-            len(got) == min(N_THREADS * N_EACH, 500), len(got))
+            len(got) == N_THREADS * N_EACH, len(got))
 except Exception as e:
     c.check("并发写后 JSON 仍合法", False, e)
 
 # 存储 + 已读交叉并发，文件不能被写坏
+# 真的把后台落盘线程跑起来（间隔调小，制造高频写入）
+E.MSG_SAVE_INTERVAL = 0.05
+E.save_messages()          # 先保证文件存在
+threading.Thread(target=E._message_writer_loop, daemon=True).start()
 stop = {"v": False}
 read_errors = []
 
@@ -250,5 +291,39 @@ E.handle_message({"ts": 1700000010, "type": "new_activation", "payload": {"produ
 c.check("补拉来源不弹窗", popup["notify"] == 0, popup)
 c.check("补拉来源不念语音", popup["voice"] == 0, popup)
 c.check("补拉消息已入库", any(m.get("messageId") == "quiet-1" for m in E.load_messages()))
+
+# ══ 7. 性能门槛（消息全量保留后必须仍然流畅）══════════════════════
+# 历史 bug：取消 500 上限后，insert(0) 是 O(n) + store_visitor 每条都全量读写文件
+# → 存量 10000 条时构建要 181s。改成 append + 缓存 + 合并落盘后是 0.05s。
+reset_cache()
+E.MSG_SAVE_INTERVAL = 999  # 关掉后台落盘，单独测逻辑耗时
+t0 = time.time()
+for i in range(8000):
+    E.store_message(1700030000 + i, "page_visit", {"i": i, "page": "/activate.html"},
+                    message_id="perf%d" % i, seq=400000 + i)
+build = time.time() - t0
+c.check("存量 8000 条构建 < 5s（防 O(n) 回归）", build < 5, "%.2fs" % build)
+
+t0 = time.time()
+for i in range(200):
+    E.store_message(1700040000 + i, "page_visit", {"i": i}, message_id="perf2-%d" % i, seq=500000 + i)
+inc = time.time() - t0
+c.check("存量 8000 时新增 200 条 < 1s", inc < 1, "%.3fs" % inc)
+
+t0 = time.time()
+E.save_messages()
+E.save_visitors()
+c.check("全量落盘 < 5s", time.time() - t0 < 5)
+
+d = E.DashboardWindow(None)
+d._current_page = "messages"
+t0 = time.time()
+h = E.DashboardWindow._build_current_html(d)
+render = time.time() - t0
+c.check("存量 8000 时渲染消息页 < 2s", render < 2, "%.3fs" % render)
+c.check("渲染 HTML 体积受控 < 500KB（否则 WebKit 加载失败）",
+        len(h) < 500 * 1024, "%.0f KB" % (len(h) / 1024))
+c.check("面板只渲染最新 N 条，不是全量", h.count('class="msg-card') <= E.MSG_RENDER_LIMIT,
+        h.count('class="msg-card'))
 
 sys.exit(c.done())
