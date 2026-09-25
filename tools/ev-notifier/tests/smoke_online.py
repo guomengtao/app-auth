@@ -15,12 +15,37 @@ import os
 import subprocess
 import sys
 import tempfile
+import re
 import urllib.parse
 
 # 用 curl 而不是 urllib：与 ev_notifier 自身一致，且绕开框架版 Python 的 CA 证书问题
 BASE = sys.argv[1] if len(sys.argv) > 1 else "https://app-auth.gudq.com"
 API = BASE + "/api/admin/health"
-TOKEN = (os.environ.get("EV_SYNC_TOKEN") or "").strip()
+
+
+def _load_token():
+    """优先环境变量；否则从仓库根 .env 读（省得每次手敲）。
+
+    与 ev_notifier.load_env() 一致：只认 ^[A-Z_]+= 形式，忽略注释/空行。
+    """
+    tok = (os.environ.get("EV_SYNC_TOKEN") or "").strip()
+    if tok:
+        return tok, "env"
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", ".env")
+    try:
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                m = re.match(r"^([A-Z_]+)=(.*)$", line.strip())
+                if m and m.group(1) == "EV_SYNC_TOKEN":
+                    v = m.group(2).strip().strip("\"'")
+                    if v:
+                        return v, ".env"
+    except Exception:
+        pass
+    return "", "未找到"
+
+
+TOKEN, TOKEN_SRC = _load_token()
 
 fails = []
 passed = 0
@@ -69,7 +94,7 @@ def post(params, body, timeout=25, with_token=True):
 
 
 print("目标: %s" % BASE)
-print("EV_SYNC_TOKEN: %s\n" % ("已配置（将校验访问控制）" if TOKEN else "未配置（端点应向后兼容放行）"))
+print("EV_SYNC_TOKEN: %s（来源: %s）\n" % ("已配置" if TOKEN else "未配置", TOKEN_SRC))
 
 # 0. 访问控制
 st, _ = get({"section": "delivery-sync", "action": "head"}, with_token=False)
