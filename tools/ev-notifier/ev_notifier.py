@@ -318,6 +318,35 @@ def _flush_messages_sync():
 atexit.register(_flush_messages_sync)
 
 
+def _install_signal_flush():
+    """SIGTERM/SIGINT/SIGHUP 都**不会**触发 atexit（Python 默认直接终止进程）。
+
+    launchd 重启（`launchctl kickstart -k` / `launchctl kill`）、系统关机、`kill` 走的都是
+    SIGTERM，所以这里必须单独挂 handler，否则「消息全部保留」会在退出时丢掉最后 2 秒
+    （那段只改了内存缓存、还没被后台 writer 落盘）。
+
+    顺带把「正常退出标记」补上 —— 以前任何 SIGTERM 都会被误判成崩溃，污染崩溃计数。
+    """
+    import signal as _signal
+
+    def _handler(signum, frame):
+        try:
+            _debug_log(f"signal {signum} received -> flushing messages")
+            _flush_messages_sync()
+            _save_sync_state(force=True)
+            _mark_clean_exit("signal-%d" % signum)
+            _release_pid_lock()
+        except Exception as e:
+            _debug_log(f"signal flush failed: {e}")
+        os._exit(0)   # 不再跑 atexit（上面已手动 flush）
+
+    for sig in (_signal.SIGTERM, _signal.SIGINT, _signal.SIGHUP):
+        try:
+            _signal.signal(sig, _handler)
+        except Exception as e:
+            _debug_log(f"install signal {sig} failed: {e}")
+
+
 def recent_messages(limit=MSG_RENDER_LIMIT):
     """取最新的 limit 条消息，**最新在前**。
 
@@ -592,9 +621,32 @@ def _load_sync_state():
     return {}
 
 
+def _ensure_sync_state_loaded():
+    """把磁盘上的 client_id / last_seq 合并进内存（只读，不生成新 id、不落盘）。
+
+    ⚠️ 必须存在的原因：`_save_sync_state()` 是「把内存 _sync_state 全量写盘」。
+    如果内存还没初始化（比如 `_get_client_id()` 尚未被调用，就像信号处理窗口期那样），
+    直接写就会把磁盘上有效的 client_id / last_seq **覆盖成空值**，导致下次启动
+    重新生成 client_id（客户端身份漂移）。
+    """
+    if _sync_state.get("client_id"):
+        return
+    st = _load_sync_state()
+    if st.get("client_id"):
+        _sync_state["client_id"] = st["client_id"]
+    try:
+        _sync_state["last_seq"] = max(int(_sync_state.get("last_seq") or 0),
+                                      int(st.get("last_seq") or 0))
+    except Exception:
+        pass
+    _sync_state["last_sync_at"] = int(st.get("last_sync_at") or _sync_state.get("last_sync_at") or 0)
+
+
 def _save_sync_state(force=False):
     """水位线落盘。常规调用节流 5s，关键节点用 force=True 立即写。"""
     global _sync_dirty, _sync_last_save
+    if not _sync_state.get("client_id"):
+        _ensure_sync_state_loaded()
     now = time.time()
     if not force and not _sync_dirty:
         return
@@ -613,16 +665,14 @@ def _get_client_id():
     global _sync_dirty
     if _sync_state.get("client_id"):
         return _sync_state["client_id"]
-    st = _load_sync_state()
-    cid = st.get("client_id") or ""
-    if not cid:
-        try:
-            cid = socket.gethostname() + "-" + uuid.uuid4().hex[:8]
-        except Exception:
-            cid = "mac-" + uuid.uuid4().hex[:8]
+    _ensure_sync_state_loaded()          # 先合并磁盘上的已有状态（别覆盖）
+    if _sync_state.get("client_id"):
+        return _sync_state["client_id"]
+    try:
+        cid = socket.gethostname() + "-" + uuid.uuid4().hex[:8]
+    except Exception:
+        cid = "mac-" + uuid.uuid4().hex[:8]
     _sync_state["client_id"] = cid
-    _sync_state["last_seq"] = int(st.get("last_seq") or 0)
-    _sync_state["last_sync_at"] = int(st.get("last_sync_at") or 0)
     _sync_dirty = True
     _save_sync_state(force=True)
     return cid
@@ -5445,4 +5495,5 @@ if __name__ == "__main__":
     atexit.register(lambda: _voice_queue.put(None))
     atexit.register(lambda: _mark_clean_exit("atexit"))   # 崩溃(trap)不会走到这里 → 用于区分异常终止
     load_env()
+    _install_signal_flush()   # SIGTERM 不走 atexit，必须单独挂（否则退出时丢最后 2 秒消息）
     main()

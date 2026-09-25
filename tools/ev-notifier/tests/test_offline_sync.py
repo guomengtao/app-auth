@@ -5,6 +5,7 @@
 """
 import json
 import os
+import shutil
 import sys
 import threading
 import time
@@ -333,5 +334,59 @@ c.check("渲染 HTML 体积受控 < 500KB（否则 WebKit 加载失败）",
         len(h) < 500 * 1024, "%.0f KB" % (len(h) / 1024))
 c.check("面板只渲染最新 N 条，不是全量", h.count('class="msg-card') <= E.MSG_RENDER_LIMIT,
         h.count('class="msg-card'))
+
+# ══ 9. SIGTERM 也必须落盘（Python 的 SIGTERM 不走 atexit）══════════
+# 真实场景：launchd 重启 / 系统关机 / kill 都发 SIGTERM，不挂 handler 会丢最后 2 秒消息。
+import subprocess  # noqa: E402
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+child_home = "/tmp/ev_notifier_sigterm_home"
+shutil.rmtree(child_home, ignore_errors=True)
+os.makedirs(child_home, exist_ok=True)
+
+child_code = (
+    "import sys, os, signal\n"
+    "sys.path.insert(0, %r)\n"
+    "from _harness import load_ev\n"
+    "E = load_ev(home=%r)\n"
+    "E.store_message(1700099999, 'new_order', {'x': 1}, message_id='sigterm1', seq=999)\n"
+    "E._install_signal_flush()\n"
+    "os.kill(os.getpid(), signal.SIGTERM)\n"
+    "print('STILL_ALIVE')\n"
+) % (HERE, child_home)
+
+r = subprocess.run([sys.executable, "-c", child_code], capture_output=True, text=True, timeout=40)
+c.check("SIGTERM 后进程已退出（未继续执行）", "STILL_ALIVE" not in (r.stdout or ""), (r.stdout or "")[-80:])
+msg_file = os.path.join(child_home, ".ev_messages.json")
+try:
+    saved = json.load(open(msg_file, encoding="utf-8"))
+    c.check("SIGTERM 时消息已落盘", len(saved) == 1 and saved[0].get("messageId") == "sigterm1",
+            saved if not saved else len(saved))
+except Exception as e:
+    c.check("SIGTERM 时消息已落盘", False, e)
+try:
+    st = json.load(open(os.path.join(child_home, ".ev_sync_state.json"), encoding="utf-8"))
+    c.check("SIGTERM 时同步状态文件是合法 JSON", isinstance(st, dict) and "last_seq" in st, st)
+except Exception as e:
+    c.check("SIGTERM 时同步状态文件是合法 JSON", False, e)
+
+# ══ 10. 未初始化时保存不得覆盖磁盘状态（client_id 漂移防护）════════
+# 真实 bug：_save_sync_state() 是「内存全量写盘」，若内存还没初始化
+# （信号处理窗口期就是），会把磁盘上的 client_id / last_seq 清空成空值。
+E._sync_state.update({"client_id": "", "last_seq": 0, "last_sync_at": 0})
+E._sync_dirty = True
+with open(E.SYNC_STATE_FILE, "w", encoding="utf-8") as f:
+    json.dump({"client_id": "preexisting-client", "last_seq": 123, "last_sync_at": 111}, f)
+E._save_sync_state(force=True)
+st = json.load(open(E.SYNC_STATE_FILE, encoding="utf-8"))
+c.check("未初始化时保存不清空磁盘 client_id", st.get("client_id") == "preexisting-client", st)
+c.check("未初始化时保存不清空磁盘 last_seq", st.get("last_seq") == 123, st)
+c.check("保存时会把磁盘状态合并回内存", E._sync_state.get("client_id") == "preexisting-client",
+        E._sync_state)
+
+# 磁盘已有 client_id 时，_get_client_id 必须复用它（不能生成新的）
+E._sync_state.update({"client_id": "", "last_seq": 0, "last_sync_at": 0})
+c.check("复用磁盘上的 client_id（不漂移）",
+        E._get_client_id() == "preexisting-client", E._get_client_id())
 
 sys.exit(c.done())
