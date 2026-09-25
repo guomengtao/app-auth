@@ -27,6 +27,34 @@ async function pushToStream(type, payload) {
 // 离线补拉保留期（小时）：客户端离线超过这个时长，超出的部分不再补齐（避免一次拉爆）
 var SYNC_RETENTION_HOURS = 336; // 14 天
 
+// EvNotifier 客户端专用端点（delivery-callback / delivery-query / delivery-sync）的访问控制。
+//
+// 这些端点会返回消息 payload 全文（兑换码、激活码、用户昵称、IP），原本完全匿名可拉；
+// 但 EvNotifier 是桌面客户端，没有 admin session，所以不能直接用 requireAuth。
+//
+// 方案：配了环境变量 EV_SYNC_TOKEN 就要求携带它（header `x-ev-sync-token` 或 `?token=`），
+//      同时仍放行后台面板的 cookie 鉴权；**没配就维持原状**（不会因为没配而中断补拉）。
+//      => 想真正生效，需要同时配置：Vercel 环境变量 EV_SYNC_TOKEN + 本机 .env / ~/.ev-notifier.env。
+function clientHasAccess(req) {
+  var expected = process.env.EV_SYNC_TOKEN || "";
+  if (!expected) {
+    return true; // 未配置 → 维持现状（控制台会用 warn 提示）
+  }
+  var got = "";
+  try {
+    got = (req.headers && (req.headers["x-ev-sync-token"] || req.headers["X-Ev-Sync-Token"])) || "";
+  } catch (e) {}
+  if (!got && req.query) got = req.query.token || "";
+  // 必须是字符串：`?token=a&token=b` 在部分解析器下会变成数组，而 String(['a']) === 'a'
+  // 会让数组形式绕过比较。这里显式挡掉非字符串。
+  if (typeof got === "string" && got !== "" && got === String(expected)) return true;
+  try {
+    var a = requireAuth(req);
+    if (a && a.authorized) return true;   // 后台面板走 cookie
+  } catch (e) {}
+  return false;
+}
+
 var CRON_STATS_KEY = "auth:cron:stats";
 var CRON_LIST_KEY = "auth:cron:list";
 var CRON_CONFIG_KEY = "auth:cron:config";
@@ -633,10 +661,13 @@ if ((isCron || isCronBackup) && isBackup) {
     }
   }
 
-  // === Message delivery callback (POST from EvNotifier) - no auth required ===
+  // === Message delivery callback (POST from EvNotifier) ===
   if (req.query && req.query.section === "delivery-callback") {
     if (req.method !== "POST") {
       return res.status(405).json({ success: false, error: "Use POST" });
+    }
+    if (!clientHasAccess(req)) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
     }
     var md = null;
     try { md = require("../../lib/message-delivery"); } catch(e) {
@@ -684,6 +715,9 @@ if ((isCron || isCronBackup) && isBackup) {
     if (req.method !== "GET") {
       return res.status(405).json({ success: false, error: "Use GET" });
     }
+    if (!clientHasAccess(req)) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
     var mdSync = null;
     try { mdSync = require("../../lib/message-delivery"); } catch (e) {
       return res.status(500).json({ success: false, error: "message-delivery module not available" });
@@ -726,6 +760,9 @@ if ((isCron || isCronBackup) && isBackup) {
   if (req.query && req.query.section === "delivery-query") {
     if (req.method !== "GET" && req.method !== "POST") {
       return res.status(405).json({ success: false, error: "Use GET or POST" });
+    }
+    if (!clientHasAccess(req)) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
     }
     var md = null;
     try { md = require("../../lib/message-delivery"); } catch(e) {
@@ -3877,3 +3914,5 @@ if ((isCron || isCronBackup) && isBackup) {
 };
 
 module.exports.recordCronRun = recordCronRun;
+// 导出给单测用（纯函数，无副作用）：见 test/admin-client-access.test.js
+module.exports.clientHasAccess = clientHasAccess;

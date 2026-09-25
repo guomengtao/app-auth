@@ -292,7 +292,15 @@ c.check("补拉来源不弹窗", popup["notify"] == 0, popup)
 c.check("补拉来源不念语音", popup["voice"] == 0, popup)
 c.check("补拉消息已入库", any(m.get("messageId") == "quiet-1" for m in E.load_messages()))
 
-# ══ 7. 性能门槛（消息全量保留后必须仍然流畅）══════════════════════
+# ══ 7. 共享密钥（与服务端 EV_SYNC_TOKEN 配对）══════════════════════
+E.SYNC_TOKEN = None
+c.check("未配 token：不带鉴权 header", E._auth_headers() == [])
+E.SYNC_TOKEN = "abc123"
+c.check("配了 token：带 x-ev-sync-token header",
+        E._auth_headers() == ["-H", "x-ev-sync-token: abc123"], E._auth_headers())
+E.SYNC_TOKEN = None
+
+# ══ 8. 性能门槛（消息全量保留后必须仍然流畅）══════════════════════
 # 历史 bug：取消 500 上限后，insert(0) 是 O(n) + store_visitor 每条都全量读写文件
 # → 存量 10000 条时构建要 181s。改成 append + 缓存 + 合并落盘后是 0.05s。
 reset_cache()

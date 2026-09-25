@@ -56,6 +56,7 @@ DOTENV = [
 ]
 REST_API_URL = None
 UPSTASH_TOKEN = None
+SYNC_TOKEN = None   # 可选：与服务端 EV_SYNC_TOKEN 配对，给 delivery-* 端点做访问控制
 STREAM_KEY = "auth:notifications:stream"
 LAST_ID_FILE = os.path.expanduser("~/.ev_last_id_v1.5.0")
 RECEIVED_FILE = os.path.expanduser("~/.ev_received.json")
@@ -135,7 +136,7 @@ _focus_redeem = None
 
 
 def load_env():
-    global REST_API_URL, UPSTASH_TOKEN
+    global REST_API_URL, UPSTASH_TOKEN, SYNC_TOKEN
     env = {}
     for p in DOTENV:
         if os.path.isfile(p):
@@ -154,9 +155,18 @@ def load_env():
     if url:
         REST_API_URL = url.rstrip("/")
     UPSTASH_TOKEN = env.get("KV_REST_API_TOKEN") or env.get("UPSTASH_REDIS_REST_TOKEN")
+    # 可选：与服务端 EV_SYNC_TOKEN 配对。没配就按"服务端也没配"处理（原样可用）。
+    SYNC_TOKEN = env.get("EV_SYNC_TOKEN") or None
     if not REST_API_URL or not UPSTASH_TOKEN:
         print("ERROR: Config not found.")
         sys.exit(1)
+
+
+def _auth_headers():
+    """给 delivery-* 端点带上共享密钥（服务端配了 EV_SYNC_TOKEN 才需要）。"""
+    if not SYNC_TOKEN:
+        return []
+    return ["-H", f"x-ev-sync-token: {SYNC_TOKEN}"]
 
 
 def ensure_auto_start():
@@ -667,7 +677,8 @@ def _api_get_json(url, timeout=10):
     try:
         os.close(fd)
         subprocess.run(
-            ["curl", "-s", "--connect-timeout", "5", "--max-time", str(timeout), url, "-o", tmp],
+            ["curl", "-s", "--connect-timeout", "5", "--max-time", str(timeout), url, "-o", tmp]
+            + _auth_headers(),
             timeout=timeout + 5)
         raw = open(tmp).read().strip()
     except Exception:
@@ -1212,7 +1223,7 @@ def _delivery_callback(message_id, event="delivered", batch_ids=None):
                 "-H", "Content-Type: application/json",
                 "-d", payload,
                 "-o", tmp
-            ], timeout=10)
+            ] + _auth_headers(), timeout=10)
             resp = open(tmp).read().strip()
             if resp:
                 try:
@@ -1239,7 +1250,8 @@ def _startup_recovery():
         fd, tmp = tempfile.mkstemp(suffix=".json", prefix="ev_rcv_")
         try:
             os.close(fd)
-            subprocess.run(["curl", "-s", "--connect-timeout", "5", "--max-time", "10", url, "-o", tmp], timeout=15)
+            subprocess.run(["curl", "-s", "--connect-timeout", "5", "--max-time", "10", url, "-o", tmp]
+                           + _auth_headers(), timeout=15)
             resp = open(tmp).read().strip()
         finally:
             try:

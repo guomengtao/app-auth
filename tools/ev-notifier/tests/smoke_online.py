@@ -1,21 +1,26 @@
 #!/usr/bin/env python3
-"""线上接口冒烟测试（会打真实生产接口，默认只读）。
+"""线上接口冒烟测试（会打真实生产接口，只读 + 无害）。
 
-仅做「只读 + 无害」请求：delivery-sync 全是 GET；delivery-callback 只用
-不存在的 UUID，不会改动任何真实投递记录。
+安全说明：
+- delivery-sync 全是 GET；
+- delivery-callback 只用不存在的 UUID，不会改动任何真实投递记录。
+
+访问控制：如果本机设了 EV_SYNC_TOKEN，脚本会带上它，并额外校验
+「不带凭据应被拒绝」。没设则按「服务端未配置」处理（向后兼容必须放行）。
 
 运行: python3 tools/ev-notifier/tests/smoke_online.py [base_url]
 """
 import json
+import os
 import subprocess
 import sys
 import tempfile
-import os
 import urllib.parse
 
 # 用 curl 而不是 urllib：与 ev_notifier 自身一致，且绕开框架版 Python 的 CA 证书问题
 BASE = sys.argv[1] if len(sys.argv) > 1 else "https://app-auth.gudq.com"
 API = BASE + "/api/admin/health"
+TOKEN = (os.environ.get("EV_SYNC_TOKEN") or "").strip()
 
 fails = []
 passed = 0
@@ -31,13 +36,14 @@ def check(name, cond, extra=""):
         print("FAIL  " + name + ("  → " + str(extra)[:200] if extra else ""))
 
 
-def _curl(args, timeout=25):
+def _curl(args, timeout=25, with_token=True):
     fd, tmp = tempfile.mkstemp(suffix=".json", prefix="ev_smoke_")
     os.close(fd)
+    auth = ["-H", "x-ev-sync-token: " + TOKEN] if (TOKEN and with_token) else []
     try:
         p = subprocess.run(
             ["curl", "-s", "--connect-timeout", "5", "--max-time", str(timeout),
-             "-w", "%{http_code}", "-o", tmp] + args,
+             "-w", "%{http_code}", "-o", tmp] + auth + args,
             capture_output=True, text=True, timeout=timeout + 5)
         raw = open(tmp, encoding="utf-8").read().strip()
         code = (p.stdout or "").strip().splitlines()[-1] if (p.stdout or "").strip() else "0"
@@ -52,16 +58,31 @@ def _curl(args, timeout=25):
         return int(code or 0), {}
 
 
-def get(params, timeout=25):
-    return _curl([API + "?" + urllib.parse.urlencode(params)], timeout)
+def get(params, timeout=25, with_token=True):
+    return _curl([API + "?" + urllib.parse.urlencode(params)], timeout, with_token)
 
 
-def post(params, body, timeout=25):
+def post(params, body, timeout=25, with_token=True):
     return _curl(["-X", "POST", "-H", "Content-Type: application/json",
-                  "-d", json.dumps(body), API + "?" + urllib.parse.urlencode(params)], timeout)
+                  "-d", json.dumps(body), API + "?" + urllib.parse.urlencode(params)],
+                 timeout, with_token)
 
 
-print("目标: %s\n" % BASE)
+print("目标: %s" % BASE)
+print("EV_SYNC_TOKEN: %s\n" % ("已配置（将校验访问控制）" if TOKEN else "未配置（端点应向后兼容放行）"))
+
+# 0. 访问控制
+st, _ = get({"section": "delivery-sync", "action": "head"}, with_token=False)
+if TOKEN:
+    check("已配置 token：不带凭据 → 401", st == 401, st)
+    st2, j2 = get({"section": "delivery-sync", "action": "head"}, with_token=True)
+    check("已配置 token：带对凭据 → 200", st2 == 200, st2)
+    st3, _ = post({"section": "delivery-callback"},
+                  {"event": "delivered", "message_id": "00000000-0000-0000-0000-000000000000"},
+                  with_token=False)
+    check("已配置 token：callback 不带凭据 → 401", st3 == 401, st3)
+else:
+    check("未配置 token：匿名可访问（向后兼容，不能因缺配置中断补拉）", st == 200, st)
 
 # 1. head
 st, j = get({"section": "delivery-sync", "action": "head"})

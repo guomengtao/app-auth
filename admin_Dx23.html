@@ -8742,19 +8742,30 @@
       if (e.key === 'Enter') doDecrypt();
     });
 
-    loadTheme();
-    loadVersion();
-    loadStats();
-    initTrends();
-    try {
+    // ⚠️ 每个初始化步骤单独 try/catch：以前这里是一条没有保护的直线，
+    //    loadTheme/loadVersion/loadStats/initTrends 任意一个抛异常，
+    //    下面的 switchTab 和 setInterval 就都不会执行 —— 表现就是「面板打不开 / 点了没反应」。
+    //    现在即使某一步失败，后续步骤（尤其是 switchTab）仍会执行，失败只记 console。
+    function safeInit(name, fn) {
+      try { return fn(); } catch (e) { console.error('[init:' + name + ']', e); }
+    }
+    safeInit('theme', loadTheme);
+    safeInit('version', loadVersion);
+    safeInit('stats', loadStats);
+    safeInit('trends', initTrends);
+    safeInit('tab', function() {
       var pre = new URLSearchParams(window.location.search).get('tab');
       if (pre && TAB_META[pre]) {
         switchTab(pre);
       } else {
         switchTab('dashboard');
       }
-    } catch (e) {}
-    setInterval(loadStats, 30000);
+    });
+    try {
+      setInterval(loadStats, 30000);
+    } catch (e) {
+      console.error('[init:interval]', e);
+    }
     try {
       if (typeof lucide !== 'undefined' && lucide.createIcons) {
         lucide.createIcons();
