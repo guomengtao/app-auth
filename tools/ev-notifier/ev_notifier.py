@@ -3429,10 +3429,20 @@ function filterVisitors(filter) {
                      ' · 游标 ' + str(_sync_state.get("last_seq", 0)) +
                      ' · 客户端 ' + _safe_str(_sync_state.get("client_id", "")) + '</div>')
 
-        body = f'<div class="panel"><div class="panel-header"><div class="panel-title"><div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>Activity Stream</div></div>{msg_tabs}{sync_html}<div class="msg-list">{msg_html}</div>'
-        '<div class="empty-state" id="msg-filter-empty" style="display:none">'
-        '<div class="empty-title">没有未读消息</div>'
-        '<div class="empty-desc">切到 All 查看全部</div></div></div>'
+        # ⚠️ 这里原本漏了 {stats_html}：那一整块「统计卡」定义了却从未被渲染（死变量），
+        #    面板上根本没有「今日消息」。2026-09-25 接上，并把口径改成未读（I5）。
+        # ⚠️ 多行字符串必须放进括号才拼接；不然只有第一行是赋值，后面几行变成
+        #    被静默丢弃的表达式语句（曾经这样丢过一整段空态 HTML）。
+        body = (
+            f'<div class="panel"><div class="panel-header"><div class="panel-title">'
+            f'<div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+            f'stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'
+            f'</svg></div>Activity Stream</div></div>'
+            f'{stats_html}{msg_tabs}{sync_html}<div class="msg-list">{msg_html}</div>'
+            f'<div class="empty-state" id="msg-filter-empty" style="display:none">'
+            f'<div class="empty-title">没有未读消息</div>'
+            f'<div class="empty-desc">切到 All 查看全部</div></div></div>'
+        )
         return body
 
     def _html_orders(self):
