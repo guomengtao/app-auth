@@ -494,6 +494,7 @@ def _save_sync_state(force=False):
 
 def _get_client_id():
     """稳定 client_id：首次生成即持久化，重装 / 改主机名都不漂移。"""
+    global _sync_dirty
     if _sync_state.get("client_id"):
         return _sync_state["client_id"]
     st = _load_sync_state()
@@ -611,6 +612,7 @@ def _enqueue_receipt(message_id, event="delivered"):
 
 
 def _flush_receipts():
+    global _pending_receipts
     with _MSG_LOCK:
         items = list(_pending_receipts)
         _pending_receipts = []
