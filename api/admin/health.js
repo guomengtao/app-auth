@@ -24,6 +24,9 @@ async function pushToStream(type, payload) {
   return notify.pushNotification(type, payload);
 }
 
+// 离线补拉保留期（小时）：客户端离线超过这个时长，超出的部分不再补齐（避免一次拉爆）
+var SYNC_RETENTION_HOURS = 336; // 14 天
+
 var CRON_STATS_KEY = "auth:cron:stats";
 var CRON_LIST_KEY = "auth:cron:list";
 var CRON_CONFIG_KEY = "auth:cron:config";
@@ -640,20 +643,81 @@ if ((isCron || isCronBackup) && isBackup) {
       return res.status(500).json({ success: false, error: "message-delivery module not available" });
     }
     var body = req.body || {};
-    var message_id = body.message_id;
     var event = body.event;
+    // 批量回执（离线补拉一次可能几十上百条，逐条 POST 会打爆连接数）：
+    //   { event, client_id, message_ids: [...] }
+    var batch_ids = Array.isArray(body.message_ids) ? body.message_ids : null;
+    var message_id = body.message_id || (batch_ids && batch_ids[0]) || null;
     if (!message_id || !event) {
       return res.status(400).json({ success: false, error: "Missing message_id or event" });
     }
-    if (event !== "delivered" && event !== "confirmed") {
+    if (event !== "delivered" && event !== "confirmed" && event !== "read") {
       return res.status(400).json({ success: false, error: "Invalid event" });
     }
     try {
-      if (event === "delivered") { await md.markDelivered(message_id, body.client_id || null); }
-      else if (event === "confirmed") { await md.markConfirmed(message_id); }
-      return res.json({ success: true, message_id: message_id, event: event });
+      if (event === "delivered") {
+        if (batch_ids && batch_ids.length > 1 && typeof md.markDeliveredBatch === "function") {
+          await md.markDeliveredBatch(batch_ids, body.client_id || null);
+        } else {
+          await md.markDelivered(message_id, body.client_id || null);
+        }
+      } else {
+        // confirmed / read 都写成 confirmed（用户确实看到了）
+        if (batch_ids && batch_ids.length > 1 && typeof md.markConfirmedBatch === "function") {
+          await md.markConfirmedBatch(batch_ids);
+        } else {
+          await md.markConfirmed(message_id);
+        }
+      }
+      return res.json({ success: true, message_id: message_id, count: (batch_ids && batch_ids.length) || 1, event: event });
     } catch (e) {
       console.error("[health:delivery-callback] error:", e.message || e);
+      return res.status(500).json({ success: false, error: e.message || "Internal error" });
+    }
+  }
+
+  // === Message delivery sync (cursor-based增量拉取，EvNotifier 离线补拉用) ===
+  //  GET ?section=delivery-sync&client_id=<cid>&after=<last_seq>&limit=200
+  //  GET ?section=delivery-sync&action=head          → 返回当前最大 seq（新客户端首次上线用）
+  //  游标只用自增 id，绝不用 created_at（时钟偏移 / 同毫秒会错位漏读）
+  if (req.query && req.query.section === "delivery-sync") {
+    if (req.method !== "GET") {
+      return res.status(405).json({ success: false, error: "Use GET" });
+    }
+    var mdSync = null;
+    try { mdSync = require("../../lib/message-delivery"); } catch (e) {
+      return res.status(500).json({ success: false, error: "message-delivery module not available" });
+    }
+    try {
+      if (req.query.action === "head") {
+        if (typeof mdSync.getMaxSeq !== "function") {
+          return res.status(501).json({ success: false, error: "getMaxSeq not supported" });
+        }
+        var maxSeq = await mdSync.getMaxSeq();
+        return res.json({ success: true, max_seq: maxSeq, retention_hours: SYNC_RETENTION_HOURS });
+      }
+      var afterSeq = parseInt(req.query.after || "0", 10) || 0;
+      var limitSync = parseInt(req.query.limit || "200", 10) || 200;
+      if (limitSync > 500) limitSync = 500;
+      if (typeof mdSync.getSince !== "function") {
+        return res.status(501).json({ success: false, error: "getSince not supported" });
+      }
+      var page = await mdSync.getSince(afterSeq, limitSync, SYNC_RETENTION_HOURS);
+      var lastSeq = afterSeq;
+      for (var pi = 0; pi < page.length; pi++) {
+        var sid = parseInt(page[pi].seq, 10) || 0;
+        if (sid > lastSeq) lastSeq = sid;
+      }
+      return res.json({
+        success: true,
+        messages: page,
+        next_cursor: lastSeq,
+        has_more: page.length >= limitSync,
+        retention_hours: SYNC_RETENTION_HOURS,
+        server_now: Math.floor(Date.now() / 1000)
+      });
+    } catch (e) {
+      console.error("[health:delivery-sync] error:", e.message || e);
       return res.status(500).json({ success: false, error: e.message || "Internal error" });
     }
   }

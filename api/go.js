@@ -165,9 +165,10 @@ async function pushPurchaseClick(entry, record, ts, dateKey) {
     district: district,
   });
   var msgId = null;
+  var msgSeq = null;
   if (md) {
     try {
-      msgId = await md.createMessageDelivery({
+      var _rec = await md.createMessageDelivery({
         messageType: "purchase_click",
         payload: {
           slug: record.slug,
@@ -192,6 +193,8 @@ async function pushPurchaseClick(entry, record, ts, dateKey) {
         source: "go-link",
         channel: "auth:push_channel"
       });
+      msgId = (_rec && (_rec.messageId || _rec)) || null;
+      msgSeq = (_rec && _rec.seq) || null;
     } catch (e) {
       console.error("[go] createMessageDelivery failed:", e.message);
     }
@@ -199,7 +202,8 @@ async function pushPurchaseClick(entry, record, ts, dateKey) {
   var msg = {
     ts: Math.floor(ts / 1000),
     type: "purchase_click",
-    messageId: msgId || "",
+    messageId: (typeof msgId === "string" ? msgId : "") || "",
+    seq: msgSeq || 0,
     payload: {
       slug: record.slug,
       name_zh: entry.name_zh || "",

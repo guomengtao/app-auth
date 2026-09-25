@@ -1,5 +1,6 @@
 """Ev Notifier - PUB/SUB broadcast, zero polling, auto-restart, error logging"""
-import atexit, json, os, queue, re, shutil, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib
+import atexit, json, os, queue, re, shutil, socket, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib, uuid
+from collections import OrderedDict
 from datetime import datetime, timedelta
 
 try:
@@ -60,6 +61,7 @@ LAST_ID_FILE = os.path.expanduser("~/.ev_last_id_v1.5.0")
 RECEIVED_FILE = os.path.expanduser("~/.ev_received.json")
 POLL_LOG_FILE = os.path.expanduser("~/.ev_poll_log.json")
 MESSAGES_FILE = os.path.expanduser("~/.ev_messages.json")
+SYNC_STATE_FILE = os.path.expanduser("~/.ev_sync_state.json")
 VISITORS_FILE = os.path.expanduser("~/.ev_visitors.json")
 DEBUG_LOG_FILE = os.path.expanduser("~/.ev_debug_log.json")
 
@@ -69,6 +71,22 @@ LAUNCH_AGENT_PATH = os.path.join(LAUNCH_AGENT_DIR, f"{LAUNCH_AGENT_LABEL}.plist"
 NOTIFY_SETTINGS_FILE = os.path.expanduser("~/.ev_notify_settings.json")
 
 _MAX_SEEN = 1000
+
+# ── 离线补拉 / 已读（2026-09-25）───────────────────────────────────────────────
+# 详见 tools/ev-notifier/离线补拉与已读系统设计.md
+#
+# 不变量：
+#   I3 所有来源（实时 PUB/SUB / 补拉 / 重发）都走同一个幂等入口 _claim_message()
+#   I4 ~/.ev_messages.json 的写入必须持 _MSG_LOCK + 原子落盘
+#   I5 read 是唯一未读口径，徽标由它派生
+_MSG_LOCK = threading.RLock()          # I4：消息文件写入的唯一锁
+SOCKET_TIMEOUT = 60                    # P0-0：读阻塞上限，防死连接永久挂住
+WATCHDOG_INTERVAL = 60                 # 看门狗探测间隔（秒）
+WATCHDOG_FAILS_TO_DROP = 2             # 连续探测失败几次后强制断开主连接
+SYNC_MIN_INTERVAL = 30                 # 补拉最小间隔（秒），防重连风暴
+SYNC_PERIODIC_INTERVAL = 300           # 稳态对账间隔（秒）
+SYNC_PAGE_SIZE = 200                   # 单页条数
+SYNC_MAX_PAGES = 10                    # 单次同步最大页数（上限 2000 条）
 
 
 def _safe_str(s):
@@ -84,8 +102,22 @@ _status = "starting"
 _last_msg_ts = 0
 _new_msg_count = 0
 _paused = False
-_seen_ids = set()
+_seen_ids = OrderedDict()   # LRU 去重表：满了淘汰最旧，绝不整体 clear()
 _app_ref = None
+
+# 同步水位线状态：{ client_id, last_seq, last_sync_at }
+_sync_state = {"client_id": "", "last_seq": 0, "last_sync_at": 0}
+_sync_inflight = False
+_sync_pending = False
+_sync_last_attempt = 0.0
+_sync_dirty = False
+_sync_last_save = 0.0
+_last_sync_result = None      # 面板展示：{"reason","added","at","error"}
+_pending_receipts = []        # 批量回执队列（delivered / read）
+_unread_cache = None          # I5：未读数缓存，store/mark_read 时失效
+_known_ids = set()            # 已入库的 messageId 集合（避免每条消息都全量扫文件）
+_conn_ref = {}                # 看门狗用：{"r": redis 连接, "host": ...}
+_watchdog_failures = 0
 _recovery_count_today = 0
 _missing_count = 0
 _last_poll_detail = None
@@ -187,44 +219,144 @@ def load_messages():
         return []
 
 
+def _atomic_write_json(path, data):
+    """I4：临时文件 + os.replace 原子替换，避免别的线程/下次启动读到半截 JSON。"""
+    d = os.path.dirname(path) or "."
+    fd, tmp = tempfile.mkstemp(suffix=".json", prefix=".ev_tmp_", dir=d)
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, indent=2)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except Exception:
+            pass
+        raise
+
+
 def save_messages(data):
-    with open(MESSAGES_FILE, "w") as f:
-        json.dump(data, f, indent=2)
+    _atomic_write_json(MESSAGES_FILE, data)
 
 
-def store_message(ts, mtype, payload, message_id=None, is_read=False):
-    msgs = load_messages()
-    lt = _safe_localtime(ts)
-    entry = {
-        "time": time.strftime("%Y-%m-%d %H:%M:%S", lt) if lt else "",
-        "type": mtype,
-        "payload": payload,
-        "messageId": message_id or "",
-        "read": is_read,
-    }
-    msgs.insert(0, entry)
-    if len(msgs) > 500:
-        msgs = msgs[:500]
-    save_messages(msgs)
+def _msg_key(m):
+    """消息的稳定标识：优先 seq，其次 messageId，最后 time+type 兜底。"""
+    if m.get("seq"):
+        return "s:" + str(m["seq"])
+    if m.get("messageId"):
+        return "m:" + str(m["messageId"])
+    return "t:" + str(m.get("time", "")) + "|" + str(m.get("type", ""))
+
+
+def _rebuild_known_ids():
+    """启动时建一次已入库 id 集合，避免每条消息都全量扫文件做去重。"""
+    global _known_ids
+    s = set()
+    for m in load_messages():
+        if m.get("messageId"):
+            s.add(str(m["messageId"]))
+        if m.get("seq"):
+            s.add("s:" + str(m["seq"]))
+    _known_ids = s
+
+
+def store_message(ts, mtype, payload, message_id=None, is_read=False, seq=None):
+    global _unread_cache
+    with _MSG_LOCK:
+        msgs = load_messages()
+        lt = _safe_localtime(ts)
+        entry = {
+            "time": time.strftime("%Y-%m-%d %H:%M:%S", lt) if lt else "",
+            "type": mtype,
+            "payload": payload,
+            "messageId": message_id or "",
+            "read": is_read,
+        }
+        if seq:
+            entry["seq"] = seq
+        msgs.insert(0, entry)
+        if len(msgs) > 500:
+            msgs = msgs[:500]
+        save_messages(msgs)
+        if message_id:
+            _known_ids.add(str(message_id))
+        if seq:
+            _known_ids.add("s:" + str(seq))
+        _unread_cache = None
     if mtype == "page_visit":
         store_visitor(ts, payload)
 
 
-def mark_all_messages_read():
-    msgs = load_messages()
-    changed = False
-    for m in msgs:
-        if not m.get("read", False):
-            m["read"] = True
-            changed = True
-    if changed:
-        save_messages(msgs)
+def count_unread():
+    """I5：唯一未读口径。徽标、导航角标、统计卡全部由它派生。"""
+    global _unread_cache
+    with _MSG_LOCK:
+        if _unread_cache is None:
+            _unread_cache = sum(1 for m in load_messages() if not m.get("read", False))
+        return _unread_cache
+
+
+def mark_read(keys):
+    """批量、幂等标记已读；keys 为 _msg_key() 的值。返回真正发生变化的条数。
+
+    设计要点：dirty 才落盘（没有 False→True 就不写文件），避免每次刷新都全量序列化 500 条。
+    """
+    global _unread_cache
+    wanted = set(str(k) for k in (keys or []) if k)
+    if not wanted:
+        return 0
+    changed = 0
+    read_ids = []
+    with _MSG_LOCK:
+        msgs = load_messages()
+        dirty = False
+        for m in msgs:
+            if m.get("read", False):
+                continue
+            if _msg_key(m) in wanted:
+                m["read"] = True
+                m["read_at"] = int(time.time())
+                dirty = True
+                changed += 1
+                if m.get("messageId"):
+                    read_ids.append(str(m["messageId"]))
+        if dirty:
+            save_messages(msgs)
+            _unread_cache = None
+    for mid in read_ids:
+        _enqueue_receipt(mid, "read")     # 回执只入队，由调用方 flush，不在 UI 线程发网络请求
     return changed
 
 
-def count_unread():
-    msgs = load_messages()
-    return sum(1 for m in msgs if not m.get("read", False))
+def mark_all_messages_read():
+    global _unread_cache
+    changed = 0
+    read_ids = []
+    with _MSG_LOCK:
+        msgs = load_messages()
+        for m in msgs:
+            if not m.get("read", False):
+                m["read"] = True
+                m["read_at"] = int(time.time())
+                changed += 1
+                if m.get("messageId"):
+                    read_ids.append(str(m["messageId"]))
+        if changed:
+            save_messages(msgs)
+            _unread_cache = None
+    for mid in read_ids:
+        _enqueue_receipt(mid, "read")
+    return changed
+
+
+def _enqueue_read_receipts_for_all():
+    """「Mark All Read」逃生舱：把本地所有带 messageId 的消息都补发一次 read 回执。"""
+    try:
+        for m in load_messages():
+            if m.get("messageId"):
+                _enqueue_receipt(m["messageId"], "read")
+    except Exception as e:
+        _debug_log(f"enqueue read receipts failed: {e}")
 
 
 def load_visitors():
@@ -328,6 +460,334 @@ def load_last_id():
 def save_last_id(last_id):
     with open(LAST_ID_FILE, "w") as f:
         f.write(last_id)
+
+
+# ══ 离线补拉：client_id + 水位线 + 幂等入口 ═══════════════════════════════════
+# 规范流程见 tools/ev-notifier/离线补拉与已读系统设计.md §4
+
+def _load_sync_state():
+    try:
+        with open(SYNC_STATE_FILE, "r") as f:
+            d = json.load(f)
+        if isinstance(d, dict):
+            return d
+    except Exception:
+        pass
+    return {}
+
+
+def _save_sync_state(force=False):
+    """水位线落盘。常规调用节流 5s，关键节点用 force=True 立即写。"""
+    global _sync_dirty, _sync_last_save
+    now = time.time()
+    if not force and not _sync_dirty:
+        return
+    if not force and (now - _sync_last_save) < 5:
+        return
+    try:
+        _atomic_write_json(SYNC_STATE_FILE, _sync_state)
+        _sync_dirty = False
+        _sync_last_save = now
+    except Exception as e:
+        _debug_log(f"save sync state failed: {e}")
+
+
+def _get_client_id():
+    """稳定 client_id：首次生成即持久化，重装 / 改主机名都不漂移。"""
+    if _sync_state.get("client_id"):
+        return _sync_state["client_id"]
+    st = _load_sync_state()
+    cid = st.get("client_id") or ""
+    if not cid:
+        try:
+            cid = socket.gethostname() + "-" + uuid.uuid4().hex[:8]
+        except Exception:
+            cid = "mac-" + uuid.uuid4().hex[:8]
+    _sync_state["client_id"] = cid
+    _sync_state["last_seq"] = int(st.get("last_seq") or 0)
+    _sync_state["last_sync_at"] = int(st.get("last_sync_at") or 0)
+    _sync_dirty = True
+    _save_sync_state(force=True)
+    return cid
+
+
+def _advance_seq(seq, force=False):
+    """推进水位线（只增不减）。
+
+    ⚠️ 补拉进行中 / 补拉排队中，**不允许**实时消息推进游标 —— 否则离线期间的空洞会被
+       一条新消息的 seq 直接跳过，导致补拉漏掉整个离线区间。
+    """
+    global _sync_dirty
+    try:
+        seq = int(seq or 0)
+    except Exception:
+        return
+    if seq <= 0:
+        return
+    if not force and (_sync_inflight or _sync_pending):
+        return
+    with _MSG_LOCK:
+        if seq > int(_sync_state.get("last_seq") or 0):
+            _sync_state["last_seq"] = seq
+            _sync_dirty = True
+    _save_sync_state()
+
+
+def _claim_message(seq, mid, msg_id):
+    """I3 幂等入口：实时 PUB/SUB / 补拉 / 重发都必须先过这里。True = 新增，可继续处理。"""
+    try:
+        seq = int(seq or 0)
+    except Exception:
+        seq = 0
+    with _MSG_LOCK:
+        if seq and seq <= int(_sync_state.get("last_seq") or 0):
+            return False
+        if _seen_ids.get(mid):
+            return False
+        if msg_id and str(msg_id) in _known_ids:
+            return False
+        if seq and ("s:" + str(seq)) in _known_ids:
+            return False
+        _seen_ids[mid] = True
+        while len(_seen_ids) > _MAX_SEEN:
+            _seen_ids.popitem(last=False)      # LRU 淘汰最旧 —— 绝不整体 clear()
+        return True
+
+
+def _api_get_json(url, timeout=10):
+    """带超时的 GET + JSON 解析，任何失败返回 None。"""
+    fd, tmp = tempfile.mkstemp(suffix=".json", prefix="ev_sy_")
+    try:
+        os.close(fd)
+        subprocess.run(
+            ["curl", "-s", "--connect-timeout", "5", "--max-time", str(timeout), url, "-o", tmp],
+            timeout=timeout + 5)
+        raw = open(tmp).read().strip()
+    except Exception:
+        return None
+    finally:
+        try:
+            os.unlink(tmp)
+        except Exception:
+            pass
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except Exception:
+        return None
+
+
+def _msg_from_row(row):
+    """服务端 message_delivery 行 → 与 PUB/SUB 同构的消息报文。"""
+    payload = row.get("payload", {})
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except Exception:
+            payload = {}
+    ts = 0
+    created = row.get("created_at", "")
+    if created:
+        try:
+            ts = int(datetime.fromisoformat(str(created).replace("Z", "+00:00")).timestamp())
+        except Exception:
+            ts = int(time.time())
+    return {
+        "ts": ts,
+        "type": row.get("message_type", "unknown"),
+        "payload": payload,
+        "messageId": row.get("message_id", ""),
+        "seq": int(row.get("seq") or 0) or None,
+    }
+
+
+def _enqueue_receipt(message_id, event="delivered"):
+    """回执入队（批量发送，避免补拉时一消息一个 curl）。"""
+    if not message_id:
+        return
+    with _MSG_LOCK:
+        _pending_receipts.append((str(message_id), event))
+
+
+def _flush_receipts():
+    with _MSG_LOCK:
+        items = list(_pending_receipts)
+        _pending_receipts = []
+    if not items:
+        return
+    by_event = {}
+    for mid, ev in items:
+        by_event.setdefault(ev, []).append(mid)
+    for ev, ids in by_event.items():
+        for i in range(0, len(ids), 100):
+            chunk = ids[i:i + 100]
+            try:
+                _delivery_callback(chunk[0], ev, batch_ids=chunk)
+            except Exception as e:
+                _debug_log(f"flush receipts({ev}) failed: {e}")
+
+
+def _notify_recovery_summary(count):
+    """补拉汇总：只弹 1 条 + 念 1 次，绝不逐条刷屏。"""
+    try:
+        nsettings = load_notify_settings()
+        if nsettings.get("popup", True):
+            notify_macos("离线消息已补齐", f"补回 {count} 条", "打开面板 → Activity Stream 查看", sound=False)
+        if nsettings.get("voice", True):
+            enqueue_voice(f"离线期间补回{count}条消息")
+    except Exception as e:
+        _debug_log(f"recovery summary notify failed: {e}")
+
+
+def sync_since(reason=""):
+    """按游标补拉离线消息（SOP 见设计文档 §4.3）。返回补回条数。"""
+    global _last_sync_result, _sync_dirty
+    cid = _get_client_id()
+    after = int(_sync_state.get("last_seq") or 0)
+    base = f"{CALLBACK_BASE_URL}/api/admin/health?section=delivery-sync"
+    qcid = urllib.parse.quote(cid)
+
+    if after <= 0:
+        # 首次上线：跳到当前水位线，不重放历史（否则会把几个月的 page_visit 全灌进来）
+        head = _api_get_json(base + "&action=head&client_id=" + qcid, timeout=10)
+        if head and head.get("success") and head.get("max_seq"):
+            _advance_seq(int(head["max_seq"]), force=True)
+            _save_sync_state(force=True)
+            _last_sync_result = {"reason": reason or "bootstrap", "added": 0,
+                                 "at": int(time.time()), "error": ""}
+            _debug_log(f"sync[{reason}]: bootstrap -> last_seq={_sync_state.get('last_seq')}")
+            return 0
+        _debug_log(f"sync[{reason}]: head unavailable -> fallback legacy undelivered")
+        _startup_recovery()
+        return 0
+
+    added = 0
+    pages = 0
+    cursor = after
+    err = ""
+    while pages < SYNC_MAX_PAGES:
+        url = base + "&client_id=" + qcid + "&after=" + str(cursor) + "&limit=" + str(SYNC_PAGE_SIZE)
+        data = _api_get_json(url, timeout=15)
+        if not data or not data.get("success"):
+            err = "delivery-sync unavailable"
+            break
+        rows = data.get("messages", []) or []
+        for row in rows:
+            try:
+                handle_message(_msg_from_row(row), skip_notify=True, source="sync")
+            except Exception as e:
+                _debug_log(f"sync[{reason}]: ingest failed: {e}")
+        added += len(rows)
+        nxt = int(data.get("next_cursor") or 0)
+        if nxt > cursor:
+            _advance_seq(nxt, force=True)      # 逐页推进：中途崩溃也不会全丢
+            _save_sync_state(force=True)
+            cursor = nxt
+        if not rows or not data.get("has_more"):
+            break
+        pages += 1
+
+    _sync_state["last_sync_at"] = int(time.time())
+    _sync_dirty = True
+    _save_sync_state(force=True)
+    _flush_receipts()
+
+    if not added and err:
+        # 新接口不可用 → 降级到旧的「状态式」补拉，保证不比改之前更差
+        _debug_log(f"sync[{reason}]: {err} -> fallback legacy undelivered")
+        _startup_recovery()
+
+    _last_sync_result = {"reason": reason or "sync", "added": added,
+                         "at": int(time.time()), "error": err}
+    if added:
+        _debug_log(f"sync[{reason}]: recovered {added} messages, last_seq={_sync_state.get('last_seq')}")
+        _notify_recovery_summary(added)
+    else:
+        _debug_log(f"sync[{reason}]: up to date last_seq={_sync_state.get('last_seq')}"
+                   + (f" err={err}" if err else ""))
+    return added
+
+
+def _request_sync(reason="", force=False):
+    """补拉入口：单飞 + 节流（重连时 force=True，重连正是最需要补拉的时机）。"""
+    global _sync_last_attempt, _sync_pending
+    if _sync_pending or _sync_inflight:
+        return
+    now = time.time()
+    if not force and (now - _sync_last_attempt) < SYNC_MIN_INTERVAL:
+        return
+    _sync_last_attempt = now
+    _sync_pending = True
+    threading.Thread(target=_run_sync, args=(reason,), daemon=True).start()
+
+
+def _run_sync(reason=""):
+    global _sync_inflight, _sync_pending
+    _sync_inflight = True
+    _sync_pending = False
+    try:
+        sync_since(reason)
+    except Exception as e:
+        _debug_log(f"sync[{reason}] ERROR: {e}")
+    finally:
+        _sync_inflight = False
+
+
+def _periodic_sync_loop():
+    """稳态对账：每 5 分钟增量补一次，不依赖重连事件。"""
+    while True:
+        try:
+            time.sleep(SYNC_PERIODIC_INTERVAL)
+            _request_sync("periodic")
+            _flush_receipts()
+        except Exception as e:
+            _debug_log(f"periodic sync loop error: {e}")
+            time.sleep(30)
+
+
+def _watchdog_loop():
+    """看门狗：另开一条短连接探活，连续失败 N 次就强制断开主连接，逼 listen() 抛错重连。
+
+    ⚠️ 判据必须是「新连接也连不上」，不能是「一段时间没消息」——
+       低流量时段（凌晨没访问）没消息是正常的，据此重连会造成无意义的重连风暴。
+    """
+    global _watchdog_failures
+    while True:
+        try:
+            time.sleep(WATCHDOG_INTERVAL)
+            host = _conn_ref.get("host")
+            if not host or not _conn_ref.get("r"):
+                _watchdog_failures = 0
+                continue
+            probe = None
+            try:
+                probe = redis.Redis(
+                    host=host, port=6379, password=UPSTASH_TOKEN,
+                    ssl=True, ssl_cert_reqs=None,
+                    socket_connect_timeout=5, socket_timeout=5)
+                probe.ping()
+                _watchdog_failures = 0
+                continue
+            except Exception as e:
+                _watchdog_failures += 1
+                _debug_log(f"watchdog: probe failed ({_watchdog_failures}/{WATCHDOG_FAILS_TO_DROP}): {e}")
+            finally:
+                if probe is not None:
+                    try:
+                        probe.close()
+                    except Exception:
+                        pass
+            if _watchdog_failures >= WATCHDOG_FAILS_TO_DROP:
+                _debug_log("watchdog: forcing reconnect (drop main connection)")
+                _watchdog_failures = 0
+                try:
+                    _conn_ref["r"].connection_pool.disconnect()
+                except Exception as e:
+                    _debug_log(f"watchdog: disconnect failed: {e}")
+        except Exception as e:
+            _debug_log(f"watchdog loop error: {e}")
+            time.sleep(30)
 
 
 def load_received():
@@ -616,19 +1076,23 @@ def _osascript_notify(title, subtitle, body):
     subprocess.run(["osascript", "-e", script], capture_output=True, timeout=5)
 
 
-def _delivery_callback(message_id, event="delivered"):
-    """Notify server that a message was delivered/confirmed by the Mac client."""
+def _delivery_callback(message_id, event="delivered", batch_ids=None):
+    """Notify server that a message was delivered/confirmed by the Mac client.
+
+    batch_ids 非空时走批量回执（离线补拉一次可能几十上百条，逐条 POST 会打爆连接数）。
+    """
     if not message_id:
         return
-    import socket
-    hostname = socket.gethostname()
     try:
-        payload = json.dumps({
+        body = {
             "message_id": message_id,
             "event": event,
-            "client_id": hostname,
+            "client_id": _get_client_id(),
             "received_at": datetime.now().isoformat()
-        })
+        }
+        if batch_ids:
+            body["message_ids"] = [str(x) for x in batch_ids if x]
+        payload = json.dumps(body)
         url = f"{CALLBACK_BASE_URL}/api/admin/health?section=delivery-callback"
         fd, tmp = tempfile.mkstemp(suffix=".json", prefix="ev_dc_")
         try:
@@ -722,14 +1186,16 @@ def _startup_recovery():
                     "type": msg.get("message_type", "unknown"),
                     "payload": payload,
                     "messageId": msg_id,
+                    "seq": int(msg.get("id") or 0) or None,
                 }
-                handle_message(recovered_msg, skip_notify=True)
+                handle_message(recovered_msg, skip_notify=True, source="sync")
                 _debug_log(f"Startup recovery: re-processed {msg.get('message_type')} ({msg_id})")
             except Exception as e:
                 _debug_log(f"Startup recovery: failed to re-process message: {e}")
         if skipped > 0:
             _debug_log(f"Startup recovery: skipped {skipped} already-stored messages")
         _debug_log(f"Startup recovery: completed")
+        _flush_receipts()
     except Exception as e:
         _debug_log(f"Startup recovery failed: {e}")
 
@@ -741,7 +1207,11 @@ def _zh_loc(p):
     ).strip()
 
 
-def handle_message(msg, skip_notify=False):
+def handle_message(msg, skip_notify=False, source="live"):
+    """消息入口。source: "live"（PUB/SUB 实时）| "sync"（离线补拉）。
+
+    所有来源共用同一条路径 + 同一个幂等闸门 _claim_message()（I3）。
+    """
     global _last_msg_ts, _new_msg_count, _paused
     if _paused:
         return
@@ -749,12 +1219,10 @@ def handle_message(msg, skip_notify=False):
     mtype = msg.get("type", "unknown")
     p = msg.get("payload", {}) or {}
     msg_id = msg.get("messageId", "")
-    mid = msg_id if msg_id else f"{ts}_{mtype}"
-    if mid in _seen_ids:
+    seq = msg.get("seq") or None
+    mid = msg_id if msg_id else (("s:" + str(seq)) if seq else f"{ts}_{mtype}")
+    if not _claim_message(seq, mid, msg_id):
         return
-    _seen_ids.add(mid)
-    if len(_seen_ids) > _MAX_SEEN:
-        _seen_ids.clear()
     _last_msg_ts = ts
     if not skip_notify:
         _new_msg_count += 1
@@ -901,7 +1369,8 @@ def handle_message(msg, skip_notify=False):
     print(f"[{ts_label}] {title} | {subtitle}")
 
     # Store message to local file for the message panel
-    store_message(ts, mtype, p, message_id=msg_id, is_read=False)
+    store_message(ts, mtype, p, message_id=msg_id, is_read=False, seq=seq)
+    _advance_seq(seq)
 
     if not skip_notify:
         nsettings = load_notify_settings()
@@ -973,9 +1442,13 @@ def handle_message(msg, skip_notify=False):
         enqueue_voice(voice_text)
 
     # Delivery callback: confirm to server that message was received
+    # 补拉来源走批量队列（补拉结束统一 flush），实时来源立即发。
     message_id = msg.get("messageId")
     if message_id:
-        threading.Thread(target=_delivery_callback, args=(message_id, "delivered"), daemon=True).start()
+        if source == "sync":
+            _enqueue_receipt(message_id, "delivered")
+        else:
+            threading.Thread(target=_delivery_callback, args=(message_id, "delivered"), daemon=True).start()
 
 
 def _recalc_missing():
@@ -992,7 +1465,13 @@ def redis_loop():
     from urllib.parse import urlparse
     redis_host = urlparse(REST_API_URL).hostname
     last_id = load_last_id()
-    print(f"Ev online: PUB/SUB mode, channel=auth:push_channel, host={redis_host}")
+
+    # 启动一次：已入库 id 集合（去重用）+ 稳定 client_id + 两个后台线程
+    _rebuild_known_ids()
+    _get_client_id()
+    threading.Thread(target=_periodic_sync_loop, daemon=True).start()
+    threading.Thread(target=_watchdog_loop, daemon=True).start()
+    print(f"Ev online: PUB/SUB mode, channel=auth:push_channel, host={redis_host}, client={_sync_state.get('client_id')}")
 
     while True:
         try:
@@ -1004,15 +1483,23 @@ def redis_loop():
                 ssl=True,
                 ssl_cert_reqs=None,
                 socket_connect_timeout=10,
+                # P0-0：读阻塞上限。没有它，黑洞连接（合盖睡眠 / NAT 老化 / Wi-Fi 切换）
+                # 会让 listen() 永久挂住：不抛异常 → 不重连 → 离线补拉再也不触发，
+                # 而面板还显示 Online。这是「重新上线收不到离线消息」的头号嫌疑。
+                socket_timeout=SOCKET_TIMEOUT,
                 socket_keepalive=True,
                 health_check_interval=30,
             )
             r.ping()
             pubsub = r.pubsub()
             pubsub.subscribe("auth:push_channel")
+            _conn_ref["r"] = r
+            _conn_ref["host"] = redis_host
             _status = "connected"
             reconnect_delay = 1
-            threading.Thread(target=_startup_recovery, daemon=True).start()
+            # 每次(重)连都强制补拉一次：重连正是最可能有离线空洞的时机。
+            # 顺序是「先订阅、再补拉」——重复靠 seq 幂等消除，丢失无法挽回。
+            _request_sync("reconnect", force=True)
             print("Ev SUBSCRIBE OK, waiting for messages...")
             for message in pubsub.listen():
                 if message.get("type") != "message":
@@ -2354,6 +2841,13 @@ class WebNavDelegate(NSObject):
                 self._dashboard._test_notify(ntype)
             except Exception:
                 pass
+        elif "read-visible=" in url_str and self._dashboard:
+            # 可见即已读（带 1.2s 延迟 + 窗口焦点判定，见 _html_messages 里的 JS）
+            raw = url_str.split("read-visible=")[1]
+            self._dashboard._mark_read_visible(raw)
+        elif "read-one=" in url_str and self._dashboard:
+            raw = url_str.split("read-one=")[1]
+            self._dashboard._mark_read_one(raw)
         elif "mark-read=" in url_str and self._dashboard:
             self._dashboard._mark_all_read()
 
@@ -2631,7 +3125,7 @@ class DashboardWindow:
 
     def _build_status_summary(self):
         status_cn = "Connected" if _status == "connected" else ("Retrying..." if "retry" in _status else "Error")
-        return f"状态: {status_cn} | 消息: {_new_msg_count} | 版本: {VERSION}"
+        return f"状态: {status_cn} | 未读: {count_unread()} | 版本: {VERSION}"
 
     def _build_messages_text(self):
         msgs = load_messages()
@@ -2668,8 +3162,8 @@ class DashboardWindow:
             for item in items:
                 active_cls = "active" if item["id"] == self._current_page else ""
                 badge_html = ""
-                if item["id"] == "messages" and _new_msg_count > 0:
-                    badge_html = f'<span class="nav-badge">{min(_new_msg_count, 99)}</span>'
+                if item["id"] == "messages" and count_unread() > 0:
+                    badge_html = f'<span class="nav-badge">{min(count_unread(), 99)}</span>'
                 nav_html += (
                     f'<div class="nav-item {active_cls}" data-tab="{item["id"]}">'
                     f'<span class="nav-icon">{item["icon"]}</span>'
@@ -2780,9 +3274,31 @@ function filterMessages(filter) {
   if (emptyEl) {
     emptyEl.style.display = visible === 0 ? '' : 'none';
   }
+  var feEmpty = document.getElementById('msg-filter-empty');
+  if (feEmpty) {
+    feEmpty.style.display = (visible === 0 && filter !== 'all') ? '' : 'none';
+  }
 }
 function markAllRead() {
   window.location = 'ev://mark-read=all';
+}
+function markOneRead(mid) {
+  if (!mid) return;
+  window.location = 'ev://read-one=' + mid;
+}
+function reportVisibleRead() {
+  try {
+    if (!document.hasFocus()) return;   // 面板在后台时不算「看过」
+    var cards = document.querySelectorAll('.msg-card[data-mid]');
+    var ids = [];
+    for (var i = 0; i < cards.length; i++) {
+      if (!cards[i].classList.contains('msg-hidden')) {
+        var mid = cards[i].getAttribute('data-mid');
+        if (mid) ids.push(mid);
+      }
+    }
+    if (ids.length) { window.location = 'ev://read-visible=' + ids.join(','); }
+  } catch (e) { }
 }
 function filterVisitors(filter) {
   var tabs = document.querySelectorAll('[data-visitor-filter]');
@@ -2830,7 +3346,7 @@ function filterVisitors(filter) {
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
-            <div class="stat-body"><div class="stat-value">{_new_msg_count}</div><div class="stat-label">今日消息</div></div>
+            <div class="stat-body"><div class="stat-value">{count_unread()}</div><div class="stat-label">未读消息</div></div>
           </div>
           <div class="stat-card">
             <div class="stat-icon {'green' if _status == 'connected' else 'orange'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
@@ -2866,22 +3382,25 @@ function filterVisitors(filter) {
             type_label, detail = _format_message_detail(m)
             css_cls, badge_cls = _TYPE_STYLES.get(type_label, ("type-other", "badge-other"))
             is_read = m.get("read", False)
-            entries.append((m.get("time", ""), type_label, detail, css_cls, badge_cls, is_read))
+            entries.append((m.get("time", ""), type_label, detail, css_cls, badge_cls, is_read, _msg_key(m)))
 
         polls = load_poll_log()
         for date_str in sorted(polls.keys(), reverse=True):
             for p in polls[date_str].get("polls", []):
                 t = date_str + " " + p.get("time", "")
                 detail = f"Recovered {p.get('recovered', 0)} messages - {p.get('reason', '')}"
-                entries.append((t, "Recovery", detail, "type-recover", "badge-recover", True))
+                entries.append((t, "Recovery", detail, "type-recover", "badge-recover", True, ""))
 
         msg_html = ""
-        for t, tp, detail, css_cls, badge_cls, is_read in entries[:50]:
+        for t, tp, detail, css_cls, badge_cls, is_read, mid in entries[:50]:
             time_short = _safe_str(t[-16:] if len(t) >= 16 else t)
             detail_safe = _safe_str(detail)
             read_class = "msg-read" if is_read else "msg-unread"
+            # data-mid 供「可见即已读」回传；onclick 供单条立即已读
+            mid_attr = f' data-mid="{_safe_str(mid)}"' if mid else ''
+            click_attr = f" onclick=\"markOneRead('{_safe_str(mid)}')\"" if mid else ''
             msg_html += (
-                f'<div class="msg-card {read_class}">'
+                f'<div class="msg-card {read_class}"{mid_attr}{click_attr}>'
                 f'<div class="msg-indicator {css_cls}"></div>'
                 f'<span class="msg-time">{time_short}</span>'
                 f'<span class="msg-badge {badge_cls}">{_safe_str(tp)}</span>'
@@ -2894,7 +3413,24 @@ function filterVisitors(filter) {
                         '<div class="empty-title">No messages</div>'
                         '<div class="empty-desc">Waiting for notifications...</div></div>')
 
-        body = f'<div class="panel"><div class="panel-header"><div class="panel-title"><div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>Activity Stream</div></div>{msg_tabs}<div class="msg-list">{msg_html}</div></div>'
+        sync_html = ""
+        if _last_sync_result:
+            r = _last_sync_result
+            when = time.strftime("%H:%M:%S", _safe_localtime(r.get("at", 0))) if r.get("at") else "-"
+            txt = f"上次同步 {when}（{_safe_str(r.get('reason', ''))}）补回 {r.get('added', 0)} 条"
+            if r.get("error"):
+                txt += f" · {_safe_str(r['error'])}"
+        else:
+            txt = "尚未同步"
+        sync_html = ('<div style="font-size:11px;color:var(--text-tertiary,#8b95a5);'
+                     'padding:6px 2px 0;">' + _safe_str(txt) +
+                     ' · 游标 ' + str(_sync_state.get("last_seq", 0)) +
+                     ' · 客户端 ' + _safe_str(_sync_state.get("client_id", "")) + '</div>')
+
+        body = f'<div class="panel"><div class="panel-header"><div class="panel-title"><div class="panel-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>Activity Stream</div></div>{msg_tabs}{sync_html}<div class="msg-list">{msg_html}</div>'
+        '<div class="empty-state" id="msg-filter-empty" style="display:none">'
+        '<div class="empty-title">没有未读消息</div>'
+        '<div class="empty-desc">切到 All 查看全部</div></div></div>'
         return body
 
     def _html_orders(self):
@@ -4204,18 +4740,38 @@ document.addEventListener('DOMContentLoaded',function(){{
         return body
 
     def _switch_to(self, page_id):
+        # ⚠️ 这里曾经 `_seen_ids.clear()` —— 直接把去重表清空，补拉/实时会重复入库。
+        # 未读口径统一走 read 字段（I5），不再用会话变量 _new_msg_count，所以这里什么都不用重置。
         self._current_page = page_id
-        if page_id == "messages":
-            global _new_msg_count, _seen_ids
-            _new_msg_count = 0
-            _seen_ids.clear()
         self._refresh_content()
 
     def _mark_all_read(self):
         _debug_log("_mark_all_read: marking all messages as read")
-        mark_all_messages_read()
+        n = mark_all_messages_read()
+        if n:
+            _enqueue_read_receipts_for_all()
+            threading.Thread(target=_flush_receipts, daemon=True).start()
         self._current_page = "messages"
         self._refresh_content()
+
+    def _mark_read_visible(self, raw):
+        """可见即已读：只标记当前视图实际渲染出来的卡片，且要求窗口有焦点。"""
+        try:
+            keys = [k for k in str(raw).split(",") if k]
+            changed = mark_read(keys)
+            if changed:
+                _debug_log(f"mark_read_visible: marked {changed} as read")
+                _flush_receipts()
+        except Exception as e:
+            _debug_log(f"mark_read_visible ERROR: {e}")
+
+    def _mark_read_one(self, raw):
+        try:
+            changed = mark_read([str(raw)])
+            if changed:
+                _flush_receipts()
+        except Exception as e:
+            _debug_log(f"mark_read_one ERROR: {e}")
 
     def _sync_orders(self):
         global _last_sync_result
@@ -4375,6 +4931,19 @@ document.addEventListener('DOMContentLoaded',function(){{
             traceback.print_exc()
             if hasattr(self, '_msg_text') and self._msg_text:
                 self._msg_text.setString_(f"Error loading dashboard:\n\n{e}\n\nPlease check console for details.")
+            elif _HAS_WEBKIT and self._webview:
+                # 以前异常只写 debug log → 面板一片空白，用户以为「打不开」。
+                # 这里兜底渲染一个可见的错误页，至少能看出来是渲染失败而不是应用死了。
+                try:
+                    import base64 as _b64, html as _html_mod
+                    safe = _html_mod.escape(str(e))
+                    err_html = (f"<html><body style='font-family:-apple-system;padding:24px'>"
+                                f"<h3>面板渲染失败</h3><pre style='white-space:pre-wrap'>{safe}</pre>"
+                                f"<p>详情见 ~/.ev_debug.log</p></body></html>")
+                    self._webview.setMainFrameURL_(
+                        "data:text/html;base64," + _b64.b64encode(err_html.encode("utf-8")).decode("ascii"))
+                except Exception:
+                    pass
 
     _TAB_BUILDERS = {
         "messages": "_html_messages",
@@ -4435,7 +5004,10 @@ document.addEventListener('DOMContentLoaded',function(){{
     document.addEventListener('DOMContentLoaded', function() {{
         bindClicks();
         if ('{page}' === 'messages') {{
-            filterMessages('unread');
+            // 默认 all（不是 unread）：否则点「Mark All Read」后列表瞬间变空，
+            // 用户会以为面板坏了。空态文案由 msg-filter-empty 区分。
+            filterMessages('all');
+            setTimeout(reportVisibleRead, 1200);
         }}
         if ('{page}' === 'visitors') {{
             filterVisitors('all');
@@ -4592,9 +5164,13 @@ class EvNotifier(rumps.App):
 
     @rumps.timer(2)
     def _update_title(self, _):
-        if _new_msg_count > 0:
-            badge = min(_new_msg_count, 99)
-            self.title = f"Ev {VERSION} ({badge})"
+        # I5：徽标由 read 字段派生（内存缓存，消息变更时失效），不再用会话变量
+        try:
+            unread = count_unread()
+        except Exception:
+            unread = 0
+        if unread > 0:
+            self.title = f"Ev {VERSION} ({min(unread, 99)})"
         else:
             self.title = f"Ev {VERSION}"
 
@@ -4664,7 +5240,8 @@ class EvNotifier(rumps.App):
             lt = _safe_localtime(_last_msg_ts)
             ts_str = time.strftime("%H:%M:%S", lt) if lt else "无"
             status_str = "Online" if _status == "connected" else ("Reconnecting" if "retry" in _status else "Offline")
-            text = (f"Status: {status_str}\nMessages today: {_new_msg_count}\nLast message: {ts_str}")
+            text = (f"Status: {status_str}\nUnread: {count_unread()}\nLast message: {ts_str}\n"
+                    f"Cursor: {_sync_state.get('last_seq', 0)}\nClient: {_sync_state.get('client_id', '-')}")
             rumps.alert(f"Ev {VERSION}", text)
         except Exception as e:
             _debug_log(f"status_btn ERROR: {e}")
