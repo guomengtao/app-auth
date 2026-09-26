@@ -205,7 +205,12 @@ module.exports = async (req, res) => {
               plan_id: parsed.plan_id || "",
               total_amount: parsed.total_amount || "",
               user_name: parsed.user_name || parsed.user_id || "",
+              // ⚠️ 两个时间语义不同，客户端必须优先用 paid_at：
+              //    created_at = 本系统首次处理成功的时间（毫秒，Date.now()）
+              //    paid_at    = 爱发电真实下单/支付时间（毫秒）
+              //    另：两者都是**毫秒**，客户端不能当秒用（曾把订单时间渲染成 58647 年）。
               created_at: parsed.created_at || null,
+              paid_at: parsed.paid_at || null,
               activation_code: parsed.activation_code || "",
               redeem_code: parsed.redeem_code || "",
               month: parsed.month || 1,

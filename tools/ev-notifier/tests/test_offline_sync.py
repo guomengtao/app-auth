@@ -16,16 +16,42 @@ from _harness import load_ev, Checker  # noqa: E402
 E = load_ev()
 c = Checker()
 
+# 全局兜底：测试期间绝不发起真实补拉线程（会打生产接口）。
+# 需要观测调用参数的用例（§12）会自己替换掉它。
+E._request_sync = lambda reason="", force=False: None
+
 
 def reset_cache():
-    """消息走内存缓存后，测试之间必须显式清缓存 + 清磁盘，否则会互相污染。"""
-    if os.path.exists(E.MESSAGES_FILE):
-        os.remove(E.MESSAGES_FILE)
-    E._MSG_CACHE = None
-    E._known_ids.clear()
-    E._seen_ids.clear()
-    E._unread_cache = None
-    E._MSG_DIRTY = False
+    """消息走内存缓存后，测试之间必须显式清缓存 + 清磁盘，否则会互相污染。
+
+    ⚠️ 必须持 `_MSG_LOCK`：§5 会真的启动后台 writer 线程（`_message_writer_loop`），
+    它随时可能在 `save_messages()` 里把旧缓存写到磁盘上 —— 不持锁的话会出现
+    「刚清空又被写回」的偶发脏数据（实测踩到过：上一节的消息在新一节里复活）。
+    """
+    with E._MSG_LOCK:
+        if os.path.exists(E.MESSAGES_FILE):
+            os.remove(E.MESSAGES_FILE)
+        E._MSG_CACHE = None
+        E._known_ids.clear()
+        E._seen_ids.clear()
+        E._unread_cache = None
+        E._MSG_DIRTY = False
+
+
+def set_cursor(seq, cid="cursor-test"):
+    """同时设置内存与磁盘上的游标值（测试专用）。
+
+    ⚠️ 不能只改内存：`_save_sync_state()` 在 `client_id` 为空时会先调用
+    `_ensure_sync_state_loaded()`，把磁盘上的旧 `last_seq` 用 max() 合并回内存 ——
+    上一轮测试遗留的 state 文件（例如 777）会把本节的期望值覆盖掉，造成偶发失败。
+    这里把 client_id 一并设上（非空即跳过合并），并同步写盘，做到确定性。
+    """
+    E._sync_state.update({"client_id": cid, "last_seq": seq, "last_sync_at": 0})
+    try:
+        with open(E.SYNC_STATE_FILE, "w", encoding="utf-8") as f:
+            json.dump({"client_id": cid, "last_seq": seq, "last_sync_at": 0}, f)
+    except Exception:
+        pass
 
 
 # ══ 1. 存储 / 未读 / 已读 ══════════════════════════════════════════
@@ -119,21 +145,29 @@ c.check("LRU 淘汰的是最旧项", E._seen_ids.get(oldest) is None)
 c.check("LRU 保留较新项", E._seen_ids.get("k%d" % (E._MAX_SEEN + 49)) is True)
 
 # ══ 3. 水位线 ═════════════════════════════════════════════════════
-E._sync_state["last_seq"] = 10
+# ⚠️ 语义自 2026-09-26 起收紧：实时消息**只能连续推进**游标（跨空洞不推进，见 §12）。
+#    所以这里用「连续 seq（11/12）」验证推进/幂等，用 999 这种大跳验证"不推"。
+set_cursor(10)
+E._gap_start = 0
 E._sync_inflight = True
-E._advance_seq(999)
+E._advance_seq(11)
 c.check("补拉进行中：实时消息不推进游标", E._sync_state["last_seq"] == 10, E._sync_state["last_seq"])
 E._sync_inflight = False
 E._sync_pending = True
-E._advance_seq(999)
+E._advance_seq(11)
 c.check("补拉排队中：实时消息不推进游标", E._sync_state["last_seq"] == 10, E._sync_state["last_seq"])
 E._sync_pending = False
-E._advance_seq(999)
-c.check("补拉结束后可推进", E._sync_state["last_seq"] == 999)
-E._advance_seq(500)
-c.check("游标只增不减", E._sync_state["last_seq"] == 999)
+E._advance_seq(11)
+c.check("补拉结束后可推进（连续 seq）", E._sync_state["last_seq"] == 11, E._sync_state["last_seq"])
+E._advance_seq(11)
+c.check("游标只增不减", E._sync_state["last_seq"] == 11)
 E._advance_seq(-1)
-c.check("非法 seq 被忽略", E._sync_state["last_seq"] == 999)
+c.check("非法 seq 被忽略", E._sync_state["last_seq"] == 11)
+E._gap_start = 0
+E._advance_seq(999)
+c.check("跨空洞的实时 seq 不推进游标（§12 详测）",
+        E._sync_state["last_seq"] == 11, E._sync_state["last_seq"])
+E._gap_start = 0
 
 # ══ 4. client_id 稳定性 ═══════════════════════════════════════════
 cid1 = E._get_client_id()
@@ -509,6 +543,132 @@ c.check("从最小化还原不触发", not any(r == "poll" for _, r in calls), c
 d2._window.vis = False
 d2._poll_window_closed()
 c.check("可见性 True→False 触发关窗已读（轮询兜底）", ("snap", "poll") in calls, calls)
+
+# ══ 12. 游标不跨空洞（睡眠丢消息根因，2026-09-26）══════════════════
+# 真实事故：睡眠唤醒后第一条实时消息（seq 349）把 last_seq 从 330 推到 349，
+# 331..348（18 条）永久丢失。这里固化"实时消息不得跨空洞推游标"这条铁律。
+reset_cache()
+set_cursor(100, "gap-test")
+E._gap_start = 0
+sync_calls = []
+E._request_sync = lambda reason="", force=False: sync_calls.append((reason, force)) or None
+
+E.handle_message({"ts": 1700050000, "type": "new_order", "payload": {}, "messageId": "gap-1", "seq": 120},
+                 skip_notify=True)
+c.check("跨空洞的实时消息：消息仍入库",
+        any(m.get("messageId") == "gap-1" for m in E.load_messages()))
+c.check("跨空洞的实时消息：游标原地不动（不跳洞）",
+        E._sync_state["last_seq"] == 100, E._sync_state["last_seq"])
+c.check("跨空洞的实时消息：记录空洞起点", E._gap_start == 101, E._gap_start)
+c.check("跨空洞的实时消息：触发强制补拉", sync_calls == [("gap", True)], sync_calls)
+
+sync_calls.clear()
+E.handle_message({"ts": 1700050001, "type": "new_order", "payload": {}, "messageId": "gap-2", "seq": 121},
+                 skip_notify=True)
+c.check("空洞未补齐前，后续实时消息也不推游标",
+        E._sync_state["last_seq"] == 100 and E._gap_start == 101,
+        (E._sync_state["last_seq"], E._gap_start))
+c.check("空洞存续期间重复请求走节流（force=False，不绕过 SYNC_MIN_INTERVAL）",
+        sync_calls == [("gap", False)], sync_calls)
+
+# 连续消息（无空洞）照常推进
+set_cursor(121, "gap-test")
+E._gap_start = 0
+E.handle_message({"ts": 1700050002, "type": "new_order", "payload": {}, "messageId": "gap-3", "seq": 122},
+                 skip_notify=True)
+c.check("连续消息照常推进游标", E._sync_state["last_seq"] == 122, E._sync_state["last_seq"])
+
+# 补拉路径（force）越过空洞起点 → 空洞闭合
+E._gap_start = 101
+E._advance_seq(150, force=True)
+c.check("补拉推进可越过空洞（force）", E._sync_state["last_seq"] == 150, E._sync_state["last_seq"])
+c.check("补拉越过空洞起点后自动闭合", E._gap_start == 0, E._gap_start)
+
+# head 对账（不依赖实时消息也能发现落后；连接假死 + 无消息时唯一的报警来源）
+E._api_get_status = lambda url, timeout=10: (200, {"success": True, "max_seq": 5000})
+set_cursor(100, "gap-test")
+sync_calls.clear()
+c.check("head 对账：算出落后条数", E._check_cursor_lag() == 4900, E._cursor_lag)
+c.check("head 对账：落后超阈值 → 强制补拉", ("lag", True) in sync_calls, sync_calls)
+set_cursor(4990, "gap-test")
+sync_calls.clear()
+c.check("head 对账：差值小于阈值不打扰",
+        E._check_cursor_lag() == 10 and sync_calls == [], sync_calls)
+
+# ══ 13. 补拉来源不做「seq <= 游标」判拒（防"防重复防到防修复"）══════
+set_cursor(200, "gap-test")
+c.check("补拉来源：游标之后的老 seq 仍可入库",
+        E._claim_message(150, "sync-mid-1", "sync-mid-1", source="sync") is True)
+c.check("补拉来源：同一条重复仍被去重",
+        E._claim_message(150, "sync-mid-1", "sync-mid-1", source="sync") is False)
+c.check("实时来源：seq <= 游标依旧判拒",
+        E._claim_message(150, "live-mid-1", "live-mid-1", source="live") is False)
+
+# ══ 14. 时间解析 / 北京时间（修「订单时间 58647 年」）══════════════
+c.check("_parse_ts_any 毫秒 → 秒", E._parse_ts_any(1790346360000) == 1790346360,
+        E._parse_ts_any(1790346360000))
+c.check("_parse_ts_any 秒原样返回", E._parse_ts_any(1790346360) == 1790346360)
+c.check("_parse_ts_any 字符串秒", E._parse_ts_any("1790346360") == 1790346360)
+c.check("_parse_ts_any ISO(UTC) → 北京 22:26",
+        E._fmt_bj(E._parse_ts_any("2026-09-25T14:26:00Z")) == "2026-09-25 22:26:00",
+        E._fmt_bj(E._parse_ts_any("2026-09-25T14:26:00Z")))
+c.check("_parse_ts_any 越界/垃圾值 → 0",
+        E._parse_ts_any(12345) == 0 and E._parse_ts_any("abc") == 0 and E._parse_ts_any(None) == 0)
+c.check("_fmt_bj 用 +8h 读 UTC 分量（与机器时区无关）",
+        E._fmt_bj(0) == "1970-01-01 08:00:00", E._fmt_bj(0))
+c.check("_bj_today_str 长度正确", len(E._bj_today_str()) == 10, E._bj_today_str())
+
+# 存储消息必须带 ts（排序唯一依据）+ 北京时间渲染
+reset_cache()
+E.store_message(1790346360, "new_order", {"out_trade_no": "t1"}, message_id="ts-1", seq=900)
+m_last = E.recent_messages(1)[0]
+c.check("store_message 落 ts 字段", m_last.get("ts") == 1790346360, m_last.get("ts"))
+c.check("store_message 用北京时间渲染 time",
+        m_last.get("time") == E._fmt_bj(1790346360), m_last.get("time"))
+E.store_message(1790346360000, "new_order", {"out_trade_no": "t2"}, message_id="ts-2", seq=901)
+c.check("store_message 收到毫秒也不会写成 58647 年",
+        E.recent_messages(1)[0].get("ts") == 1790346360
+        and E.recent_messages(1)[0].get("time", "").startswith("2026-"),
+        E.recent_messages(1)[0].get("time"))
+
+# ══ 15. 订单列表：最新第一 + 历史脏时间修复 ════════════════════════
+reset_cache()
+if os.path.exists(E.TIME_REPAIR_FLAG):
+    os.remove(E.TIME_REPAIR_FLAG)
+E.store_message(1790300000, "new_order", {"out_trade_no": "old", "total_amount": "10.00"},
+                message_id="o-old", seq=910)
+E.store_message(1790346360, "new_order", {"out_trade_no": "new", "total_amount": "20.00"},
+                message_id="o-new", seq=911)
+# 注入一条历史脏数据（毫秒当秒渲染出来的 5 位年份）
+E.load_messages().append({
+    "time": "58647-12-15 08:50:41", "type": "new_order",
+    "payload": {"out_trade_no": "dirty", "paid_at": 1788583423841, "total_amount": "30.00"},
+    "messageId": "o-dirty", "read": True,
+})
+orders = E._build_order_list()
+c.check("订单列表：最新订单在第一名",
+        orders and orders[0].get("trade_no") == "new", [o.get("trade_no") for o in orders])
+c.check("订单列表：严格按时间倒序",
+        all((orders[i].get("ts") or 0) >= (orders[i + 1].get("ts") or 0) for i in range(len(orders) - 1)),
+        [o.get("ts") for o in orders])
+
+fixed = E._repair_message_times()
+c.check("历史脏时间被修复（含 ts 补齐）", fixed >= 1, fixed)
+dirty = [m for m in E.load_messages() if m.get("messageId") == "o-dirty"][0]
+c.check("脏时间年份回到 2026（且用 payload.paid_at 权威值）",
+        dirty.get("time", "")[:4] == "2026" and dirty.get("ts") == 1788583423,
+        (dirty.get("time"), dirty.get("ts")))
+c.check("修复后所有订单都有 ts", all(m.get("ts") for m in E.load_messages()))
+c.check("修复程序幂等（标记文件存在则跳过）", E._repair_message_times() == 0)
+orders2 = E._build_order_list()
+c.check("修复后脏订单不再排在最前",
+        orders2[-1].get("trade_no") == "dirty", [o.get("trade_no") for o in orders2])
+c.check("修复后列表仍严格倒序",
+        all((orders2[i].get("ts") or 0) >= (orders2[i + 1].get("ts") or 0)
+            for i in range(len(orders2) - 1)), [o.get("ts") for o in orders2])
+c.check("_ts_from_time_str 可反解 5 位年份（strptime/timegm 会抛异常）",
+        E._ts_from_time_str("58647-12-15 08:50:41") > 10 ** 11,
+        E._ts_from_time_str("58647-12-15 08:50:41"))
 
 d3 = E.DashboardWindow(None)   # 窗口引用为 None（测试环境）时轮询不得抛异常
 d3._poll_window_closed()

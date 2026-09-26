@@ -71,6 +71,7 @@ LAUNCH_AGENT_LABEL = "com.evnotifier.agent"
 LAUNCH_AGENT_DIR = os.path.expanduser("~/Library/LaunchAgents")
 LAUNCH_AGENT_PATH = os.path.join(LAUNCH_AGENT_DIR, f"{LAUNCH_AGENT_LABEL}.plist")
 NOTIFY_SETTINGS_FILE = os.path.expanduser("~/.ev_notify_settings.json")
+TIME_REPAIR_FLAG = os.path.expanduser("~/.ev_time_repaired_v1")   # 历史脏时间一次性修复标记
 
 _MAX_SEEN = 1000
 
@@ -87,6 +88,9 @@ WATCHDOG_INTERVAL = 60                 # 看门狗探测间隔（秒）
 WATCHDOG_FAILS_TO_DROP = 2             # 连续探测失败几次后强制断开主连接
 SYNC_MIN_INTERVAL = 30                 # 补拉最小间隔（秒），防重连风暴
 SYNC_PERIODIC_INTERVAL = 300           # 稳态对账间隔（秒）
+GAP_WARN_THRESHOLD = 20                # head 对账：服务端 max_seq 领先本地游标超过这么多条就告警
+BJ_OFFSET = 8 * 3600                   # 北京时区偏移（秒）：+8h 后读 UTC 分量，与运行时时区无关
+                                       # （与服务端 lib/rate-limit.js beijingDateKey() 同思路）
 SYNC_PAGE_SIZE = 200                   # 单页条数
 SYNC_MAX_PAGES = 10                    # 单次同步最大页数（上限 2000 条）
 MSG_SAVE_INTERVAL = 2.0                # 消息落盘节流（秒）：消息全量保留后文件会很大，
@@ -124,6 +128,8 @@ _sync_last_attempt = 0.0
 _sync_dirty = False
 _sync_last_save = 0.0
 _last_sync_result = None      # 面板展示：{"reason","added","at","error"}
+_gap_start = 0                # 未补齐空洞的起点（= last_seq+1）；0 = 无空洞。见 _advance_seq
+_cursor_lag = 0               # head 对账：服务端 max_seq - 本地 last_seq（面板展示 + 告警）
 _pending_receipts = []        # 批量回执队列（delivered / read）
 _MSG_CACHE = None             # 消息内存缓存（唯一真源；磁盘只是快照，见 save_messages）
 _MSG_DIRTY = False            # 缓存已改、待落盘
@@ -547,13 +553,76 @@ def _rebuild_known_ids():
     _known_ids = s
 
 
+def _repair_message_times():
+    """一次性修复历史脏数据（幂等，标记文件 `~/.ev_time_repaired_v1`）：
+
+    1. `time` 年份 > 2100 的（**毫秒当秒**写出来的订单时间）→ 反算回真实时间；
+       `payload.paid_at` / `created_at`（毫秒、权威）存在时优先用它们；
+    2. 补齐缺失的 `ts`（数值秒），让排序/筛选不再依赖字符串比较。
+
+    为什么必须这么写：`time.strptime` / `calendar.timegm` 都拒绝 5 位年份
+    （实测 `ValueError: year 58647 is out of range`），只能用 `_ts_from_time_str`
+    （正则拆字段 + `time.mktime`）把烂时间原样反算回原始毫秒值，再 //1000。
+    """
+    if os.path.exists(TIME_REPAIR_FLAG):
+        return 0
+    fixed_bad = 0
+    fixed_ts = 0
+    try:
+        with _MSG_LOCK:
+            msgs = load_messages()
+            for m in msgs:
+                t = m.get("time", "") or ""
+                mt = re.match(r"(\d{4,})-", t)
+                year = int(mt.group(1)) if mt else 0
+                p = m.get("payload", {}) or {}
+                if year > 2100:
+                    # 优先 payload 里的毫秒字段（paid_at = 真实支付时间，权威）
+                    sec = _parse_ts_any(p.get("paid_at")) or _parse_ts_any(p.get("created_at"))
+                    if not sec:
+                        raw = _ts_from_time_str(t)
+                        sec = raw // 1000 if raw > 10 ** 11 else raw
+                    if sec:
+                        m["time"] = _fmt_bj(sec)
+                        m["ts"] = sec
+                        fixed_bad += 1
+                if not m.get("ts"):
+                    sec2 = _ts_from_time_str(m.get("time", ""))
+                    if sec2 > 10 ** 11:
+                        sec2 //= 1000
+                    if sec2:
+                        m["ts"] = sec2
+                        if not m.get("time"):
+                            m["time"] = _fmt_bj(sec2)
+                        fixed_ts += 1
+    except Exception as e:
+        _debug_log(f"_repair_message_times ERROR: {e}")
+        return 0
+    if fixed_bad or fixed_ts:
+        _mark_messages_dirty()
+        _flush_messages_sync()
+        try:
+            with open(TIME_REPAIR_FLAG, "w") as f:
+                f.write(str(int(time.time())))
+        except Exception as e:
+            _debug_log(f"_repair_message_times: write flag failed: {e}")
+        _debug_log(f"_repair_message_times: fixed_time={fixed_bad} filled_ts={fixed_ts}")
+    return fixed_bad + fixed_ts
+
+
 def store_message(ts, mtype, payload, message_id=None, is_read=False, seq=None):
     global _unread_cache
+    # ts 兼容「秒 / 毫秒 / ISO 字符串」：爱发电订单的 created_at 是毫秒，
+    # 旧代码直接 int() 当秒用 → time.localtime(1.79e12) → 年份 58647（见
+    # 遗留问题方案-睡眠丢消息与订单时间错乱.md §2）。
+    ts_val = _parse_ts_any(ts) or int(time.time())
     with _MSG_LOCK:
         msgs = load_messages()
-        lt = _safe_localtime(ts)
         entry = {
-            "time": time.strftime("%Y-%m-%d %H:%M:%S", lt) if lt else "",
+            # time：北京时间渲染（与机器时区无关）；ts：数值时间戳（秒）——
+            # 排序/筛选的唯一可靠依据（历史数据没有 ts，由 _repair_message_times 补）
+            "time": _fmt_bj(ts_val),
+            "ts": ts_val,
             "type": mtype,
             "payload": payload,
             "messageId": message_id or "",
@@ -892,10 +961,17 @@ def _get_client_id():
 def _advance_seq(seq, force=False):
     """推进水位线（只增不减）。
 
-    ⚠️ 补拉进行中 / 补拉排队中，**不允许**实时消息推进游标 —— 否则离线期间的空洞会被
-       一条新消息的 seq 直接跳过，导致补拉漏掉整个离线区间。
+    两条铁律（第二条是 2026-09-26 补的，睡眠丢消息的根因，见
+    `遗留问题方案-睡眠丢消息与订单时间错乱.md`）：
+
+    1. 补拉进行中 / 补拉排队中，**不允许**实时消息推进游标；
+    2. **游标只能连续推进**：`seq > last_seq + 1` 说明中间有空洞，此时**绝不推进**，
+       记录空洞起点并立刻强制补拉。旧行为是"只要补拉不在飞就直接 last_seq = seq"，
+       于是睡眠唤醒后第一条实时消息（seq 349）会把一整夜的空洞（331..348）一次跳过；
+       而补拉只按 `after=last_seq` 取数 + `_claim_message` 对 `seq <= last_seq` 判拒，
+       跳过去就**永远补不回来**（实测丢过 18 条，含 2 笔订单）。
     """
-    global _sync_dirty
+    global _sync_dirty, _gap_start
     try:
         seq = int(seq or 0)
     except Exception:
@@ -904,21 +980,39 @@ def _advance_seq(seq, force=False):
         return
     if not force and (_sync_inflight or _sync_pending):
         return
+    cur = int(_sync_state.get("last_seq") or 0)
+    if not force and seq > cur + 1:
+        new_gap = not _gap_start
+        if new_gap:
+            _gap_start = cur + 1
+        _debug_log(f"gap detected: last_seq={cur} live_seq={seq} gap_start={_gap_start}"
+                   + (" (first) -> force sync" if new_gap else " (pending) -> throttled sync"))
+        # 首次发现空洞立刻强制补拉；空洞存续期间的重复请求走节流（force=False 会受
+        # SYNC_MIN_INTERVAL 限制）——否则高流量下每条实时消息都会拉起一个同步线程。
+        _request_sync("gap", force=new_gap)
+        return
     with _MSG_LOCK:
         if seq > int(_sync_state.get("last_seq") or 0):
             _sync_state["last_seq"] = seq
             _sync_dirty = True
+    if force and _gap_start and seq >= _gap_start:
+        _gap_start = 0        # 补拉已越过空洞起点（补拉是连续的），空洞闭合
     _save_sync_state()
 
 
-def _claim_message(seq, mid, msg_id):
-    """I3 幂等入口：实时 PUB/SUB / 补拉 / 重发都必须先过这里。True = 新增，可继续处理。"""
+def _claim_message(seq, mid, msg_id, source="live"):
+    """I3 幂等入口：实时 PUB/SUB / 补拉 / 重发都必须先过这里。True = 新增，可继续处理。
+
+    ⚠️ `source="sync"` 时**不做「seq <= last_seq 判拒」**：游标一旦被跳过头（历史 bug /
+    手工回退不当），那道判拒会把本该补回的消息当重复丢弃 —— 防重复不能防到"防修复"。
+    去重仍然由 messageId / seq 已知集合（`_known_ids` / `_seen_ids`）保证。
+    """
     try:
         seq = int(seq or 0)
     except Exception:
         seq = 0
     with _MSG_LOCK:
-        if seq and seq <= int(_sync_state.get("last_seq") or 0):
+        if source != "sync" and seq and seq <= int(_sync_state.get("last_seq") or 0):
             return False
         if _seen_ids.get(mid):
             return False
@@ -1030,7 +1124,7 @@ def _notify_recovery_summary(count):
 
 def sync_since(reason=""):
     """按游标补拉离线消息（SOP 见设计文档 §4.3）。返回补回条数。"""
-    global _last_sync_result, _sync_dirty
+    global _last_sync_result, _sync_dirty, _gap_start
     cid = _get_client_id()
     after = int(_sync_state.get("last_seq") or 0)
     base = f"{CALLBACK_BASE_URL}/api/admin/health?section=delivery-sync"
@@ -1059,6 +1153,7 @@ def sync_since(reason=""):
     pages = 0
     cursor = after
     err = ""
+    caught_up = False
     while pages < SYNC_MAX_PAGES:
         url = base + "&client_id=" + qcid + "&after=" + str(cursor) + "&limit=" + str(SYNC_PAGE_SIZE)
         code, data = _api_get_status(url, timeout=15)
@@ -1082,9 +1177,13 @@ def sync_since(reason=""):
             _save_sync_state(force=True)
             cursor = nxt
         if not rows or not data.get("has_more"):
+            caught_up = True
             break
         pages += 1
 
+    if caught_up and not err:
+        # 已经连续跟到服务端末尾 → 空洞闭合（这是"补齐"的唯一判据）
+        _gap_start = 0
     _sync_state["last_sync_at"] = int(time.time())
     _sync_dirty = True
     _save_sync_state(force=True)
@@ -1133,11 +1232,43 @@ def _run_sync(reason=""):
         _sync_inflight = False
 
 
+def _check_cursor_lag():
+    """head 对账：服务端 max_seq 领先本地游标多少条（只读，不消费消息）。
+
+    为什么需要：空洞只有「实时消息到达」或「补拉跑起来」时才会被发现。若连接假死 +
+    长时间没有实时消息，空洞会一直沉默（睡眠场景正是如此），等发现时已经晚了一个时序。
+    这里主动对账，差值写日志 + 面板；超过阈值直接强制补拉（不依赖任何实时消息）。
+    """
+    global _cursor_lag
+    try:
+        cid = _get_client_id()
+        url = (f"{CALLBACK_BASE_URL}/api/admin/health?section=delivery-sync"
+               f"&action=head&client_id={urllib.parse.quote(cid)}")
+        code, head = _api_get_status(url, timeout=10)
+        if code == 401:
+            _on_auth_failed("delivery-sync head 401")
+            return _cursor_lag
+        if not head or not head.get("success"):
+            return _cursor_lag
+        mx = int(head.get("max_seq") or 0)
+        cur = int(_sync_state.get("last_seq") or 0)
+        _cursor_lag = max(0, mx - cur)
+        if _cursor_lag > GAP_WARN_THRESHOLD:
+            _debug_log(f"cursor lag: server={mx} local={cur} diff={_cursor_lag} "
+                       f"gap_start={_gap_start} -> force sync")
+            _request_sync("lag", force=True)
+        return _cursor_lag
+    except Exception as e:
+        _debug_log(f"_check_cursor_lag ERROR: {e}")
+        return _cursor_lag
+
+
 def _periodic_sync_loop():
-    """稳态对账：每 5 分钟增量补一次，不依赖重连事件。"""
+    """稳态对账：每 5 分钟增量补一次，不依赖重连事件；先做一次 head 对账防"沉默空洞"。"""
     while True:
         try:
             time.sleep(SYNC_PERIODIC_INTERVAL)
+            _check_cursor_lag()
             _request_sync("periodic")
             _flush_receipts()
         except Exception as e:
@@ -1217,30 +1348,31 @@ def save_poll_log(data):
 
 def clean_old_logs():
     data = load_poll_log()
-    cutoff = datetime.now().strftime("%Y-%m-%d")
+    cutoff = _bj_today_str()
     keys = sorted(data.keys())
     for k in keys:
         if k < cutoff:
-            if (datetime.now() - datetime.strptime(k, "%Y-%m-%d")).days > 30:
+            if (datetime.strptime(_bj_today_str(), "%Y-%m-%d")
+                    - datetime.strptime(k, "%Y-%m-%d")).days > 30:
                 del data[k]
     save_poll_log(data)
 
 
 def record_poll(reason, recovered):
     global _recovery_count_today
-    date_str = datetime.now().strftime("%Y-%m-%d")
+    date_str = _bj_today_str()
     data = load_poll_log()
     if date_str not in data:
         data[date_str] = {"last_poll_hour": -1, "total_polls_today": 0, "polls": []}
     entry = {
-        "time": datetime.now().strftime("%H:%M:%S"),
+        "time": _bj_now_str("%H:%M:%S"),
         "type": "manual",
         "reason": reason,
         "recovered": recovered
     }
     data[date_str]["polls"].append(entry)
     data[date_str]["total_polls_today"] = len(data[date_str]["polls"])
-    data[date_str]["last_poll_hour"] = datetime.now().hour
+    data[date_str]["last_poll_hour"] = int(_fmt_bj(time.time(), "%H"))
     save_poll_log(data)
     _recovery_count_today = data[date_str]["total_polls_today"]
     clean_old_logs()
@@ -1249,7 +1381,7 @@ def record_poll(reason, recovered):
 def record_message(msg_id, idx=None, total_daily=None, date_str=None):
     global _missing_count
     if date_str is None:
-        date_str = datetime.now().strftime("%Y-%m-%d")
+        date_str = _bj_today_str()       # 与「服务器总量」的服务端口径（beijingDateKey）对齐
     data = load_received()
     if date_str not in data:
         data[date_str] = {"total_server": 0, "received_idx": [], "last_check": ""}
@@ -1258,7 +1390,7 @@ def record_message(msg_id, idx=None, total_daily=None, date_str=None):
         data[date_str]["received_idx"].sort()
     if total_daily is not None:
         data[date_str]["total_server"] = max(data[date_str]["total_server"], total_daily)
-    data[date_str]["last_check"] = datetime.now().strftime("%H:%M:%S")
+    data[date_str]["last_check"] = _bj_now_str("%H:%M:%S")
     save_received(data)
     local_cnt = len(data[date_str]["received_idx"])
     server_cnt = data[date_str]["total_server"]
@@ -1321,6 +1453,76 @@ def _safe_localtime(ts):
         return time.localtime(int(ts))
     except Exception:
         return None
+
+
+# ── 北京时间 / 时间戳解析（2026-09-26，修「订单时间混乱」）────────────────────────
+# 口径：消息与订单的显示时间一律按**北京时间**（UTC+8）渲染，与运行机器时区无关 ——
+# 实现即「+8h 后读 UTC 分量」，与服务端 lib/rate-limit.js beijingDateKey() 同思路。
+# ⚠️ 不要用 time.localtime()（那是机器本地时区，换时区/出国就整体偏移）。
+
+def _fmt_bj(ts, fmt="%Y-%m-%d %H:%M:%S"):
+    """把秒级时间戳按北京时间格式化；失败返回空串。"""
+    try:
+        return time.strftime(fmt, time.gmtime(int(float(ts)) + BJ_OFFSET))
+    except Exception:
+        return ""
+
+
+def _bj_now_str(fmt="%Y-%m-%d %H:%M:%S"):
+    return _fmt_bj(time.time(), fmt)
+
+
+def _bj_today_str():
+    """北京时间的今天（YYYY-MM-DD）——「今日消息/今日订单」等按北京 00:00 切分。"""
+    return _fmt_bj(time.time(), "%Y-%m-%d")
+
+
+def _parse_ts_any(v):
+    """秒 / 毫秒 / ISO 字符串 → 秒级时间戳；不可识别或越界返回 0。
+
+    ⚠️ 这是「订单时间变成 58647 年」的正面对策：爱发电订单的 `created_at` 是
+    `Date.now()`（**毫秒**），旧代码直接 int() 当秒用 → `time.localtime(1.79e12)`
+    → 年份 58647。这里统一按「> 10^11 视为毫秒」处理，并用合理区间兜底
+    （2000-01-01 ~ 2100-01-01），避免脏值再次污染时间轴。
+    """
+    if v is None or v == "":
+        return 0
+    try:
+        if isinstance(v, str):
+            s = v.strip()
+            if not s:
+                return 0
+            if re.match(r"^\d+(\.\d+)?$", s):
+                n = int(float(s))
+            else:
+                dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+                n = int(dt.timestamp())
+        else:
+            n = int(float(v))
+    except Exception:
+        return 0
+    if n > 10 ** 11:          # 毫秒
+        n //= 1000
+    return n if 946684800 <= n <= 4102444800 else 0
+
+
+def _ts_from_time_str(t):
+    """把存储的 `time` 字符串反解成秒级时间戳（兼容被写成 5 位年份的历史脏数据）。
+
+    ⚠️ 不能用 `time.strptime` / `calendar.timegm`：5 位年份直接抛
+    `ValueError: year 58647 is out of range`（实测）。必须正则拆字段 + `time.mktime`。
+    mktime 把字段按**本地时间**解释，而脏数据正是 `time.localtime(ms)` 渲染出来的，
+    所以能原样还原（脏数据还原出来的是「毫秒值」，调用方再 //1000）。
+    """
+    m = re.match(r"(\d{4,})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})", str(t or ""))
+    if not m:
+        return 0
+    parts = [int(x) for x in m.groups()]
+    y, mo, d, hh, mi, ss = parts
+    try:
+        return int(time.mktime((y, mo, d, hh, mi, ss, 0, 0, -1)))
+    except Exception:
+        return 0
 
 
 def _run_and_ignore_timeout(cmd, timeout=5):
@@ -1621,7 +1823,7 @@ def handle_message(msg, skip_notify=False, source="live"):
     msg_id = msg.get("messageId", "")
     seq = msg.get("seq") or None
     mid = msg_id if msg_id else (("s:" + str(seq)) if seq else f"{ts}_{mtype}")
-    if not _claim_message(seq, mid, msg_id):
+    if not _claim_message(seq, mid, msg_id, source=source):
         return
     _last_msg_ts = ts
     if not skip_notify:
@@ -1770,7 +1972,9 @@ def handle_message(msg, skip_notify=False, source="live"):
 
     # Store message to local file for the message panel
     store_message(ts, mtype, p, message_id=msg_id, is_read=False, seq=seq)
-    _advance_seq(seq)
+    # 补拉来源走 force：它是连续取数，逐行推进游标是安全的；实时来源走严格模式
+    # （跨空洞不推进，见 _advance_seq 铁律 2）。
+    _advance_seq(seq, force=(source == "sync"))
 
     if not skip_notify:
         nsettings = load_notify_settings()
@@ -1859,6 +2063,25 @@ def _recalc_missing():
     return total
 
 
+def _disconnect_pubsub(reason=""):
+    """主动断开 PUB/SUB 连接 → `listen()` 抛错 → redis_loop 重连 → 强制补拉。
+
+    睡眠场景为什么必须这么做（2026-09-26 实测）：机器睡眠时进程被冻结，而连接往往
+    "假存活"（两端都不发 FIN/RST），唤醒后既收不到数据也不报错 → 不重连 →
+    「重连时强制补拉」这条兜底永远不触发。睡前主动断开，把"随机时序"变成"确定性"。
+    """
+    r = _conn_ref.get("r")
+    if r is None:
+        return False
+    try:
+        r.connection_pool.disconnect()
+        _debug_log(f"pubsub disconnected ({reason})")
+        return True
+    except Exception as e:
+        _debug_log(f"disconnect pubsub failed ({reason}): {e}")
+        return False
+
+
 def redis_loop():
     global _status, _new_msg_count
     reconnect_delay = 1
@@ -1868,6 +2091,7 @@ def redis_loop():
 
     # 启动一次：已入库 id 集合（去重用）+ 稳定 client_id + 两个后台线程
     _rebuild_known_ids()
+    _repair_message_times()      # 一次性修历史脏数据（毫秒当秒的订单时间 + 缺失的 ts）
     _get_client_id()
     # 凭据：优先钥匙串里的设备令牌；没有则回退 .env 的共享密钥（过渡期）
     global _auth_state
@@ -2082,9 +2306,13 @@ def _build_order_list():
         status = "success" if is_success else "failed"
         # Cross-reference: check if this order's redeem_code was used in an activation
         is_activated = redeem in activated_redeems if has_redeem else False
+        # 时间戳：优先消息自带的 ts；老数据没有 ts → 从 time 字符串反解（兼容 5 位年份脏数据）
+        ts = int(m.get("ts") or 0) or _ts_from_time_str(m.get("time", ""))
+        if ts > 10 ** 11:            # 脏数据（毫秒当秒）反解出来的是毫秒值
+            ts //= 1000
         orders.append({
-            "time": m.get("time", ""),
-            "ts": m.get("ts", 0),
+            "time": _fmt_bj(ts) if ts else m.get("time", ""),
+            "ts": ts,
             "product": product,
             "amount": amount,
             "redeem": redeem,
@@ -2094,12 +2322,16 @@ def _build_order_list():
             "user_name": user_name,
             "activated": is_activated,
         })
+    # 需求：**最新的订单放第一名**。存储顺序 ≠ 时间顺序（sync 进来的历史订单是倒序追加的），
+    # 所以这里必须显式按时间倒序排；ts 缺失的（老数据且 time 无法解析）排到最后。
+    orders.sort(key=lambda o: (o.get("ts") or 0, o.get("time") or ""), reverse=True)
     return orders
 
 
 def _build_trend_data(days=30):
     msgs = load_messages()
-    today = datetime.now().date()
+    # 北京时间今天（与消息 time 的口径一致；用机器本地时区会在换时区后整体错位）
+    today = datetime.strptime(_bj_today_str(), "%Y-%m-%d").date()
     daily = {}
     for i in range(days):
         d = today - timedelta(days=days - 1 - i)
@@ -2148,7 +2380,7 @@ def _build_hourly_data():
 
 def _build_weekly_data():
     msgs = load_messages()
-    today = datetime.now().date()
+    today = datetime.strptime(_bj_today_str(), "%Y-%m-%d").date()
     monday = today - timedelta(days=today.weekday())
     sunday = monday + timedelta(days=6)
     weekday_labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -2176,7 +2408,7 @@ def _build_weekly_data():
 
 def _build_activation_trend_data(days=30):
     msgs = load_messages()
-    today = datetime.now().date()
+    today = datetime.strptime(_bj_today_str(), "%Y-%m-%d").date()
     daily = {}
     for i in range(days):
         d = today - timedelta(days=days - 1 - i)
@@ -2212,7 +2444,7 @@ def _build_activation_trend_data(days=30):
 
 def _build_visitor_stats():
     visitors = load_visitors()
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = _bj_today_str()
     today_count = sum(1 for v in visitors if v.get("time", "").startswith(today))
 
     hostname_counts = {}
@@ -3225,6 +3457,37 @@ class WindowDelegate(NSObject):
             _debug_log(f"WindowDelegate.windowWillClose_ ERROR: {e}")
 
 
+class SleepWakeObserver(NSObject):
+    """系统睡眠 / 唤醒通知 —— 「睡眠后消息丢失」的正面修复入口。
+
+    为什么需要（2026-09-26 实测）：睡眠时进程冻结，PUB/SUB 连接常"假存活"，
+    唤醒后第一条实时消息会把整夜的空洞一次跳过（旧游标规则下永久丢 18 条）。
+    现在两件事一起做：① 睡前主动断开连接 ② 唤醒立即强制补拉（不等实时消息、不等定时器）。
+
+    ⚠️ 必须是 NSObject 子类（纯 Python 对象注册的 selector 在本项目实测从不回调），
+    且必须被强引用住（`EvNotifier._sleep_obs`）。
+    """
+
+    def init(self):
+        self._app = None
+        return self
+
+    def workspaceWillSleep_(self, notification):
+        try:
+            _debug_log("system will sleep: disconnect pubsub (so wake forces a reconnect)")
+            _disconnect_pubsub("will-sleep")
+        except Exception as e:
+            _debug_log(f"workspaceWillSleep_ ERROR: {e}")
+
+    def workspaceDidWake_(self, notification):
+        try:
+            _debug_log("system did wake: force reconnect + sync")
+            _disconnect_pubsub("did-wake")     # 兜底：万一睡前没断，这里再断一次
+            _request_sync("wake", force=True)  # 不依赖实时消息，唤醒即补
+        except Exception as e:
+            _debug_log(f"workspaceDidWake_ ERROR: {e}")
+
+
 class WebNavDelegate(NSObject):
     def init(self):
         self._dashboard = None
@@ -3804,7 +4067,7 @@ function filterVisitors(filter) {
         total_count = len(msgs)
 
         received_data = load_received()
-        today_str = datetime.now().strftime("%Y-%m-%d")
+        today_str = _bj_today_str()          # 与 record_message 的写入键一致（北京日期）
         today_data = received_data.get(today_str, {})
         total_server = today_data.get("total_server", 0)
         local_cnt = len(today_data.get("received_idx", []))
@@ -3897,6 +4160,8 @@ function filterVisitors(filter) {
             '<div style="font-size:11px;color:var(--text-tertiary,#8b95a5);padding:6px 2px 0;">'
             + _safe_str(count_hint) + " · " + _safe_str(txt)
             + " · 游标 " + str(_sync_state.get("last_seq", 0))
+            + (" · <b style='color:#b45309'>空洞起点 " + str(_gap_start) + "</b>" if _gap_start else "")
+            + (" · 落后服务端 " + str(_cursor_lag) + " 条" if _cursor_lag else "")
             + " · 客户端 " + _safe_str(_sync_state.get("client_id", ""))
             + '</div>'
         )
@@ -3921,7 +4186,7 @@ function filterVisitors(filter) {
         orders = _build_order_list()
         total_amount = sum(o.get("amount", 0) for o in orders)
         total_count = len(orders)
-        today_str = datetime.now().strftime("%Y-%m-%d")
+        today_str = _bj_today_str()          # 北京时间今天（与消息 time 口径一致）
         today_orders = [o for o in orders if o.get("time", "").startswith(today_str)]
         today_amount = sum(o.get("amount", 0) for o in today_orders)
         success_count = sum(1 for o in orders if o.get("status") == "success")
@@ -3984,18 +4249,19 @@ function filterVisitors(filter) {
         </div>
         <script>
         function getDateStrings() {
-          var now = new Date();
-          var todayStr = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
-          var yesterday = new Date(now);
-          yesterday.setDate(now.getDate()-1);
-          var yestStr = yesterday.getFullYear()+'-'+String(yesterday.getMonth()+1).padStart(2,'0')+'-'+String(yesterday.getDate()).padStart(2,'0');
-          var dayOfWeek = now.getDay();
+          // 一律按**北京时间**（UTC+8）算：+8h 后读 UTC 分量，与浏览器/系统时区无关
+          // （服务端 beijingDateKey() 同思路）。否则换时区后 "Today" 会整体错位。
+          var now = new Date(Date.now() + 8*3600*1000);
+          function ymd(d) {
+            return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');
+          }
+          var todayStr = ymd(now);
+          var yesterday = new Date(now.getTime() - 86400000);
+          var dayOfWeek = now.getUTCDay();
           var diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-          var weekStart = new Date(now);
-          weekStart.setDate(now.getDate()-diffToMonday);
-          var weekStr = weekStart.getFullYear()+'-'+String(weekStart.getMonth()+1).padStart(2,'0')+'-'+String(weekStart.getDate()).padStart(2,'0');
-          var monthStr = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
-          return {today: todayStr, yesterday: yestStr, week: weekStr, month: monthStr};
+          var weekStart = new Date(now.getTime() - diffToMonday*86400000);
+          var monthStr = todayStr.slice(0, 7);
+          return {today: todayStr, yesterday: ymd(yesterday), week: ymd(weekStart), month: monthStr};
         }
         function onTimePresetChange() {
           var timeVal = document.getElementById('filterTime').value;
@@ -4093,9 +4359,11 @@ function filterVisitors(filter) {
 
         rows = ""
         idx = 0
+        # orders 已按时间倒序（最新在前）→ 这里取到的是**最新** 200 条（旧代码取的是最老的 200 条）
         for o in orders[:200]:
-            t = o.get("time", "")[-16:] if len(o.get("time", "")) >= 16 else o.get("time", "")
-            date_str = o.get("time", "")[:10] if len(o.get("time", "")) >= 10 else ""
+            # 完整显示时间，不再用 [-16:] 把 "2026-09-25 22:26:10" 截成 "6-09-25 22:26:10"
+            t = o.get("time", "") or "-"
+            date_str = t[:10]
             amt = o.get('amount', 0)
             amt_display = f"CNY{amt:.2f}"
             product_safe = _safe_str(o.get("product", "-"))
@@ -4167,11 +4435,10 @@ function filterVisitors(filter) {
         total_count = len(acts)
         success_count = sum(1 for a in acts if a.get("type") == "new_activation")
         fail_count = sum(1 for a in acts if a.get("type") == "activation_failure")
-        today_str = datetime.now().strftime("%Y-%m-%d")
+        today_str = _bj_today_str()          # 北京时间今天（与消息时间口径一致）
         today_acts = []
         for a in acts:
-            lt = _safe_localtime(a.get("ts"))
-            if lt and time.strftime("%Y-%m-%d", lt) == today_str:
+            if _fmt_bj(a.get("ts") or 0, "%Y-%m-%d") == today_str:
                 today_acts.append(a)
 
         stats_html = f"""
@@ -4734,7 +5001,7 @@ document.addEventListener('DOMContentLoaded',function(){{
         stats = _build_visitor_stats()
 
         afdian_visitors = [v for v in visitors if (v.get("path", "") or "").startswith("/go/")]
-        afdian_today = sum(1 for v in afdian_visitors if v.get("time", "").startswith(datetime.now().strftime("%Y-%m-%d")))
+        afdian_today = sum(1 for v in afdian_visitors if v.get("time", "").startswith(_bj_today_str()))
         afdian_ips = len(set(v.get("ip", "") for v in afdian_visitors if v.get("ip")))
 
         stats_html = f"""
@@ -4981,7 +5248,7 @@ document.addEventListener('DOMContentLoaded',function(){{
     def _html_polls(self):
         global _last_poll_detail
         data = load_poll_log()
-        today_str = datetime.now().strftime("%Y-%m-%d")
+        today_str = _bj_today_str()          # 与 record_poll 的写入键一致（北京日期）
         today_data = data.get(today_str, {})
         today_all = today_data.get("polls", [])
         today_polls = [p for p in today_all if p.get("type") == "manual"]
@@ -4990,7 +5257,7 @@ document.addEventListener('DOMContentLoaded',function(){{
 
         month_total = 0
         for date_str in sorted(data.keys()):
-            if date_str.startswith(datetime.now().strftime("%Y-%m")[:7]):
+            if date_str.startswith(_bj_today_str()[:7]):
                 month_total += sum(1 for p in data[date_str].get("polls", []) if p.get("type") == "manual")
 
         poll_button = '<a href="ev://poll=now" class="btn btn-primary">立即轮询 Stream</a>'
@@ -5293,7 +5560,12 @@ document.addEventListener('DOMContentLoaded',function(){{
                 trade_no = order.get("out_trade_no", "")
                 if trade_no in existing_trade_nos:
                     continue
-                ts = int(order.get("created_at", 0)) if order.get("created_at") else int(time.time())
+                # ⚠️ 时间字段：`paid_at`（真实支付时间）> `created_at`（系统处理时间）。
+                # 两者都是**毫秒**（`Date.now()`）—— 旧代码直接 int() 当秒用，
+                # 于是订单时间变成了 58647 年（见 遗留问题方案-睡眠丢消息与订单时间错乱.md §2）。
+                # _parse_ts_any 统一处理 毫秒/秒/ISO 并做越界兜底。
+                paid_at_raw = order.get("paid_at") or order.get("create_time") or 0
+                ts = _parse_ts_any(paid_at_raw) or _parse_ts_any(order.get("created_at")) or int(time.time())
                 amt_raw = order.get("total_amount", "0")
                 try:
                     amt_str = f"{float(amt_raw):.2f}"
@@ -5306,6 +5578,8 @@ document.addEventListener('DOMContentLoaded',function(){{
                     "plan_id": order.get("plan_id", ""),
                     "month": order.get("month", 1),
                     "total_amount": amt_str,
+                    "paid_at": order.get("paid_at") or "",      # 毫秒（真实支付时间）；供展示/修复用
+                    "created_at": order.get("created_at") or "",  # 毫秒（系统处理时间）
                     "activation_code": order.get("activation_code", ""),
                     "redeem_code": order.get("redeem_code", ""),
                 }
@@ -5313,7 +5587,7 @@ document.addEventListener('DOMContentLoaded',function(){{
                 existing_trade_nos.add(trade_no)
                 new_count += 1
             _last_sync_result = {
-                "time": datetime.now().strftime("%H:%M:%S"),
+                "time": _bj_now_str("%H:%M:%S"),
                 "total": len(remote_orders),
                 "new": new_count,
             }
@@ -5333,7 +5607,7 @@ document.addEventListener('DOMContentLoaded',function(){{
         global _last_poll_detail
         _debug_log("_poll_now: starting manual poll from polls page")
         last_id = load_last_id()
-        poll_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        poll_time = _bj_now_str()
         detail = {
             "time": poll_time,
             "last_id_before": last_id,
@@ -5781,9 +6055,31 @@ class EvNotifier(rumps.App):
             b(self)
 
         self._nsapp.initializeStatusBar()
+        self._install_sleep_wake_observer()
         _rm.AppHelper.installMachInterrupt()
         nsdict['events'].before_start.emit()
         _rm.AppHelper.runEventLoop()
+
+    def _install_sleep_wake_observer(self):
+        """注册系统睡眠/唤醒观察者。
+
+        注意与窗口 delegate 一样的两条纪律：必须是 NSObject 子类（纯 Python 对象注册的
+        selector 实测从不回调），并且必须强引用住（否则被 GC 掉 → 回调静默消失）。
+        """
+        try:
+            from AppKit import (NSWorkspace, NSWorkspaceWillSleepNotification,
+                                NSWorkspaceDidWakeNotification)
+            nc = NSWorkspace.sharedWorkspace().notificationCenter()
+            self._sleep_obs = SleepWakeObserver.alloc().init()
+            nc.addObserver_selector_name_object_(
+                self._sleep_obs, "workspaceWillSleep:", NSWorkspaceWillSleepNotification, None)
+            nc.addObserver_selector_name_object_(
+                self._sleep_obs, "workspaceDidWake:", NSWorkspaceDidWakeNotification, None)
+            _debug_log("sleep/wake observer installed")
+        except Exception as e:
+            # 注册失败不影响主流程：兜底还有「游标不跨空洞 + 5 分钟定时对账」
+            self._sleep_obs = None
+            _debug_log(f"sleep/wake observer unavailable: {e}")
 
     def login_device(self, _):
         """设备授权登录。
@@ -5887,6 +6183,49 @@ class EvNotifier(rumps.App):
         rumps.alert(f"调试日志 (最近{min(30, len(lines_raw))}条)", text[:800])
 
 
+def _rewind_cursor_cli(raw):
+    """`--rewind-cursor=N`：把水位线回退到 N，下次启动/重连从 N+1 开始补拉。
+
+    用途：修复「游标被实时消息跳过」造成的历史空洞
+    （见 tools/ev-notifier/遗留问题方案-睡眠丢消息与订单时间错乱.md §1.5）。
+
+    ⚠️ 必须在 EvNotifier **停止**时执行：运行中的实例退出时会用内存态覆写 state 文件，
+    把这次回退冲掉（历史上就是这么丢的，别再来一次）。
+    """
+    try:
+        target = int(raw)
+    except Exception:
+        print("--rewind-cursor 需要整数，例如：--rewind-cursor=330")
+        return False
+    if target < 0:
+        print("目标不能为负数")
+        return False
+    if os.path.exists(PID_FILE):
+        try:
+            with open(PID_FILE) as f:
+                old = f.read().strip()
+        except Exception:
+            old = ""
+        if old:
+            try:
+                os.kill(int(old), 0)
+                print(f"EvNotifier 正在运行（PID {old}）。请先停止："
+                      f"launchctl bootout gui/$(id -u)/com.evnotifier.agent")
+                return False
+            except (OSError, ValueError):
+                pass
+    _ensure_sync_state_loaded()
+    cur = int(_sync_state.get("last_seq") or 0)
+    if target >= cur:
+        print(f"目标 {target} 不小于当前游标 {cur}，无需回退")
+        return False
+    _sync_state["last_seq"] = target
+    _save_sync_state(force=True)
+    print(f"游标已回退：{cur} -> {target}（北京时间 {_bj_now_str()}），"
+          f"下次启动/重连会从 {target + 1} 开始补拉")
+    return True
+
+
 def main():
     global _app_ref
     app = EvNotifier()
@@ -5927,6 +6266,10 @@ def _release_pid_lock():
 
 
 if __name__ == "__main__":
+    # 维护入口（不启动 App）：回退水位线以补回被跳过的空洞消息
+    if len(sys.argv) > 1 and sys.argv[1].startswith("--rewind-cursor="):
+        load_env()
+        sys.exit(0 if _rewind_cursor_cli(sys.argv[1].split("=", 1)[1]) else 1)
     if not _acquire_pid_lock():
         sys.exit(0)
     atexit.register(_release_pid_lock)
