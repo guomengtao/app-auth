@@ -49,6 +49,21 @@ check('脚本总体量合理（防误抓到压缩/截断内容）', totalChars >
 check('初始化用 safeInit 包裹（单个失败不阻断 switchTab）', /safeInit\(/.test(src));
 check('初始化的 switchTab 在 safeInit 内', /safeInit\('tab'/.test(src));
 
+// ── 「已授权设备」面板：四件套必须齐全，少一个就是"点了没反应" ──────────
+check('设备面板：菜单项存在', /data-tab="devices"/.test(src));
+check('设备面板：panel 容器存在', /id="panel-devices"/.test(src));
+check('设备面板：TAB_META 已注册', /devices: \{ title:/.test(src));
+check('设备面板：switchTab 会触发加载', /if \(tab === 'devices'\) loadDevices\(\);/.test(src));
+check('设备面板：loadDevices 已定义', /function loadDevices\(/.test(src));
+check('设备面板：撤销函数已定义',
+  /function revokeDevice\(/.test(src) && /function revokeAllDevices\(/.test(src));
+check('设备面板：调用了正确的接口',
+  /\/api\/ev\?action=devices/.test(src) && /\/api\/ev\?action=device-revoke/.test(src));
+check('设备面板：表格有 tbody 挂载点', /id="devicesTable"/.test(src));
+check('设备面板：使用 escapeHtml 防注入', /escapeHtml\(d\.label/.test(src));
+check('设备面板：未用不存在的 CSS 变量',
+  !/panel-devices[\s\S]{0,4000}var\(--card\)/.test(src), '发现 var(--card)，该变量不存在');
+
 console.log('\n共检查 ' + checked + ' 个内联脚本，' + totalChars + ' 字符');
 console.log('PASS: ' + pass + '  FAILED: ' + fails.length);
 process.exit(fails.length ? 1 : 0);

@@ -3393,6 +3393,7 @@
         <li><a href="javascript:void(0)" onclick="switchTab('visitors')" data-tab="visitors"><i data-lucide="users" class="menu-icon"></i><span class="menu-text">访客统计</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('logs')" data-tab="logs"><i data-lucide="scroll-text" class="menu-icon"></i><span class="menu-text">日志</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('delivery')" data-tab="delivery"><i data-lucide="send" class="menu-icon"></i><span class="menu-text">消息投递</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('devices')" data-tab="devices"><i data-lucide="shield-check" class="menu-icon"></i><span class="menu-text">已授权设备</span></a></li>
         <li class="menu-separator"><hr></li>
         <li><a href="javascript:void(0)" onclick="switchTab('settings')" data-tab="settings"><i data-lucide="settings" class="menu-icon"></i><span class="menu-text">设置</span></a></li>
       </ul>
@@ -4758,6 +4759,46 @@
             <button class="btn btn-sm" onclick="deliveryPage++;loadDeliveryMessages()">下一页 ›</button>
           </div>
         </div>
+
+        <div class="panel" id="panel-devices">
+          <div class="toolbar">
+            <div>
+              <h2 style="margin:0;display:flex;align-items:center;gap:8px">🔐 已授权设备</h2>
+              <span class="muted" style="font-size:0.8125rem">桌面客户端（EvNotifier）通过「授权登录」换取的长期令牌；可在这里查看与撤销</span>
+            </div>
+            <span class="spacer"></span>
+            <div style="display:flex;align-items:center;gap:12px">
+              <button class="btn btn-outline" onclick="loadDevices()">🔄 刷新</button>
+              <button class="btn btn-sm" onclick="revokeAllDevices(this)" title="撤销全部设备令牌；每台设备下次请求会收到 401 并提示重新登录">🚫 全部撤销</button>
+            </div>
+          </div>
+
+          <div class="muted" style="font-size:0.8125rem;margin:4px 0 14px">
+            撤销后：该设备下一次请求会收到 <code>401</code>，客户端会自动清除本机钥匙串里的令牌并提示「需要重新登录」。
+            令牌只以 SHA-256 哈希形式存储，此页看不到明文（也没必要）。另：浏览器登录后台用的是 cookie，不受本页影响。
+          </div>
+
+          <div style="overflow-x:auto">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:56px">ID</th>
+                  <th>设备名</th>
+                  <th>授权账号</th>
+                  <th style="width:150px">授权时间</th>
+                  <th style="width:150px">最后活跃</th>
+                  <th style="width:130px">来源 IP</th>
+                  <th style="width:72px">版本</th>
+                  <th style="width:88px">状态</th>
+                  <th style="width:80px">操作</th>
+                </tr>
+              </thead>
+              <tbody id="devicesTable">
+                <tr><td colspan="9" class="empty">加载中...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
         </div>
 
       </main>
@@ -5102,6 +5143,7 @@
       visitors: { title: '访客统计', sub: 'UV / PV / 热门页面 / 最近访客' },
       'logs': { title: '系统日志', sub: 'Vercel部署事件 · 邮件发送记录 · 爱发电私信日志' },
       delivery: { title: '消息投递', sub: '追踪 Redis 推送消息的投递状态，排查丢通知问题' },
+      devices: { title: '已授权设备', sub: '查看并撤销桌面客户端（EvNotifier）的长期访问令牌' },
       settings: { title: '设置', sub: '外观 · 数据 · 安全 · 邮件 · 备份恢复' },
       health: { title: '服务器状态', sub: '检测 Postgres / 鉴权 / 激活链路是否正常' },
       'vercel-logs': { title: 'Vercel日志', sub: '部署事件与函数运行日志（Vercel API）' },
@@ -5154,6 +5196,7 @@
       if (tab === 'afdian-orders') { switchAfdianSubTab('orders'); }
       if (tab === 'visitors') loadVisitors();
       if (tab === 'delivery') loadDeliveryMessages();
+      if (tab === 'devices') loadDevices();
       
       try {
         if (typeof lucide !== 'undefined' && lucide.createIcons) {
@@ -11065,6 +11108,94 @@
           document.getElementById('deliveryStatFailed').textContent = s.failed || 0;
         })
         .catch(function() {});
+    }
+
+    // ── 已授权设备（替代手工共享密钥的「登录一次、长期记住」）──────────────
+    function _fmtDeviceTime(v) {
+      if (!v) return '-';
+      try { return new Date(v).toLocaleString(); } catch (e) { return String(v); }
+    }
+
+    function loadDevices() {
+      var tbody = document.getElementById('devicesTable');
+      if (!tbody) return;
+      tbody.innerHTML = '<tr><td colspan="9" class="empty">加载中...</td></tr>';
+      fetch('/api/ev?action=devices', { credentials: 'include' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data || !data.success) {
+            tbody.innerHTML = '<tr><td colspan="9" class="empty" style="color:var(--err)">加载失败' +
+              (data && data.error ? '：' + escapeHtml(data.error) : '') + '</td></tr>';
+            return;
+          }
+          var rows = data.devices || [];
+          if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="9" class="empty">还没有已授权设备 —— 在 EvNotifier 菜单点「登录 EvNotifier…」授权。</td></tr>';
+            return;
+          }
+          var html = '';
+          for (var i = 0; i < rows.length; i++) {
+            var d = rows[i] || {};
+            var revoked = !!d.revoked_at;
+            var html_id = escapeHtml(String(d.id == null ? '' : d.id)).replace(/'/g, "\\'");
+            html += '<tr' + (revoked ? ' style="opacity:0.55"' : '') + '>';
+            html += '<td style="font-size:0.75rem;font-family:monospace">' + escapeHtml(String(d.id == null ? '-' : d.id)) + '</td>';
+            html += '<td style="font-size:0.8125rem">' + escapeHtml(d.label || '-') + '</td>';
+            html += '<td style="font-size:0.75rem">' + escapeHtml(d.email || '-') + '</td>';
+            html += '<td style="font-size:0.75rem;white-space:nowrap">' + escapeHtml(_fmtDeviceTime(d.created_at)) + '</td>';
+            html += '<td style="font-size:0.75rem;white-space:nowrap">' + escapeHtml(_fmtDeviceTime(d.last_seen_at)) + '</td>';
+            html += '<td style="font-size:0.6875rem;font-family:monospace">' + escapeHtml(d.last_seen_ip || '-') + '</td>';
+            html += '<td style="font-size:0.6875rem">' + escapeHtml(d.app_version || '-') + '</td>';
+            html += '<td><span style="color:' + (revoked ? '#94a3b8' : 'var(--ok)') +
+              ';font-weight:600;font-size:0.75rem">' + (revoked ? '已撤销' : '生效中') + '</span></td>';
+            html += '<td>' + (revoked
+              ? '<span class="muted" style="font-size:0.6875rem">-</span>'
+              : '<button type="button" class="btn btn-sm" style="padding:2px 8px;font-size:0.6875rem" ' +
+                'onclick="event.stopPropagation();revokeDevice(\'' + html_id + '\', this)" title="撤销此设备的令牌">撤销</button>') + '</td>';
+            html += '</tr>';
+          }
+          tbody.innerHTML = html;
+        })
+        .catch(function(e) {
+          tbody.innerHTML = '<tr><td colspan="9" class="empty" style="color:var(--err)">加载失败：' + escapeHtml(e.message) + '</td></tr>';
+        });
+    }
+
+    function revokeDevice(id, btn) {
+      if (!id) return;
+      if (!confirm('确定撤销设备 #' + id + '？\n该设备需要重新登录后才能继续接收通知。')) return;
+      if (btn) { btn.disabled = true; btn.textContent = '撤销中...'; }
+      fetch('/api/ev?action=device-revoke', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: id })
+      }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data && data.success) { loadDevices(); return; }
+        alert('撤销失败：' + ((data && data.error) || '未知错误'));
+        if (btn) { btn.disabled = false; btn.textContent = '撤销'; }
+      }).catch(function(e) {
+        alert('撤销失败：' + e.message);
+        if (btn) { btn.disabled = false; btn.textContent = '撤销'; }
+      });
+    }
+
+    function revokeAllDevices(btn) {
+      if (!confirm('确定撤销全部设备令牌？\n所有已授权的桌面客户端都需要重新登录。')) return;
+      if (btn) { btn.disabled = true; btn.textContent = '撤销中...'; }
+      fetch('/api/ev?action=device-revoke', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ all: '1' })
+      }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data && data.success) { alert('已撤销 ' + (data.revoked || 0) + ' 个设备'); loadDevices(); return; }
+        alert('撤销失败：' + ((data && data.error) || '未知错误'));
+        if (btn) { btn.disabled = false; btn.textContent = '🚫 全部撤销'; }
+      }).catch(function(e) {
+        alert('撤销失败：' + e.message);
+        if (btn) { btn.disabled = false; btn.textContent = '🚫 全部撤销'; }
+      });
     }
 
     (function autoTrackAdmin() {
