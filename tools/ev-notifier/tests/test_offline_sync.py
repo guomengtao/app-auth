@@ -717,4 +717,12 @@ c.check("菜单回调方法都存在", not missing_cb, missing_cb)
 c.check("截图保留快捷键 key=4",
         [s[3] for s in spec_off if s[2] == "start_screenshot"] == ["4"])
 
+# 回归：EvNotifier 里不许再调 self._refresh_content()（那是 DashboardWindow 的方法，
+# 历史上登录/退出后必抛 AttributeError: 'EvNotifier' object has no attribute '_refresh_content'）
+import inspect  # noqa: E402
+_app_src = inspect.getsource(E.EvNotifier)
+c.check("EvNotifier 不再误调 self._refresh_content()",
+        "self._refresh_content()" not in _app_src)
+c.check("登录/退出走 _refresh_panel()", hasattr(E.EvNotifier, "_refresh_panel"))
+
 sys.exit(c.done())

@@ -6352,7 +6352,8 @@ class EvNotifier(rumps.App):
                 _debug_log("device login OK (menu)")
                 notify_macos(f"Ev {VERSION}", "登录成功", "通知功能已就绪", sound=False)
                 _request_sync("after-login", force=True)
-                self._refresh_content()
+                self._refresh_panel()
+                # 菜单按登录态互斥显示，下次右键弹出时会重建（不在后台线程碰 AppKit 菜单）
             else:
                 _debug_log(f"device login not completed: {msg}")
                 notify_macos(f"Ev {VERSION}", "登录未完成", msg, sound=False)
@@ -6362,15 +6363,43 @@ class EvNotifier(rumps.App):
         finally:
             _device_login_running = False
 
+    def _refresh_panel(self):
+        """刷新面板内容（如果开着）。
+
+        ⚠️ `_refresh_content()` 是 **DashboardWindow** 的方法，不在 App 上 —— 这里以前是在
+        App 上直接调它（少了一层 `_dash`），登录成功 / 退出登录后必定抛
+        `AttributeError: 'EvNotifier' object has no attribute '_refresh_content'`
+        （表现：操作后没有任何提示，只在 `~/.ev_notifier_stderr.log` 丢栈）。
+        """
+        try:
+            dash = getattr(self, "_dash", None)
+            if dash is not None:
+                dash._refresh_content()
+        except Exception as e:
+            _debug_log(f"_refresh_panel failed: {e}")
+
+    def _schedule_menu_rebuild(self, delay=0.25):
+        """延到下一轮 runloop 重建菜单。
+
+        ⚠️ 绝不能在菜单回调里**同步**重建：那一刻 NSMenu 正在 tracking，
+        `removeAllItems()` 属于"边追踪边改结构"，是崩溃隐患。延迟一小会儿等菜单收起再建。
+        """
+        try:
+            from PyObjCTools import AppHelper
+            AppHelper.callLater(delay, self._rebuild_menu)
+        except Exception as e:
+            _debug_log(f"_schedule_menu_rebuild unavailable: {e}")
+
     def logout_device(self, _):
-        """清除本机凭据（钥匙串）。"""
+        """清除本机凭据（钥匙串）→ 菜单里的账号项从「退出登录」变回「登录」。"""
         global DEVICE_TOKEN, _auth_state
         _keychain_delete_token()
         DEVICE_TOKEN = None
         _auth_state = "missing"
         _debug_log("device logout: token cleared from keychain")
         notify_macos(f"Ev {VERSION}", "已退出登录", "本机凭据已清除，通知将无法接收", sound=False)
-        self._refresh_content()
+        self._refresh_panel()
+        self._schedule_menu_rebuild()
 
     def open_dashboard(self, _):
         """打开面板（菜单项 + **状态栏左键** 共用入口）。
