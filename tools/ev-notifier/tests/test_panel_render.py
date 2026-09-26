@@ -12,12 +12,20 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _harness import load_ev, Checker  # noqa: E402
 
 E = load_ev(home="/tmp/ev_notifier_render_home")
 c = Checker()
+
+# ⚠️ 门禁会读设备令牌 → 必须打桩钥匙串：否则会去读**真实**钥匙串（可能弹权限框/读到真令牌）
+E._keychain_get_token = lambda: "test-device-token"
+E._keychain_set_token = lambda tok: True
+E._keychain_delete_token = lambda: None
+E._load_device_token()          # 载入桩令牌 → 已登录，8 个数据页才渲染得出来
+E._session_logged_out = False
 
 tmpdir = tempfile.mkdtemp(prefix="ev_panel_")
 dash = E.DashboardWindow(None)
@@ -71,6 +79,57 @@ html = E.DashboardWindow._build_current_html(dash)
 c.check("标记后渲染为已读样式", "msg-read" in html)
 c.check("已标记的卡片不再出现 NEW 胶囊", 'class="msg-new"' not in html)
 c.check("已读后未读计数为 0", E.count_unread() == 0, E.count_unread())
+
+# ══ 账号区（左下角）+ 设置页账号区块 ══════════════════════════════
+E._save_account({"email": "foo@bar.com", "label": "MacBook-Air.local",
+                 "created_at": 1790300000, "last_seen_at": 1790346360,
+                 "fetched_at": int(time.time())})
+dash._current_page = "messages"
+html = E.DashboardWindow._build_current_html(dash)
+c.check("左下角账号区存在", 'id="accountBox"' in html)
+c.check("已登录：账号区显示邮箱", "foo@bar.com" in html)
+c.check("账号小菜单里有版本号", ("v" + E.VERSION) in html)
+c.check("账号小菜单里有最后活跃（北京时间）", "最后活跃" in html and "2026-" in html)
+c.check("已登录：账号区动作是「退出登录」", "ev://logout" in html)
+c.check("已登录：导航可点（带 data-tab）", 'data-tab="settings"' in html)
+c.check("账号小菜单样式已定义", ".account-menu {" in html and ".account-box {" in html)
+
+dash._current_page = "settings"
+shtml = E.DashboardWindow._build_current_html(dash)
+c.check("设置页有「账号」区块", "登录账号" in shtml and "foo@bar.com" in shtml)
+c.check("设置页有软登出（ev://logout）", 'href="ev://logout"' in shtml)
+c.check("设置页有硬登出「清除本机登录信息」", "ev://clear-login" in shtml)
+c.check("设置页有开机自启开关（写偏好而非只说路径）", "ev://setting=auto_start" in shtml)
+
+# ══ 未登录门禁：任何页面（含设置页）都只渲染登录页 ═══════════════════
+E.DEVICE_TOKEN = None
+E._device_token_probed = True
+E._session_logged_out = True
+E._keychain_get_token = lambda: ""          # 本机没有保存的登录信息
+for page in ("messages", "orders", "visitors", "settings"):
+    dash._current_page = page
+    g = E.DashboardWindow._build_current_html(dash)
+    c.check("未登录时页面 %s 只渲染登录页" % page,
+            "登录后即可使用" in g and "gateLogin()" in g, page)
+g = E.DashboardWindow._build_current_html(dash)
+c.check("登录页有「保存登录信息」勾选", 'id="gateSaveLogin"' in g)
+c.check("登录页有「我已授权，重新检查」", "gateRecheck()" in g)
+c.check("未登录时不渲染任何业务数据",
+        'class="msg-card' not in g and "订单总量" not in g, len(g))
+c.check("未登录时左侧导航锁定（nav-locked）", "nav-locked" in g)
+c.check("未登录时账号区提示登录", "未登录，点这里登录" in g and "ev://login" in g)
+c.check("无保存信息时不显示「直接登录」按钮", 'onclick="gateDirectLogin()"' not in g)
+c.check("登录页样式已定义", ".login-gate {" in g and ".gate-btn {" in g)
+
+E._keychain_get_token = lambda: "test-device-token"   # 有保存的登录信息
+c.check("有保存信息时登录页显示「直接登录」按钮",
+        'onclick="gateDirectLogin()"' in E.DashboardWindow._build_current_html(dash))
+
+# 门禁下切页无效（防前端 JS 绕过）
+d2 = E.DashboardWindow(None)
+d2._current_page = "messages"
+E.DashboardWindow._switch_to(d2, "orders")
+c.check("未登录时切页无效", d2._current_page == "messages", d2._current_page)
 
 print("\n共校验 script 块: %d" % total_blocks)
 sys.exit(c.done())

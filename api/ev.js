@@ -210,6 +210,31 @@ async function handleDevices(req, res) {
   return json(res, 200, { success: true, devices: rows });
 }
 
+/**
+ * 本机账号信息（EvNotifier 面板左下角账号区用）：邮箱 / 设备名 / 授权时间 / 最后活跃。
+ * 认证方式 = **设备令牌本身**（`x-ev-device-token`），不要求后台 cookie —— 客户端只有令牌。
+ * 顺带：verifyDeviceToken 会（节流地）刷新 last_seen_at，所以"最后活跃"是真实的。
+ */
+async function handleDeviceMe(req, res) {
+  var tok = String((req.headers && (req.headers["x-ev-device-token"] || req.headers["X-Ev-Device-Token"])) || "");
+  if (!tok) {
+    return json(res, 401, { success: false, error: "Missing x-ev-device-token" });
+  }
+  var row = await deviceToken.verifyDeviceToken(tok, clientIp(req));
+  if (!row) {
+    return json(res, 401, { success: false, error: "Invalid or revoked device token" });
+  }
+  var full = await deviceToken.getById(row.id);
+  return json(res, 200, {
+    success: true,
+    email: (full && full.email) || row.email || "",
+    label: (full && full.label) || row.label || "",
+    app_version: (full && full.app_version) || "",
+    created_at: (full && full.created_at) || null,
+    last_seen_at: (full && full.last_seen_at) || null,
+  });
+}
+
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   var action = (req.query && req.query.action) || "";
@@ -231,6 +256,9 @@ module.exports = async (req, res) => {
       case "devices":
         if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
         return await handleDevices(req, res);
+      case "device-me":
+        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
+        return await handleDeviceMe(req, res);
       default:
         return json(res, 400, { success: false, error: "Unknown action" });
     }

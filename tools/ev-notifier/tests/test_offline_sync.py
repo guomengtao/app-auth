@@ -682,40 +682,29 @@ def _label_for(spec, action):
     return None
 
 
-spec_off = E._menu_spec(False)
-spec_on = E._menu_spec(True)
-labels_off = [s[1] for s in spec_off if s[1]]
-labels_on = [s[1] for s in spec_on if s[1]]
+spec = E._menu_spec()
+labels = [s[1] for s in spec if s[1]]
 
-c.check("菜单第一项是「打开面板」", spec_off[0][1] == "打开面板", spec_off[0])
-c.check("菜单最后一项是「退出」（避免误点）",
-        spec_off[-1][1] == "退出" and spec_off[-1][2] == "quit_app", spec_off[-1])
-c.check("第二项是灰显状态行", spec_off[1][0] == "status", spec_off[1])
+c.check("菜单第一项是「打开面板」", spec[0][1] == "打开面板", spec[0])
+c.check("菜单最后一项是「退出」（关闭软件，防误点）",
+        spec[-1][1] == "退出" and spec[-1][2] == "quit_app", spec[-1])
+c.check("第二项是灰显状态行", spec[1][0] == "status", spec[1])
 c.check("版本行在「退出」之前",
-        [s[0] for s in spec_off][-2:] == ["version", "item"], [s[0] for s in spec_off])
+        [s[0] for s in spec][-2:] == ["version", "item"], [s[0] for s in spec])
 c.check("顺序：打开面板 → 截图 → 退出",
-        labels_off.index("打开面板") < labels_off.index("截图") < labels_off.index("退出"),
-        labels_off)
-
-# 登录 / 退出登录 互斥（不能同时出现）
-c.check("未登录：只显示「登录」",
-        "登录 EvNotifier…" in labels_off and not any("退出登录" in x for x in labels_off),
-        labels_off)
-c.check("已登录：只显示「退出登录」",
-        any("退出登录" in x for x in labels_on) and "登录 EvNotifier…" not in labels_on,
-        labels_on)
-c.check("两种状态菜单项数一致（只换一项、不增删）", len(spec_off) == len(spec_on),
-        (len(spec_off), len(spec_on)))
+        labels.index("打开面板") < labels.index("截图") < labels.index("退出"), labels)
+c.check("菜单里不再有登录/退出登录项（已移入面板账号区）",
+        not any(("登录" in x) for x in labels), labels)
 
 # 暂停文案随状态变化
-c.check("未暂停 → 「暂停接收」", _label_for(E._menu_spec(True, False), "toggle_pause") == "暂停接收")
-c.check("已暂停 → 「恢复接收」", _label_for(E._menu_spec(True, True), "toggle_pause") == "恢复接收")
+c.check("未暂停 → 「暂停接收」", _label_for(E._menu_spec(False), "toggle_pause") == "暂停接收")
+c.check("已暂停 → 「恢复接收」", _label_for(E._menu_spec(True), "toggle_pause") == "恢复接收")
 
 # 菜单回调必须都真实存在（防改名字改出一个点了没反应的菜单项）
-missing_cb = [act for _k, _l, act, _key in spec_off if act and not hasattr(E.EvNotifier, act)]
+missing_cb = [act for _k, _l, act, _key in spec if act and not hasattr(E.EvNotifier, act)]
 c.check("菜单回调方法都存在", not missing_cb, missing_cb)
 c.check("截图保留快捷键 key=4",
-        [s[3] for s in spec_off if s[2] == "start_screenshot"] == ["4"])
+        [s[3] for s in spec if s[2] == "start_screenshot"] == ["4"])
 
 # 回归：EvNotifier 里不许再调 self._refresh_content()（那是 DashboardWindow 的方法，
 # 历史上登录/退出后必抛 AttributeError: 'EvNotifier' object has no attribute '_refresh_content'）
@@ -724,5 +713,77 @@ _app_src = inspect.getsource(E.EvNotifier)
 c.check("EvNotifier 不再误调 self._refresh_content()",
         "self._refresh_content()" not in _app_src)
 c.check("登录/退出走 _refresh_panel()", hasattr(E.EvNotifier, "_refresh_panel"))
+
+# ══ 17. 登录态判定：只认设备令牌（共享密钥 = 运维通道，不算登录）════════
+store = {"tok": ""}
+calls = {"delete": 0, "set": 0}
+E._keychain_get_token = lambda: store["tok"]
+E._keychain_set_token = lambda t: (store.__setitem__("tok", t), calls.__setitem__("set", calls["set"] + 1), True)[2]
+E._keychain_delete_token = lambda: (store.__setitem__("tok", ""), calls.__setitem__("delete", calls["delete"] + 1))
+E.DEVICE_TOKEN = None
+E._device_token_probed = True
+E._session_logged_out = False
+E._auth_state = "unknown"
+E.SYNC_TOKEN = "shared-secret-key"
+
+c.check("只有共享密钥 → 不算已登录（严格）", E._is_logged_in() is False)
+c.check("共享密钥的文案标明是运维通道", "运维通道" in E._auth_label(), E._auth_label())
+c.check("登录页状态 = shared_key_only", E._login_state_reason() == "shared_key_only",
+        E._login_state_reason())
+c.check("未保存登录信息时不显示「直接登录」", E._has_saved_login() is False)
+
+E.DEVICE_TOKEN = "fake-device-token"
+c.check("有设备令牌 → 已登录", E._is_logged_in() is True)
+c.check("已登录文案 = 设备令牌", "设备令牌" in E._auth_label(), E._auth_label())
+c.check("登录页状态 = ok", E._login_state_reason() == "ok")
+E.DEVICE_TOKEN = None
+
+
+class _FakeApp(E.EvNotifier):
+    """继承 EvNotifier 拿到全部方法，但**不跑 __init__**（不起线程、不连 Redis）。
+
+    这些方法（logout_soft / clear_saved_login）只用 notify_macos + _refresh_panel，
+    在测试里都安全。
+    ⚠️ 必须显式覆盖 __init__：否则会调父类构造 → 起 `_run_event_loop` 线程（连 Redis）
+       还会 `ensure_auto_start()` 往临时 HOME 里写 LaunchAgent。
+    """
+
+    def __init__(self):
+        pass
+
+
+fake_app = _FakeApp()
+
+# 软登出：清内存会话、保留钥匙串、不自动恢复
+store["tok"] = "fake-device-token"
+E.EvNotifier.logout_soft(fake_app)
+c.check("软登出 → 内存令牌清空", E.DEVICE_TOKEN is None)
+c.check("软登出 → 不自动从钥匙串恢复（否则一进登录页就被自动登录）", E._is_logged_in() is False)
+c.check("软登出 → 钥匙串保留（可以「直接登录」）", E._has_saved_login() is True)
+c.check("软登出 → 没有删钥匙串", calls["delete"] == 0, calls)
+
+# 直接登录：用保存的登录信息恢复会话
+ok, msg = E.direct_login()
+c.check("直接登录成功（无需浏览器）", ok is True and E.DEVICE_TOKEN == "fake-device-token", (ok, msg))
+c.check("直接登录后状态 = ok", E._is_logged_in() is True and E._auth_state == "ok", E._auth_state)
+
+# 硬登出：真删钥匙串（设置页入口）
+E.EvNotifier.clear_saved_login(fake_app)
+c.check("硬登出 → 删了钥匙串", calls["delete"] >= 1, calls)
+c.check("硬登出 → 不再有可用的登录信息", E._has_saved_login() is False)
+c.check("硬登出 → 内存令牌也清了", E.DEVICE_TOKEN is None)
+
+# 401 处理：软登出状态下的 401 不能删钥匙串、也不该报警
+store["tok"] = "fake-device-token"
+E._session_logged_out = True
+E._auth_state = "missing"
+E.DEVICE_TOKEN = None
+before = calls["delete"]
+E._on_auth_failed("test-401-after-logout")
+c.check("软登出后的 401 不删钥匙串（否则毁掉「直接登录」）", calls["delete"] == before, calls)
+c.check("软登出后的 401 不改状态为 invalid", E._auth_state == "missing", E._auth_state)
+E.SYNC_TOKEN = None
+E._session_logged_out = False
+E._auth_state = "unknown"
 
 sys.exit(c.done())

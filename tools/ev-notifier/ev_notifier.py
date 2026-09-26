@@ -57,8 +57,13 @@ DOTENV = [
 REST_API_URL = None
 UPSTASH_TOKEN = None
 SYNC_TOKEN = None   # 过渡期兼容：与服务端 EV_SYNC_TOKEN 配对的共享密钥
-DEVICE_TOKEN = None # 设备授权令牌（存 macOS 钥匙串，走菜单「登录 EvNotifier…」获取）
+DEVICE_TOKEN = None # 设备授权令牌（存 macOS 钥匙串，走面板「登录」/菜单获取）
 _device_token_probed = False   # 是否已尝试读过钥匙串（菜单状态行不能每次都起 security 子进程）
+_session_logged_out = False    # 是否已被用户"登出"（软登出）→ 不再自动从钥匙串恢复会话
+ACCOUNT_FILE = os.path.expanduser("~/.ev_account.json")   # 账号信息缓存（邮箱/设备名/最后活跃）
+ACCOUNT_REFRESH_INTERVAL = 3600    # 账号信息自动刷新间隔（秒）
+_account_cache = None
+_account_last_fetch = 0.0
 STREAM_KEY = "auth:notifications:stream"
 LAST_ID_FILE = os.path.expanduser("~/.ev_last_id_v1.5.0")
 RECEIVED_FILE = os.path.expanduser("~/.ev_received.json")
@@ -244,30 +249,139 @@ def _load_device_token():
 
 
 def _is_logged_in():
-    """是否已有可用凭据（设备令牌 或 共享密钥）→ 决定菜单显示「登录」还是「退出登录」。
+    """是否「已登录」：**只认设备令牌**（真实登录）。
 
-    ⚠️ 只在内存里没令牌时读一次钥匙串：`_keychain_get_token()` 会起 `security` 子进程，
-    而右键弹菜单每次都问状态，不能每次都打子进程。
+    ⚠️ 2026-09-26 定稿：`.env` 的共享密钥（`EV_SYNC_TOKEN`）是**额外的运维/自动化通道**
+    （服务端 `clientHasAccess()` 的并列分支之一；无账号身份、不能逐台撤销、无法审计），
+    因此**不作为登录态** —— 只有它的机器会被门禁挡住。
+    详见 tools/ev-notifier/面板账号入口与登录门禁方案.md §1.5。
+
+    ⚠️ 只在内存没令牌时读一次钥匙串（`security` 子进程）；但**软登出后不再自动恢复**，
+    否则用户"退出登录"后一进登录页就被自动登录回来了。
     """
     if DEVICE_TOKEN:
         return True
+    if _session_logged_out:
+        return False
     if not _device_token_probed:
         try:
             _load_device_token()
         except Exception as e:
             _debug_log(f"_is_logged_in: load device token failed: {e}")
-    return bool(DEVICE_TOKEN) or bool(SYNC_TOKEN)
+    return bool(DEVICE_TOKEN)
+
+
+def _has_saved_login():
+    """本机是否**保存过**登录信息（钥匙串里有令牌）→ 登录页是否显示「直接登录」。
+
+    ⚠️ 只做只读探测，**不写 DEVICE_TOKEN**（否则软登出后一进登录页就被"自动登录"）。
+    """
+    try:
+        return bool(_keychain_get_token())
+    except Exception as e:
+        _debug_log(f"_has_saved_login failed: {e}")
+        return False
+
+
+def _login_state_reason():
+    """登录页状态行的口径：ok / invalid / shared_key_only / no_cred。"""
+    if _is_logged_in():
+        return "ok"
+    if _auth_state == "invalid":
+        return "invalid"
+    if SYNC_TOKEN:
+        return "shared_key_only"
+    return "no_cred"
 
 
 def _auth_label():
-    """凭据状态文案（右键菜单的状态行用；与面板/`status_btn` 的 Auth 口径一致）。"""
+    """凭据状态文案（菜单状态行 / 面板账号区 / `status_btn` 共用）。"""
     if DEVICE_TOKEN:
         return "已登录（设备令牌）"
-    if SYNC_TOKEN:
-        return "已登录（共享密钥）"
     if _auth_state == "invalid":
         return "凭据失效，需重新登录"
+    if SYNC_TOKEN:
+        return "共享密钥（运维通道，非登录态）"
     return "未登录"
+
+
+def load_account():
+    """账号信息缓存：{email,label,app_version,created_at,last_seen_at,fetched_at}。"""
+    global _account_cache
+    if _account_cache is not None:
+        return _account_cache
+    try:
+        with open(ACCOUNT_FILE, "r", encoding="utf-8") as f:
+            d = json.load(f)
+        _account_cache = d if isinstance(d, dict) else {}
+    except Exception:
+        _account_cache = {}
+    return _account_cache
+
+
+def _save_account(d):
+    global _account_cache
+    _account_cache = d or {}
+    try:
+        with open(ACCOUNT_FILE, "w", encoding="utf-8") as f:
+            json.dump(_account_cache, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        _debug_log(f"save account failed: {e}")
+
+
+def fetch_account_me(force=False):
+    """拉取本机账号信息（邮箱 / 设备名 / 最后活跃）→ 缓存到 `~/.ev_account.json`。
+
+    走 `api/ev.js?action=device-me`（需设备令牌）。默认节流 ACCOUNT_REFRESH_INTERVAL：
+    账号区每次渲染都会读它，不能每次都发请求。
+    """
+    global _account_last_fetch
+    now = time.time()
+    if not force and (now - _account_last_fetch) < ACCOUNT_REFRESH_INTERVAL:
+        return load_account()
+    if not DEVICE_TOKEN:
+        return load_account()
+    url = f"{CALLBACK_BASE_URL}/api/ev?action=device-me"
+    try:
+        code, data = _api_get_status(url, timeout=10)
+    except Exception as e:
+        _debug_log(f"fetch_account_me failed: {e}")
+        return load_account()
+    _account_last_fetch = now
+    if code != 200 or not data or not data.get("success"):
+        _debug_log(f"fetch_account_me: http={code} err={(data or {}).get('error')}")
+        return load_account()
+    acct = {
+        "email": data.get("email") or "",
+        "label": data.get("label") or "",
+        "app_version": data.get("app_version") or "",
+        "created_at": _parse_ts_any(data.get("created_at")),
+        "last_seen_at": _parse_ts_any(data.get("last_seen_at")),
+        "fetched_at": int(now),
+    }
+    _save_account(acct)
+    _debug_log(f"account: {acct['email']} @ {acct['label']} last_seen={acct['last_seen_at']}")
+    return acct
+
+
+def _fmt_bj_relative(ts):
+    """最后活跃时间的展示：今天 10:37 / 昨天 22:05 / 2026-09-25 22:05（北京时间）。"""
+    if not ts:
+        return ""
+    s = _fmt_bj(ts)
+    if not s:
+        return ""
+    day = s[:10]
+    try:
+        today = _bj_today_str()
+        yesterday = time.strftime("%Y-%m-%d", time.gmtime(time.time() + BJ_OFFSET - 86400))
+    except Exception:
+        return s[:16]
+    if day == today:
+        return "今天 " + s[11:16]
+    if day == yesterday:
+        return "昨天 " + s[11:16]
+    return s[:16]
 
 
 def _post_json(url, body, timeout=15):
@@ -296,12 +410,13 @@ def _post_json(url, body, timeout=15):
         return int(code or 0), None
 
 
-def device_login(interactive=True, timeout=600):
-    """设备授权登录：start → 打开浏览器 → 轮询 → 令牌存钥匙串。
+def device_login(interactive=True, timeout=600, save=True):
+    """设备授权登录：start → 打开浏览器 → 轮询 → 令牌存钥匙串（`save=False` 时只留内存）。
 
     返回 (ok, message)。可安全地在后台线程调用。
+    `save=False` 对应登录页的「保存登录信息」未勾选：会话级登录，重启后需重新授权。
     """
-    global DEVICE_TOKEN, _auth_state
+    global DEVICE_TOKEN, _auth_state, _session_logged_out, _account_last_fetch
     try:
         hostname = socket.gethostname()
     except Exception:
@@ -333,12 +448,27 @@ def device_login(interactive=True, timeout=600):
         st, d = _post_json(DEVICE_API + "?action=device-poll", {"challenge": challenge})
         if st == 200 and d and d.get("device_token"):
             tok = d["device_token"]
-            if not _keychain_set_token(tok):
-                _debug_log("device_login: keychain write failed")
-                return False, "令牌已获取但写入钥匙串失败"
+            if save:
+                if not _keychain_set_token(tok):
+                    _debug_log("device_login: keychain write failed")
+                    return False, "令牌已获取但写入钥匙串失败"
+            else:
+                # 会话级登录：不落盘（顺手清掉旧的保存项，避免"以为没保存却还留着"）
+                try:
+                    _keychain_delete_token()
+                except Exception:
+                    pass
             DEVICE_TOKEN = tok
             _auth_state = "ok"
-            _debug_log(f"device_login: OK, token stored (fingerprint {tok[:8]}…), user_code={user_code}")
+            _session_logged_out = False
+            _account_last_fetch = 0.0          # 换账号后立即刷新账号信息
+            acct = load_account()
+            if d.get("email"):
+                acct["email"] = d["email"]
+            if d.get("label"):
+                acct["label"] = d["label"]
+            _save_account(acct)
+            _debug_log(f"device_login: OK, saved={save}, fingerprint {tok[:8]}…, user_code={user_code}")
             return True, "登录成功"
         if st == 404:
             return False, "授权请求已过期，请重新登录"
@@ -347,18 +477,46 @@ def device_login(interactive=True, timeout=600):
     return False, "登录超时（浏览器里未确认授权）"
 
 
+def direct_login():
+    """「直接登录」：用**本机保存的登录信息**（钥匙串）恢复会话，无需浏览器。
+
+    返回 (ok, message)。这就是"登录过就能直接登录上"的实现。
+    """
+    global DEVICE_TOKEN, _auth_state, _session_logged_out
+    try:
+        tok = _keychain_get_token() or ""
+    except Exception as e:
+        _debug_log(f"direct_login: read keychain failed: {e}")
+        return False, "读不到本机保存的登录信息（钥匙串拒绝访问）"
+    if not tok:
+        return False, "本机没有保存的登录信息，请先授权登录一次"
+    DEVICE_TOKEN = tok
+    _auth_state = "ok"
+    _session_logged_out = False
+    _debug_log(f"direct_login: session restored (fingerprint {tok[:8]}…)")
+    return True, "已用本机保存的登录信息登录"
+
+
 def _on_auth_failed(reason=""):
-    """服务端返回 401：凭据已失效（被撤销 / 服务端换了密钥）→ 清掉并明确告知用户。"""
+    """服务端返回 401：凭据已失效（被撤销 / 服务端换了密钥）→ 清掉并明确告知用户。
+
+    ⚠️ 软登出（用户主动"退出登录"）之后本来就没有凭据，此时的 401 是我们自己造成的，
+    必须**直接返回**：既不能删钥匙串（那会毁掉"直接登录"），也不要弹通知。
+    """
     global DEVICE_TOKEN, _auth_state
     if _auth_state == "invalid":
         return          # 只提示一次，别刷屏
+    if _session_logged_out:
+        _auth_state = "missing"
+        return
     _auth_state = "invalid"
     _debug_log(f"auth failed ({reason}) -> clearing device token")
     if DEVICE_TOKEN:
         _keychain_delete_token()
     DEVICE_TOKEN = None
     try:
-        notify_macos("EvNotifier 需要重新登录", "本机凭据已失效", "菜单 →「登录 EvNotifier…」", sound=False)
+        notify_macos("EvNotifier 需要重新登录", "本机凭据已失效",
+                     "打开面板 → 左下角账号区 → 登录", sound=False)
     except Exception:
         pass
 
@@ -1154,6 +1312,10 @@ def _notify_recovery_summary(count):
 def sync_since(reason=""):
     """按游标补拉离线消息（SOP 见设计文档 §4.3）。返回补回条数。"""
     global _last_sync_result, _sync_dirty, _gap_start
+    if _session_logged_out and not SYNC_TOKEN:
+        # 软登出后没有任何凭据：别再每 5 分钟撞一次 401（会让 _on_auth_failed 误判）
+        _debug_log(f"sync[{reason}]: skipped (logged out)")
+        return 0
     cid = _get_client_id()
     after = int(_sync_state.get("last_seq") or 0)
     base = f"{CALLBACK_BASE_URL}/api/admin/health?section=delivery-sync"
@@ -2740,6 +2902,91 @@ body {
   font-weight: 500;
 }
 
+/* =================== 左下角账号区（登录/退出登录入口） =================== */
+.nav-item.nav-locked { opacity: 0.42; cursor: default; }
+.nav-item.nav-locked:hover { background: transparent; }
+
+.account-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.05);
+  cursor: pointer;
+  user-select: none;
+}
+.account-box:hover { background: rgba(255,255,255,0.08); }
+.account-avatar {
+  width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--blue), #6366f1);
+  color: #fff; font-size: 12px; font-weight: 700;
+}
+.account-meta { flex: 1; min-width: 0; }
+.account-name {
+  font-size: 12px; color: #f0f6fc; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.account-status { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+.account-status .status-dot { width: 7px; height: 7px; }
+.account-status .status-label { font-size: 11px; color: var(--sidebar-text); }
+.account-caret { color: var(--sidebar-text); font-size: 10px; }
+
+.account-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 0; right: 0;
+  margin-bottom: 8px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 14px 30px rgba(0,0,0,.28);
+  overflow: hidden;
+  display: none;
+  z-index: 50;
+}
+.account-box.open .account-menu { display: block; }
+.account-menu-info { padding: 10px 12px; font-size: 11px; color: var(--text-tertiary); line-height: 1.7; }
+.account-menu-info b { color: var(--text); }
+.account-menu-sep { height: 1px; background: var(--border-light); }
+.account-menu-item {
+  padding: 10px 12px; font-size: 12.5px; color: var(--text); cursor: pointer;
+  display: flex; align-items: center; gap: 8px;
+}
+.account-menu-item:hover { background: var(--border-light); }
+.account-menu-note { padding: 6px 12px 9px; font-size: 10.5px; color: var(--text-tertiary); line-height: 1.5; }
+
+/* =================== 未登录门禁页 =================== */
+.login-gate {
+  max-width: 460px; margin: 40px auto; padding: 34px 30px; text-align: center;
+  background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px;
+}
+.login-gate h2 { font-size: 19px; color: var(--text); margin-bottom: 8px; }
+.login-gate .gate-desc { font-size: 12.5px; color: var(--text-secondary); line-height: 1.8; margin-bottom: 22px; }
+.login-gate .gate-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 100%; padding: 11px 16px; border-radius: 10px; border: none; cursor: pointer;
+  background: var(--blue); color: #fff; font-size: 13.5px; font-weight: 600;
+}
+.login-gate .gate-btn:hover { filter: brightness(1.06); }
+.login-gate .gate-btn.secondary {
+  background: transparent; color: var(--text); border: 1px solid var(--border); font-weight: 500;
+}
+.login-gate .gate-row { margin-top: 10px; }
+.login-gate .gate-check {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  margin: 14px 0 4px; font-size: 12px; color: var(--text-secondary); cursor: pointer;
+}
+.login-gate .gate-check input { width: 14px; height: 14px; cursor: pointer; }
+.login-gate .gate-state {
+  margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border-light);
+  font-size: 11.5px; color: var(--text-tertiary); line-height: 1.8;
+}
+.gate-warn { color: #b7791f; }
+
 @keyframes pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.6; transform: scale(0.95); }
@@ -3588,7 +3835,25 @@ class WebNavDelegate(NSObject):
         _settle_navigation(listener, False)
 
     def _handle_ev_url(self, url_str):
-        if "refresh" in url_str and self._dashboard:
+        # ── 账号（面板左下角账号区 / 登录页）──
+        # ⚠️ 顺序要紧：`direct-login` / `clear-login` 都含 "login"，必须排在它前面；
+        #    `account-refresh` 含 "refresh"，必须排在通用的 refresh 前面。
+        if "direct-login" in url_str and self._dashboard:
+            self._dashboard._direct_login()
+        elif "clear-login" in url_str and self._dashboard:
+            self._dashboard._clear_saved_login()
+        elif "login" in url_str and self._dashboard:
+            save = True
+            m = re.search(r'save=(\d)', url_str)
+            if m:
+                save = (m.group(1) == "1")
+            _debug_log(f"ev://login (save={save})")
+            self._dashboard._start_login(save)
+        elif "logout" in url_str and self._dashboard:
+            self._dashboard._logout_soft()
+        elif "account-refresh" in url_str and self._dashboard:
+            self._dashboard._refresh_account()
+        elif "refresh" in url_str and self._dashboard:
             self._dashboard._refresh_content()
         elif "poll=now" in url_str and self._dashboard:
             self._dashboard._poll_now()
@@ -3951,12 +4216,22 @@ class DashboardWindow:
             groups[g].append(item)
 
         nav_html = ""
+        logged_in = _is_logged_in()
         for g in ["main", "analytics", "system"]:
             items = groups.get(g, [])
             if not items:
                 continue
             nav_html += f'<div class="nav-group-label">{_GROUP_LABELS[g]}</div>\n'
             for item in items:
+                if not logged_in:
+                    # 未登录门禁：导航不可点（不带 data-tab → 前端 bindClicks 不会绑定）、不显示未读角标
+                    nav_html += (
+                        f'<div class="nav-item nav-locked">'
+                        f'<span class="nav-icon">{item["icon"]}</span>'
+                        f'<span>{item["label"]}</span>'
+                        f'</div>\n'
+                    )
+                    continue
                 active_cls = "active" if item["id"] == self._current_page else ""
                 badge_html = ""
                 if item["id"] == "messages" and count_unread() > 0:
@@ -3979,6 +4254,44 @@ class DashboardWindow:
             dot_cls = ""
             status_text = "Offline"
 
+        # ── 左下角账号区（登录 / 退出登录 都收在这里；见 面板账号入口与登录门禁方案.md §2.2）──
+        acct = load_account()
+        if logged_in:
+            # 账号信息（最后活跃）后台刷新：节流 ACCOUNT_REFRESH_INTERVAL，渲染里绝不同步打网络
+            try:
+                if time.time() - float(acct.get("fetched_at") or 0) > ACCOUNT_REFRESH_INTERVAL:
+                    threading.Thread(target=fetch_account_me, daemon=True).start()
+            except Exception:
+                pass
+            acc_name = acct.get("email") or acct.get("label") or "已登录"
+            acc_avatar = _safe_str((str(acc_name)[:1] or "E").upper())
+        else:
+            acc_name = "未登录，点这里登录"
+            acc_avatar = "?"
+
+        acc_rows = [f'<div class="account-menu-info"><div><b>Ev Notifier</b> v{_safe_str(VERSION)}</div>']
+        if logged_in:
+            acc_rows.append(f'<div>账号：{_safe_str(acct.get("email") or "-")}</div>')
+            acc_rows.append(f'<div>本机：{_safe_str(acct.get("label") or socket.gethostname())}</div>')
+            acc_rows.append(f'<div>最后活跃：{_safe_str(_fmt_bj_relative(acct.get("last_seen_at")) or "-")}</div>')
+            acc_rows.append('</div><div class="account-menu-sep"></div>')
+            acc_rows.append('<div class="account-menu-item" onclick="accountAction(event, \'ev://logout\')">'
+                            '退出登录</div>')
+            acc_rows.append('<div class="account-menu-note">退出登录不会删除本机保存的登录信息，'
+                            '下次可「直接登录」</div>')
+        else:
+            acc_rows.append('</div><div class="account-menu-sep"></div>')
+            if SYNC_TOKEN:
+                acc_rows.append('<div class="account-menu-note">检测到共享密钥（.env）：它是运维通道，'
+                                '不是账号登录，无法撤销/审计。</div>')
+            acc_rows.append('<div class="account-menu-item" onclick="accountAction(event, \'ev://login\')">'
+                            '登录 EvNotifier…</div>')
+            if _has_saved_login():
+                acc_rows.append('<div class="account-menu-item" '
+                                'onclick="accountAction(event, \'ev://direct-login\')">'
+                                '直接登录（本机已保存登录信息）</div>')
+        acc_menu_html = "".join(acc_rows)
+
         sidebar = f"""
         <div class="sidebar">
           <div class="sidebar-brand">
@@ -3990,9 +4303,15 @@ class DashboardWindow:
           </div>
           <div class="sidebar-nav">{nav_html}</div>
           <div class="sidebar-footer">
-            <div class="status-bar">
-              <span class="status-dot {dot_cls}"></span>
-              <span class="status-label">{status_text}</span>
+            <div class="account-box" id="accountBox" tabindex="0" onclick="toggleAccountMenu(event)">
+              <div class="account-avatar">{acc_avatar}</div>
+              <div class="account-meta">
+                <div class="account-name" title="{_safe_str(acc_name)}">{_safe_str(acc_name)}</div>
+                <div class="account-status"><span class="status-dot {dot_cls}"></span>
+                  <span class="status-label">{status_text}</span></div>
+              </div>
+              <div class="account-caret">▾</div>
+              <div class="account-menu" id="accountMenu">{acc_menu_html}</div>
             </div>
           </div>
         </div>
@@ -4019,6 +4338,32 @@ class DashboardWindow:
         sidebar = self._sidebar_html()
         topbar = self._topbar_html(title, subtitle)
         common_js = """<script>
+// ── 左下角账号区（登录 / 退出登录）──
+function toggleAccountMenu(ev) {
+  var box = document.getElementById('accountBox');
+  if (!box) return;
+  if (ev) { ev.stopPropagation(); }
+  box.classList.toggle('open');
+}
+function accountAction(ev, url) {
+  if (ev) { ev.stopPropagation(); }
+  var box = document.getElementById('accountBox');
+  if (box) { box.classList.remove('open'); }
+  window.location = url;
+}
+document.addEventListener('click', function(e) {
+  var box = document.getElementById('accountBox');
+  if (box && !box.contains(e.target)) { box.classList.remove('open'); }
+});
+// ── 未登录门禁页 ──
+function gateLogin() {
+  var save = 1;
+  var cb = document.getElementById('gateSaveLogin');
+  if (cb && !cb.checked) { save = 0; }
+  window.location = 'ev://login?save=' + save;
+}
+function gateDirectLogin() { window.location = 'ev://direct-login'; }
+function gateRecheck() { window.location = 'ev://refresh'; }
 function toggleRowDetail(rowId) {
   var row = document.getElementById('detail-'+rowId);
   var toggle = document.getElementById('row-'+rowId);
@@ -4122,18 +4467,19 @@ function filterVisitors(filter) {
   }
 }
 </script>"""
-        # 授权状态横幅：未登录/凭据失效时必须显眼 —— 否则用户只会觉得"通知莫名其妙不来了"
+        # 授权状态横幅：门禁页已经能完整表达"未登录/凭据失效"，这里只兜少数边界情况
+        # （例如刚被后台撤销、本地内存里还有令牌）——文案统一指向**面板左下角账号区**。
         auth_banner = ""
-        if _auth_state == "missing":
-            auth_banner = ('<div style="margin:10px 0 0;padding:10px 12px;border-radius:10px;'
-                           'background:#fff5f5;color:#c53030;font-size:12px;line-height:1.6;">'
-                           '⚠️ <b>未登录</b>：无法接收通知与离线补拉。'
-                           '请点状态栏菜单 →「登录 EvNotifier…」，在浏览器里确认一次即可。</div>')
-        elif _auth_state == "invalid":
+        if _auth_state == "invalid":
             auth_banner = ('<div style="margin:10px 0 0;padding:10px 12px;border-radius:10px;'
                            'background:#fffaf0;color:#b7791f;font-size:12px;line-height:1.6;">'
                            '⚠️ <b>本机凭据已失效</b>（可能已在后台被撤销）：'
-                           '请点状态栏菜单 →「登录 EvNotifier…」重新授权。</div>')
+                           '请点左下角账号区 →「登录 EvNotifier…」重新授权。</div>')
+        elif _auth_state == "missing":
+            auth_banner = ('<div style="margin:10px 0 0;padding:10px 12px;border-radius:10px;'
+                           'background:#fff5f5;color:#c53030;font-size:12px;line-height:1.6;">'
+                           '⚠️ <b>未登录</b>：无法接收通知与离线补拉。'
+                           '请点左下角账号区 →「登录 EvNotifier…」。</div>')
         return f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>{_DASH_CSS}</style></head>
@@ -5445,6 +5791,12 @@ document.addEventListener('DOMContentLoaded',function(){{
         return stats_html + poll_detail_html + table_html
 
     def _toggle_notify_setting(self, key):
+        if key == "auto_start":
+            # 开机自启不是普通通知开关：要同时落盘 + 立即 enable/disable launchd
+            app = getattr(self, "_app", None)
+            if app is not None:
+                app._toggle_auto_start()
+            return
         settings = load_notify_settings()
         current = settings.get(key, True)
         settings[key] = not current
@@ -5464,10 +5816,62 @@ document.addEventListener('DOMContentLoaded',function(){{
         _debug_log(f"test_notify: {ntype}")
 
     def _html_settings(self):
-        auto_status = get_auto_start()
+        # 开机自启读的是**用户偏好**（不是"plist 是否存在"）—— 关闭后再手动启动不会被偷偷打开
         nsettings = load_notify_settings()
+        auto_on = bool(nsettings.get("auto_start", True))
         popup_on = nsettings.get("popup", True)
         sound_on = nsettings.get("sound", True)
+
+        # ── 账号区块（登录态相关；注意"退出登录"是软登出、"清除本机登录信息"才是硬登出）──
+        acct = load_account()
+        acc_email = acct.get("email") or "-"
+        acc_label = acct.get("label") or socket.gethostname()
+        acc_last = _fmt_bj_relative(acct.get("last_seen_at")) or "-"
+        acc_created = _fmt_bj(acct.get("created_at")) if acct.get("created_at") else "-"
+        account_group = f"""
+        <div class="settings-group">
+          <div class="settings-group-title">账号</div>
+          <div class="panel">
+            <div class="panel-body">
+              <div class="settings-row">
+                <div>
+                  <div class="settings-row-label">登录账号</div>
+                  <div class="settings-row-desc">{_safe_str(acc_email)}</div>
+                </div>
+                <span class="badge badge-success">已登录</span>
+              </div>
+              <div class="settings-row">
+                <div>
+                  <div class="settings-row-label">本机设备</div>
+                  <div class="settings-row-desc">{_safe_str(acc_label)}　授权于 {_safe_str(acc_created)}</div>
+                </div>
+                <span style="font-size:11px;color:var(--text-tertiary);">最后活跃 {_safe_str(acc_last)}</span>
+              </div>
+              <div class="settings-row">
+                <div>
+                  <div class="settings-row-label">退出登录</div>
+                  <div class="settings-row-desc">保留本机保存的登录信息，下次可「直接登录」（不会关闭软件）</div>
+                </div>
+                <a class="btn" href="ev://logout">退出登录</a>
+              </div>
+              <div class="settings-row">
+                <div>
+                  <div class="settings-row-label">清除本机登录信息</div>
+                  <div class="settings-row-desc">删除钥匙串里的凭据（换机 / 怀疑泄漏时用），之后需重新授权</div>
+                </div>
+                <a class="btn" href="ev://clear-login" style="color:var(--red);border-color:var(--red-light);">清除</a>
+              </div>
+              <div class="settings-row">
+                <div>
+                  <div class="settings-row-label">刷新账号信息</div>
+                  <div class="settings-row-desc">重新拉取邮箱 / 设备名 / 最后活跃时间</div>
+                </div>
+                <a class="btn" href="ev://account-refresh">刷新</a>
+              </div>
+            </div>
+          </div>
+        </div>
+        """
 
         info_items = [
             ("版本", VERSION),
@@ -5497,6 +5901,7 @@ document.addEventListener('DOMContentLoaded',function(){{
         visitor_voice_url = "ev://setting=visitor_voice"
 
         body = f"""
+        {account_group}
         <div class="settings-group">
           <div class="settings-group-title">提醒方式</div>
           <div class="panel">
@@ -5555,11 +5960,11 @@ document.addEventListener('DOMContentLoaded',function(){{
               <div class="settings-row">
                 <div>
                   <div class="settings-row-label">开机自启</div>
-                  <div class="settings-row-desc">登录Mac时自动启动应用</div>
+                  <div class="settings-row-desc">登录 Mac 时自动启动 EvNotifier（默认开启；关闭后手动启动也不会自动打开）</div>
                 </div>
                 <div style="display:flex;align-items:center;gap:10px;">
-                  <span style="font-size:11px;font-weight:600;color:{'var(--green)' if auto_status else 'var(--text-tertiary)'};">{'ON' if auto_status else 'OFF'}</span>
-                  <a class="btn" href="javascript:location.reload()">Toggle</a>
+                  <span style="font-size:11px;font-weight:600;color:{'var(--green)' if auto_on else 'var(--text-tertiary)'};">{'ON' if auto_on else 'OFF'}</span>
+                  <a class="btn" href="ev://setting=auto_start">切换</a>
                 </div>
               </div>
             </div>
@@ -5575,7 +5980,96 @@ document.addEventListener('DOMContentLoaded',function(){{
     def _switch_to(self, page_id):
         # ⚠️ 这里曾经 `_seen_ids.clear()` —— 直接把去重表清空，补拉/实时会重复入库。
         # 未读口径统一走 read 字段（I5），不再用会话变量 _new_msg_count，所以这里什么都不用重置。
+        if not _is_logged_in():
+            # 未登录门禁：切页无效（导航本来就不可点，这里防前端 JS 绕过）
+            _debug_log(f"nav ignored: not logged in (target={page_id})")
+            self._refresh_content()
+            return
         self._current_page = page_id
+        self._refresh_content()
+
+    # ── 账号动作（面板账号区 / 登录页；见 面板账号入口与登录门禁方案.md §2、§4）──
+
+    def _html_login_gate(self):
+        """未登录门禁页：**极简**（主按钮 + 保存勾选 + 直接登录 + 重新检查 + 状态行）。"""
+        reason = _login_state_reason()
+        saved = _has_saved_login()
+        email = (load_account().get("email") or "") if saved else ""
+        if reason == "invalid":
+            state_html = '<span class="gate-warn">本机凭据已失效</span>（可能已在后台被撤销），请重新授权。'
+        elif reason == "shared_key_only":
+            state_html = ('检测到 <b>共享密钥（.env）</b>：它是运维/自动化通道，没有账号身份、'
+                          '不能撤销、无法审计，所以不作为登录态。请用浏览器授权一次。')
+        else:
+            state_html = "本机没有可用凭据，请用浏览器授权一次（约 30 秒）。"
+        direct_btn = ""
+        if saved:
+            label = f"直接登录（{_safe_str(email)}）" if email else "直接登录（本机已保存登录信息）"
+            direct_btn = (f'<div class="gate-row"><button class="gate-btn secondary" '
+                          f'onclick="gateDirectLogin()">{label}</button></div>')
+        return f"""
+        <div class="login-gate">
+          <h2>登录后即可使用</h2>
+          <div class="gate-desc">EvNotifier 通过「本机设备授权」拉取通知与订单数据。<br>
+            未登录时不会显示任何业务数据。</div>
+          <button class="gate-btn" onclick="gateLogin()">登录（浏览器授权）</button>
+          <label class="gate-check"><input type="checkbox" id="gateSaveLogin" checked>
+            保存登录信息（下次可直接登录）</label>
+          {direct_btn}
+          <div class="gate-row"><button class="gate-btn secondary" onclick="gateRecheck()">
+            我已授权，重新检查</button></div>
+          <div class="gate-state">状态：{state_html}<br>版本：{_safe_str(VERSION)}</div>
+        </div>
+        """
+
+    def _start_login(self, save=True):
+        """登录页 / 账号区的「登录」→ 复用 App 的登录流程（后台线程，绝不阻塞 WebView）。"""
+        app = getattr(self, "_app", None)
+        if app is None:
+            return
+        try:
+            app.login_device(None, save=save)
+        except Exception as e:
+            _debug_log(f"_start_login failed: {e}")
+        self._refresh_content()
+
+    def _direct_login(self):
+        """「直接登录」：用本机保存的登录信息恢复会话（秒级，无浏览器）。"""
+        app = getattr(self, "_app", None)
+        try:
+            if app is not None:
+                app.direct_login()
+        except Exception as e:
+            _debug_log(f"_direct_login failed: {e}")
+        self._refresh_content()
+
+    def _logout_soft(self):
+        """账号区「退出登录」= 软登出（保留本机登录信息 → 可"直接登录"）。"""
+        app = getattr(self, "_app", None)
+        try:
+            if app is not None:
+                app.logout_soft()
+        except Exception as e:
+            _debug_log(f"_logout_soft failed: {e}")
+        self._refresh_content()
+
+    def _clear_saved_login(self):
+        """设置页「清除本机登录信息」= 硬登出（删钥匙串）。"""
+        app = getattr(self, "_app", None)
+        try:
+            if app is not None:
+                app.clear_saved_login()
+        except Exception as e:
+            _debug_log(f"_clear_saved_login failed: {e}")
+        self._refresh_content()
+
+    def _refresh_account(self):
+        """刷新账号信息（邮箱 / 设备名 / 最后活跃）后重绘账号区。"""
+        try:
+            if _is_logged_in():
+                fetch_account_me(force=True)
+        except Exception as e:
+            _debug_log(f"_refresh_account failed: {e}")
         self._refresh_content()
 
     def _mark_all_read(self):
@@ -5808,6 +6302,11 @@ document.addEventListener('DOMContentLoaded',function(){{
     }
 
     def _build_current_html(self):
+        # ── 未登录门禁（第一层）：任何页面（**含设置页**）都不渲染业务数据 ──
+        # 见 tools/ev-notifier/面板账号入口与登录门禁方案.md §3
+        if not _is_logged_in():
+            return self._html_wrap(self._html_login_gate(), "登录", "")
+
         page = self._current_page
 
         tab_ids = ["messages", "orders", "activations", "visitors", "trend", "devices", "polls", "settings"]
@@ -5967,25 +6466,22 @@ document.addEventListener('DOMContentLoaded',function(){{
         self._on_window_closed("notification")
 
 
-def _menu_spec(logged_in, paused=False):
+def _menu_spec(paused=False):
     """顶部菜单结构 —— **顺序的唯一真源**（改菜单只改这里）。
 
     设计原则：
-      1. 高频动作在最上（打开面板是首选动作，左键已直达，菜单里留一个入口做兜底）；
+      1. **只放功能项**：登录 / 退出登录 / 清除本机登录信息全部在**面板左下角账号区**
+         （见 tools/ev-notifier/面板账号入口与登录门禁方案.md §2）；
       2. 状态信息放第二行（灰显不可点，一眼看到 连接 / 未读 / 凭据）；
-      3. **登录与退出登录互斥**：有凭据只显示「退出登录」，没有只显示「登录」；
-      4. 工具类（暂停/状态/日志/截图/重启）居中；
-      5. 信息（版本）与**退出压到最后**（避免误点）。
+      3. 工具类（暂停/状态/日志/截图/重启）居中；
+      4. 信息（版本）与「退出」压到最后 —— 这里的「退出」= **关闭软件**（面板不提供关闭软件，
+         这也是面板打不开时唯一的退路）。
 
     返回 [(kind, label, action, key)]；kind ∈ item / status / sep / submenu / version。
     """
-    spec = [
+    return [
         ("item", "打开面板", "open_dashboard", None),
         ("status", None, None, None),
-        ("sep", None, None, None),
-        # 登录 / 退出登录 二选一（互斥，不会同时出现）
-        (("item", "退出登录（清除本机凭据）", "logout_device", None) if logged_in
-         else ("item", "登录 EvNotifier…", "login_device", None)),
         ("sep", None, None, None),
         ("item", "恢复接收" if paused else "暂停接收", "toggle_pause", None),
         ("item", "运行状态…", "status_btn", None),
@@ -5996,7 +6492,6 @@ def _menu_spec(logged_in, paused=False):
         ("version", None, None, None),
         ("item", "退出", "quit_app", None),
     ]
-    return spec
 
 
 class EvNotifier(rumps.App):
@@ -6005,10 +6500,18 @@ class EvNotifier(rumps.App):
         self._thread = threading.Thread(target=_run_event_loop, daemon=True)
         self._thread.start()
         self._dash = DashboardWindow(self)
-        ensure_auto_start()
-        # 菜单：**顺序 + 登录/退出互斥** 全部由 _menu_spec() 定义，这里只负责构建。
-        # ⚠️ 不再用 @rumps.clicked 装饰器：它会把菜单项追加到菜单末尾（顺序不可控），
-        #    现在一律显式 callback，顺序有唯一真源。
+        # 开机自启：**尊重用户偏好**（设置页开关，默认 ON）。
+        # ⚠️ 不能无条件 ensure_auto_start()：那样用户在设置里关掉后，手动启动一次又会被偷偷打开。
+        try:
+            if load_notify_settings().get("auto_start", True):
+                ensure_auto_start()
+            else:
+                disable_auto_start()
+                _debug_log("auto-start disabled by user preference (settings)")
+        except Exception as e:
+            _debug_log(f"auto-start apply failed: {e}")
+        # 菜单：顺序全部由 _menu_spec() 定义（账号项已移入面板账号区），这里只负责构建。
+        # ⚠️ 不再用 @rumps.clicked 装饰器：它会把菜单项追加到菜单末尾（顺序不可控）。
         self._rebuild_menu()
         try:
             from AppKit import NSApp, NSApplicationActivationPolicyAccessory
@@ -6017,8 +6520,9 @@ class EvNotifier(rumps.App):
             pass
 
     def quit_app(self, _):
-        # 菜单项在 _rebuild_menu() 里显式构建（必须是最后一项）
-        disable_auto_start()
+        # 菜单项在 _rebuild_menu() 里显式构建（必须是最后一项）。
+        # ⚠️ 这里**不再** disable_auto_start()：顶部「退出」= 关闭软件，"开机自启"由设置页的开关
+        #    管（默认 ON，可 OFF）。否则用户每次退出都会被顺手关掉自启。
         _release_pid_lock()
         _mark_clean_exit("menu_quit")
         from AppKit import NSApp
@@ -6091,6 +6595,10 @@ class EvNotifier(rumps.App):
             unread = count_unread()
         except Exception:
             unread = 0
+        try:
+            _is_logged_in()      # 首次调用探一次钥匙串，保证状态行文案准确（软登出后不会自动恢复）
+        except Exception:
+            pass
         return f"{conn} · 未读 {unread} · {_auth_label()}"
 
     def _rebuild_menu(self):
@@ -6110,12 +6618,7 @@ class EvNotifier(rumps.App):
             except Exception as e2:
                 _debug_log(f"_rebuild_menu: removeAllItems failed: {e2}")
                 return
-        try:
-            logged_in = _is_logged_in()
-        except Exception as e:
-            _debug_log(f"_rebuild_menu: auth state failed: {e}")
-            logged_in = False
-        for kind, label, action, key in _menu_spec(logged_in, paused=bool(_paused)):
+        for kind, label, action, key in _menu_spec(paused=bool(_paused)):
             try:
                 if kind == "sep":
                     self.menu.add(rumps.separator)
@@ -6330,11 +6833,12 @@ class EvNotifier(rumps.App):
             self._sleep_obs = None
             _debug_log(f"sleep/wake observer unavailable: {e}")
 
-    def login_device(self, _):
-        """设备授权登录。
+    def login_device(self, _, save=True):
+        """设备授权登录（面板账号区 / 登录页 共用入口）。
 
         AppKit 的弹窗只能在主线程，所以这里只做「发起 + 提示」，
-        真正的轮询/等授权放后台线程，绝不阻塞菜单。
+        真正的轮询/等授权放后台线程，绝不阻塞 UI。
+        `save=False` = 登录页「保存登录信息」未勾选（会话级登录，重启需重新授权）。
         """
         global _device_login_running
         if _device_login_running:
@@ -6342,26 +6846,87 @@ class EvNotifier(rumps.App):
             return
         _device_login_running = True
         notify_macos(f"Ev {VERSION}", "已打开浏览器", "请在页面里点「授权此设备」", sound=False)
-        threading.Thread(target=self._device_login_worker, daemon=True).start()
+        threading.Thread(target=self._device_login_worker, args=(save,), daemon=True).start()
 
-    def _device_login_worker(self):
+    def _device_login_worker(self, save=True):
         global _device_login_running
         try:
-            ok, msg = device_login()
+            ok, msg = device_login(save=save)
             if ok:
-                _debug_log("device login OK (menu)")
+                _debug_log(f"device login OK (save={save})")
                 notify_macos(f"Ev {VERSION}", "登录成功", "通知功能已就绪", sound=False)
                 _request_sync("after-login", force=True)
                 self._refresh_panel()
-                # 菜单按登录态互斥显示，下次右键弹出时会重建（不在后台线程碰 AppKit 菜单）
             else:
                 _debug_log(f"device login not completed: {msg}")
                 notify_macos(f"Ev {VERSION}", "登录未完成", msg, sound=False)
+                self._refresh_panel()      # 让登录页把失败原因显示出来（而不是停在旧状态）
         except Exception as e:
             _debug_log(f"device login worker ERROR: {e}")
             notify_macos(f"Ev {VERSION}", "登录出错", str(e)[:80], sound=False)
         finally:
             _device_login_running = False
+
+    def direct_login(self, _=None):
+        """「直接登录」：用本机**已保存的登录信息**恢复会话（无需浏览器）。"""
+        ok, msg = direct_login()
+        if ok:
+            notify_macos(f"Ev {VERSION}", "已登录", msg, sound=False)
+            _request_sync("direct-login", force=True)
+        else:
+            notify_macos(f"Ev {VERSION}", "无法直接登录", msg, sound=False)
+        self._refresh_panel()
+        return ok
+
+    def logout_soft(self, _=None):
+        """**退出登录**（软登出）：清掉内存会话，但**保留本机保存的登录信息**。
+
+        面板账号区唯一动作 —— 只退出登录，不关闭软件（关软件走顶部菜单「退出」）。
+        保留钥匙串 → 登录页会出现「直接登录」，一点即回，不用再走浏览器。
+        """
+        global DEVICE_TOKEN, _auth_state, _session_logged_out
+        DEVICE_TOKEN = None
+        _auth_state = "missing"
+        _session_logged_out = True
+        _debug_log("soft logout: session cleared, saved login info kept")
+        notify_macos(f"Ev {VERSION}", "已退出登录",
+                     "本机保存的登录信息仍保留，可点「直接登录」恢复", sound=False)
+        self._refresh_panel()
+
+    def clear_saved_login(self, _=None):
+        """**清除本机登录信息**（硬登出）：删钥匙串 —— 换机 / 怀疑泄漏时用。
+
+        入口在**设置页 → 账号**（不放账号区，避免误点）。
+        """
+        global DEVICE_TOKEN, _auth_state, _session_logged_out
+        try:
+            _keychain_delete_token()
+        except Exception as e:
+            _debug_log(f"clear_saved_login: keychain delete failed: {e}")
+        DEVICE_TOKEN = None
+        _auth_state = "missing"
+        _session_logged_out = True
+        _debug_log("hard logout: saved login info cleared from keychain")
+        notify_macos(f"Ev {VERSION}", "已清除本机登录信息", "下次需要重新授权登录", sound=False)
+        self._refresh_panel()
+
+    def _toggle_auto_start(self):
+        """设置页「开机自启」开关：写偏好 + 立即生效。
+
+        ⚠️ 关闭后必须真的保持关闭：启动时读的是这个偏好（见 EvNotifier.__init__），
+        否则用户手动启动一次又会被偷偷打开。
+        """
+        settings = load_notify_settings()
+        current = bool(settings.get("auto_start", True))
+        settings["auto_start"] = not current
+        save_notify_settings(settings)
+        if settings["auto_start"]:
+            ensure_auto_start()
+        else:
+            disable_auto_start()
+        _debug_log(f"auto_start setting: {settings['auto_start']}")
+        self._refresh_panel()
+        self._schedule_menu_rebuild()
 
     def _refresh_panel(self):
         """刷新面板内容（如果开着）。
