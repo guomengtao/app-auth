@@ -674,4 +674,47 @@ d3 = E.DashboardWindow(None)   # 窗口引用为 None（测试环境）时轮询
 d3._poll_window_closed()
 c.check("无窗口引用时轮询安全退出", d3._last_visible is None)
 
+# ══ 16. 顶部菜单：顺序 + 登录/退出互斥（顺序唯一真源 = _menu_spec）════════
+def _label_for(spec, action):
+    for _k, label, act, _key in spec:
+        if act == action:
+            return label
+    return None
+
+
+spec_off = E._menu_spec(False)
+spec_on = E._menu_spec(True)
+labels_off = [s[1] for s in spec_off if s[1]]
+labels_on = [s[1] for s in spec_on if s[1]]
+
+c.check("菜单第一项是「打开面板」", spec_off[0][1] == "打开面板", spec_off[0])
+c.check("菜单最后一项是「退出」（避免误点）",
+        spec_off[-1][1] == "退出" and spec_off[-1][2] == "quit_app", spec_off[-1])
+c.check("第二项是灰显状态行", spec_off[1][0] == "status", spec_off[1])
+c.check("版本行在「退出」之前",
+        [s[0] for s in spec_off][-2:] == ["version", "item"], [s[0] for s in spec_off])
+c.check("顺序：打开面板 → 截图 → 退出",
+        labels_off.index("打开面板") < labels_off.index("截图") < labels_off.index("退出"),
+        labels_off)
+
+# 登录 / 退出登录 互斥（不能同时出现）
+c.check("未登录：只显示「登录」",
+        "登录 EvNotifier…" in labels_off and not any("退出登录" in x for x in labels_off),
+        labels_off)
+c.check("已登录：只显示「退出登录」",
+        any("退出登录" in x for x in labels_on) and "登录 EvNotifier…" not in labels_on,
+        labels_on)
+c.check("两种状态菜单项数一致（只换一项、不增删）", len(spec_off) == len(spec_on),
+        (len(spec_off), len(spec_on)))
+
+# 暂停文案随状态变化
+c.check("未暂停 → 「暂停接收」", _label_for(E._menu_spec(True, False), "toggle_pause") == "暂停接收")
+c.check("已暂停 → 「恢复接收」", _label_for(E._menu_spec(True, True), "toggle_pause") == "恢复接收")
+
+# 菜单回调必须都真实存在（防改名字改出一个点了没反应的菜单项）
+missing_cb = [act for _k, _l, act, _key in spec_off if act and not hasattr(E.EvNotifier, act)]
+c.check("菜单回调方法都存在", not missing_cb, missing_cb)
+c.check("截图保留快捷键 key=4",
+        [s[3] for s in spec_off if s[2] == "start_screenshot"] == ["4"])
+
 sys.exit(c.done())

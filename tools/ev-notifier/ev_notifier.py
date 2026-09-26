@@ -58,6 +58,7 @@ REST_API_URL = None
 UPSTASH_TOKEN = None
 SYNC_TOKEN = None   # 过渡期兼容：与服务端 EV_SYNC_TOKEN 配对的共享密钥
 DEVICE_TOKEN = None # 设备授权令牌（存 macOS 钥匙串，走菜单「登录 EvNotifier…」获取）
+_device_token_probed = False   # 是否已尝试读过钥匙串（菜单状态行不能每次都起 security 子进程）
 STREAM_KEY = "auth:notifications:stream"
 LAST_ID_FILE = os.path.expanduser("~/.ev_last_id_v1.5.0")
 RECEIVED_FILE = os.path.expanduser("~/.ev_received.json")
@@ -234,11 +235,39 @@ def _keychain_delete_token():
 
 def _load_device_token():
     """启动时读钥匙串。返回 True 表示拿到设备令牌。"""
-    global DEVICE_TOKEN
+    global DEVICE_TOKEN, _device_token_probed
     DEVICE_TOKEN = _keychain_get_token()
+    _device_token_probed = True
     if DEVICE_TOKEN:
         _debug_log(f"device token loaded (fingerprint {DEVICE_TOKEN[:8]}…)")
     return bool(DEVICE_TOKEN)
+
+
+def _is_logged_in():
+    """是否已有可用凭据（设备令牌 或 共享密钥）→ 决定菜单显示「登录」还是「退出登录」。
+
+    ⚠️ 只在内存里没令牌时读一次钥匙串：`_keychain_get_token()` 会起 `security` 子进程，
+    而右键弹菜单每次都问状态，不能每次都打子进程。
+    """
+    if DEVICE_TOKEN:
+        return True
+    if not _device_token_probed:
+        try:
+            _load_device_token()
+        except Exception as e:
+            _debug_log(f"_is_logged_in: load device token failed: {e}")
+    return bool(DEVICE_TOKEN) or bool(SYNC_TOKEN)
+
+
+def _auth_label():
+    """凭据状态文案（右键菜单的状态行用；与面板/`status_btn` 的 Auth 口径一致）。"""
+    if DEVICE_TOKEN:
+        return "已登录（设备令牌）"
+    if SYNC_TOKEN:
+        return "已登录（共享密钥）"
+    if _auth_state == "invalid":
+        return "凭据失效，需重新登录"
+    return "未登录"
 
 
 def _post_json(url, body, timeout=15):
@@ -3007,8 +3036,36 @@ body {
   word-break: break-all;
 }
 
-.msg-unread { background: linear-gradient(90deg, rgba(59,130,246,0.04), transparent); }
-.msg-unread .msg-detail { font-weight: 500; color: var(--text); }
+/* 未读标识：左侧蓝色竖条 + 「NEW」胶囊 + 更明显的底色/字重。
+   All 视图里混着已读/未读，所以要能"扫一眼"看出哪些是新的（需求 2026-09-26）。 */
+.msg-unread {
+  background: linear-gradient(90deg, rgba(59,130,246,0.10), transparent 55%);
+  box-shadow: inset 3px 0 0 var(--blue);
+}
+.msg-unread .msg-detail { font-weight: 600; color: var(--text); }
+.msg-unread .msg-time { font-weight: 600; color: var(--text); }
+.msg-new {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: 2px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--blue);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 16px;
+}
+.msg-new::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #fff;
+}
 .msg-read { opacity: 0.75; }
 .msg-read .msg-detail { color: var(--text-secondary); }
 
@@ -3455,6 +3512,28 @@ class WindowDelegate(NSObject):
                 self._dashboard._on_window_closed("delegate")
         except Exception as e:
             _debug_log(f"WindowDelegate.windowWillClose_ ERROR: {e}")
+
+
+class StatusClickTarget(NSObject):
+    """状态栏图标点击分流器：**左键 = 直接开面板，右键（或 ⌃+左键）= 弹菜单**。
+
+    rumps 默认把菜单挂在 statusItem 上，点哪儿都弹菜单；要左右键分开，必须
+    `statusitem.setMenu_(None)` + 给 button 自己接 target/action，再按事件类型分流。
+
+    ⚠️ 必须是 NSObject 子类（纯 Python 对象注册的 selector 在本项目实测从不回调），
+    且必须被强引用住（`EvNotifier._status_click_target`）。
+    """
+
+    def init(self):
+        self._app = None
+        return self
+
+    def onStatusClick_(self, sender):
+        try:
+            if self._app is not None:
+                self._app._handle_status_click(sender)
+        except Exception as e:
+            _debug_log(f"onStatusClick ERROR: {e}")
 
 
 class SleepWakeObserver(NSObject):
@@ -4128,6 +4207,8 @@ function filterVisitors(filter) {
             time_short = _safe_str(t[-16:] if len(t) >= 16 else t)
             detail_safe = _safe_str(detail)
             read_class = "msg-read" if is_read else "msg-unread"
+            # 未读标记：All 视图里一眼扫出"哪些还没读过"（左侧蓝条 + NEW 胶囊 + 加粗）
+            new_pill = '' if is_read else '<span class="msg-new" title="未读">NEW</span>'
             # data-mid 供「可见即已读」回传；onclick 供单条立即已读
             mid_attr = f' data-mid="{_safe_str(mid)}"' if mid else ''
             click_attr = f" onclick=\"markOneRead('{_safe_str(mid)}')\"" if mid else ''
@@ -4136,6 +4217,7 @@ function filterVisitors(filter) {
                 f'<div class="msg-indicator {css_cls}"></div>'
                 f'<span class="msg-time">{time_short}</span>'
                 f'<span class="msg-badge {badge_cls}">{_safe_str(tp)}</span>'
+                f'{new_pill}'
                 f'<div class="msg-detail">{detail_safe}</div>'
                 f'</div>\n')
 
@@ -5885,6 +5967,38 @@ document.addEventListener('DOMContentLoaded',function(){{
         self._on_window_closed("notification")
 
 
+def _menu_spec(logged_in, paused=False):
+    """顶部菜单结构 —— **顺序的唯一真源**（改菜单只改这里）。
+
+    设计原则：
+      1. 高频动作在最上（打开面板是首选动作，左键已直达，菜单里留一个入口做兜底）；
+      2. 状态信息放第二行（灰显不可点，一眼看到 连接 / 未读 / 凭据）；
+      3. **登录与退出登录互斥**：有凭据只显示「退出登录」，没有只显示「登录」；
+      4. 工具类（暂停/状态/日志/截图/重启）居中；
+      5. 信息（版本）与**退出压到最后**（避免误点）。
+
+    返回 [(kind, label, action, key)]；kind ∈ item / status / sep / submenu / version。
+    """
+    spec = [
+        ("item", "打开面板", "open_dashboard", None),
+        ("status", None, None, None),
+        ("sep", None, None, None),
+        # 登录 / 退出登录 二选一（互斥，不会同时出现）
+        (("item", "退出登录（清除本机凭据）", "logout_device", None) if logged_in
+         else ("item", "登录 EvNotifier…", "login_device", None)),
+        ("sep", None, None, None),
+        ("item", "恢复接收" if paused else "暂停接收", "toggle_pause", None),
+        ("item", "运行状态…", "status_btn", None),
+        ("item", "调试日志", "debug_log_btn", None),
+        ("item", "截图", "start_screenshot", "4"),
+        ("submenu", "重启", None, None),
+        ("sep", None, None, None),
+        ("version", None, None, None),
+        ("item", "退出", "quit_app", None),
+    ]
+    return spec
+
+
 class EvNotifier(rumps.App):
     def __init__(self):
         super().__init__(f"Ev {VERSION}", quit_button=None)
@@ -5892,43 +6006,18 @@ class EvNotifier(rumps.App):
         self._thread.start()
         self._dash = DashboardWindow(self)
         ensure_auto_start()
-        self.menu.add(self._version_menu())
-        # 设备授权登录（替代手工配置共享密钥）：走一次浏览器确认，令牌存钥匙串
-        self.menu.add(rumps.MenuItem("登录 EvNotifier…", callback=self.login_device))
-        self.menu.add(rumps.MenuItem("退出登录（清除本机凭据）", callback=self.logout_device))
-        try:
-            self.menu.add(rumps.separator)
-        except Exception:
-            pass
-        restart_menu = rumps.MenuItem("重启")
-        restart_menu.add(rumps.MenuItem("重启 VS Code", callback=self.restart_vscode))
-        restart_menu.add(rumps.MenuItem("重启 AIOT IDE", callback=self.restart_aiot_ide))
-        restart_menu.add(rumps.MenuItem("重启 AstroBox", callback=self.restart_astrobox))
-        restart_menu.add(rumps.separator)
-        restart_menu.add(rumps.MenuItem("重启 Ev Notifier", callback=self.restart_self))
-        restart_menu.add(rumps.MenuItem("全部重启", callback=self.restart_all))
-        self.menu.add(restart_menu)
-        # 截图：菜单项 + 快捷键 ⌃⇧⌘4（容易忘，显式展示；点击菜单项即可开始截图）
-        try:
-            from AppKit import NSControlKeyMask, NSShiftKeyMask, NSCommandKeyMask
-            shot_item = rumps.MenuItem("截图", callback=self.start_screenshot, key="4")
-            shot_item._menuitem.setKeyEquivalentModifierMask_(
-                NSControlKeyMask | NSShiftKeyMask | NSCommandKeyMask)
-            self.menu.add(shot_item)
-        except Exception as e:
-            _debug_log(f"screenshot menu setup ERROR: {e}")
-        try:
-            self.menu.add(rumps.separator)
-        except Exception:
-            pass
+        # 菜单：**顺序 + 登录/退出互斥** 全部由 _menu_spec() 定义，这里只负责构建。
+        # ⚠️ 不再用 @rumps.clicked 装饰器：它会把菜单项追加到菜单末尾（顺序不可控），
+        #    现在一律显式 callback，顺序有唯一真源。
+        self._rebuild_menu()
         try:
             from AppKit import NSApp, NSApplicationActivationPolicyAccessory
             NSApp.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
         except Exception:
             pass
 
-    @rumps.clicked("退出")
     def quit_app(self, _):
+        # 菜单项在 _rebuild_menu() 里显式构建（必须是最后一项）
         disable_auto_start()
         _release_pid_lock()
         _mark_clean_exit("menu_quit")
@@ -5985,6 +6074,162 @@ class EvNotifier(rumps.App):
     def _version_menu(self):
         menu = rumps.MenuItem(f"版本: {VERSION}")
         return menu
+
+    # ── 顶部菜单（顺序真源 = 模块级 _menu_spec）与状态栏点击分流 ──────────────
+
+    def _status_line_text(self):
+        """状态行：连接 / 未读 / 凭据（灰显信息行，右键菜单一眼看到关键状态）。"""
+        if _status == "connected":
+            conn = "在线"
+        elif "retry" in str(_status):
+            conn = "重连中"
+        elif _status == "connecting":
+            conn = "连接中"
+        else:
+            conn = _status or "-"
+        try:
+            unread = count_unread()
+        except Exception:
+            unread = 0
+        return f"{conn} · 未读 {unread} · {_auth_label()}"
+
+    def _rebuild_menu(self):
+        """按 `_menu_spec()` 重建整个菜单。
+
+        每次都重建的理由：
+          1. 登录 / 退出登录必须按**当前**凭据状态互斥显示（不能两个都在）；
+          2. 状态行要反映实时未读与连接状态；
+          3. 顺序只由 `_menu_spec()` 定义，不再散落在 __init__ 与装饰器里。
+        """
+        try:
+            self.menu.clear()
+        except Exception as e:
+            _debug_log(f"_rebuild_menu: clear failed: {e}")
+            try:
+                self.menu._menu.removeAllItems()
+            except Exception as e2:
+                _debug_log(f"_rebuild_menu: removeAllItems failed: {e2}")
+                return
+        try:
+            logged_in = _is_logged_in()
+        except Exception as e:
+            _debug_log(f"_rebuild_menu: auth state failed: {e}")
+            logged_in = False
+        for kind, label, action, key in _menu_spec(logged_in, paused=bool(_paused)):
+            try:
+                if kind == "sep":
+                    self.menu.add(rumps.separator)
+                elif kind == "status":
+                    # 无 callback → rumps 会把它灰显，正好当信息行
+                    self.menu.add(rumps.MenuItem(self._status_line_text()))
+                elif kind == "version":
+                    self.menu.add(self._version_menu())
+                elif kind == "submenu":
+                    self.menu.add(self._restart_submenu())
+                else:
+                    cb = getattr(self, action, None)
+                    item = rumps.MenuItem(label, callback=cb, key=key)
+                    if key == "4":
+                        # 截图保留系统级快捷键 ⌃⇧⌘4（容易忘，显式展示）
+                        try:
+                            from AppKit import (NSControlKeyMask, NSShiftKeyMask,
+                                                NSCommandKeyMask)
+                            item._menuitem.setKeyEquivalentModifierMask_(
+                                NSControlKeyMask | NSShiftKeyMask | NSCommandKeyMask)
+                        except Exception as e:
+                            _debug_log(f"menu key mask failed: {e}")
+                    self.menu.add(item)
+            except Exception as e:
+                _debug_log(f"_rebuild_menu: item {label} failed: {e}")
+
+    def _restart_submenu(self):
+        restart_menu = rumps.MenuItem("重启")
+        restart_menu.add(rumps.MenuItem("重启 VS Code", callback=self.restart_vscode))
+        restart_menu.add(rumps.MenuItem("重启 AIOT IDE", callback=self.restart_aiot_ide))
+        restart_menu.add(rumps.MenuItem("重启 AstroBox", callback=self.restart_astrobox))
+        restart_menu.add(rumps.separator)
+        restart_menu.add(rumps.MenuItem("重启 Ev Notifier", callback=self.restart_self))
+        restart_menu.add(rumps.MenuItem("全部重启", callback=self.restart_all))
+        return restart_menu
+
+    def _install_status_click_behavior(self):
+        """左键 = 直接开面板；右键（或 ⌃+左键）= 弹菜单。
+
+        做法：`statusitem.setMenu_(None)` 断掉 rumps 的「点哪都弹菜单」，改由 button 的
+        target/action 分流；右键时用 `popUpMenu_` 手动弹同一个 NSMenu。
+        ⚠️ 任何一步失败都**回滚成默认行为**（宁可"点哪都弹菜单"，也不能"点了没反应"）。
+        """
+        item = getattr(self._nsapp, "nsstatusitem", None)
+        menu = getattr(self.menu, "_menu", None)
+        if item is None or menu is None:
+            _debug_log("status item/menu unavailable -> keep default menu behavior")
+            return
+        try:
+            from AppKit import NSEventMaskLeftMouseUp, NSEventMaskRightMouseUp
+            self._status_item = item
+            self._status_menu = menu
+            self._status_click_target = StatusClickTarget.alloc().init()
+            self._status_click_target._app = self
+            button = item.button()
+            button.setTarget_(self._status_click_target)
+            button.setAction_("onStatusClick:")
+            button.sendActionOn_(NSEventMaskLeftMouseUp | NSEventMaskRightMouseUp)
+            item.setMenu_(None)
+            _debug_log("status click behavior installed (left=panel, right=menu)")
+        except Exception as e:
+            _debug_log(f"status click behavior failed ({e}) -> restore default menu")
+            self._status_item = None
+            self._status_menu = None
+            try:
+                item.setMenu_(menu)      # 回滚：恢复"点哪都弹菜单"
+            except Exception as e2:
+                _debug_log(f"restore default menu failed: {e2}")
+
+    def _handle_status_click(self, sender):
+        """事件分流：右键 / ⌃+左键 → 菜单；其余（普通左键）→ 面板。"""
+        right = False
+        try:
+            from AppKit import (NSApp, NSEventTypeRightMouseUp, NSEventTypeLeftMouseUp,
+                                NSEventModifierFlagControl)
+            ev = NSApp.currentEvent()
+            if ev is not None:
+                et = int(ev.type())
+                if et == int(NSEventTypeRightMouseUp):
+                    right = True
+                elif et == int(NSEventTypeLeftMouseUp) and \
+                        (int(ev.modifierFlags()) & int(NSEventModifierFlagControl)):
+                    right = True
+        except Exception as e:
+            _debug_log(f"_handle_status_click: inspect event failed: {e}")
+        if right:
+            self._popup_status_menu()
+        else:
+            self.open_dashboard(None)
+
+    def _popup_status_menu(self):
+        """手动弹出菜单（弹出前先按当前状态重建，保证登录/退出与状态行是最新的）。"""
+        item = getattr(self, "_status_item", None)
+        menu = getattr(self, "_status_menu", None)
+        if item is None or menu is None:
+            return
+        try:
+            self._rebuild_menu()
+        except Exception as e:
+            _debug_log(f"_popup_status_menu: rebuild failed: {e}")
+        try:
+            # ⚠️ 真机实测（macOS + pyobjc 12）：`popUpMenu_` 已被 SDK 移除（hasattr=False），
+            # 必须用 `popUpStatusItemMenu_`；两个都探测一下，谁在就用谁。
+            if hasattr(item, "popUpStatusItemMenu_"):
+                item.popUpStatusItemMenu_(menu)
+            elif hasattr(item, "popUpMenu_"):
+                item.popUpMenu_(menu)
+            else:
+                _debug_log("_popup_status_menu: 没有可用的弹出方法 -> 回滚成默认菜单行为")
+                item.setMenu_(menu)
+                self._status_item = None
+                self._status_menu = None
+        except Exception as e:
+            _debug_log(f"_popup_status_menu: popUp failed: {e}")
 
     def start_screenshot(self, _):
         """触发系统原生快捷键 ⌃⇧⌘4 开始截图。延到下一轮 runloop，避免在菜单追踪栈里发按键。"""
@@ -6055,6 +6300,10 @@ class EvNotifier(rumps.App):
             b(self)
 
         self._nsapp.initializeStatusBar()
+        # 菜单顺序/登录互斥 与「左键开面板、右键弹菜单」都在这里落地：
+        # 必须放在 rumps 处理完 @clicked（run 里早于 initializeStatusBar）之后，否则会被覆盖。
+        self._rebuild_menu()
+        self._install_status_click_behavior()
         self._install_sleep_wake_observer()
         _rm.AppHelper.installMachInterrupt()
         nsdict['events'].before_start.emit()
@@ -6123,14 +6372,15 @@ class EvNotifier(rumps.App):
         notify_macos(f"Ev {VERSION}", "已退出登录", "本机凭据已清除，通知将无法接收", sound=False)
         self._refresh_content()
 
-    @rumps.clicked("打开面板")
     def open_dashboard(self, _):
-        """只做「投递」：真正的建窗/导航延到主线程下一轮 runloop 执行。
+        """打开面板（菜单项 + **状态栏左键** 共用入口）。
 
+        只做「投递」：真正的建窗/导航延到主线程下一轮 runloop 执行。
         2026-09-23 崩溃排查结论：菜单回调是在 `NSStatusItem → NSMenu → sendAction → NSMenuTrackingSession`
         的同步栈里跑的，在这段栈里做 AppKit 建窗 / WebView 导航会在同一进程第 2 次打开面板时
         触发 pyobjc 类型校验 trap（SIGTRAP / EXC_BREAKPOINT），try/except 抓不住、进程秒崩。
         改用 AppHelper.callLater 排到下一轮 runloop（菜单收起后），彻底离开菜单事件循环。
+        左键点击走的是 button 的 action（不在菜单追踪栈里），但统一走这里更安全。
         """
         _debug_log("open_dashboard clicked (deferred -> next runloop)")
         try:
@@ -6143,8 +6393,8 @@ class EvNotifier(rumps.App):
             except Exception as e2:
                 _debug_log(f"open_dashboard ERROR: {e2}")
 
-    @rumps.clicked("暂停/恢复")
     def toggle_pause(self, _):
+        # 菜单项文案随状态变（暂停接收 / 恢复接收），在 _menu_spec 里生成
         try:
             global _paused
             _paused = not _paused
@@ -6153,8 +6403,8 @@ class EvNotifier(rumps.App):
         except Exception as e:
             _debug_log(f"toggle_pause ERROR: {e}")
 
-    @rumps.clicked("状态")
     def status_btn(self, _):
+        # 菜单项名 = 「运行状态…」（与灰显状态行区分开）
         try:
             lt = _safe_localtime(_last_msg_ts)
             ts_str = time.strftime("%H:%M:%S", lt) if lt else "无"
@@ -6168,7 +6418,6 @@ class EvNotifier(rumps.App):
         except Exception as e:
             _debug_log(f"status_btn ERROR: {e}")
 
-    @rumps.clicked("调试日志")
     def debug_log_btn(self, _):
         try:
             with open(os.path.expanduser("~/.ev_debug.log"), "r") as f:

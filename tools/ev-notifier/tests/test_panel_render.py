@@ -62,9 +62,14 @@ c.check("同步状态行存在", "游标" in html)
 # 已读/未读样式类仍然正确
 html = E.DashboardWindow._build_current_html(dash)
 c.check("新消息渲染为未读样式", "msg-unread" in html)
+# 未读标识（All 视图里快速看出哪些是新的）：NEW 胶囊 + 左侧蓝条
+c.check("未读卡片带 NEW 胶囊", 'class="msg-new"' in html)
+c.check("未读样式含左侧蓝条（扫一眼可辨）", "inset 3px 0 0" in html)
+c.check("NEW 胶囊有独立样式定义", ".msg-new {" in html and ".msg-new::before" in html)
 E.mark_read([E._msg_key(m) for m in E.load_messages()])
 html = E.DashboardWindow._build_current_html(dash)
 c.check("标记后渲染为已读样式", "msg-read" in html)
+c.check("已标记的卡片不再出现 NEW 胶囊", 'class="msg-new"' not in html)
 c.check("已读后未读计数为 0", E.count_unread() == 0, E.count_unread())
 
 print("\n共校验 script 块: %d" % total_blocks)
