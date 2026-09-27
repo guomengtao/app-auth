@@ -1,0 +1,799 @@
+{
+  "schema": 1,
+  "_doc": "手环端逐页截图档案的数据源。capture.enabled=是否纳入自动采集；capture.auto=是否可自动导航（false 表示需要在页面上人工点入，脚本会跳过并提示）；--no-update 时本文件不写回。",
+  "watchApp": {
+    "name": "Ev课程表",
+    "repo": "guomengtao/class-schedule",
+    "version": "1.6.142",
+    "versionCode": 971,
+    "channel": "t-9p-d",
+    "updatedAt": "2026-09-27 19:44"
+  },
+  "captureEnv": {
+    "device": "标准版手环 9（胶囊屏）",
+    "vvd": "xiaomi_band",
+    "size": "192x490",
+    "adb": "emulator-5554",
+    "grpc": 8554,
+    "note": "待人工补采：detail,course-manager,custom-content-edit,countdown-manage,week-view,schedule-qrcode,workday-info,tools,homepage-settings,reset-data,backup-restore,activation,device-info,pinned-pages"
+  },
+  "pageUpdatedAt": "2026-09-27",
+  "pages": [
+    {
+      "id": "welcome",
+      "name": "欢迎页",
+      "group": "核心主流程",
+      "route": "pages/welcome",
+      "premium": false,
+      "usage": "应用入口：进入首页 / 设置 / 退出",
+      "entry": "启动应用即是",
+      "points": [
+        "「进入首页」进课程表",
+        "「设置」进设置页",
+        "「退出」关闭快应用"
+      ],
+      "capture": {
+        "enabled": true,
+        "auto": true,
+        "steps": [
+          {
+            "launch": true
+          },
+          {
+            "wait": 15
+          },
+          {
+            "shot": "default"
+          }
+        ]
+      },
+      "shots": [
+        {
+          "file": "pages/welcome-default.png",
+          "state": "default",
+          "version": "1.6.142",
+          "at": "2026-09-27 19:42"
+        }
+      ],
+      "check": {},
+      "capturedAt": "2026-09-27 19:42"
+    },
+    {
+      "id": "index",
+      "name": "首页（课程表）",
+      "group": "核心主流程",
+      "route": "pages/index",
+      "premium": false,
+      "usage": "主界面：当天课程、日期导航、自定义内容、快速添加、设置入口",
+      "entry": "欢迎页 →「进入首页」",
+      "points": [
+        "← / → 切换日期",
+        "「快速添加」展开快捷操作",
+        "底部「课程表1」进课程表管理"
+      ],
+      "capture": {
+        "enabled": true,
+        "auto": true,
+        "steps": [
+          {
+            "launch": true
+          },
+          {
+            "wait": 15
+          },
+          {
+            "tap": [
+              96,
+              262
+            ]
+          },
+          {
+            "wait": 5
+          },
+          {
+            "shot": "list"
+          },
+          {
+            "tap": [
+              97,
+              454
+            ]
+          },
+          {
+            "wait": 4
+          },
+          {
+            "shot": "schedule-manager-modal"
+          }
+        ]
+      },
+      "shots": [
+        {
+          "file": "pages/index-list.png",
+          "state": "list",
+          "version": "1.6.142",
+          "at": "2026-09-27 19:42"
+        },
+        {
+          "file": "pages/index-schedule-manager-modal.png",
+          "state": "schedule-manager-modal",
+          "version": "1.6.142",
+          "at": "2026-09-27 19:42"
+        }
+      ],
+      "check": {},
+      "capturedAt": "2026-09-27 19:42"
+    },
+    {
+      "id": "detail",
+      "name": "课程详情",
+      "group": "核心主流程",
+      "route": "pages/detail",
+      "premium": false,
+      "usage": "查看/编辑单节课的详情",
+      "entry": "首页 → 点某一节课",
+      "points": [
+        "显示课程名、时间、地点",
+        "可编辑与删除"
+      ],
+      "capture": {
+        "enabled": true,
+        "auto": false,
+        "why": "需要首页已有课程数据",
+        "steps": []
+      },
+      "shots": [],
+      "check": {}
+    },
+    {
+      "id": "add-course",
+      "name": "添加课程",
+      "group": "核心主流程",
+      "route": "pages/add-course",
+      "premium": false,
+      "usage": "新增一节课：选星期、节次、课程名",
+      "entry": "首页 →「快速添加」/「+」",
+      "points": [
+        "先选星期与节次",
+        "再填课程名",
+        "本节次冲突会提示"
+      ],
+      "capture": {
+        "enabled": true,
+        "auto": true,
+        "steps": [
+          {
+            "launch": true
+          },
+          {
+            "wait": 15
+          },
+          {
+            "tap": [
+              96,
+              262
+            ]
+          },
+          {
+            "wait": 5
+          },
+          {
+            "tap": [
+              44,
+              380
+            ]
+          },
+          {
+            "wait": 5
+          },
+          {
+            "shot": "form"
+          }
+        ]
+      },
+      "shots": [
+        {
+          "file": "pages/add-course-form.png",
+          "state": "form",
+          "version": "1.6.142",
+          "at": "2026-09-27 19:43"
+        }
+      ],
+      "check": {},
+      "capturedAt": "2026-09-27 19:43"
+    },
+    {
+      "id": "course-manager",
+      "name": "课程管理",
+      "group": "课程管理",
+      "route": "pages/course-manager",
+      "premium": false,
+      "usage": "批量管理已添加的课程（改名/删除/排序）",
+      "entry": "首页 → 课程区域入口",
+      "points": [
+        "列表逐行可点",
+        "删除有二次确认"
+      ],
+      "capture": {
+        "enabled": true,
+        "auto": false,
+        "why": "入口位置待核对",
+        "steps": []
+      },
+      "shots": [],
+      "check": {
+        "hitArea": "待核（整行热区）"
+      }
+    },
+    {
+      "id": "custom-content-edit",
+      "name": "自定义内容编辑",
+      "group": "课程管理",
+      "route": "pages/custom-content-edit",
+      "premium": false,
+      "usage": "编辑首页那行自定义文案",
+      "entry": "首页设置 →「自定义」→ 输入行",
+      "points": [
+        "支持中文输入",
+        "留空则隐藏该行"
+      ],
+      "capture": {
+        "enabled": true,
+        "auto": false,
+        "why": "入口在首页设置页内",
+        "steps": []
+      },
+      "shots": [],
+      "check": {}
+    },
+    {
+      "id": "countdown-manage",
+      "name": "倒数日管理",
+      "group": "课程管理",
+      "route": "pages/countdown-manage",
+      "premium": false,
+      "usage": "管理倒数日（如「距离考试还有 N 天」）",
+      "entry": "首页/工具页入口",
+      "points": [
+        "新增/编辑/删除倒数日",
+        "首页可显示天数"
+      ],
+      "capture": {
+        "enabled": true,
+        "auto": false,
+        "why": "入口位置待核对",
+        "steps": []
+      },
+      "shots": [],
+      "check": {}
+    },
+    {
+      "id": "schedule-manager",
+      "name": "课程表管理",
+      "group": "课表视图",
+      "route": "pages/schedule-manager",
+      "premium": false,
+      "usage": "管理多张课表（免费版仅 1 张）；点行弹出底部操作面板",
+      "entry": "首页底部「课程表1」",
+      "points": [
+        "点课程名/圆圈/行尾空白都应弹出面板（整行热区）",
+        "面板内「删除」需二次确认",
+        "新增第 2 张课表需高级版"
+      ],
+      "capture": {
+        "enabled": true,
+        "auto": true,
+        "steps": [
+          {
+            "launch": true
+          },
+          {
+            "wait": 15
+          },
+          {
+            "tap": [
+              96,
+              262
+            ]
+          },
+          {
+            "wait": 5
+          },
+          {
+            "tap": [
+              97,
+              454
+            ]
+          },
+          {
+            "wait": 4
+          },
+          {
+            "shot": "unlock-modal"
+          }
+        ]
+      },
+      "shots": [
+        {
+          "file": "pages/schedule-manager-unlock-modal.png",
+          "state": "unlock-modal",
+          "version": "1.6.142",
+          "at": "2026-09-27 19:43"
+        }
+      ],
+      "check": {
+        "symmetric": "已通过（左 8 / 右 8）"
+      },
+      "capturedAt": "2026-09-27 19:43"
+    },
+    {
+      "id": "week-view",
+      "name": "周视图",
+      "group": "课表视图",
+      "route": "pages/week-view",
+      "premium": false,
+      "usage": "按周查看课程分布",
+      "entry": "首页/课表页入口",
+      "points": [
+        "左右切换周",
+        "点课程进详情"
+      ],
+      "capture": {
+        "enabled": true,
+        "auto": false,
+        "why": "入口位置待核对",
+        "steps": []
+      },
+      "shots": [],
+      "check": {}
+    },
+    {
+      "id": "schedule-qrcode",
+      "name": "课表二维码",
+      "group": "课表视图",
+      "route": "pages/schedule-qrcode",
+      "premium": false,
+      "usage": "把课表生成二维码，用于分享/迁移",
+      "entry": "课表管理页入口",
+      "points": [
+        "生成二维码",
+        "对方扫码即可导入"
+      ],
+      "capture": {
+        "enabled": true,
+        "auto": false,
+        "why": "入口在课表管理页内",
+        "steps": []
+      },
+      "shots": [],
+      "check": {}
+    },
+    {
+      "id": "workday-info",
+      "name": "工作日信息",
+      "group": "课表视图",
+      "route": "pages/workday-info",
+      "premium": false,
+      "usage": "显示调休/节假日信息",
+      "entry": "工具页入口",
+      "points": [
+        "显示今天是否上班",
+        "显示下一个假期"
+      ],
+      "capture": {
+        "enabled": true,
+        "auto": false,
+        "why": "入口位置待核对",
+        "steps": []
+      },
+      "shots": [],
+      "check": {}
+    },
+    {
+      "id": "settings",
+      "name": "设置",
+      "group": "设置与系统",
+      "route": "pages/settings",
+      "premium": false,
+      "premiumNote": "主题配色、多课表、云备份等功能需解锁高级版",
+      "usage": "昵称、主题配色（底部抽屉）、课程字号、周课表、首页设置、数据备份等",
+      "entry": "欢迎页 →「设置」；首页底部 →「设置」",
+      "points": [
+        "主题配色从底部抽屉弹出",
+        "点未解锁的主题会弹「解锁高级版」",
+        "⚠️ 本页目前不可滚动，下方行在小屏上点不到"
+      ],
+      "capture": {
+        "enabled": true,
+        "auto": true,
+        "steps": [
+          {
+            "launch": true
+          },
+          {
+            "wait": 15
+          },
+          {
+            "tap": [
+              96,
+              336
+            ]
+          },
+          {
+            "wait": 5
+          },
+          {
+            "shot": "list"
+          },
+          {
+            "tap": [
+              96,
+              292
+            ]
+          },
+          {
+            "wait": 4
+          },
+          {
+            "shot": "theme-drawer"
+          },
+          {
+            "tap": [
+              26,
+              388
+            ]
+          },
+          {
+            "wait": 4
+          },
+          {
+            "shot": "unlock-modal"
+          }
+        ]
+      },
+      "shots": [
+        {
+          "file": "pages/settings-list.png",
+          "state": "list",
+          "version": "1.6.142",
+          "at": "2026-09-27 19:44"
+        },
+        {
+          "file": "pages/settings-theme-drawer.png",
+          "state": "theme-drawer",
+          "version": "1.6.142",
+          "at": "2026-09-27 19:44"
+        },
+        {
+          "file": "pages/settings-unlock-modal.png",
+          "state": "unlock-modal",
+          "version": "1.6.142",
+          "at": "2026-09-27 19:44"
+        }
+      ],
+      "check": {
+        "symmetric": "已通过（左 16 / 右 16）",
+        "scroll": "❌ 页内不可滚动（待决策）"
+      },
+      "capturedAt": "2026-09-27 19:44"
+    },
+    {
+      "id": "tools",
+      "name": "工具",
+      "group": "设置与系统",
+      "route": "pages/tools",
+      "premium": false,
+      "usage": "工具箱入口合集",
+      "entry": "设置页 → 工具",
+      "points": [
+        "聚合二维码生成、倒数日等入口"
+      ],
+      "capture": {
+        "enabled": true,
+        "auto": false,
+        "why": "入口在设置页下方（页面不可滚动）",
+        "steps": []
+      },
+      "shots": [],
+      "check": {}
+    },
+    {
+      "id": "homepage-settings",
+      "name": "首页设置",
+      "group": "设置与系统",
+      "route": "pages/homepage-settings",
+      "premium": false,
+      "premiumNote": "「自定义」与部分开关需解锁高级版",
+      "usage": "首页各模块开关：快速添加、课程提醒、总课程/今日/明日导航、自定义、时钟、管理钉首页",
+      "entry": "设置页 →「首页设置」",
+      "points": [
+        "未解锁时进页即弹「解锁高级版」",
+        "开关立即生效并回到首页可见"
+      ],
+      "capture": {
+        "enabled": true,
+        "auto": false,
+        "why": "入口在设置页下方（页面不可滚动），需临时改路由进入",
+        "steps": []
+      },
+      "shots": [],
+      "check": {
+        "symmetric": "已通过（左 16 / 右 16）"
+      }
+    },
+    {
+      "id": "reset-data",
+      "name": "重置数据",
+      "group": "设置与系统",
+      "route": "pages/reset-data",
+      "premium": false,
+      "usage": "清空本地课程/设置数据",
+      "entry": "设置页 → 重置数据",
+      "points": [
+        "有二次确认弹窗",
+        "重置后回到初始状态"
+      ],
+      "capture": {
+        "enabled": true,
+        "auto": false,
+        "why": "入口在设置页下方（页面不可滚动）",
+        "steps": []
+      },
+      "shots": [],
+      "check": {
+        "symmetric": "待核"
+      }
+    },
+    {
+      "id": "backup-restore",
+      "name": "数据备份",
+      "group": "设置与系统",
+      "route": "pages/backup-restore",
+      "premium": true,
+      "premiumNote": "云备份与恢复需解锁高级版",
+      "usage": "本地/云备份与恢复课程数据",
+      "entry": "设置页 → 数据备份",
+      "points": [
+        "未解锁时点云备份弹「解锁高级版」",
+        "⚠️ 弹窗预计仍左 8 / 右 24（待修）"
+      ],
+      "capture": {
+        "enabled": true,
+        "auto": false,
+        "why": "入口在设置页下方（页面不可滚动）",
+        "steps": []
+      },
+      "shots": [],
+      "check": {
+        "symmetric": "❌ 待修（预计左 8 / 右 24）"
+      }
+    },
+    {
+      "id": "activation",
+      "name": "激活 / 激活码",
+      "group": "设置与系统",
+      "route": "pages/activation",
+      "premium": false,
+      "usage": "输入激活码解锁高级版；展示设备码",
+      "entry": "设置页 → 高级版 / 解锁入口",
+      "points": [
+        "显示设备码供后台绑定",
+        "输入激活码后即时解锁"
+      ],
+      "capture": {
+        "enabled": true,
+        "auto": false,
+        "why": "入口位置待核对",
+        "steps": []
+      },
+      "shots": [],
+      "check": {}
+    },
+    {
+      "id": "device-info",
+      "name": "设备信息",
+      "group": "设置与系统",
+      "route": "pages/device-info",
+      "premium": false,
+      "usage": "显示设备型号、屏型、版本号等 —— 排障必备",
+      "entry": "设置页 → 设备信息",
+      "points": [
+        "含版本号/versionCode",
+        "含屏型（胶囊/方屏/圆屏）"
+      ],
+      "capture": {
+        "enabled": true,
+        "auto": false,
+        "why": "入口在设置页下方（页面不可滚动）",
+        "steps": []
+      },
+      "shots": [],
+      "check": {}
+    },
+    {
+      "id": "pinned-pages",
+      "name": "钉首页管理",
+      "group": "设置与系统",
+      "route": "pages/pinned-pages",
+      "premium": false,
+      "usage": "选择哪些页面钉到首页快捷入口",
+      "entry": "首页设置 →「管理钉首页」",
+      "points": [
+        "勾选要钉的页面",
+        "首页出现快捷入口"
+      ],
+      "capture": {
+        "enabled": true,
+        "auto": false,
+        "why": "入口在首页设置页内",
+        "steps": []
+      },
+      "shots": [],
+      "check": {}
+    },
+    {
+      "id": "vibration-lab",
+      "name": "振动实验室",
+      "group": "实验室工具",
+      "route": "pages/vibration-lab",
+      "premium": false,
+      "usage": "调试手环振动强度/节奏",
+      "entry": "工具页（实验室分组）",
+      "points": [
+        "逐档试振动",
+        "用于确认设备振动能力"
+      ],
+      "capture": {
+        "enabled": false,
+        "auto": false,
+        "why": "首批不采（实验室工具折叠）",
+        "steps": []
+      },
+      "shots": [],
+      "check": {}
+    },
+    {
+      "id": "vibration-lab-v2",
+      "name": "振动实验室 v2",
+      "group": "实验室工具",
+      "route": "pages/vibration-lab-v2",
+      "premium": false,
+      "usage": "振动实验室升级版",
+      "entry": "工具页（实验室分组）",
+      "points": [
+        "批量振动序列调试"
+      ],
+      "capture": {
+        "enabled": false,
+        "auto": false,
+        "why": "首批不采",
+        "steps": []
+      },
+      "shots": [],
+      "check": {}
+    },
+    {
+      "id": "qrcode-generator",
+      "name": "二维码生成",
+      "group": "实验室工具",
+      "route": "pages/qrcode-generator",
+      "premium": false,
+      "usage": "把任意文本生成二维码",
+      "entry": "工具页",
+      "points": [
+        "输入文本即出码"
+      ],
+      "capture": {
+        "enabled": false,
+        "auto": false,
+        "why": "首批不采",
+        "steps": []
+      },
+      "shots": [],
+      "check": {}
+    },
+    {
+      "id": "black-screen-check",
+      "name": "黑屏检查",
+      "group": "实验室工具",
+      "route": "pages/black-screen-check",
+      "premium": false,
+      "usage": "排查首页右侧黑板/黑屏问题",
+      "entry": "工具页",
+      "points": [
+        "显示区域与像素级检查"
+      ],
+      "capture": {
+        "enabled": false,
+        "auto": false,
+        "why": "首批不采",
+        "steps": []
+      },
+      "shots": [],
+      "check": {}
+    },
+    {
+      "id": "chinese-input",
+      "name": "中文输入",
+      "group": "实验室工具",
+      "route": "pages/chinese-input",
+      "premium": false,
+      "usage": "手环上的中文输入方案",
+      "entry": "工具页",
+      "points": [
+        "拼音/手写候选"
+      ],
+      "capture": {
+        "enabled": false,
+        "auto": false,
+        "why": "首批不采",
+        "steps": []
+      },
+      "shots": [],
+      "check": {}
+    },
+    {
+      "id": "device-id-diagnosis",
+      "name": "设备 ID 诊断",
+      "group": "实验室工具",
+      "route": "pages/device-id-diagnosis",
+      "premium": false,
+      "usage": "排查设备 ID / 激活绑定问题 —— 排障常用",
+      "entry": "工具页",
+      "points": [
+        "显示设备 UUID 与来源",
+        "判断是否被识别为同一设备"
+      ],
+      "capture": {
+        "enabled": false,
+        "auto": false,
+        "why": "首批不采（但排障价值高，建议第二批补）",
+        "steps": []
+      },
+      "shots": [],
+      "check": {}
+    },
+    {
+      "id": "statistics",
+      "name": "统计",
+      "group": "其他",
+      "route": "pages/statistics",
+      "premium": true,
+      "premiumNote": "统计功能需解锁高级版",
+      "usage": "课程/使用统计",
+      "entry": "入口待核对",
+      "points": [
+        "按周/月统计课程数"
+      ],
+      "capture": {
+        "enabled": false,
+        "auto": false,
+        "why": "首批不采",
+        "steps": []
+      },
+      "shots": [],
+      "check": {}
+    },
+    {
+      "id": "donate",
+      "name": "赞助",
+      "group": "其他",
+      "route": "pages/donate",
+      "premium": false,
+      "usage": "赞助支持开发者",
+      "entry": "设置页 / 欢迎页入口",
+      "points": [
+        "赞助方式说明"
+      ],
+      "capture": {
+        "enabled": false,
+        "auto": false,
+        "why": "首批不采",
+        "steps": []
+      },
+      "shots": [],
+      "check": {}
+    }
+  ],
+  "capturedAt": "2026-09-27 19:44"
+}
