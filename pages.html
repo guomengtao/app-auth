@@ -102,7 +102,7 @@ function renderShots(shots){
   var html = '<div class="shots">';
   for(var i=0;i<shots.length;i++){
     var s = shots[i];
-    html += '<div class="device" onclick="openLightbox(\''/images/ev-schedule/'+s.file+'\'')"><img loading="lazy" src="/images/ev-schedule/'+s.file+'" alt="'+s.state+'" onerror="imgError(this)"></div>';
+    html += '<div class="device" onclick="openLightbox(this)"><img loading="lazy" src="/images/ev-schedule/'+s.file+'" alt="'+s.state+'" onerror="imgError(this)"></div>';
   }
   return html + '</div>';
 }
@@ -212,8 +212,9 @@ function imgError(img){
   var d = img.parentNode;
   if(d){ d.className = 'device empty'; d.innerHTML = '<div class="ph">截图缺失</div>'; }
 }
-function openLightbox(src){
-  document.getElementById('lightboxImg').src = src;
+function openLightbox(el){
+  var img = el.getElementsByTagName('img')[0];
+  document.getElementById('lightboxImg').src = img ? img.src : '';
   document.getElementById('lightbox').className = 'lightbox show';
 }
 function hideLightbox(){ document.getElementById('lightbox').className = 'lightbox'; }
