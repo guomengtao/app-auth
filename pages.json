@@ -7,7 +7,7 @@
     "version": "1.6.142",
     "versionCode": 971,
     "channel": "t-9p-d",
-    "updatedAt": "2026-09-28 00:40"
+    "updatedAt": "2026-09-28 01:35"
   },
   "captureEnv": {
     "device": "标准版手环 9（胶囊屏）",
@@ -743,8 +743,16 @@
         "why": "首批不采（实验室工具折叠）",
         "steps": []
       },
-      "shots": [],
-      "check": {}
+      "shots": [
+        {
+          "file": "pages/vibration-lab-default.png",
+          "state": "default",
+          "version": "1.6.142",
+          "at": "2026-09-28 01:35"
+        }
+      ],
+      "check": {},
+      "capturedAt": "2026-09-28 01:35"
     },
     {
       "id": "vibration-lab-v2",
@@ -763,8 +771,16 @@
         "why": "首批不采",
         "steps": []
       },
-      "shots": [],
-      "check": {}
+      "shots": [
+        {
+          "file": "pages/vibration-lab-v2-default.png",
+          "state": "default",
+          "version": "1.6.142",
+          "at": "2026-09-28 01:35"
+        }
+      ],
+      "check": {},
+      "capturedAt": "2026-09-28 01:35"
     },
     {
       "id": "qrcode-generator",
@@ -783,8 +799,16 @@
         "why": "首批不采",
         "steps": []
       },
-      "shots": [],
-      "check": {}
+      "shots": [
+        {
+          "file": "pages/qrcode-generator-default.png",
+          "state": "default",
+          "version": "1.6.142",
+          "at": "2026-09-28 01:35"
+        }
+      ],
+      "check": {},
+      "capturedAt": "2026-09-28 01:35"
     },
     {
       "id": "black-screen-check",
@@ -803,8 +827,16 @@
         "why": "首批不采",
         "steps": []
       },
-      "shots": [],
-      "check": {}
+      "shots": [
+        {
+          "file": "pages/black-screen-check-default.png",
+          "state": "default",
+          "version": "1.6.142",
+          "at": "2026-09-28 01:35"
+        }
+      ],
+      "check": {},
+      "capturedAt": "2026-09-28 01:35"
     },
     {
       "id": "chinese-input",
@@ -823,8 +855,16 @@
         "why": "首批不采",
         "steps": []
       },
-      "shots": [],
-      "check": {}
+      "shots": [
+        {
+          "file": "pages/chinese-input-default.png",
+          "state": "default",
+          "version": "1.6.142",
+          "at": "2026-09-28 01:35"
+        }
+      ],
+      "check": {},
+      "capturedAt": "2026-09-28 01:35"
     },
     {
       "id": "device-id-diagnosis",
@@ -844,8 +884,16 @@
         "why": "首批不采（但排障价值高，建议第二批补）",
         "steps": []
       },
-      "shots": [],
-      "check": {}
+      "shots": [
+        {
+          "file": "pages/device-id-diagnosis-default.png",
+          "state": "default",
+          "version": "1.6.142",
+          "at": "2026-09-28 01:35"
+        }
+      ],
+      "check": {},
+      "capturedAt": "2026-09-28 01:35"
     },
     {
       "id": "statistics",
@@ -865,8 +913,16 @@
         "why": "首批不采",
         "steps": []
       },
-      "shots": [],
-      "check": {}
+      "shots": [
+        {
+          "file": "pages/statistics-default.png",
+          "state": "default",
+          "version": "1.6.142",
+          "at": "2026-09-28 01:35"
+        }
+      ],
+      "check": {},
+      "capturedAt": "2026-09-28 01:35"
     },
     {
       "id": "donate",
@@ -885,9 +941,17 @@
         "why": "首批不采",
         "steps": []
       },
-      "shots": [],
-      "check": {}
+      "shots": [
+        {
+          "file": "pages/donate-default.png",
+          "state": "default",
+          "version": "1.6.142",
+          "at": "2026-09-28 01:35"
+        }
+      ],
+      "check": {},
+      "capturedAt": "2026-09-28 01:35"
     }
   ],
-  "capturedAt": "2026-09-28 00:40"
+  "capturedAt": "2026-09-28 01:35"
 }
