@@ -570,7 +570,8 @@ def load_notify_settings():
         with open(NOTIFY_SETTINGS_FILE, "r") as f:
             return json.load(f)
     except Exception:
-        return {"popup": True, "sound": True, "voice": True, "visitor_voice": True}
+        return {"popup": True, "sound": True, "voice": True, "visitor_voice": True,
+                "startup_check": True}
 
 
 def save_notify_settings(settings):
@@ -1947,6 +1948,43 @@ def _osascript_notify(title, subtitle, body):
     safe_body = (subtitle + "\n" + body).replace('"', "'").replace("\\", "\\\\")
     script = f'display notification "{safe_body}" with title "{safe_title}"'
     subprocess.run(["osascript", "-e", script], capture_output=True, timeout=5)
+
+
+# ── 启动自检：打开工具即验证「弹窗 + 语音」链路 ───────────────────────────────
+# 背景：通知失败最常见的原因是系统通知权限被关 / terminal-notifier 缺失 / TTS 依赖不在，
+#       而这些都**不会报错**，只是"静默不响"。启动时主动发一条，链路是否通一眼可见。
+_STARTUP_SELFTEST_DONE = False
+
+
+def startup_notify_selftest(delay=1.5, force=False):
+    """启动自检：发一条弹窗 + 一句语音，确认通知链路是通的。
+
+    受设置项 `startup_check` 控制（默认开）。`force=True` 时忽略"已跑过"标记
+    （供设置页的「测试」按钮复用）。异步执行，不阻塞启动。
+    """
+    global _STARTUP_SELFTEST_DONE
+    if _STARTUP_SELFTEST_DONE and not force:
+        return
+    _STARTUP_SELFTEST_DONE = True
+
+    try:
+        settings = load_notify_settings()
+    except Exception:
+        settings = {}
+
+    def _work():
+        try:
+            time.sleep(max(0.0, float(delay)))
+            if settings.get("popup", True):
+                notify_macos("Ev Notifier 已启动", f"{VERSION} · 通知链路正常",
+                             "能看到这条弹窗，说明弹窗通道没问题", sound=False)
+            if settings.get("voice", True):
+                enqueue_voice("Ev Notifier 已启动，通知链路正常")
+            _debug_log("startup selftest: fired")
+        except Exception as e:
+            _debug_log(f"startup selftest failed: {e}")
+
+    threading.Thread(target=_work, daemon=True).start()
 
 
 def _delivery_callback(message_id, event="delivered", batch_ids=None):
@@ -5894,6 +5932,9 @@ document.addEventListener('DOMContentLoaded',function(){{
             enqueue_voice("语音播报功能正常，这是一条中文语音测试")
         elif ntype == "visitor_voice":
             enqueue_voice("北京市朝阳区用户访问激活页面")
+        elif ntype == "startup_check":
+            # 复现「打开工具时的自检」：弹窗 + 语音各来一次（force 忽略已跑过标记）
+            startup_notify_selftest(delay=0, force=True)
         _debug_log(f"test_notify: {ntype}")
 
     def _html_settings(self):
@@ -5980,6 +6021,10 @@ document.addEventListener('DOMContentLoaded',function(){{
         visitor_voice_color = "var(--green)" if visitor_voice_on else "var(--text-tertiary)"
         visitor_voice_label = "ON" if visitor_voice_on else "OFF"
         visitor_voice_url = "ev://setting=visitor_voice"
+        startup_on = nsettings.get("startup_check", True)
+        startup_color = "var(--green)" if startup_on else "var(--text-tertiary)"
+        startup_label = "ON" if startup_on else "OFF"
+        startup_url = "ev://setting=startup_check"
 
         body = f"""
         {account_group}
@@ -6029,6 +6074,17 @@ document.addEventListener('DOMContentLoaded',function(){{
                   <span style="font-size:11px;font-weight:600;color:{visitor_voice_color};">{visitor_voice_label}</span>
                   <a class="btn" href="{visitor_voice_url}">切换</a>
                   <a class="btn" href="ev://test-notify=visitor_voice" style="background:#3b82f6;color:#fff;border-color:#3b82f6;">测试</a>
+                </div>
+              </div>
+              <div class="settings-row">
+                <div>
+                  <div class="settings-row-label">启动自检通知</div>
+                  <div class="settings-row-desc">打开 EvNotifier 时自动发一条弹窗 + 语音，验证通知链路是否正常</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <span style="font-size:11px;font-weight:600;color:{startup_color};">{startup_label}</span>
+                  <a class="btn" href="{startup_url}">切换</a>
+                  <a class="btn" href="ev://test-notify=startup_check" style="background:#3b82f6;color:#fff;border-color:#3b82f6;">测试</a>
                 </div>
               </div>
             </div>
@@ -6891,6 +6947,8 @@ class EvNotifier(rumps.App):
         self._install_sleep_wake_observer()
         _rm.AppHelper.installMachInterrupt()
         nsdict['events'].before_start.emit()
+        # 启动自检：打开工具即发一条「弹窗 + 语音」，让"通知链路是否通"肉眼可验证
+        startup_notify_selftest()
         _rm.AppHelper.runEventLoop()
 
     def _install_sleep_wake_observer(self):
