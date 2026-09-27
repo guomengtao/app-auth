@@ -7,7 +7,7 @@
     "version": "1.6.142",
     "versionCode": 971,
     "channel": "t-9p-d",
-    "updatedAt": "2026-09-27 19:44"
+    "updatedAt": "2026-09-27 20:34"
   },
   "captureEnv": {
     "device": "标准版手环 9（胶囊屏）",
@@ -15,7 +15,7 @@
     "size": "192x490",
     "adb": "emulator-5554",
     "grpc": 8554,
-    "note": "待人工补采：detail,course-manager,custom-content-edit,countdown-manage,week-view,schedule-qrcode,workday-info,tools,homepage-settings,reset-data,backup-restore,activation,device-info,pinned-pages"
+    "note": ""
   },
   "pageUpdatedAt": "2026-09-27",
   "pages": [
@@ -84,26 +84,14 @@
           {
             "tap": [
               96,
-              262
+              250
             ]
           },
           {
-            "wait": 5
+            "wait": 9
           },
           {
             "shot": "list"
-          },
-          {
-            "tap": [
-              97,
-              454
-            ]
-          },
-          {
-            "wait": 4
-          },
-          {
-            "shot": "schedule-manager-modal"
           }
         ]
       },
@@ -112,17 +100,11 @@
           "file": "pages/index-list.png",
           "state": "list",
           "version": "1.6.142",
-          "at": "2026-09-27 19:42"
-        },
-        {
-          "file": "pages/index-schedule-manager-modal.png",
-          "state": "schedule-manager-modal",
-          "version": "1.6.142",
-          "at": "2026-09-27 19:42"
+          "at": "2026-09-27 20:32"
         }
       ],
       "check": {},
-      "capturedAt": "2026-09-27 19:42"
+      "capturedAt": "2026-09-27 20:34"
     },
     {
       "id": "detail",
@@ -171,7 +153,7 @@
           {
             "tap": [
               96,
-              262
+              250
             ]
           },
           {
@@ -293,7 +275,7 @@
           {
             "tap": [
               96,
-              262
+              250
             ]
           },
           {
@@ -318,13 +300,13 @@
           "file": "pages/schedule-manager-unlock-modal.png",
           "state": "unlock-modal",
           "version": "1.6.142",
-          "at": "2026-09-27 19:43"
+          "at": "2026-09-27 20:33"
         }
       ],
       "check": {
         "symmetric": "已通过（左 8 / 右 8）"
       },
-      "capturedAt": "2026-09-27 19:43"
+      "capturedAt": "2026-09-27 20:33"
     },
     {
       "id": "week-view",
@@ -795,5 +777,5 @@
       "check": {}
     }
   ],
-  "capturedAt": "2026-09-27 19:44"
+  "capturedAt": "2026-09-27 20:34"
 }
