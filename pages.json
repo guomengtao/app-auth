@@ -7,7 +7,7 @@
     "version": "1.6.142",
     "versionCode": 971,
     "channel": "t-9p-d",
-    "updatedAt": "2026-09-27 20:34"
+    "updatedAt": "2026-09-28 00:40"
   },
   "captureEnv": {
     "device": "标准版手环 9（胶囊屏）",
@@ -124,8 +124,16 @@
         "why": "需要首页已有课程数据",
         "steps": []
       },
-      "shots": [],
-      "check": {}
+      "shots": [
+        {
+          "file": "pages/detail-edit.png",
+          "state": "edit",
+          "version": "1.6.142",
+          "at": "2026-09-28 00:40"
+        }
+      ],
+      "check": {},
+      "capturedAt": "2026-09-28 00:40"
     },
     {
       "id": "add-course",
@@ -202,10 +210,18 @@
         "why": "入口位置待核对",
         "steps": []
       },
-      "shots": [],
+      "shots": [
+        {
+          "file": "pages/course-manager-list.png",
+          "state": "list",
+          "version": "1.6.142",
+          "at": "2026-09-28 00:40"
+        }
+      ],
       "check": {
         "hitArea": "待核（整行热区）"
-      }
+      },
+      "capturedAt": "2026-09-28 00:40"
     },
     {
       "id": "custom-content-edit",
@@ -225,8 +241,16 @@
         "why": "入口在首页设置页内",
         "steps": []
       },
-      "shots": [],
-      "check": {}
+      "shots": [
+        {
+          "file": "pages/custom-content-edit-default.png",
+          "state": "default",
+          "version": "1.6.142",
+          "at": "2026-09-28 00:40"
+        }
+      ],
+      "check": {},
+      "capturedAt": "2026-09-28 00:40"
     },
     {
       "id": "countdown-manage",
@@ -246,8 +270,16 @@
         "why": "入口位置待核对",
         "steps": []
       },
-      "shots": [],
-      "check": {}
+      "shots": [
+        {
+          "file": "pages/countdown-manage-empty.png",
+          "state": "empty",
+          "version": "1.6.142",
+          "at": "2026-09-28 00:40"
+        }
+      ],
+      "check": {},
+      "capturedAt": "2026-09-28 00:40"
     },
     {
       "id": "schedule-manager",
@@ -326,8 +358,16 @@
         "why": "入口位置待核对",
         "steps": []
       },
-      "shots": [],
-      "check": {}
+      "shots": [
+        {
+          "file": "pages/week-view-default.png",
+          "state": "default",
+          "version": "1.6.142",
+          "at": "2026-09-28 00:40"
+        }
+      ],
+      "check": {},
+      "capturedAt": "2026-09-28 00:40"
     },
     {
       "id": "schedule-qrcode",
@@ -347,8 +387,16 @@
         "why": "入口在课表管理页内",
         "steps": []
       },
-      "shots": [],
-      "check": {}
+      "shots": [
+        {
+          "file": "pages/schedule-qrcode-default.png",
+          "state": "default",
+          "version": "1.6.142",
+          "at": "2026-09-28 00:40"
+        }
+      ],
+      "check": {},
+      "capturedAt": "2026-09-28 00:40"
     },
     {
       "id": "workday-info",
@@ -368,8 +416,16 @@
         "why": "入口位置待核对",
         "steps": []
       },
-      "shots": [],
-      "check": {}
+      "shots": [
+        {
+          "file": "pages/workday-info-default.png",
+          "state": "default",
+          "version": "1.6.142",
+          "at": "2026-09-28 00:40"
+        }
+      ],
+      "check": {},
+      "capturedAt": "2026-09-28 00:40"
     },
     {
       "id": "settings",
@@ -476,8 +532,16 @@
         "why": "入口在设置页下方（页面不可滚动）",
         "steps": []
       },
-      "shots": [],
-      "check": {}
+      "shots": [
+        {
+          "file": "pages/tools-default.png",
+          "state": "default",
+          "version": "1.6.142",
+          "at": "2026-09-28 00:40"
+        }
+      ],
+      "check": {},
+      "capturedAt": "2026-09-28 00:40"
     },
     {
       "id": "homepage-settings",
@@ -498,10 +562,18 @@
         "why": "入口在设置页下方（页面不可滚动），需临时改路由进入",
         "steps": []
       },
-      "shots": [],
+      "shots": [
+        {
+          "file": "pages/homepage-settings-unlock-modal.png",
+          "state": "unlock-modal",
+          "version": "1.6.142",
+          "at": "2026-09-28 00:40"
+        }
+      ],
       "check": {
         "symmetric": "已通过（左 16 / 右 16）"
-      }
+      },
+      "capturedAt": "2026-09-28 00:40"
     },
     {
       "id": "reset-data",
@@ -521,10 +593,18 @@
         "why": "入口在设置页下方（页面不可滚动）",
         "steps": []
       },
-      "shots": [],
+      "shots": [
+        {
+          "file": "pages/reset-data-unlock-modal.png",
+          "state": "unlock-modal",
+          "version": "1.6.142",
+          "at": "2026-09-28 00:40"
+        }
+      ],
       "check": {
         "symmetric": "待核"
-      }
+      },
+      "capturedAt": "2026-09-28 00:40"
     },
     {
       "id": "backup-restore",
@@ -545,10 +625,18 @@
         "why": "入口在设置页下方（页面不可滚动）",
         "steps": []
       },
-      "shots": [],
+      "shots": [
+        {
+          "file": "pages/backup-restore-unlock-modal.png",
+          "state": "unlock-modal",
+          "version": "1.6.142",
+          "at": "2026-09-28 00:40"
+        }
+      ],
       "check": {
         "symmetric": "❌ 待修（预计左 8 / 右 24）"
-      }
+      },
+      "capturedAt": "2026-09-28 00:40"
     },
     {
       "id": "activation",
@@ -568,8 +656,16 @@
         "why": "入口位置待核对",
         "steps": []
       },
-      "shots": [],
-      "check": {}
+      "shots": [
+        {
+          "file": "pages/activation-default.png",
+          "state": "default",
+          "version": "1.6.142",
+          "at": "2026-09-28 00:40"
+        }
+      ],
+      "check": {},
+      "capturedAt": "2026-09-28 00:40"
     },
     {
       "id": "device-info",
@@ -589,8 +685,16 @@
         "why": "入口在设置页下方（页面不可滚动）",
         "steps": []
       },
-      "shots": [],
-      "check": {}
+      "shots": [
+        {
+          "file": "pages/device-info-default.png",
+          "state": "default",
+          "version": "1.6.142",
+          "at": "2026-09-28 00:40"
+        }
+      ],
+      "check": {},
+      "capturedAt": "2026-09-28 00:40"
     },
     {
       "id": "pinned-pages",
@@ -610,8 +714,16 @@
         "why": "入口在首页设置页内",
         "steps": []
       },
-      "shots": [],
-      "check": {}
+      "shots": [
+        {
+          "file": "pages/pinned-pages-empty.png",
+          "state": "empty",
+          "version": "1.6.142",
+          "at": "2026-09-28 00:40"
+        }
+      ],
+      "check": {},
+      "capturedAt": "2026-09-28 00:40"
     },
     {
       "id": "vibration-lab",
@@ -777,5 +889,5 @@
       "check": {}
     }
   ],
-  "capturedAt": "2026-09-27 20:34"
+  "capturedAt": "2026-09-28 00:40"
 }
