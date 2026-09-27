@@ -29,8 +29,10 @@ Vercel Serverless                  Upstash Redis                Mac 本地
 ### 1. 安装依赖
 
 ```bash
-pip3 install rumps --break-system-packages
+pip3 install rumps edge-tts --break-system-packages
 ```
+
+> `edge-tts` 用于语音播报，可选依赖：没装或断网时自动回退到 macOS 自带 `say`，不会哑。
 
 ### 2. 配置环境变量
 
@@ -123,6 +125,25 @@ python3 tools/ev-notifier/ev_notifier.py &
 设备: X1y2
 IP: 1.2.3.4
 ⏱ 14:38:10
+```
+
+## 语音播报（Edge TTS）
+
+语音播报走 [edge-tts](https://github.com/rany2/edge-tts)（免注册、免 API Key、无调用次数限制），音质接近真人：
+
+| 项目 | 值 | 说明 |
+|------|------|------|
+| 音色 | `zh-CN-XiaoxiaoNeural`（晓晓·女声） | 环境变量 `EV_TTS_VOICE` 可覆盖 |
+| 语速 | `+0%` | 环境变量 `EV_TTS_RATE` 可覆盖，如 `+15%` |
+| 缓存 | `~/.ev_tts_cache/*.mp3` | 按「音色+语速+文本」哈希缓存，最多 300 条 |
+| 播放 | `afplay` | 合成后本地播放，不依赖通知权限 |
+
+**降级链**：edge-tts 不可用（未安装 / 断网 / 合成超时 15s / 播放失败）→ 自动回退 macOS `say`（`Tingting → Sinji → Meijia → 系统默认`）。降级只在日志里记一条，不会刷屏。
+
+排查语音问题时看日志：
+
+```bash
+grep -i "voice" ~/.ev_debug_log.json
 ```
 
 ## 开机自启

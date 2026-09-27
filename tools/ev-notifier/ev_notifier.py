@@ -1,5 +1,5 @@
 """Ev Notifier - PUB/SUB broadcast, zero polling, auto-restart, error logging"""
-import atexit, json, os, queue, re, shutil, socket, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib, uuid
+import asyncio, atexit, hashlib, json, os, queue, re, shutil, socket, subprocess, sys, tempfile, time, threading, urllib.parse, plistlib, uuid
 from collections import OrderedDict
 from datetime import datetime, timedelta
 
@@ -1725,24 +1725,105 @@ def _run_and_ignore_timeout(cmd, timeout=5):
 
 _voice_queue = queue.Queue()
 
+# ── Voice engine: Microsoft Edge online neural TTS (near-human quality) ──
+# edge-tts is an optional dependency. It is only used when the package is
+# importable and the network round-trip succeeds; otherwise the worker falls
+# back to the built-in macOS `say` command so alerts never go silent offline.
+try:
+    import edge_tts
+    _HAS_EDGE_TTS = True
+except ImportError:
+    edge_tts = None
+    _HAS_EDGE_TTS = False
+
+EDGE_TTS_VOICE = os.environ.get("EV_TTS_VOICE", "zh-CN-XiaoxiaoNeural")
+EDGE_TTS_RATE = os.environ.get("EV_TTS_RATE", "+0%")
+EDGE_TTS_TIMEOUT = 15          # seconds; online synthesis must not stall the queue
+EDGE_TTS_CACHE_DIR = os.path.expanduser("~/.ev_tts_cache")
+EDGE_TTS_CACHE_MAX = 300       # keep the newest N clips, drop older ones
+
+_say_voice_chain = ["Tingting", "Sinji", "Meijia", None]  # None = system default
+_tts_state = {"fallback_logged": False}
+
+
+def _tts_cache_path(text):
+    key = hashlib.sha1((EDGE_TTS_VOICE + "|" + EDGE_TTS_RATE + "|" + text).encode("utf-8")).hexdigest()
+    return os.path.join(EDGE_TTS_CACHE_DIR, key + ".mp3")
+
+
+def _tts_cache_trim():
+    """Keep the cache bounded so ~/.ev_tts_cache does not grow forever."""
+    try:
+        files = [os.path.join(EDGE_TTS_CACHE_DIR, f) for f in os.listdir(EDGE_TTS_CACHE_DIR)]
+        files.sort(key=os.path.getmtime, reverse=True)
+        for path in files[EDGE_TTS_CACHE_MAX:]:
+            try:
+                os.remove(path)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
+async def _edge_tts_save(text, path):
+    communicate = edge_tts.Communicate(text, EDGE_TTS_VOICE, rate=EDGE_TTS_RATE)
+    await asyncio.wait_for(communicate.save(path), timeout=EDGE_TTS_TIMEOUT)
+
+
+def _edge_tts_speak(text):
+    """Synthesize (with on-disk cache) and play. Returns (ok, reason)."""
+    if not _HAS_EDGE_TTS:
+        return False, "edge_tts not installed"
+    path = _tts_cache_path(text)
+    if not os.path.exists(path):
+        tmp = path + ".part"
+        try:
+            os.makedirs(EDGE_TTS_CACHE_DIR, exist_ok=True)
+            asyncio.run(_edge_tts_save(text, tmp))
+            os.replace(tmp, path)
+            _tts_cache_trim()
+        except Exception as e:
+            try:
+                os.remove(tmp)
+            except Exception:
+                pass
+            return False, "synthesize failed: %s" % e
+    try:
+        result = subprocess.run(["afplay", path], timeout=30, capture_output=True)
+        if result.returncode != 0:
+            return False, "afplay rc=%s" % result.returncode
+    except Exception as e:
+        return False, "afplay failed: %s" % e
+    return True, ""
+
+
+def _say_fallback(text):
+    for voice in _say_voice_chain:
+        try:
+            cmd = ["say"]
+            if voice:
+                cmd.extend(["-v", voice])
+            cmd.append(text)
+            result = subprocess.run(cmd, timeout=30, capture_output=True)
+            if result.returncode == 0:
+                return True
+        except Exception:
+            continue
+    return False
+
+
 def _voice_worker():
-    # try Chinese voices first, fall back to system default
-    voice_chain = ["Tingting", "Sinji", "Meijia", None]  # None = system default
     while True:
         text = _voice_queue.get()
         if text is None:
             break
-        for voice in voice_chain:
-            try:
-                cmd = ["say"]
-                if voice:
-                    cmd.extend(["-v", voice])
-                cmd.append(text)
-                result = subprocess.run(cmd, timeout=30, capture_output=True)
-                if result.returncode == 0:
-                    break
-            except Exception:
-                continue
+        ok, reason = _edge_tts_speak(text)
+        if ok:
+            continue
+        if not _tts_state["fallback_logged"]:
+            _tts_state["fallback_logged"] = True
+            _debug_log("voice: edge-tts unusable (%s), using macOS say" % reason)
+        _say_fallback(text)
 
 _voice_thread = threading.Thread(target=_voice_worker, daemon=True)
 _voice_thread.start()
