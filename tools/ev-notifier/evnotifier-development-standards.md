@@ -262,6 +262,7 @@ Vercel Serverless                  Upstash Redis                Mac 本地
 ```
 tools/ev-notifier/
 ├── ev_notifier.py                          ← 当前运行版本
+├── say-edge.py                             ← IDE 侧语音通知（Edge TTS 晓晓，回退 say）
 ├── ev_notifier_vX.Y.Z.py                   ← 历史版本归档（独立可运行）
 ├── build_app.sh                            ← 构建脚本
 ├── evnotifier-development-standards.md     ← 本文档
