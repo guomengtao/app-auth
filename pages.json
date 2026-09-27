@@ -126,37 +126,37 @@
       },
       "shots": [
         {
-          "file": "pages/step1-选择课程.png",
+          "file": "pages/detail-step1.png",
           "state": "step1-选择课程",
           "version": "1.6.142",
           "at": "2026-09-28 03:25"
         },
         {
-          "file": "pages/step2-时间.png",
+          "file": "pages/detail-step2.png",
           "state": "step2-时间",
           "version": "1.6.142",
           "at": "2026-09-28 03:25"
         },
         {
-          "file": "pages/step2-时间底部.png",
+          "file": "pages/detail-step2b.png",
           "state": "step2-时间底部",
           "version": "1.6.142",
           "at": "2026-09-28 03:25"
         },
         {
-          "file": "pages/step3-位置与星期.png",
+          "file": "pages/detail-step3.png",
           "state": "step3-位置与星期",
           "version": "1.6.142",
           "at": "2026-09-28 03:25"
         },
         {
-          "file": "pages/step4-确认.png",
+          "file": "pages/detail-step4.png",
           "state": "step4-确认",
           "version": "1.6.142",
           "at": "2026-09-28 03:25"
         },
         {
-          "file": "pages/step4-确认底部.png",
+          "file": "pages/detail-step4b.png",
           "state": "step4-确认底部",
           "version": "1.6.142",
           "at": "2026-09-28 03:25"
