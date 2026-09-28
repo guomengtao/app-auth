@@ -68,6 +68,15 @@ bash tools/ev-notifier/build_app.sh
 
 点击菜单栏图标 → 退出。
 
+> **退出后不会被自动拉起**（v2.3.43+）：退出时会先把当前 job 从 launchd 摘掉
+> （`launchctl bootout`），进程才结束，所以不会马上自己回来。
+> plist **保留**，「开机自启」偏好不变 —— 下次登录（或手动启动）仍会自动跑起来。
+> 崩溃自愈不受影响：还活着的时候异常退出，KeepAlive 照常拉起。
+> 想让这次退出的客户端立刻复活：
+> ```bash
+> launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.evnotifier.agent.plist
+> ```
+
 ---
 
 ## 命令行方式（备选）

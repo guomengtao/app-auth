@@ -565,6 +565,30 @@ def get_auto_start():
     return os.path.exists(LAUNCH_AGENT_PATH)
 
 
+def stop_launchd_job():
+    """「退出」专用：把当前 job 从 launchd 摘掉，**退出后不再被 KeepAlive 拉起**。
+
+    与 disable_auto_start() 的区别 —— 两边都 bootout，但：
+      - disable_auto_start() 还会删掉 plist（= 取消开机自启偏好，下次登录也不起来）；
+      - 这里**保留 plist**（关机/登录自启偏好不变，下次登录 RunAtLoad 照常起来），
+        只是让**本次**进程退出后不被立刻重启。
+
+    崩溃自愈能力不受影响：job 还在时出异常退出仍由 KeepAlive 兜底重启。
+    """
+    try:
+        r = subprocess.run(
+            ["launchctl", "bootout", f"gui/{os.getuid()}/{LAUNCH_AGENT_LABEL}"],
+            capture_output=True, timeout=3
+        )
+        if r.returncode == 0:
+            return True
+        _debug_log(f"launchd bootout skipped: rc={r.returncode} "
+                   f"err={(r.stderr or b'').decode('utf-8', 'ignore').strip()}")
+    except Exception as e:
+        _debug_log(f"launchd bootout failed: {e}")
+    return False
+
+
 def load_notify_settings():
     try:
         with open(NOTIFY_SETTINGS_FILE, "r") as f:
@@ -6780,8 +6804,11 @@ class EvNotifier(rumps.App):
         # 菜单项在 _rebuild_menu() 里显式构建（必须是最后一项）。
         # ⚠️ 这里**不再** disable_auto_start()：顶部「退出」= 关闭软件，"开机自启"由设置页的开关
         #    管（默认 ON，可 OFF）。否则用户每次退出都会被顺手关掉自启。
+        # ⚠️ 但必须先 bootout：plist 里 KeepAlive=True，直接 terminate 会被 launchd 立刻重新拉起
+        #    （现象 = "退出了又自动回来"）。bootout 只摘掉本次 job，plist 保留 → 下次登录仍自启。
         _release_pid_lock()
         _mark_clean_exit("menu_quit")
+        stop_launchd_job()
         from AppKit import NSApp
         NSApp.terminate_(None)
 
