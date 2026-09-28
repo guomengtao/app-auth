@@ -1,4 +1,3 @@
-{"versionCode":41,"versionName":"0.5.40","sha256":"ffb6ae63001c7385b54c326f4e5fe1d5c58fbfba4dfd47ee8b78a6c28be17305",
- "downloadUrlMirror":"https://ghproxy.net/https://github.com/guomengtao/EvCourse/releases/download/v0.5.39/EVSyncProbe-v0.5.39.apk",
- "downloadUrlOrigin":"https://github.com/guomengtao/EvCourse/releases/download/v0.5.39/EVSyncProbe-v0.5.39.apk",
- "isForce":false,"updateLog":"升级链路诊断：观察 commit 日志"}
+{"versionCode":41,"versionName":"0.5.40","sha256":"68f89fc63f736ce316458a3624791ea9de00241220d730c80332eb6cb5f26e45",
+ "downloadUrlMirror":"https://ghproxy.net/https://github.com/guomengtao/EvCourse/releases/download/v0.5.40/EVSyncProbe-v0.5.40.apk","downloadUrlOrigin":"https://github.com/guomengtao/EvCourse/releases/download/v0.5.40/EVSyncProbe-v0.5.40.apk",
+ "isForce":false,"updateLog":"升级安装路径改用系统安装器（修复 EMUI 静默拦截）"}
