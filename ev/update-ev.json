@@ -1,3 +1,4 @@
-{"versionCode":40,"versionName":"0.5.39","sha256":"8cddd8ce591c82874ae645548dc144a26cb43f6acec9a6447cf22e9a9e51b254",
- "downloadUrlMirror":"https://ghproxy.net/https://github.com/guomengtao/EvCourse/releases/download/v0.5.39/EVSyncProbe-v0.5.39.apk","downloadUrlOrigin":"https://github.com/guomengtao/EvCourse/releases/download/v0.5.39/EVSyncProbe-v0.5.39.apk",
- "isForce":false,"updateLog":"真机闭环验证：双URL下载+sha256校验+PackageInstaller自升级"}
+{"versionCode":41,"versionName":"0.5.40","sha256":"ffb6ae63001c7385b54c326f4e5fe1d5c58fbfba4dfd47ee8b78a6c28be17305",
+ "downloadUrlMirror":"https://ghproxy.net/https://github.com/guomengtao/EvCourse/releases/download/v0.5.39/EVSyncProbe-v0.5.39.apk",
+ "downloadUrlOrigin":"https://github.com/guomengtao/EvCourse/releases/download/v0.5.39/EVSyncProbe-v0.5.39.apk",
+ "isForce":false,"updateLog":"升级链路诊断：观察 commit 日志"}
