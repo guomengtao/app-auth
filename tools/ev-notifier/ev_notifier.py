@@ -1023,6 +1023,16 @@ def store_visitor(ts, payload):
         "utm_campaign": utm_campaign,
         "device": device_type,
         "ua": ua[:200],
+        # APK 埋点带的设备上下文（网页埋点没有 → 全空字符串/false）
+        "location_zh": payload.get("location_full_zh", "") or payload.get("location_zh", "") or "",
+        "device_model": payload.get("device_model", "") or "",
+        "os_version": payload.get("os_version", "") or "",
+        "os_brand": payload.get("os_brand", "") or "",
+        "app_version": payload.get("app_version", "") or "",
+        "app_variant": payload.get("app_variant", "") or "",
+        "watch_connected": bool(payload.get("watch_connected", False)),
+        "watch_model": payload.get("watch_model", "") or "",
+        "watch_ev_version": payload.get("watch_ev_version", "") or "",
     }
     # 追加（O(1)）+ 上限保护；落盘交给后台线程合并，不再每条都全量重写 2000 条
     visitors.append(entry)
@@ -2199,9 +2209,27 @@ def handle_message(msg, skip_notify=False, source="live"):
         country = p.get("country", "")
         region = p.get("region", "")
         city = p.get("city", "")
-        title = "页面访问"
+        model = p.get("device_model", "") or ""
+        os_ver = p.get("os_version", "") or ""
+        os_brand = p.get("os_brand", "") or ""
+        # 带 device_model 的只有 APK 埋点（网页埋点不带）→ 标题区分开，别和网页访问混淆
+        title = "安卓访问" if model else "页面访问"
         subtitle = page
         lines = []
+        if model or os_ver or os_brand:
+            brand_cn = {"harmony": "鸿蒙", "emui": "EMUI"}.get(os_brand, os_brand or "安卓")
+            phone = " ".join([x for x in (model, (brand_cn + " " + os_ver).strip()) if x])
+            lines.append(f"手机: {phone}")
+            if p.get("watch_connected"):
+                watch = (p.get("watch_model", "") or "手环")
+                ev = p.get("watch_ev_version", "") or ""
+                lines.append(f"手环: 已连接 {watch}{' EV ' + ev if ev else ''}")
+            else:
+                lines.append("手环: 未连接")
+            if p.get("app_version"):
+                av = p.get("app_version")
+                variant = p.get("app_variant", "") or ""
+                lines.append(f"APK: {av}{' (' + variant + ')' if variant else ''}")
         # 归属地优先中文（location_zh / city_zh），无中文时才回落英文拼接
         geo_str = _zh_loc(p)
         if not geo_str:
@@ -2348,7 +2376,13 @@ def handle_message(msg, skip_notify=False, source="live"):
             page = p.get("page", "") or p.get("title", "") or ""
             loc = _zh_loc(p)
             page_cn = _page_name_cn(page)
-            voice_text = f"{loc}用户访问{page_cn}" if loc else f"用户访问{page_cn}"
+            model = p.get("device_model", "") or ""
+            if model:
+                # APK 访问：开头先说「安卓<机型>」，明确这是有人在用安卓 App（不是网页）
+                who = "安卓" + model
+                voice_text = f"{who}用户来自{loc}，访问{page_cn}" if loc else f"{who}用户访问{page_cn}"
+            else:
+                voice_text = f"{loc}用户访问{page_cn}" if loc else f"用户访问{page_cn}"
         elif mtype == "test_curl":
             voice_text = "收到测试消息"
         else:
@@ -5662,6 +5696,12 @@ document.addEventListener('DOMContentLoaded',function(){{
             url_display = (f'<span class="url-hostname">{host}</span><span class="url-path">{_safe_str(path)}</span>' if host else _safe_str(path))
             ip = _safe_str(v.get("ip", "-") or "-")
             device = v.get("device", "Unknown")
+            # APK 埋点还带手机型号 / 系统品牌（鸿蒙）→「设备」列直接显示出来
+            model = v.get("device_model", "") or ""
+            os_brand_cn = {"harmony": "鸿蒙", "emui": "EMUI"}.get(v.get("os_brand", "") or "", "")
+            device_label = f"{device} {model}".strip() if model else device
+            if os_brand_cn:
+                device_label += f" · {os_brand_cn}"
             host_safe = _safe_str(v.get("referrer_host", "") or v.get("referrer", "-") or "-")
             if len(host_safe) > 30:
                 host_safe = host_safe[:30] + "..."
@@ -5682,7 +5722,7 @@ document.addEventListener('DOMContentLoaded',function(){{
             rows += ('<tr class="accordion-row ' + filter_class + '" id="row-' + rowId + '" onclick="toggleRowDetail(\'' + rowId + '\')">'
                      '<td><span class="expand-icon">▶</span> ' + t + '</td>'
                      '<td><div>' + url_display + '</div>' + utm_tags + '</td>'
-                     '<td><span class="device-tag ' + device + '">' + _safe_str(device) + '</span></td>'
+                     '<td><span class="device-tag ' + _safe_str(device) + '" title="' + _safe_str(device_label) + '">' + _safe_str(device_label) + '</span></td>'
                      '<td>' + ip + '</td>'
                      '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + host_safe + '">' + host_safe + '</td></tr>\n')
 
@@ -5705,7 +5745,26 @@ document.addEventListener('DOMContentLoaded',function(){{
             if v.get("utm_source"): detail_html += '<tr><td>UTM Source</td><td>' + _safe_str(v["utm_source"]) + '</td></tr>'
             if v.get("utm_medium"): detail_html += '<tr><td>UTM Medium</td><td>' + _safe_str(v["utm_medium"]) + '</td></tr>'
             if v.get("utm_campaign"): detail_html += '<tr><td>UTM Campaign</td><td>' + _safe_str(v["utm_campaign"]) + '</td></tr>'
+            if v.get("location_zh"): detail_html += '<tr><td>归属地</td><td>' + _safe_str(v["location_zh"]) + '</td></tr>'
             detail_html += '</table></div>'
+
+            # 手机 / APK / 手环上下文（只有 APK 埋点才有，网页埋点整段不显示）
+            if model:
+                detail_html += '<div class="detail-section"><div class="detail-section-title">手机 / APK</div><table class="detail-table">'
+                detail_html += '<tr><td>手机型号</td><td>' + _safe_str(model) + '</td></tr>'
+                sys_txt = ((os_brand_cn + " ") if os_brand_cn else "") + _safe_str(v.get("os_version", ""))
+                if sys_txt.strip(): detail_html += '<tr><td>系统</td><td>' + sys_txt.strip() + '</td></tr>'
+                if v.get("app_version"):
+                    detail_html += '<tr><td>APK 版本</td><td>' + _safe_str(v["app_version"])
+                    if v.get("app_variant"): detail_html += ' (' + _safe_str(v["app_variant"]) + ')'
+                    detail_html += '</td></tr>'
+                detail_html += '</table></div>'
+
+                detail_html += '<div class="detail-section"><div class="detail-section-title">手环 / EV 快应用</div><table class="detail-table">'
+                detail_html += '<tr><td>连接状态</td><td>' + ('已连接' if v.get("watch_connected") else '未连接') + '</td></tr>'
+                if v.get("watch_model"): detail_html += '<tr><td>设备名</td><td>' + _safe_str(v["watch_model"]) + '</td></tr>'
+                if v.get("watch_ev_version"): detail_html += '<tr><td>EV 版本</td><td>' + _safe_str(v["watch_ev_version"]) + '</td></tr>'
+                detail_html += '</table></div>'
 
             refUrl = v.get("referrer", "") or ""
             if refUrl:

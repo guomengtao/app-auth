@@ -86,6 +86,46 @@ function pageTitleForPath(p) {
   if (p.startsWith('/apk/')) return p.replace('/apk/', '');
   return p;
 }
+
+function clipStr(v, n) {
+  return String(v == null ? "" : v).slice(0, n);
+}
+
+function clipInt(v) {
+  var n = parseInt(v, 10);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * APK 埋点带的设备上下文：白名单字段 + 逐个限长。
+ * 埋点体是客户端可控的 JSON，不能原样落库（防超长/防塞任意字段）。
+ * 字段口径见仓库文档 apk-tracking-telemetry-spec.md。
+ */
+function sanitizeDevice(body) {
+  var d = (body && typeof body.device === "object" && body.device) || {};
+  var a = (body && typeof body.app === "object" && body.app) || {};
+  var w = (body && typeof body.watch === "object" && body.watch) || {};
+  return {
+    model: clipStr(d.model, 64),
+    brand: clipStr(d.brand, 32),
+    manufacturer: clipStr(d.manufacturer, 32),
+    os: clipStr(d.os, 32),
+    sdk: clipInt(d.sdk),
+    os_brand: clipStr(d.os_brand, 16),
+    app_version: clipStr(a.version, 24),
+    app_code: clipInt(a.code),
+    app_variant: clipStr(a.variant, 16),
+    first_install: clipInt(a.first_install),
+    last_update: clipInt(a.last_update),
+    watch_model: clipStr(w.model, 64),
+    watch_ev_version: clipStr(w.ev_version, 24),
+    watch_ev_code: clipInt(w.ev_code),
+    watch_connected: w.connected === true || w.connected === 1,
+    watch_node_id: clipStr(w.node_id, 64),
+    nickname: clipStr(body && body.nickname, 64),
+  };
+}
+
 async function handleVisitorTrack(req, res) {
   try {
     var ipCheck = await rateLimit.checkVisitorIpRateLimit(req);
@@ -95,6 +135,7 @@ async function handleVisitorTrack(req, res) {
     var body = parseBody(req);
     // APK 埋点可以直接带 deviceId（优先于 query 里的 ?deviceId=），供 tracking_events 归因
     var bodyDeviceId = String(body.deviceId || "");
+    var dev = sanitizeDevice(body);
     // 前端发的是 pathname + search；这里拆成两列：
     //   path  → 只留 pathname（否则「热门页面」会被 ?deviceId=1 / ?deviceId=2 分裂成无数条）
     //   query → 完整参数串，长期留存在 visitor_logs.query / params，供渠道归因
@@ -163,6 +204,7 @@ async function handleVisitorTrack(req, res) {
     //    KV 的 stats:recent 只留 ~100 条、日报 7 天过期，长期存档靠这张表。
     background.run(
       visitorLog.logVisit({
+        device: dev,
         ts: ts,
         ip: ip,
         path: trimmedPath,
@@ -222,6 +264,16 @@ async function handleVisitorTrack(req, res) {
           location_zh: pushGeo.location_zh,
           district_zh: pushGeo.district_zh,
           location_full_zh: pushGeo.location_full_zh,
+          // 手机 / APK / 手环上下文：Mac 端据此播报「安卓<型号>用户访问…」并展示连接状态
+          device_model: dev.model,
+          device_brand: dev.brand,
+          os_version: dev.os,
+          os_brand: dev.os_brand,
+          app_version: dev.app_version,
+          app_variant: dev.app_variant,
+          watch_connected: dev.watch_connected,
+          watch_model: dev.watch_model,
+          watch_ev_version: dev.watch_ev_version,
         });
       } catch (e) {
         console.error("[visitor/track] visit push failed (non-blocking):", e.message);

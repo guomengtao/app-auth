@@ -3372,6 +3372,9 @@ if ((isCron || isCronBackup) && isBackup) {
               h: row.hash, p: row.path, u: row.ua, r: row.ref, t: row.time,
               ip: row.ip, c: row.country, rg: row.region, ci: row.city, tz: "",
               q: row.query || "",
+              // APK 埋点的设备上下文（网页埋点为空）
+              dm: row.deviceModel || "", ov: row.osVersion || "", ob: row.osBrand || "",
+              dev: row.device || null,
             };
           });
           console.log("[visitor-recent] visitor_logs rows:", records.length);
@@ -3448,6 +3451,9 @@ if ((isCron || isCronBackup) && isBackup) {
               city: city,
               district: (sg && sg.district) || "",
               timezone: obj.tz || "", ip: obj.ip || "",
+              // APK 埋点的设备上下文（网页埋点整段为空）
+              deviceModel: obj.dm || "", osVersion: obj.ov || "", osBrand: obj.ob || "",
+              device: obj.dev || null,
             };
             var detail = ipDetails[obj.ip];
             if (detail) {
