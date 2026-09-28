@@ -92,8 +92,26 @@ function normalizeIssues(raw) {
   return out.slice(0, 8);
 }
 
-function field(pageId, shotFile) {
-  return String(pageId) + "|" + String(shotFile);
+// 多项目/多型号：field 首段为 projectId（同库隔离）；默认项目承接历史数据
+var DEFAULT_PROJECT = "ev-schedule-watch9";
+var PID_RE = /^[a-z0-9][a-z0-9_-]{0,62}$/i;
+
+function normalizeProject(raw) {
+  var s = String(raw || "").trim();
+  return (s && PID_RE.test(s)) ? s : DEFAULT_PROJECT;
+}
+
+function field(projectId, pageId, shotFile) {
+  return normalizeProject(projectId) + "|" + String(pageId) + "|" + String(shotFile);
+}
+
+// 解析 field：新格式 projectId|pageId|shotFile；旧格式 pageId|shotFile（自动归默认项目）
+function parseField(f) {
+  var parts = String(f).split("|");
+  if (parts.length >= 3) {
+    return { projectId: parts[0], pageId: parts[1], shotFile: parts.slice(2).join("|") };
+  }
+  return { projectId: DEFAULT_PROJECT, pageId: parts[0] || "", shotFile: parts[1] || "" };
 }
 
 function summarize(entry) {
@@ -102,6 +120,7 @@ function summarize(entry) {
   // 状态：当前 action 为 resolved/delete 即已处理，否则待处理
   var status = (entry.action === "resolved" || entry.action === "delete") ? "done" : "open";
   return {
+    projectId: entry.projectId || DEFAULT_PROJECT,
     pageId: entry.pageId,
     shotFile: entry.shotFile,
     issues: entry.issues || [],
@@ -118,14 +137,19 @@ function summarize(entry) {
   };
 }
 
-async function listAll(pageIdFilter, pendingOnly) {
+async function listAll(projectIdFilter, pageIdFilter, pendingOnly) {
   var raw = await redis.hgetall(HASH_KEY);
   var items = [];
+  var legacy = [];  // 旧格式 field（无 projectId 前缀）→ 自动迁移到默认项目
   if (raw && typeof raw === "object") {
     Object.keys(raw).forEach(function (f) {
       try {
         var entry = JSON.parse(raw[f]);
+        var parsed = parseField(f);
+        entry.projectId = entry.projectId || parsed.projectId;
         entry.key = f;
+        if (parts2(f)) legacy.push({ from: f, to: field(entry.projectId, entry.pageId, entry.shotFile), value: raw[f] });
+        if (projectIdFilter && entry.projectId !== projectIdFilter) return;
         if (pageIdFilter && entry.pageId !== pageIdFilter) return;
         if (pendingOnly && (entry.action === "resolved" || entry.action === "delete")) return;
         items.push(summarize(entry));
@@ -134,8 +158,25 @@ async function listAll(pageIdFilter, pendingOnly) {
       }
     });
   }
+  // 旧格式一次性迁移（幂等：迁移后旧 field 已删，下次不再进入 legacy）
+  if (legacy.length) {
+    try {
+      var pip = redis.pipeline();
+      legacy.forEach(function (m) {
+        pip.hset(HASH_KEY, { [m.to]: m.value });
+        pip.hdel(HASH_KEY, m.from);
+      });
+      await pip.exec();
+    } catch (e) {
+      console.warn("[review:migrate]", e.message || e);
+    }
+  }
   items.sort(function (a, b) { return (b.updated_at || 0) - (a.updated_at || 0); });
   return items;
+}
+
+function parts2(f) {
+  return String(f).split("|").length === 2;
 }
 
 module.exports = async (req, res) => {
@@ -144,10 +185,11 @@ module.exports = async (req, res) => {
 
     // ── GET：公开读取（AI 对接通道）─────────────────────────────
     if (method === "GET") {
+      var projectId = normalizeProject(req.query.projectId);
       var pageIdFilter = (req.query.pageId || "").toString().slice(0, 64);
       var pendingOnly = req.query.action === "pending";
-      var items = await listAll(pageIdFilter || null, pendingOnly);
-      return ok(res, { items: items, total: items.length });
+      var items = await listAll(projectId, pageIdFilter || null, pendingOnly);
+      return ok(res, { items: items, total: items.length, projectId: projectId });
     }
 
     // ── POST：公开提交（限频 + 严格校验）────────────────────────
@@ -162,6 +204,7 @@ module.exports = async (req, res) => {
       }
 
       var body = parseBody(req);
+      var projectId = normalizeProject(body.projectId);
       var pageId = String(body.pageId || "").trim().slice(0, 64);
       var shotFile = String(body.shotFile || "").trim().slice(0, 120);
       if (!pageId || !shotFile) return bad(res, "pageId 与 shotFile 必填");
@@ -178,7 +221,7 @@ module.exports = async (req, res) => {
         return bad(res, "至少提供一项：issues / boxes / note");
       }
 
-      var f = field(pageId, shotFile);
+      var f = field(projectId, pageId, shotFile);
       var now = Date.now();
       var existing = null;
       try {
@@ -203,6 +246,7 @@ module.exports = async (req, res) => {
       }
 
       var entry = {
+        projectId: projectId,
         pageId: pageId,
         shotFile: shotFile,
         issues: issues,
@@ -225,11 +269,12 @@ module.exports = async (req, res) => {
       if (!auth.authorized) {
         return res.status(auth.status).json({ success: false, error: auth.error });
       }
+      var dProject = normalizeProject(req.query.projectId);
       var dPage = (req.query.pageId || "").toString().slice(0, 64);
       var dShot = (req.query.shotFile || "").toString().slice(0, 120);
       if (!dPage || !dShot) return bad(res, "pageId 与 shotFile 必填");
-      await redis.hdel(HASH_KEY, field(dPage, dShot));
-      return ok(res, { deleted: field(dPage, dShot) });
+      await redis.hdel(HASH_KEY, field(dProject, dPage, dShot));
+      return ok(res, { deleted: field(dProject, dPage, dShot) });
     }
 
     return bad(res, "Method not allowed", 405);
