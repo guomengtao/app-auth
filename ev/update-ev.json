@@ -1,3 +1,3 @@
-{"versionCode":43,"versionName":"0.5.42","sha256":"8e2f6dcb26898d63f5a8815029372c0a42d60e11c750fcf62e702d7ef6ba88e3",
- "downloadUrlMirror":"https://ghproxy.net/https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.42/EVSyncProbe-v0.5.42.apk","downloadUrlOrigin":"https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.42/EVSyncProbe-v0.5.42.apk",
- "isForce":false,"updateLog":"自动升级通道公测：本弹窗即升级系统本体；设置页可手动检查更新"}
+{"versionCode":44,"versionName":"0.5.43","sha256":"67b67db16b856ac204c9072341e2f7eb62ca111c94eff830aa4918bcf2aaa33c",
+ "downloadUrlMirror":"https://ghproxy.net/https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.43/EVSyncProbe-v0.5.43.apk","downloadUrlOrigin":"https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.43/EVSyncProbe-v0.5.43.apk",
+ "isForce":false,"updateLog":"无需连电脑：拔掉 USB 也能收到本提示并完成升级"}
