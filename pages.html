@@ -334,6 +334,8 @@ function enableAnno(unit){
     dragging = false;
     updateBoxInfo(unit);
   });
+  // 吃掉 click，避免拖框/点击时触发外层 lightbox（图片放大弹层）
+  layer.addEventListener("click", function(e){ e.stopPropagation(); });
 }
 
 // 框（显示坐标）→ 原始图像素归一化：处理 object-fit:cover 裁剪

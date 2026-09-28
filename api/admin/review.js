@@ -151,7 +151,8 @@ module.exports = async (req, res) => {
       var note = String(body.note || "").slice(0, 300);
       var action = ALLOWED_ACTIONS.indexOf(body.action) !== -1 ? body.action : "fix";
 
-      if (!issues.length && !note && !box) {
+      // fix 需要至少一项内容；recapture / delete 是快捷标记，允许全空
+      if (action === "fix" && !issues.length && !note && !box) {
         return bad(res, "至少提供一项：issues / box / note");
       }
 
