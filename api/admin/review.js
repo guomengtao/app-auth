@@ -70,6 +70,17 @@ function normalizeBox(raw) {
   return { x: x, y: y, w: w, h: h };
 }
 
+// 多框：一张截图可标注多个问题区域
+function normalizeBoxes(raw) {
+  if (!Array.isArray(raw)) return [];
+  var out = [];
+  raw.forEach(function (b) {
+    var n = normalizeBox(b);
+    if (n) out.push(n);
+  });
+  return out.slice(0, 6);
+}
+
 function normalizeIssues(raw) {
   if (!Array.isArray(raw)) return [];
   var out = [];
@@ -91,6 +102,7 @@ function summarize(entry) {
     shotFile: entry.shotFile,
     issues: entry.issues || [],
     box: entry.box || null,
+    boxes: entry.boxes || [],
     note: entry.note || "",
     action: entry.action || "fix",
     reviewer: entry.reviewer || "",
@@ -148,12 +160,14 @@ module.exports = async (req, res) => {
 
       var issues = normalizeIssues(body.issues);
       var box = normalizeBox(body.box);
+      var boxes = normalizeBoxes(body.boxes);
+      if (!boxes.length && box) boxes = [box];
       var note = String(body.note || "").slice(0, 300);
       var action = ALLOWED_ACTIONS.indexOf(body.action) !== -1 ? body.action : "fix";
 
       // fix 需要至少一项内容；recapture / delete 是快捷标记，允许全空
-      if (action === "fix" && !issues.length && !note && !box) {
-        return bad(res, "至少提供一项：issues / box / note");
+      if (action === "fix" && !issues.length && !note && !boxes.length) {
+        return bad(res, "至少提供一项：issues / boxes / note");
       }
 
       var f = field(pageId, shotFile);
@@ -175,6 +189,7 @@ module.exports = async (req, res) => {
         shotFile: shotFile,
         issues: issues,
         box: box,
+        boxes: boxes,
         note: note,
         action: action,
         reviewer: String(body.reviewer || "").slice(0, 40) || "用户",

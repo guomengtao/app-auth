@@ -310,16 +310,14 @@ function enableAnno(unit){
     var cy = Math.max(0, Math.min(ir.height, e.clientY - ir.top));
     return { x: cx, y: cy, ir: ir };
   }
-  function ensureBox(p){
-    if(!box){ box = document.createElement("div"); box.className = "anno-box"; layer.appendChild(box); }
-    return box;
-  }
+  // 多框：每次拖框新建一个框，互不影响；双击某框可删除该框
   layer.addEventListener("pointerdown", function(e){
     e.stopPropagation(); e.preventDefault();
     dragging = true; var p = pt(e); sx = p.x; sy = p.y;
-    box = ensureBox(p);
+    box = document.createElement("div"); box.className = "anno-box"; layer.appendChild(box);
     box.style.left = sx+"px"; box.style.top = sy+"px";
     box.style.width = "0px"; box.style.height = "0px";
+    box.addEventListener("dblclick", function(ev){ ev.stopPropagation(); box.remove(); box = null; updateBoxInfo(unit); });
   });
   layer.addEventListener("pointermove", function(e){
     if(!dragging || !box) return;
@@ -338,32 +336,37 @@ function enableAnno(unit){
   layer.addEventListener("click", function(e){ e.stopPropagation(); });
 }
 
-// 框（显示坐标）→ 原始图像素归一化：处理 object-fit:cover 裁剪
-function collectBoxNorm(unit){
-  var b = unit.querySelector(".anno-box");
+// 框（显示坐标）→ 原始图像素归一化：处理 object-fit:cover 裁剪；支持多框
+function collectBoxesNorm(unit){
   var img = unit.querySelector("img");
-  if(!b || !img) return null;
+  var layer = unit.querySelector(".anno-layer");
+  if(!layer || !img) return [];
   var ir = img.getBoundingClientRect();
-  var br = b.getBoundingClientRect();
   var iw = img.naturalWidth || 192, ih = img.naturalHeight || 490;
   var scale = Math.max(ir.width/iw, ir.height/ih);
   var dispW = iw*scale, dispH = ih*scale;
   var offX = (ir.width - dispW)/2, offY = (ir.height - dispH)/2;
-  var ox = (br.left - ir.left - offX)/scale;
-  var oy = (br.top - ir.top - offY)/scale;
-  var ow = br.width/scale, oh = br.height/scale;
-  if(ow <= 2 || oh <= 2) return null;
   function c01(v, max){ return Math.max(0, Math.min(1, Math.round(v/max*1000)/1000)); }
-  return { x: c01(ox, iw), y: c01(oy, ih), w: c01(ow, iw), h: c01(oh, ih) };
+  var out = [];
+  var boxes = layer.querySelectorAll(".anno-box");
+  for(var i=0;i<boxes.length;i++){
+    var br = boxes[i].getBoundingClientRect();
+    var ox = (br.left - ir.left - offX)/scale;
+    var oy = (br.top - ir.top - offY)/scale;
+    var ow = br.width/scale, oh = br.height/scale;
+    if(ow <= 2 || oh <= 2) continue;
+    out.push({ x: c01(ox, iw), y: c01(oy, ih), w: c01(ow, iw), h: c01(oh, ih) });
+  }
+  return out;
 }
 
 function updateBoxInfo(unit){
   var info = unit.querySelector(".rv-boxinfo");
-  var n = collectBoxNorm(unit);
   if(!info) return;
-  info.textContent = n
-    ? ("框选：x="+(n.x*100).toFixed(1)+"% y="+(n.y*100).toFixed(1)+"% w="+(n.w*100).toFixed(1)+"% h="+(n.h*100).toFixed(1)+"%")
-    : "在截图上按住拖框圈出问题区域（可不框）";
+  var n = collectBoxesNorm(unit).length;
+  info.textContent = n > 0
+    ? ("已框选 "+n+" 处（继续拖框可多处标注，双击某框可删除该框）")
+    : "在截图上按住拖框圈出问题区域（可多处框选，可不框）";
 }
 
 function collectChips(unit){
@@ -391,34 +394,82 @@ function submitReview(btn, action, e){
     pageId: unit.getAttribute("data-page"),
     shotFile: unit.getAttribute("data-file"),
     issues: collectChips(unit),
-    box: collectBoxNorm(unit),
+    boxes: collectBoxesNorm(unit),
     note: (unit.querySelector(".rv-note") || {}).value || "",
     action: action,
     reviewer: "用户"
   };
-  if(!payload.issues.length && !payload.box && !payload.note && action === "fix"){
+  if(!payload.issues.length && !payload.boxes.length && !payload.note && action === "fix"){
     msg.textContent = "请先框选区域 / 勾选问题 / 填写批注";
     return;
   }
   msg.textContent = "提交中…";
   postReview(payload, function(okRes, d){
     msg.textContent = okRes ? "✅ 已提交（action=" + action + "）" : "❌ " + (d && d.error || "提交失败");
-    if(okRes) applyFlag(unit, action);
+    if(okRes){
+      applyFlag(unit, action);
+      if(action === "fix"){
+        var layer = unit.querySelector(".anno-layer");
+        if(layer){
+          var boxes = layer.querySelectorAll(".anno-box");
+          for(var i=boxes.length-1;i>=0;i--) boxes[i].remove();
+        }
+        updateBoxInfo(unit);
+      }
+    }
   });
 }
 
+// 快捷标记：再点一次同一标记 = 撤销（恢复为待修 fix）
 function quickMark(btn, action, e){
   if(e) e.stopPropagation();
   var unit = btn.closest(".shot-unit");
-  postReview({
+  var cur = unit.getAttribute("data-action") || "";
+  var undoing = (cur === action);
+  var payload = {
     pageId: unit.getAttribute("data-page"),
     shotFile: unit.getAttribute("data-file"),
-    issues: [], box: null, note: "", action: action, reviewer: "用户"
-  }, function(okRes, d){
-    btn.textContent = okRes ? (action === "delete" ? "已标记删除" : "已标记换版") : "失败";
-    btn.classList.add(okRes ? (action === "delete" ? "rv-del" : "rv-warn") : "rv-del");
-    if(okRes) applyFlag(unit, action);
+    issues: [], boxes: [], note: undoing ? "撤销标记" : "",
+    action: undoing ? "fix" : action, reviewer: "用户"
+  };
+  postReview(payload, function(okRes, d){
+    if(!okRes){ btn.textContent = "失败"; return; }
+    if(undoing){
+      unit.removeAttribute("data-action");
+      applyFlag(unit, "none");
+      applyBtnState(unit, "");
+    } else {
+      unit.setAttribute("data-action", action);
+      applyFlag(unit, action);
+      applyBtnState(unit, action);
+    }
   });
+}
+
+// 标记按钮状态：被标记的那个按钮高亮显示"点撤销"
+function applyBtnState(unit, action){
+  var bar = unit.querySelector(".review-bar");
+  if(!bar) return;
+  var btns = bar.querySelectorAll(".rv-btn");
+  for(var i=0;i<btns.length;i++){
+    var b = btns[i];
+    if(b.classList.contains("rv-ok") || b.classList.contains("rv-warn")){
+      b.classList.remove("rv-ok", "rv-warn");
+      b.textContent = b.getAttribute("data-label") || b.textContent;
+    }
+  }
+  if(action === "recapture" || action === "delete"){
+    var target = null;
+    for(var j=0;j<btns.length;j++){
+      var onclick = btns[j].getAttribute("onclick") || "";
+      if(onclick.indexOf("'"+action+"'") !== -1) target = btns[j];
+    }
+    if(target){
+      target.setAttribute("data-label", target.textContent);
+      target.textContent = action === "delete" ? "已标记删除(点撤销)" : "已标记换版(点撤销)";
+      target.classList.add(action === "delete" ? "rv-del" : "rv-warn");
+    }
+  }
 }
 
 function applyFlag(unit, action){
