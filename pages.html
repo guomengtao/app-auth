@@ -515,13 +515,24 @@ function applyBtnState(unit, action){
 
 function applyFlag(unit, action){
   var device = unit.querySelector(".device");
+  unit.style.display = (action === "delete") ? "none" : "flex";
   device.classList.remove("rv-flag", "rv-flag-resolved", "rv-flag-deleted");
   if(action === "fix" || action === "recapture") device.classList.add("rv-flag");
   else if(action === "resolved") device.classList.add("rv-flag-resolved");
   else if(action === "delete") device.classList.add("rv-flag-deleted");
 }
 
-// 页面加载后拉取全部审核结果：回填角标 + 更新「记录(n)」按钮状态
+// 快捷标记按钮统一状态（含撤销提示与恢复），供 quickMark 与回填共用
+function applyReviewState(unit, it){
+  if(!it) return;
+  unit.setAttribute("data-action", it.action);
+  applyFlag(unit, it.action);
+  applyBtnState(unit, it.action);
+  // 删除标记：整块隐藏（撤销标记后自动恢复显示）
+  unit.style.display = (it.action === "delete") ? "none" : "flex";
+}
+
+// 页面加载后拉取全部审核结果：回填角标/撤销状态 + delete 隐藏 + 更新「记录(n)」
 fetch(RV_API).then(function(r){ return r.json(); }).then(function(d){
   if(!d || !d.success || !d.items) return;
   RV_ITEMS = d.items;
@@ -533,8 +544,11 @@ fetch(RV_API).then(function(r){ return r.json(); }).then(function(d){
     var key = u.getAttribute("data-page") + "|" + u.getAttribute("data-file");
     var it = byKey[key];
     var hbtn = u.querySelector('[onclick*="toggleHistory"]');
-    if(!it) continue;
-    applyFlag(u, it.action);
+    if(!it){
+      if(hbtn){ hbtn.textContent = "记录"; hbtn.classList.remove("rv-ok","rv-warn"); }
+      continue;
+    }
+    applyReviewState(u, it);
     if(hbtn){
       hbtn.textContent = "记录(" + it.count + ")";
       if(it.status === "done") hbtn.classList.add("rv-ok");
