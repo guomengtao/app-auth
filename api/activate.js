@@ -96,6 +96,12 @@ function clipInt(v) {
   return Number.isFinite(n) ? n : 0;
 }
 
+// 毫秒级累计值可能是 64 位（如前台时长），不能用 parseInt
+function clipNum(v) {
+  var n = Number(v);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
 /**
  * APK 埋点带的设备上下文：白名单字段 + 逐个限长。
  * 埋点体是客户端可控的 JSON，不能原样落库（防超长/防塞任意字段）。
@@ -117,11 +123,23 @@ function sanitizeDevice(body) {
     app_variant: clipStr(a.variant, 16),
     first_install: clipInt(a.first_install),
     last_update: clipInt(a.last_update),
+    // 本机累计统计（APK-Stats 提供）
+    app_upgrade_count: clipInt(a.upgrade_count),
+    app_open_count: clipInt(a.open_count),
+    app_foreground_ms: clipNum(a.foreground_ms),
+    app_last_open: clipInt(a.last_open_ms),
     watch_model: clipStr(w.model, 64),
     watch_ev_version: clipStr(w.ev_version, 24),
     watch_ev_code: clipInt(w.ev_code),
     watch_connected: w.connected === true || w.connected === 1,
     watch_node_id: clipStr(w.node_id, 64),
+    // 手环连接统计（APK-Stats 提供）：次数 / 成功 / 失败 / 失败步与原因
+    watch_connect_total: clipInt(w.connect_total),
+    watch_connect_ok: clipInt(w.connect_ok),
+    watch_connect_fail: clipInt(w.connect_fail),
+    watch_connect_last_ms: clipNum(w.connect_last_ms),
+    watch_last_fail_step: clipInt(w.connect_last_fail_step),
+    watch_last_fail_reason: clipStr(w.connect_last_fail_reason, 120),
     nickname: clipStr(body && body.nickname, 64),
   };
 }

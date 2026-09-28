@@ -1033,6 +1033,15 @@ def store_visitor(ts, payload):
         "watch_connected": bool(payload.get("watch_connected", False)),
         "watch_model": payload.get("watch_model", "") or "",
         "watch_ev_version": payload.get("watch_ev_version", "") or "",
+        # 本机累计统计（APK 侧 Stats 提供）
+        "app_upgrade_count": payload.get("app_upgrade_count", 0) or 0,
+        "app_open_count": payload.get("app_open_count", 0) or 0,
+        "app_foreground_ms": payload.get("app_foreground_ms", 0) or 0,
+        "watch_connect_total": payload.get("watch_connect_total", 0) or 0,
+        "watch_connect_ok": payload.get("watch_connect_ok", 0) or 0,
+        "watch_connect_fail": payload.get("watch_connect_fail", 0) or 0,
+        "watch_last_fail_step": payload.get("watch_last_fail_step", 0) or 0,
+        "watch_last_fail_reason": payload.get("watch_last_fail_reason", "") or "",
     }
     # 追加（O(1)）+ 上限保护；落盘交给后台线程合并，不再每条都全量重写 2000 条
     visitors.append(entry)
@@ -2127,6 +2136,23 @@ def _zh_loc(p):
     return str(
         p.get("location_full_zh") or p.get("location_zh") or p.get("city_zh") or ""
     ).strip()
+
+
+def _fmt_duration(ms):
+    """毫秒 → 「1 小时 23 分」/「12 分 34 秒」/「45 秒」（用于面板展示累计时长）"""
+    try:
+        s = int(round(float(ms or 0) / 1000.0))
+    except Exception:
+        return "-"
+    if s <= 0:
+        return "-"
+    h, rem = divmod(s, 3600)
+    m, sec = divmod(rem, 60)
+    if h > 0:
+        return f"{h} 小时 {m} 分"
+    if m > 0:
+        return f"{m} 分 {sec} 秒"
+    return f"{sec} 秒"
 
 
 def handle_message(msg, skip_notify=False, source="live"):
@@ -5758,12 +5784,26 @@ document.addEventListener('DOMContentLoaded',function(){{
                     detail_html += '<tr><td>APK 版本</td><td>' + _safe_str(v["app_version"])
                     if v.get("app_variant"): detail_html += ' (' + _safe_str(v["app_variant"]) + ')'
                     detail_html += '</td></tr>'
+                if v.get("app_upgrade_count"):
+                    detail_html += '<tr><td>升级次数</td><td>' + _safe_str(str(v["app_upgrade_count"])) + ' 次</td></tr>'
+                if v.get("app_open_count"):
+                    detail_html += '<tr><td>打开次数</td><td>' + _safe_str(str(v["app_open_count"])) + ' 次</td></tr>'
+                if v.get("app_foreground_ms"):
+                    detail_html += '<tr><td>使用时长</td><td>' + _safe_str(_fmt_duration(v["app_foreground_ms"])) + '</td></tr>'
                 detail_html += '</table></div>'
 
                 detail_html += '<div class="detail-section"><div class="detail-section-title">手环 / EV 快应用</div><table class="detail-table">'
                 detail_html += '<tr><td>连接状态</td><td>' + ('已连接' if v.get("watch_connected") else '未连接') + '</td></tr>'
                 if v.get("watch_model"): detail_html += '<tr><td>设备名</td><td>' + _safe_str(v["watch_model"]) + '</td></tr>'
                 if v.get("watch_ev_version"): detail_html += '<tr><td>EV 版本</td><td>' + _safe_str(v["watch_ev_version"]) + '</td></tr>'
+                if v.get("watch_connect_total"):
+                    detail_html += ('<tr><td>连接次数</td><td>共 ' + _safe_str(str(v["watch_connect_total"])) + ' 次 · 成功 '
+                                    + _safe_str(str(v.get("watch_connect_ok", 0))) + ' · 失败 '
+                                    + _safe_str(str(v.get("watch_connect_fail", 0))) + '</td></tr>')
+                if v.get("watch_last_fail_step"):
+                    detail_html += ('<tr><td>最近失败</td><td>第 ' + _safe_str(str(v["watch_last_fail_step"])) + ' 步'
+                                    + ('：' + _safe_str(v["watch_last_fail_reason"]) if v.get("watch_last_fail_reason") else '')
+                                    + '</td></tr>')
                 detail_html += '</table></div>'
 
             refUrl = v.get("referrer", "") or ""

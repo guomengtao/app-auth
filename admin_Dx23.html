@@ -6704,6 +6704,10 @@
         if (dev.app_version) html += '<tr><td>APK</td><td>' + escapeHtml(String(dev.app_version) + (dev.app_variant ? ' (' + dev.app_variant + ')' : '')) + '</td></tr>';
         if (dev.first_install) html += '<tr><td>First Install</td><td>' + new Date(dev.first_install * 1000).toLocaleString() + '</td></tr>';
         if (dev.last_update) html += '<tr><td>Last Update</td><td>' + new Date(dev.last_update * 1000).toLocaleString() + '</td></tr>';
+        if (dev.app_upgrade_count) html += '<tr><td>升级次数</td><td>' + escapeHtml(String(dev.app_upgrade_count)) + ' 次</td></tr>';
+        if (dev.app_open_count) html += '<tr><td>打开次数</td><td>' + escapeHtml(String(dev.app_open_count)) + ' 次</td></tr>';
+        if (dev.app_foreground_ms) html += '<tr><td>使用时长</td><td>' + fmtDurationMs(dev.app_foreground_ms) + '</td></tr>';
+        if (dev.app_last_open) html += '<tr><td>最近打开</td><td>' + new Date(dev.app_last_open * 1000).toLocaleString() + '</td></tr>';
         html += '</table></div>';
 
         html += '<div class="detail-section">';
@@ -6714,6 +6718,15 @@
         if (dev.watch_ev_version) html += '<tr><td>EV Version</td><td>' + escapeHtml(String(dev.watch_ev_version)) + (dev.watch_ev_code ? ' (' + escapeHtml(String(dev.watch_ev_code)) + ')' : '') + '</td></tr>';
         if (dev.watch_node_id) html += '<tr><td>Node ID</td><td style="font-family:monospace">' + escapeHtml(String(dev.watch_node_id)) + '</td></tr>';
         if (dev.nickname) html += '<tr><td>Nickname</td><td>' + escapeHtml(String(dev.nickname)) + '</td></tr>';
+        if (dev.watch_connect_total) {
+          html += '<tr><td>连接次数</td><td>共 ' + escapeHtml(String(dev.watch_connect_total)) + ' 次 · 成功 '
+                + escapeHtml(String(dev.watch_connect_ok || 0)) + ' · 失败 ' + escapeHtml(String(dev.watch_connect_fail || 0)) + '</td></tr>';
+        }
+        if (dev.watch_connect_last_ms) html += '<tr><td>上次连接耗时</td><td>' + fmtDurationMs(dev.watch_connect_last_ms) + '</td></tr>';
+        if (dev.watch_last_fail_step) {
+          html += '<tr><td>最近失败</td><td>第 ' + escapeHtml(String(dev.watch_last_fail_step)) + ' 步'
+                + (dev.watch_last_fail_reason ? '：' + escapeHtml(String(dev.watch_last_fail_reason)) : '') + '</td></tr>';
+        }
         html += '</table></div>';
       }
 
@@ -10340,6 +10353,16 @@
 
     var _visitorChart = null;
     // 访客记录的地区文案：省 · 市 · 区（中文，服务端 geoZh 已算好），没有省市时退回国家
+    // 毫秒 → 「1 小时 23 分」/「12 分 34 秒」/「45 秒」
+    function fmtDurationMs(ms) {
+      var s = Math.round((Number(ms) || 0) / 1000);
+      if (s <= 0) return '-';
+      var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+      if (h > 0) return h + ' 小时 ' + m + ' 分';
+      if (m > 0) return m + ' 分 ' + sec + ' 秒';
+      return sec + ' 秒';
+    }
+
     function fmtVisitorLoc(v) {
       var parts = [];
       var region = (v.region || '').trim();
