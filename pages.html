@@ -57,6 +57,29 @@ body {
 .lightbox { position:fixed; inset:0; background:rgba(0,0,0,0.85); display:none; align-items:center; justify-content:center; z-index:50; cursor:zoom-out; }
 .lightbox.show { display:flex; }
 .lightbox img { max-width:90vw; max-height:90vh; border-radius:24px; }
+/* ===== 审核结果交互 ===== */
+.shot-unit { display:flex; flex-direction:column; align-items:center; }
+.review-bar { display:flex; gap:4px; margin-top:6px; flex-wrap:wrap; justify-content:center; }
+.rv-btn { border:1px solid var(--line); background:var(--surface); color:var(--ink); padding:3px 10px; border-radius:12px; font-size:.72rem; cursor:pointer; }
+.rv-btn:hover { border-color:var(--accent); color:var(--accent); }
+.rv-btn.rv-del:hover { border-color:#e53935; color:#e53935; }
+.rv-btn.rv-ok { border-color:#2e7d32; color:#2e7d32; }
+.rv-btn.rv-warn { border-color:#f0a000; color:#f0a000; }
+.device { position:relative; }
+.anno-layer { position:absolute; inset:0; z-index:5; cursor:crosshair; background:rgba(0,0,0,0.08); }
+.anno-box { position:absolute; border:2px solid #ff3b30; background:rgba(255,59,48,0.15); pointer-events:none; }
+.rv-flag { outline:3px solid #ff3b30; outline-offset:-3px; }
+.rv-flag-resolved { outline:3px solid #2e7d32; outline-offset:-3px; }
+.rv-flag-deleted { opacity:0.35; }
+.review-panel { width:100%; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:8px; margin-top:6px; text-align:left; }
+.rv-chips { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:6px; }
+.rv-chip { border:1px solid var(--line); background:var(--surface); color:var(--muted); padding:2px 9px; border-radius:12px; font-size:.72rem; cursor:pointer; }
+.rv-chip.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+.rv-boxinfo { font-size:.7rem; color:var(--muted); margin-bottom:5px; }
+.rv-note { width:100%; border:1px solid var(--line); border-radius:8px; padding:5px 8px; font-size:.78rem; box-sizing:border-box; margin-bottom:6px; }
+.rv-actions { display:flex; gap:6px; }
+.rv-actions .rv-btn { flex:1; }
+.rv-msg { font-size:.7rem; color:var(--muted); margin-top:4px; min-height:1em; }
 @media (max-width:600px){ .device{width:160px;height:408px;} .shots .device{width:120px;height:306px;} }
 </style>
 </head>
@@ -95,14 +118,22 @@ function hasIssuePage(p){
   for(var i=0;i<ks.length;i++){ if(issueLevel(c[ks[i]])==='err') return true; }
   return false;
 }
-function renderShots(shots){
+function renderShots(p){
+  var shots = p.shots;
   if(!shots || !shots.length){
     return '<div class="shots"><div class="device empty"><div class="ph">待采集<br><span style="font-size:.72rem">尚无截图</span></div></div></div>';
   }
   var html = '<div class="shots">';
   for(var i=0;i<shots.length;i++){
     var s = shots[i];
-    html += '<div class="device" onclick="openLightbox(this)"><img loading="lazy" src="/images/ev-schedule/'+s.file+'" alt="'+s.state+'" onerror="imgError(this)"></div>';
+    html += '<div class="shot-unit" data-page="'+p.id+'" data-file="'+s.file+'">'
+         +  '<div class="device" onclick="openLightbox(this)"><img loading="lazy" src="/images/ev-schedule/'+s.file+'" alt="'+s.state+'" onerror="imgError(this)"></div>'
+         +  '<div class="review-bar">'
+         +  '<button class="rv-btn" onclick="toggleReview(this, event)">审核</button>'
+         +  '<button class="rv-btn" onclick="quickMark(this, \'recapture\', event)">换最新版</button>'
+         +  '<button class="rv-btn rv-del" onclick="quickMark(this, \'delete\', event)">删除</button>'
+         +  '</div>'
+         +  '</div>';
   }
   return html + '</div>';
 }
@@ -134,7 +165,7 @@ function renderCard(p){
   card.setAttribute('data-group', p.group);
   if(hasIssuePage(p)) card.setAttribute('data-issue', '1');
   var left = document.createElement('div');
-  left.innerHTML = renderShots(p.shots);
+  left.innerHTML = renderShots(p);
   var info = document.createElement('div');
   info.className = 'info';
   var badges = '';
@@ -230,6 +261,184 @@ function render(){
   for(var j=0;j<groups.length;j++){ app.appendChild(renderGroup(groups[j], byGroup[groups[j]])); }
 }
 render();
+
+/* ===== 审核结果交互（对接 /api/admin/review）===== */
+var RV_ISSUES = ["文字遮挡","文字省略","标题显示不全","布局错位","按钮过小","越界裁切","对齐偏移","颜色对比","其他"];
+var RV_API = "/api/admin/review";
+
+function toggleReview(btn, e){
+  if(e) e.stopPropagation();
+  var unit = btn.closest(".shot-unit");
+  var panel = unit.querySelector(".review-panel");
+  if(!panel){
+    panel = document.createElement("div");
+    panel.className = "review-panel";
+    var chips = "";
+    for(var i=0;i<RV_ISSUES.length;i++){
+      chips += '<button class="rv-chip" onclick="rvToggleChip(this, event)">'+RV_ISSUES[i]+'</button>';
+    }
+    panel.innerHTML = '<div class="rv-chips">'+chips+'</div>'
+      + '<div class="rv-boxinfo">在截图上按住拖框圈出问题区域（可不框）</div>'
+      + '<input class="rv-note" placeholder="快速批注（可选）">'
+      + '<div class="rv-actions">'
+      + '<button class="rv-btn" onclick="submitReview(this, \'fix\', event)">提交审核</button>'
+      + '<button class="rv-btn rv-ok" onclick="submitReview(this, \'resolved\', event)">已修复</button>'
+      + '</div><div class="rv-msg"></div>';
+    unit.appendChild(panel);
+    enableAnno(unit);
+  }
+  var show = panel.style.display === "none";
+  panel.style.display = show ? "block" : "none";
+}
+
+function rvToggleChip(chip, e){
+  if(e) e.stopPropagation();
+  chip.classList.toggle("on");
+}
+
+function enableAnno(unit){
+  var device = unit.querySelector(".device");
+  var img = device.querySelector("img");
+  var layer = document.createElement("div");
+  layer.className = "anno-layer";
+  device.appendChild(layer);
+  var box = null, sx = 0, sy = 0, dragging = false;
+
+  function pt(e){
+    var ir = img.getBoundingClientRect();
+    var cx = Math.max(0, Math.min(ir.width, e.clientX - ir.left));
+    var cy = Math.max(0, Math.min(ir.height, e.clientY - ir.top));
+    return { x: cx, y: cy, ir: ir };
+  }
+  function ensureBox(p){
+    if(!box){ box = document.createElement("div"); box.className = "anno-box"; layer.appendChild(box); }
+    return box;
+  }
+  layer.addEventListener("pointerdown", function(e){
+    e.stopPropagation(); e.preventDefault();
+    dragging = true; var p = pt(e); sx = p.x; sy = p.y;
+    box = ensureBox(p);
+    box.style.left = sx+"px"; box.style.top = sy+"px";
+    box.style.width = "0px"; box.style.height = "0px";
+  });
+  layer.addEventListener("pointermove", function(e){
+    if(!dragging || !box) return;
+    e.preventDefault();
+    var p = pt(e);
+    box.style.left = Math.min(sx, p.x)+"px";
+    box.style.top = Math.min(sy, p.y)+"px";
+    box.style.width = Math.abs(p.x-sx)+"px";
+    box.style.height = Math.abs(p.y-sy)+"px";
+  });
+  layer.addEventListener("pointerup", function(e){
+    dragging = false;
+    updateBoxInfo(unit);
+  });
+}
+
+// 框（显示坐标）→ 原始图像素归一化：处理 object-fit:cover 裁剪
+function collectBoxNorm(unit){
+  var b = unit.querySelector(".anno-box");
+  var img = unit.querySelector("img");
+  if(!b || !img) return null;
+  var ir = img.getBoundingClientRect();
+  var br = b.getBoundingClientRect();
+  var iw = img.naturalWidth || 192, ih = img.naturalHeight || 490;
+  var scale = Math.max(ir.width/iw, ir.height/ih);
+  var dispW = iw*scale, dispH = ih*scale;
+  var offX = (ir.width - dispW)/2, offY = (ir.height - dispH)/2;
+  var ox = (br.left - ir.left - offX)/scale;
+  var oy = (br.top - ir.top - offY)/scale;
+  var ow = br.width/scale, oh = br.height/scale;
+  if(ow <= 2 || oh <= 2) return null;
+  function c01(v, max){ return Math.max(0, Math.min(1, Math.round(v/max*1000)/1000)); }
+  return { x: c01(ox, iw), y: c01(oy, ih), w: c01(ow, iw), h: c01(oh, ih) };
+}
+
+function updateBoxInfo(unit){
+  var info = unit.querySelector(".rv-boxinfo");
+  var n = collectBoxNorm(unit);
+  if(!info) return;
+  info.textContent = n
+    ? ("框选：x="+(n.x*100).toFixed(1)+"% y="+(n.y*100).toFixed(1)+"% w="+(n.w*100).toFixed(1)+"% h="+(n.h*100).toFixed(1)+"%")
+    : "在截图上按住拖框圈出问题区域（可不框）";
+}
+
+function collectChips(unit){
+  var out = [];
+  var chips = unit.querySelectorAll(".rv-chip.on");
+  for(var i=0;i<chips.length;i++) out.push(chips[i].textContent);
+  return out;
+}
+
+function postReview(payload, cb){
+  fetch(RV_API, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  }).then(function(r){ return r.json(); }).then(function(d){
+    cb(d && d.success, d);
+  }).catch(function(){ cb(false, { error: "网络错误" }); });
+}
+
+function submitReview(btn, action, e){
+  if(e) e.stopPropagation();
+  var unit = btn.closest(".shot-unit");
+  var msg = unit.querySelector(".rv-msg");
+  var payload = {
+    pageId: unit.getAttribute("data-page"),
+    shotFile: unit.getAttribute("data-file"),
+    issues: collectChips(unit),
+    box: collectBoxNorm(unit),
+    note: (unit.querySelector(".rv-note") || {}).value || "",
+    action: action,
+    reviewer: "用户"
+  };
+  if(!payload.issues.length && !payload.box && !payload.note && action === "fix"){
+    msg.textContent = "请先框选区域 / 勾选问题 / 填写批注";
+    return;
+  }
+  msg.textContent = "提交中…";
+  postReview(payload, function(okRes, d){
+    msg.textContent = okRes ? "✅ 已提交（action=" + action + "）" : "❌ " + (d && d.error || "提交失败");
+    if(okRes) applyFlag(unit, action);
+  });
+}
+
+function quickMark(btn, action, e){
+  if(e) e.stopPropagation();
+  var unit = btn.closest(".shot-unit");
+  postReview({
+    pageId: unit.getAttribute("data-page"),
+    shotFile: unit.getAttribute("data-file"),
+    issues: [], box: null, note: "", action: action, reviewer: "用户"
+  }, function(okRes, d){
+    btn.textContent = okRes ? (action === "delete" ? "已标记删除" : "已标记换版") : "失败";
+    btn.classList.add(okRes ? (action === "delete" ? "rv-del" : "rv-warn") : "rv-del");
+    if(okRes) applyFlag(unit, action);
+  });
+}
+
+function applyFlag(unit, action){
+  var device = unit.querySelector(".device");
+  device.classList.remove("rv-flag", "rv-flag-resolved", "rv-flag-deleted");
+  if(action === "fix" || action === "recapture") device.classList.add("rv-flag");
+  else if(action === "resolved") device.classList.add("rv-flag-resolved");
+  else if(action === "delete") device.classList.add("rv-flag-deleted");
+}
+
+// 页面加载后拉取全部审核结果，回填角标
+fetch(RV_API).then(function(r){ return r.json(); }).then(function(d){
+  if(!d || !d.success || !d.items) return;
+  var byKey = {};
+  d.items.forEach(function(it){ byKey[it.pageId + "|" + it.shotFile] = it; });
+  var units = document.querySelectorAll(".shot-unit");
+  for(var i=0;i<units.length;i++){
+    var u = units[i];
+    var it = byKey[u.getAttribute("data-page") + "|" + u.getAttribute("data-file")];
+    if(it) applyFlag(u, it.action);
+  }
+}).catch(function(){});
 </script>
 <script>
 (function(){
