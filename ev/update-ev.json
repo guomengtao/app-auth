@@ -1,3 +1,3 @@
-{"versionCode":44,"versionName":"0.5.43","sha256":"67b67db16b856ac204c9072341e2f7eb62ca111c94eff830aa4918bcf2aaa33c",
- "downloadUrlMirror":"https://ghproxy.net/https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.43/EVSyncProbe-v0.5.43.apk","downloadUrlOrigin":"https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.43/EVSyncProbe-v0.5.43.apk",
- "isForce":false,"updateLog":"无需连电脑：拔掉 USB 也能收到本提示并完成升级"}
+{"versionCode":47,"versionName":"0.5.46","sha256":"40fde819e0e436c53e1478636d6bbea95f42125e3907e6460dfe308e82b97cdd",
+ "downloadUrlMirror":"https://ghproxy.net/https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.46/EVSyncProbe-v0.5.46.apk","downloadUrlOrigin":"https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.46/EVSyncProbe-v0.5.46.apk",
+ "isForce":false,"updateLog":"界面大改版：底栏四栏(首页/课程表/手环/设置)实心选中；新增手环页(连接/昵称/首页设置)；设置页拆为App级；首页周切换+课表美化"}
