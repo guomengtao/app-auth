@@ -80,6 +80,16 @@ body {
 .rv-actions { display:flex; gap:6px; }
 .rv-actions .rv-btn { flex:1; }
 .rv-msg { font-size:.7rem; color:var(--muted); margin-top:4px; min-height:1em; }
+.rv-nick { width:40%; border:1px solid var(--line); border-radius:8px; padding:5px 8px; font-size:.78rem; box-sizing:border-box; margin-bottom:6px; margin-right:4%; }
+.rv-history { width:100%; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:8px; margin-top:6px; text-align:left; }
+.rv-h-head { display:flex; justify-content:space-between; align-items:center; font-size:.72rem; color:var(--muted); margin-bottom:6px; }
+.rv-h-status.ok { color:#2e7d32; font-weight:700; }
+.rv-h-status.warn { color:#f0a000; font-weight:700; }
+.rv-h-item { border-top:1px dashed var(--line); padding:5px 0; font-size:.74rem; }
+.rv-h-empty { font-size:.74rem; color:var(--muted); }
+.rv-h-line1 { display:flex; gap:8px; align-items:center; }
+.rv-h-tag { background:var(--accent); color:#fff; padding:1px 8px; border-radius:10px; font-size:.68rem; }
+.rv-h-line2 { color:#444; margin-top:2px; }
 @media (max-width:600px){ .device{width:160px;height:408px;} .shots .device{width:120px;height:306px;} }
 </style>
 </head>
@@ -132,7 +142,9 @@ function renderShots(p){
          +  '<button class="rv-btn" onclick="toggleReview(this, event)">审核</button>'
          +  '<button class="rv-btn" onclick="quickMark(this, \'recapture\', event)">换最新版</button>'
          +  '<button class="rv-btn rv-del" onclick="quickMark(this, \'delete\', event)">删除</button>'
+         +  '<button class="rv-btn" onclick="toggleHistory(this, event)">记录</button>'
          +  '</div>'
+         +  '<div class="rv-history" style="display:none"></div>'
          +  '</div>';
   }
   return html + '</div>';
@@ -265,6 +277,32 @@ render();
 /* ===== 审核结果交互（对接 /api/admin/review）===== */
 var RV_ISSUES = ["文字遮挡","文字省略","标题显示不全","布局错位","按钮过小","越界裁切","对齐偏移","颜色对比","其他"];
 var RV_API = "/api/admin/review";
+var RV_ITEMS = [];  // 全量审核数据（含历史），由 fetchReviewBadges 拉取
+var RV_ACTION_CN = { fix:"待修", recapture:"待重采", delete:"已删除", resolved:"已修复" };
+
+// 昵称：按 IP/浏览器 生成随机昵称，localStorage 记住；允许修改
+function rvNick(){
+  var n = "";
+  try { n = localStorage.getItem("rv_nick") || ""; } catch(e){}
+  if(!n){
+    var pool = ["图虫","快门","像素","描边","像素眼","挑刺儿","找茬","校对"];
+    n = pool[Math.floor(Math.random()*pool.length)] + "-" + Math.floor(1000+Math.random()*9000);
+    try { localStorage.setItem("rv_nick", n); } catch(e){}
+  }
+  return n;
+}
+function rvSaveNick(v){
+  var n = String(v||"").trim().slice(0,24);
+  if(!n) return rvNick();
+  try { localStorage.setItem("rv_nick", n); } catch(e){}
+  return n;
+}
+function fmtTs(ts){
+  if(!ts) return "";
+  var d = new Date(ts);
+  var p = function(x){ return (x<10?"0":"")+x; };
+  return (d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes());
+}
 
 function toggleReview(btn, e){
   if(e) e.stopPropagation();
@@ -278,7 +316,8 @@ function toggleReview(btn, e){
       chips += '<button class="rv-chip" onclick="rvToggleChip(this, event)">'+RV_ISSUES[i]+'</button>';
     }
     panel.innerHTML = '<div class="rv-chips">'+chips+'</div>'
-      + '<div class="rv-boxinfo">在截图上按住拖框圈出问题区域（可不框）</div>'
+      + '<div class="rv-boxinfo">在截图上按住拖框圈出问题区域（可多处框选）</div>'
+      + '<input class="rv-nick" value="'+rvNick()+'" placeholder="昵称">'
       + '<input class="rv-note" placeholder="快速批注（可选）">'
       + '<div class="rv-actions">'
       + '<button class="rv-btn" onclick="submitReview(this, \'fix\', event)">提交审核</button>'
@@ -397,7 +436,8 @@ function submitReview(btn, action, e){
     boxes: collectBoxesNorm(unit),
     note: (unit.querySelector(".rv-note") || {}).value || "",
     action: action,
-    reviewer: "用户"
+    reviewer: "用户",
+    nickname: rvSaveNick((unit.querySelector(".rv-nick") || {}).value)
   };
   if(!payload.issues.length && !payload.boxes.length && !payload.note && action === "fix"){
     msg.textContent = "请先框选区域 / 勾选问题 / 填写批注";
@@ -430,7 +470,8 @@ function quickMark(btn, action, e){
     pageId: unit.getAttribute("data-page"),
     shotFile: unit.getAttribute("data-file"),
     issues: [], boxes: [], note: undoing ? "撤销标记" : "",
-    action: undoing ? "fix" : action, reviewer: "用户"
+    action: undoing ? "fix" : action, reviewer: "用户",
+    nickname: rvNick()
   };
   postReview(payload, function(okRes, d){
     if(!okRes){ btn.textContent = "失败"; return; }
@@ -480,18 +521,61 @@ function applyFlag(unit, action){
   else if(action === "delete") device.classList.add("rv-flag-deleted");
 }
 
-// 页面加载后拉取全部审核结果，回填角标
+// 页面加载后拉取全部审核结果：回填角标 + 更新「记录(n)」按钮状态
 fetch(RV_API).then(function(r){ return r.json(); }).then(function(d){
   if(!d || !d.success || !d.items) return;
+  RV_ITEMS = d.items;
   var byKey = {};
   d.items.forEach(function(it){ byKey[it.pageId + "|" + it.shotFile] = it; });
   var units = document.querySelectorAll(".shot-unit");
   for(var i=0;i<units.length;i++){
     var u = units[i];
-    var it = byKey[u.getAttribute("data-page") + "|" + u.getAttribute("data-file")];
-    if(it) applyFlag(u, it.action);
+    var key = u.getAttribute("data-page") + "|" + u.getAttribute("data-file");
+    var it = byKey[key];
+    var hbtn = u.querySelector('[onclick*="toggleHistory"]');
+    if(!it) continue;
+    applyFlag(u, it.action);
+    if(hbtn){
+      hbtn.textContent = "记录(" + it.count + ")";
+      if(it.status === "done") hbtn.classList.add("rv-ok");
+      else hbtn.classList.add("rv-warn");
+    }
   }
 }).catch(function(){});
+
+// 历史记录折叠区：列出该截图全部提交（次数/昵称/问题/状态）
+function toggleHistory(btn, e){
+  if(e) e.stopPropagation();
+  var unit = btn.closest(".shot-unit");
+  var box = unit.querySelector(".rv-history");
+  if(!box) return;
+  if(box.style.display === "block"){ box.style.display = "none"; return; }
+  var key = unit.getAttribute("data-page") + "|" + unit.getAttribute("data-file");
+  var it = null;
+  for(var i=0;i<RV_ITEMS.length;i++){
+    if(RV_ITEMS[i].pageId + "|" + RV_ITEMS[i].shotFile === key){ it = RV_ITEMS[i]; break; }
+  }
+  if(!it){ box.innerHTML = '<div class="rv-h-empty">暂无提交记录</div>'; box.style.display="block"; return; }
+  var rows = '<div class="rv-h-head">'
+    + '<span class="rv-h-status '+(it.status==="done"?"ok":"warn")+'">'+(it.status==="done"?"✅ 已全部处理":"⏳ 待处理")+'</span>'
+    + '<span>提交 '+it.count+' 次 · 最近 '+fmtTs(it.updated_at)+'</span>'
+    + '</div>';
+  var hist = (it.history || []).slice();
+  hist.unshift({ action: it.action, issues: it.issues, note: it.note, nickname: it.nickname, reviewer: it.reviewer, at: it.updated_at });
+  for(var j=0;j<hist.length;j++){
+    var h = hist[j];
+    var iss = (h.issues||[]).join("、");
+    var who = h.nickname || h.reviewer || "匿名";
+    rows += '<div class="rv-h-item">'
+      + '<div class="rv-h-line1"><b>'+fmtTs(h.at)+'</b><span>· '+who+'</span>'
+      + '<span class="rv-h-tag">'+(RV_ACTION_CN[h.action]||h.action)+'</span></div>'
+      + (iss ? '<div class="rv-h-line2">问题：'+iss+'</div>' : '')
+      + (h.note ? '<div class="rv-h-line2">批注：'+h.note+'</div>' : '')
+      + '</div>';
+  }
+  box.innerHTML = rows;
+  box.style.display = "block";
+}
 </script>
 <script>
 (function(){

@@ -18,7 +18,8 @@ var redis = require("../../lib/redis");
 var { requireAuth } = require("../../lib/auth");
 
 var HASH_KEY = "review:pages";
-var MAX_HISTORY = 3;
+// 历史记录全量保留（用户要求不丢失）；MAX_HISTORY 仅作异常保护上限
+var MAX_HISTORY = 200;
 
 var ALLOWED_ACTIONS = ["fix", "recapture", "delete", "resolved"];
 var ALLOWED_ISSUES = [
@@ -97,6 +98,9 @@ function field(pageId, shotFile) {
 
 function summarize(entry) {
   if (!entry) return null;
+  var hist = entry.history || [];
+  // 状态：当前 action 为 resolved/delete 即已处理，否则待处理
+  var status = (entry.action === "resolved" || entry.action === "delete") ? "done" : "open";
   return {
     pageId: entry.pageId,
     shotFile: entry.shotFile,
@@ -106,7 +110,11 @@ function summarize(entry) {
     note: entry.note || "",
     action: entry.action || "fix",
     reviewer: entry.reviewer || "",
+    nickname: entry.nickname || "",
     updated_at: entry.updated_at || 0,
+    count: hist.length + 1,
+    history: hist,
+    status: status,
   };
 }
 
@@ -180,7 +188,17 @@ module.exports = async (req, res) => {
 
       var history = (existing && existing.history) || [];
       if (existing) {
-        history.unshift(summarize(existing));
+        // 历史快照含提交人与时间，全量保留不丢失
+        history.unshift({
+          issues: existing.issues || [],
+          boxes: existing.boxes || [],
+          box: existing.box || null,
+          note: existing.note || "",
+          action: existing.action || "fix",
+          nickname: existing.nickname || "",
+          reviewer: existing.reviewer || "",
+          at: existing.updated_at || 0,
+        });
         history = history.slice(0, MAX_HISTORY);
       }
 
@@ -193,6 +211,7 @@ module.exports = async (req, res) => {
         note: note,
         action: action,
         reviewer: String(body.reviewer || "").slice(0, 40) || "用户",
+        nickname: String(body.nickname || "").slice(0, 24),
         updated_at: now,
         history: history,
       };
