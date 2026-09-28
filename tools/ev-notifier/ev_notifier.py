@@ -985,7 +985,9 @@ def store_visitor(ts, payload):
     raw_url = payload.get("page", "") or payload.get("url", "") or payload.get("title", "") or ""
     parsed = urllib.parse.urlparse(raw_url) if raw_url.startswith(("http://", "https://")) else None
     hostname = parsed.hostname or "" if parsed else ""
-    path = parsed.path or "" if parsed else ""
+    # 相对路径（/apk/home、/activate.html 这类，没有 scheme）直接当 path 用，
+    # 不然面板「页面URL」列会一直是空的
+    path = (parsed.path or "") if parsed else raw_url
     query = urllib.parse.parse_qs(parsed.query) if parsed and parsed.query else {}
     utm_source = (query.get("utm_source", [""])[0] or "")
     utm_medium = (query.get("utm_medium", [""])[0] or "")
