@@ -43,6 +43,14 @@ async function getGeoFields(req) {
 
 var VISITOR_TTL = 7 * 24 * 60 * 60;
 
+// 访问通知的全局速率上限：每 1 分钟最多推 VISIT_PUSH_MAX 条「页面访问」通知，
+// 超出的只落 visitor_logs / stats:recent（访客记录照常保留），不推给 Mac。
+// 为什么不用旧的「同一访客 5 分钟一条」：那个策略换个人就又能推，人多时照样连着响；
+// 这里限制的是**单位时间总量**（防通知爆炸）。15 条/分钟 ≈ 每 4 秒一条，
+// 日常访问量根本碰不到，只有异常刷量才会被截断。要调松/调紧只改这个常量。
+var VISIT_PUSH_MAX = 15;
+var VISIT_PUSH_WINDOW_MS = 60 * 1000;
+
 function visitorHashKey(str) {
   if (!str) return "unknown";
   var h = 0;
@@ -60,6 +68,24 @@ function visitorTodayKey(ts) {
   return rateLimit.beijingDateKey(ts);
 }
 
+
+// Page path -> Chinese title for visitor notifications
+function pageTitleForPath(p) {
+  var map = {
+    '/apk/home': '首页（周视图）',
+    '/apk/settings': '设置页',
+    '/apk/schedules': '课程表管理',
+    '/apk/message': '留言页',
+    '/apk/transfer': '导入导出',
+    '/apk/debug': '调试页',
+    '/user-guide.html': '用户指南',
+    '/ev-schedule.html': 'EV课程表主页',
+    '/activate': '激活页'
+  };
+  if (map[p]) return map[p];
+  if (p.startsWith('/apk/')) return p.replace('/apk/', '');
+  return p;
+}
 async function handleVisitorTrack(req, res) {
   try {
     var ipCheck = await rateLimit.checkVisitorIpRateLimit(req);
@@ -67,6 +93,8 @@ async function handleVisitorTrack(req, res) {
       return res.status(429).json({ success: false, error: ipCheck.reason });
     }
     var body = parseBody(req);
+    // APK 埋点可以直接带 deviceId（优先于 query 里的 ?deviceId=），供 tracking_events 归因
+    var bodyDeviceId = String(body.deviceId || "");
     // 前端发的是 pathname + search；这里拆成两列：
     //   path  → 只留 pathname（否则「热门页面」会被 ?deviceId=1 / ?deviceId=2 分裂成无数条）
     //   query → 完整参数串，长期留存在 visitor_logs.query / params，供渠道归因
@@ -160,11 +188,45 @@ async function handleVisitorTrack(req, res) {
       kind: "visit",
       ip: ip,
       visitorHash: vHash,
-      deviceId: queryParams ? queryParams.deviceId || "" : "",
+      deviceId: bodyDeviceId || (queryParams ? queryParams.deviceId || "" : ""),
       channel: queryParams ? queryParams.c || "" : "",
       payload: { path: path, query: fullQuery, params: queryParams || {}, ua: ua.slice(0, 200), ref: ref.slice(0, 200) },
       dedupeKey: null,
     }), "tracking");
+
+    // ⭐ 让「APK / 网页访问」也出现在后台「消息投递」追踪（排查丢通知用），并推给 Mac。
+    //    统一用标准 `page_visit` 类型：与 api/admin/health.js 的网页埋点同一套模板，
+    //    客户端已有中文弹窗 + 中文语音，后台也能按「访问」筛选（旧类型 `visit` 客户端无模板）。
+    //    节流：见 VISIT_PUSH_MAX（全局每分钟上限），超出的只落库、不推通知。
+    background.run((async function () {
+      try {
+        var rateKey = "auth:visit_push_rate:" + Math.floor(Date.now() / VISIT_PUSH_WINDOW_MS);
+        var n = await redis.incr(rateKey);
+        if (n === 1) {
+          await redis.pexpire(rateKey, VISIT_PUSH_WINDOW_MS).catch(function () {});
+        }
+        if (n > VISIT_PUSH_MAX) {
+          console.warn("[visitor/track] visit push rate-limited: " + n + " > " + VISIT_PUSH_MAX + "/min");
+          return;
+        }
+        var pushGeo = await getGeoFields(req);
+        await notify.pushNotification("page_visit", {
+          page: path,
+          referrer: ref,
+          title: pageTitleForPath(path),
+          user_agent: ua.slice(0, 200),
+          ip: ip,
+          country: pushGeo.country,
+          region: pushGeo.region,
+          city: pushGeo.city,
+          location_zh: pushGeo.location_zh,
+          district_zh: pushGeo.district_zh,
+          location_full_zh: pushGeo.location_full_zh,
+        });
+      } catch (e) {
+        console.error("[visitor/track] visit push failed (non-blocking):", e.message);
+      }
+    })(), "visit-push");
 
     return res.json({ success: true, isNewVisitor: isNew === 1 });
   } catch (e) {

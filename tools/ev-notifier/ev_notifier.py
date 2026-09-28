@@ -2539,12 +2539,31 @@ def _format_message_detail(m):
     return type_label, detail
 
 
+# 安卓同步器（APK）埋点路径 → 中文页名（与 api/activate.js pageTitleForPath() 对齐）
+_APK_PAGE_NAMES = {
+    "/apk/home": "首页",
+    "/apk/schedules": "课程表",
+    "/apk/settings": "设置页",
+    "/apk/message": "留言页",
+    "/apk/transfer": "导入导出",
+    "/apk/transfer/import": "导入课表",
+    "/apk/transfer/export": "导出课表",
+    "/apk/theme": "主题设置",
+    "/apk/debug": "调试页",
+}
+
+
 def _page_name_cn(page):
     if not page:
         return "未知页面"
     page_lower = page.lower().rstrip("/")
     if page_lower in ("", "/", "/index", "/index.html", "/index.htm", "/home", "/home.html"):
         return "首页"
+    # 安卓同步器（APK）埋点路径 /apk/*，与服务端 pageTitleForPath()、后台面板 pageMap 对齐
+    if page_lower in _APK_PAGE_NAMES:
+        return _APK_PAGE_NAMES[page_lower]
+    if page_lower.startswith("/apk/"):
+        return "同步器" + page_lower[len("/apk/"):].replace("/", " ")
     if "activate" in page_lower:
         return "激活页面"
     if "download" in page_lower:

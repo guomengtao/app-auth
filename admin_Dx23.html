@@ -1479,6 +1479,7 @@
       box-shadow: 0 1px 3px rgba(0,0,0,0.08);
       font-weight: 600;
     }
+    .visitor-sub-tab.voice-on { background: var(--accent); color: #fff; border-color: var(--accent); }
     .visitor-sub-tab:hover:not(.active) {
       color: var(--ink);
     }
@@ -3785,6 +3786,7 @@
               <span style="font-weight:700;font-size:1rem">访客统计</span>
               <div style="display:flex;gap:4px;background:var(--line);padding: 4px;border-radius:10px">
                 <button id="visitorSubTab0" class="visitor-sub-tab active" onclick="switchVisitorSubTab('recent')">最近访客</button>
+                <button id="voiceToggleBtn" class="visitor-sub-tab" onclick="toggleVoice()" title="语音播报新访客" style="margin-left:8px">🔊 语音</button>
                 <button id="visitorSubTab1" class="visitor-sub-tab" onclick="switchVisitorSubTab('unique')">唯一 IP 记录</button>
               </div>
               <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
@@ -4695,8 +4697,10 @@
                   <option value="">全部</option>
                   <option value="new_activation">激活</option>
                   <option value="new_order">订单</option>
-                  <option value="page_visit">访问</option>
+                  <option value="page_visit">访问（APK / 网页）</option>
                   <option value="activation_failure">失败</option>
+                  <option value="purchase_click">购买点击</option>
+                  <option value="visit">访问（旧版 APK）</option>
                 </select>
               </div>
               <button class="btn btn-outline" onclick="loadDeliveryMessages()">🔄 刷新</button>
@@ -10321,7 +10325,84 @@
       return parts.length ? parts.join(' · ') : '-';
     }
 
-    function loadVisitors() {
+    
+    // ======== 语音播报（TTS）========
+    var voiceEnabled = window.localStorage.getItem("voiceEnabled") !== "false";
+    var voiceLastVisitorTimes = {}; // ip -> last seen timestamp
+    
+    function updateVoiceButton() {
+      var btn = document.getElementById("voiceToggleBtn");
+      if (!btn) return;
+      if (voiceEnabled) {
+        btn.textContent = "🔊 语音";
+        btn.classList.add("voice-on");
+      } else {
+        btn.textContent = "🔇 静音";
+        btn.classList.remove("voice-on");
+      }
+    }
+    
+    function toggleVoice() {
+      voiceEnabled = !voiceEnabled;
+      window.localStorage.setItem("voiceEnabled", voiceEnabled ? "true" : "false");
+      updateVoiceButton();
+    }
+    
+    function speakVisitorText(text) {
+      if (!voiceEnabled || !text) return;
+      if (!window.speechSynthesis) return;
+      try {
+        window.speechSynthesis.cancel();
+        var utter = new SpeechSynthesisUtterance(text);
+        utter.lang = "zh-CN";
+        utter.rate = 1.0;
+        utter.pitch = 1.0;
+        utter.volume = 0.8;
+        window.speechSynthesis.speak(utter);
+      } catch (e) {}
+    }
+    
+    function checkNewVisitors(list) {
+      if (!list || list.length === 0) return;
+      var now = Date.now();
+      var newVisitors = [];
+      for (var i = 0; i < Math.min(list.length, 10); i++) {
+        var v = list[i];
+        if (!v.time || !v.ip) continue;
+        var lastSeen = voiceLastVisitorTimes[v.ip] || 0;
+        if (v.time > lastSeen) {
+          voiceLastVisitorTimes[v.ip] = v.time;
+          // only notify visitors from last 30 seconds
+          if (now - v.time < 30000) {
+            newVisitors.push(v);
+          }
+        }
+      }
+      if (newVisitors.length > 0) {
+        var last = newVisitors[newVisitors.length - 1];
+        var osText = (last.ua || "").includes("Dalvik") ? "Android用户" : "用户";
+        var city = last.city || "未知城市";
+        var page = last.path || "/";
+        // map common APK paths to Chinese
+        var pageMap = {
+          "/apk/home": "首页",
+          "/apk/settings": "设置页",
+          "/apk/schedules": "课程表",
+          "/apk/message": "留言页",
+          "/apk/transfer": "导入导出",
+          "/apk/debug": "调试页"
+        };
+        var pageTitle = pageMap[page] || (page.replace("/apk/", "")).replace(/\//g, " ");
+        var text = osText + " 来自 " + city + " 访问了 " + pageTitle;
+        speakVisitorText(text);
+      }
+    }
+    
+    // Init voice button on load
+    (function() {
+      setTimeout(updateVoiceButton, 200);
+    })();
+function loadVisitors() {
       var overviewEl = document.getElementById('visitorOverview');
       var pagesEl = document.getElementById('visitorTopPages');
       var recentEl = document.getElementById('visitorRecent');
@@ -10391,6 +10472,7 @@
         if (rc && rc.success) {
           var list = rc.visitors || [];
           window._cachedVisitorData = list;
+          checkNewVisitors(list);
           if (list.length === 0) {
             recentEl.innerHTML = '<div style="color:var(--muted);font-size:0.8125rem">暂无访客记录</div>';
           } else {
@@ -10955,6 +11037,15 @@
           if (!data.success) { tbody.innerHTML = '<tr><td colspan="7" class="empty">查询失败</td></tr>'; return; }
           var rows = data.rows || [];
           var total = data.total || 0;
+          // 消息类型 → 中文名（访问类含 APK 埋点 /apk/*；visit 是 2026-09-28 之前 APK 用的旧类型）
+          var typeNames = {
+            new_activation: '激活',
+            new_order: '订单',
+            page_visit: '访问',
+            activation_failure: '激活失败',
+            purchase_click: '购买点击',
+            visit: '访问（旧）'
+          };
           var html = '';
           if (rows.length === 0) {
             html = '<tr><td colspan="7" class="empty">暂无消息投递记录</td></tr>';
@@ -10962,7 +11053,7 @@
             for (var i = 0; i < rows.length; i++) {
               var r = rows[i];
               var timeStr = r.created_at ? new Date(r.created_at).toLocaleString() : '-';
-              var typeLabel = r.message_type || '-';
+              var typeLabel = typeNames[r.message_type] || (r.message_type || '-');
               var statusLabel = '-';
               var statusColor = '#94a3b8';
               if (r.status === 'pending') { statusLabel = '⏳ 待投递'; statusColor = '#f59e0b'; }
