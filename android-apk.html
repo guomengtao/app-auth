@@ -1,0 +1,101 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>EvAPK</title><style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#f3f4f8;--surface:#fff;--ink:#1a1a2e;--muted:#6b7280;--line:#e7e9f0;--accent:#6c63ff}
+body{font-family:-apple-system,'PingFang SC',sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;padding-bottom:40px}
+.topbar{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.92);border-bottom:1px solid var(--line)}
+.topbar-inner{max-width:1100px;margin:0 auto;padding:14px 20px 8px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
+.t-title{font-size:1.25rem;font-weight:800}
+.t-title small{font-weight:500;color:var(--muted);font-size:.78rem;margin-left:8px}
+.t-meta{display:flex;flex-wrap:wrap;gap:12px;align-items:center;font-size:.78rem;color:var(--muted)}
+.chip{background:var(--accent);color:#fff;padding:3px 10px;border-radius:20px;font-weight:700}
+.filterbar{max-width:1100px;margin:0 auto;padding:0 20px 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.fbtn{border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:6px 14px;border-radius:20px;font-size:.82rem;cursor:pointer}
+.fbtn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.wrap{max-width:1100px;margin:0 auto;padding:18px 20px}
+.group{background:var(--surface);border:1px solid var(--line);border-radius:16px;margin-bottom:16px;overflow:hidden}
+.group-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer;user-select:none}
+.group-head h2{font-size:1.05rem;font-weight:700}
+.group-head .count{color:var(--muted);font-size:.8rem}
+.group-body{padding:0 18px 18px}
+.card{display:flex;gap:18px;padding:18px 0;border-top:1px solid var(--line);flex-wrap:wrap}
+.card:first-child{border-top:none}
+.device{width:170px;flex:0 0 auto;height:340px;border-radius:22px;background:#0b0b0f;padding:6px;overflow:hidden}
+.device img{width:100%;height:100%;object-fit:cover;border-radius:17px;display:block;cursor:zoom-in}
+.shots{display:flex;gap:10px;flex-wrap:wrap}
+.info{flex:1;min-width:260px}
+.p-name{font-size:1.05rem;font-weight:700}
+.row{margin-top:8px;font-size:.88rem}
+.row .k{color:var(--muted);font-weight:600;margin-right:4px}
+.pts{margin-top:6px;padding-left:18px;font-size:.86rem;color:#444}
+.pts li{margin-bottom:2px}
+.meta{margin-top:8px;font-size:.76rem;color:var(--muted);border-top:1px dashed var(--line);padding-top:6px}
+.footer{text-align:center;color:var(--muted);font-size:.8rem;padding:24px 20px;line-height:1.8}
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:50;cursor:zoom-out}
+.lightbox.show{display:flex}
+.lightbox img{max-width:90vw;max-height:90vh;border-radius:20px}
+@media(max-width:600px){.device{width:130px;height:260px}}
+.note{max-width:1100px;margin:14px auto 0;padding:10px 20px;font-size:.85rem;color:#8a6d00;background:#fff7e0;border:1px solid #f0dfa8;border-radius:12px}
+</style></head><body>
+<div class="topbar"><div class="topbar-inner">
+<div class="t-title">Ev课程表 · 安卓 APK 页面总览<small>逐页截图档案 · 排障索引</small></div>
+<div class="t-meta"><span class="chip" id="verChip"></span><span>截图时间 <b id="capTime"></b></span><span>页面更新 <b id="pageTime"></b></span></div>
+</div><div class="filterbar" id="filterbar"></div></div>
+<div class="note" id="stateNote"></div>
+<div class="wrap" id="app"></div>
+<div class="footer">Ev课程表 · 安卓 APK 页面总览<br>截图环境：华为荣耀畅玩7X（BLN-AL20）· EMUI 8 / Android 8.0 · 1080x2160<br>
+当前为「手环未连接」状态快照；连接手环后 手环页 / 首页设备卡 / 状态条 会随之更新<br>页面随版本快速演进，每张截图都标注采集时版本，排查时以手机实际版本为准</div>
+<div class="lightbox" id="lightbox" onclick="hideLightbox()"><img id="lightboxImg" src=""></div>
+<script>
+var DATA={app:{name:"Ev课程表 APK",repo:"guomengtao/ev-schedule-android",version:"0.5.54",versionCode:55,updatedAt:"2026-09-28"},
+captureEnv:{device:"华为荣耀畅玩7X BLN-AL20",os:"EMUI 8 / Android 8.0",size:"1080x2160",adb:"BTF4C17222009588",state:"手环未连接"},
+capturedAt:"2026-09-28 21:18",pageUpdatedAt:"2026-09-28",pages:[
+{id:"home",name:"首页",group:"底栏 4 页",usage:"本周课表、周切换、设备卡、快捷操作",entry:"启动即此 / 底栏「首页」",points:["标题双态：本周=日历普通标题，翻周后=回到本周可点","假期休/调休班角标","⊕ 菜单：导出/导入/呼叫手环"],
+shots:[{file:"apk/01-home-top.jpg",state:"顶部·本周课表",version:"0.5.54",at:"2026-09-28 21:15"},{file:"apk/02-home-menu.jpg",state:"⊕菜单展开",version:"0.5.54",at:"2026-09-28 21:15"}]},
+{id:"home-bottom",name:"首页（下半）",group:"底栏 4 页",usage:"设备卡与快捷操作 2×2",entry:"首页向下滚动",points:["设备卡：手环名/电量/未连接状态","快捷操作：手环课程同步 / 呼叫手环 / 发消息给手环 / 连接手环","未连接时显示黄色提示与重试连接 / 打开手环EV"],
+shots:[{file:"apk/03-home-bottom.jpg",state:"设备卡·未连接",version:"0.5.54",at:"2026-09-28 21:15"}]},
+{id:"schedules",name:"课程表管理",group:"底栏 4 页",usage:"多课表管理：切换/同步/编辑/删除",entry:"底栏「课程表」",points:["当前课表打勾，可同步到手机或手环","导入/导出入口在页底"],
+shots:[{file:"apk/04-schedules-top.jpg",state:"顶部",version:"0.5.54",at:"2026-09-28 21:16"},{file:"apk/05-schedules-bottom.jpg",state:"底部·导入导出",version:"0.5.54",at:"2026-09-28 21:16"}]},
+{id:"band",name:"手环",group:"底栏 4 页",usage:"手环连接、昵称、首页设置、留言入口",entry:"底栏「手环」",points:["未连接：引导重新选择设备","修改昵称会同步到手环","连接成功后此页显示设备名/版本/电量"],
+shots:[{file:"apk/06-band-top.jpg",state:"未连接",version:"0.5.54",at:"2026-09-28 21:16"},{file:"apk/07-band-bottom.jpg",state:"昵称·首页设置",version:"0.5.54",at:"2026-09-28 21:16"}]},
+{id:"settings",name:"设置",group:"底栏 4 页",usage:"主题外观/高级版/打赏/检查更新/后台常驻/上课提醒/版本",entry:"底栏「设置」",points:["主题外观：10 套主题即点即生效","后台常驻引导：切换开关 + 省电白名单","上课提醒 5 步分流到时间线"],
+shots:[{file:"apk/08-settings-top.jpg",state:"顶部",version:"0.5.54",at:"2026-09-28 21:16"},{file:"apk/09-settings-s1.jpg",state:"中段",version:"0.5.54",at:"2026-09-28 21:16"},{file:"apk/10-settings-s2.jpg",state:"上课提醒",version:"0.5.54",at:"2026-09-28 21:16"}]},
+{id:"transfer-import",name:"导入课程表",group:"导入导出",usage:"粘贴 JSON 或选文件导入课表",entry:"⊕ 菜单「导入课程」/ 课程表管理页底",points:["支持直接编辑 JSON 再解析","课表名默认 2026 秋季学期","导入到手机后可再同步手环"],
+shots:[{file:"apk/11-transfer-import-top.jpg",state:"顶部",version:"0.5.54",at:"2026-09-28 21:16"},{file:"apk/12-transfer-import-bottom.jpg",state:"准备就绪",version:"0.5.54",at:"2026-09-28 21:16"}]},
+{id:"transfer-export",name:"导出课程表",group:"导入导出",usage:"从手环读回课表，导出保存到下载/EVSync",entry:"⊕ 菜单「导出课程」/ 课程表管理页底",points:["未连手环时提示先读当前课表","可重新读取清单选取要导出的那套"],
+shots:[{file:"apk/13-transfer-export-top.jpg",state:"未连接提示",version:"0.5.54",at:"2026-09-28 21:16"},{file:"apk/14-transfer-export-bottom.jpg",state:"读取按钮",version:"0.5.54",at:"2026-09-28 21:16"}]},
+{id:"message",name:"留言",group:"留言与个性化",usage:"手机↔手环双向留言；离线时排队补发",entry:"底栏「手环」→ 留言 / 快捷操作",points:["留言记录按时间排列","手环不在时可回头补发","发送后同时推一条手表通知"],
+shots:[{file:"apk/15-message-top.jpg",state:"会话",version:"0.5.54",at:"2026-09-28 21:17"},{file:"apk/16-message-bottom.jpg",state:"快捷操作",version:"0.5.54",at:"2026-09-28 21:17"}]},
+{id:"theme",name:"主题外观",group:"留言与个性化",usage:"10 套主题即点即生效；可跟随手环换主题",entry:"设置 → 主题外观",points:["当前：本地·暖阳米","跟随手环：手环换主题手机自动换"],
+shots:[{file:"apk/17-theme-picker.jpg",state:"主题列表",version:"0.5.54",at:"2026-09-28 21:17"}]},
+{id:"homepage-settings",name:"首页设置",group:"留言与个性化",usage:"快速添加/课程提醒/总课程/今日/明日/自定义/时钟/钉首页 开关",entry:"手环页 → 首页设置",points:["与手环上的首页显示保持一致","首页模板/周视图模板 可保存到手环"],
+shots:[{file:"apk/18-homepage-settings.jpg",state:"开关列表",version:"0.5.54",at:"2026-09-28 21:17"}]},
+{id:"donate",name:"打赏支持",group:"支持与激活",usage:"微信/支付宝二维码赞助",entry:"设置 → 打赏支持",points:["二维码可打开或复制链接"],
+shots:[{file:"apk/19-donate.jpg",state:"二维码",version:"0.5.54",at:"2026-09-28 21:17"}]},
+{id:"fast-activate",name:"高级版激活",group:"支持与激活",usage:"激活码解锁高级版；显示设备ID与设备码",entry:"设置 → 高级版 / 检查更新引导",points:["未连接手环时设备ID显示未连接手环","4 位优惠券 + 一键激活"],
+shots:[{file:"apk/20-fast-activate.jpg",state:"未连接手环",version:"0.5.54",at:"2026-09-28 21:17"}]},
+{id:"debug",name:"调试",group:"支持与激活",usage:"分步诊断连接问题：1 初始化 2 授权 3 申备 4 连接",entry:"设置/手环页 → 调试",points:["全部执行 / 重复状态 / EV 是否安装 / 拉起手环EV / 手表通知(下行) / 清屏","排障先看这里的步骤卡在哪"],
+shots:[{file:"apk/21-debug-top.jpg",state:"四步诊断",version:"0.5.54",at:"2026-09-28 21:18"},{file:"apk/22-debug-s1.jpg",state:"操作按钮",version:"0.5.54",at:"2026-09-28 21:18"}]},
+{id:"battery",name:"省电白名单",group:"支持与激活",usage:"电池优化引导：保活必备",entry:"设置 → 后台常驻引导",points:["已加入电池优化白名单检查","应用详情跳转 / 电池优化列表","国产 ROM 后台自启引导"],
+shots:[{file:"apk/23-battery-guide.jpg",state:"状态·已白名单",version:"0.5.54",at:"2026-09-28 21:18"}]}
+]};
+var cur='';function renderShots(p){var h='<div class="shots">';for(var i=0;i<p.shots.length;i++){var s=p.shots[i];h+='<div data-project="ev-schedule-android" data-page="'+p.id+'" data-file="'+s.file+'"><div class="device" onclick="openLightbox(this)"><img loading="lazy" src="/images/ev-schedule/'+s.file+'" alt="'+s.state+'" onerror="imgError(this)"></div></div>'}return h+'</div>'}
+function renderCard(p){var c=document.createElement('div');c.className='card';c.setAttribute('data-group',p.group);var l=document.createElement('div');l.innerHTML=renderShots(p);var f=document.createElement('div');f.className='info';var h='<div class="p-name">'+p.name+'</div>';h+='<div class="row"><span class="k">用途</span>'+p.usage+'</div>';h+='<div class="row"><span class="k">入口</span>'+p.entry+'</div>';if(p.points)h+='<ul class="pts"><li>'+p.points.join('</li><li>')+'</li></ul>';h+='<div class="meta">截图：';for(var i=0;i<p.shots.length;i++){var s=p.shots[i];h+='· '+s.state+' <b>v'+s.version+'</b> · '+s.at+'<br>'}f.innerHTML=h;c.appendChild(l);c.appendChild(f);return c}
+function groups(){var seen={},a=[];for(var i=0;i<DATA.pages.length;i++){var g=DATA.pages[i].group;if(!seen[g]){seen[g]=1;a.push(g)}}return a}
+function renderGroup(n,ps){var g=document.createElement('div');g.className='group';g.setAttribute('data-group',n);var h=document.createElement('div');h.className='group-head';h.innerHTML='<h2>'+n+'</h2><span class="count">'+ps.length+' 页</span>';h.setAttribute('onclick',"tog('"+n+"')");var b=document.createElement('div');b.className='group-body';b.id='gb-'+n;for(var i=0;i<ps.length;i++)b.appendChild(renderCard(ps[i]));g.appendChild(h);g.appendChild(b);return g}
+function tog(n){var b=document.getElementById('gb-'+n);b.style.display=b.style.display==='none'?'block':'none'}
+function setGroup(n){cur=n;applyF()}
+function applyF(){var gs=document.getElementsByClassName('group');for(var i=0;i<gs.length;i++){var g=gs[i],cs=g.getElementsByClassName('card'),any=false;for(var j=0;j<cs.length;j++){var s=cur===''||cs[j].getAttribute('data-group')===cur;cs[j].style.display=s?'flex':'none';if(s)any=true}g.style.display=any?'block':'none'}var bs=document.getElementsByClassName('fbtn');for(var k=0;k<bs.length;k++)bs[k].className='fbtn'+(bs[k].getAttribute('data-g')===cur?' active':'')}
+function imgError(im){im.parentNode.className='device';im.parentNode.innerHTML='<div style="color:#9aa;font-size:.75rem;display:flex;align-items:center;justify-content:center;height:100%">截图缺失</div>'}
+function openLightbox(el){var im=el.getElementsByTagName('img')[0];document.getElementById('lightboxImg').src=im?im.src:'';document.getElementById('lightbox').className='lightbox show'}
+function hideLightbox(){document.getElementById('lightbox').className='lightbox'}
+function render(){document.getElementById('verChip').textContent='v'+DATA.app.version+' ('+DATA.app.versionCode+')';document.getElementById('capTime').textContent=DATA.capturedAt;document.getElementById('pageTime').textContent=DATA.pageUpdatedAt;document.getElementById('stateNote').textContent='📌 当前快照：'+DATA.captureEnv.state+'。连接手环后，手环页 / 首页设备卡 / 状态条 / 导出页 会变化，届时重新采集更新。';
+var bar=document.getElementById('filterbar');var all=document.createElement('button');all.className='fbtn active';all.setAttribute('data-g','');all.textContent='全部';all.setAttribute('onclick',"setGroup('')");bar.appendChild(all);var gs=groups();for(var i=0;i<gs.length;i++){var b=document.createElement('button');b.className='fbtn';b.setAttribute('data-g',gs[i]);b.textContent=gs[i];b.setAttribute('onclick',"setGroup('"+gs[i]+"')");bar.appendChild(b)}
+var app=document.getElementById('app');var byG={};for(var i=0;i<DATA.pages.length;i++){var g=DATA.pages[i].group;(byG[g]=byG[g]||[]).push(DATA.pages[i])}var gs=groups();for(var j=0;j<gs.length;j++)app.appendChild(renderGroup(gs[j],byG[gs[j]]))}
+render();
+</script>
+<script src="/js/review-widget.js"></script>
+<script>ReviewWidget.mountAll({projectId:"ev-schedule-android"});</script>
+<script>
+(function(){try{var r=new XMLHttpRequest();r.open('POST','/api/admin/health?section=visit',true);r.setRequestHeader('Content-Type','application/json');r.send(JSON.stringify({page:location.pathname,referrer:document.referrer||'',title:document.title||''}))}catch(_){}})
+</script>
+</body></html>
