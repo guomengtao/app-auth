@@ -51,11 +51,14 @@ ol.steps .tip{color:var(--muted);font-size:.78rem;display:block}
 .method.alt{background:#f7f8fa}
 .note{background:#fffbeb;border:1px solid #fde68a;border-radius:16px;padding:12px 16px;font-size:.82rem;color:#92400e;margin-bottom:14px}
 .note a{color:#92400e;font-weight:600}
+.wxbanner{display:none;background:#fff7e6;border:1px solid #fde68a;border-radius:16px;padding:12px 16px;font-size:.82rem;color:#b26b00;margin-bottom:14px;line-height:1.7}
 .foot{color:var(--muted);font-size:.74rem;text-align:center;margin-top:22px}
 </style>
 </head>
 <body>
 <div class="wrap">
+
+  <div class="wxbanner" id="wxbanner">⚠️ 你在<b>微信</b>里打开了本页。微信会拦截 APK 下载，请点右上角「···」→ 选择「<b>在浏览器打开</b>」，再回来下载。</div>
 
   <div class="hero">
     <div class="row">
@@ -75,7 +78,7 @@ ol.steps .tip{color:var(--muted);font-size:.78rem;display:block}
     <h2>下载前置条件</h2>
     <ul class="req">
       <li><span class="ico">📱</span><div><b>安卓手机</b>（Android 8.0 以上）<span class="tip">iOS 暂不支持，请用<a href="/user-guide.html">原激活步骤</a></span></div></li>
-      <li><span class="ico">🩺</span><div><b>已安装「小米运动健康」并连接手环</b><span class="tip">同步与激活都经由它与手环通信；如果你在用 EV 课程表，基本都已安装</span></div></li>
+      <li><span class="ico">💊</span><div><b>已安装「小米运动健康」并连接手环</b><span class="tip">同步与激活都经由它与手环通信；如果你在用 EV 课程表，基本都已安装</span></div></li>
       <li><span class="ico">⌚</span><div><b>手环已安装「EV 课程表」快应用</b><span class="tip">手环端 EV 版本需支持 interconnect 通道（近期版本均可）</span></div></li>
     </ul>
   </div>
@@ -107,6 +110,12 @@ ol.steps .tip{color:var(--muted);font-size:.78rem;display:block}
 
 <script>
 (function(){
+  // ---- 微信内置浏览器检测：微信拦截 APK 下载，引导去系统浏览器 ----
+  if (/MicroMessenger/i.test(navigator.userAgent)) {
+    var wx = document.getElementById('wxbanner');
+    if (wx) wx.style.display = 'block';
+  }
+
   // ---- 访问埋点（保留 deviceId/c/r 追踪参数，服务端拆 path/query 归因） ----
   try {
     fetch('/api/activate?section=visitor-track', {
