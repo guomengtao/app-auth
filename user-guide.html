@@ -254,46 +254,11 @@
       </div>
     </div>
 
-    <div class="tabs">
-      <button class="tab active" onclick="showTab('quick',this)">快速激活（安卓）</button>
-      <button class="tab" onclick="showTab('backup',this)">备用方式：手环端扫码激活</button>
-    </div>
-
-    <div id="tab-quick">
-      <div class="step" style="border-left-color:#2f6bff; background:#f0f6ff;">
-        <div class="step-header">
-          <div class="step-num" style="background:#2f6bff;">1</div>
-          <div class="step-title">下载 App 并连接手环</div>
-        </div>
-        <div class="step-body">
-          <p>手机下载安装 <strong>Ev课程表</strong>（仅安卓，iOS 用户请切到「备用方式」）：</p>
-          <p><a href="/apk-download.html?c=guide" class="link-btn" style="background:#2f6bff;color:#fff;">下载</a></p>
-          <p>打开 App 连接手环。前置条件：手机已安装<strong>小米运动健康</strong>并连上手环。</p>
-          <p style="font-size:.8rem;color:#999;">下载页内有安装指引（允许未知来源等）。</p>
-        </div>
-      </div>
-
-      <div class="step" style="border-left-color:#2f6bff; background:#f0f6ff;">
-        <div class="step-header">
-          <div class="step-num" style="background:#2f6bff;">2</div>
-          <div class="step-title">购买兑换码并一键激活</div>
-        </div>
-        <div class="step-body">
-          <p>App 内 ⊕ 菜单 → <strong>高级版</strong> → 点「前往爱发电购买」，获得 <strong>4 位兑换码</strong>。</p>
-          <p>回到激活页输入 4 位码 → <strong>一键激活</strong>。激活码自动生成并写入手环，完成 ✅</p>
-          <p style="font-size:.8rem;color:#999;margin-top:8px;">中途蓝牙断开也没关系，App 会自动暂存、连上后继续。装了 App 还同步获得：课表导入导出、上课提醒、桌面小组件。</p>
-        </div>
-      </div>
-    </div>
-
-    <div id="tab-backup" style="display:none">
-      <p style="font-size:.88rem;color:#666;margin-bottom:14px;">适合 iOS 等无安卓手机的用户：购买后到手环上扫码获取激活码，再手输到手环。</p>
-
-    <!-- Step 1: matches band app Step 1 -->
-    <div class="step">
+    <!-- 购买（两种方式共用） -->
+    <div class="step" style="border-left-color:#c0c0c0; background:#fafafa;">
       <div class="step-header">
-        <div class="step-num">1</div>
-        <div class="step-title">购买高级版兑换码</div>
+        <div class="step-num" style="background:#888">🛒</div>
+        <div class="step-title" style="color:#666">购买高级版兑换码（两种方式通用）</div>
       </div>
       <div class="step-body">
         <p><a href="https://app-auth.gudq.com/go/ev-timetable?c=ev-guide" class="link-btn" target="_blank" rel="noopener">前往爱发电购买</a></p>
@@ -303,10 +268,34 @@
       </div>
     </div>
 
+    <div class="tabs">
+      <button class="tab active" onclick="showTab('quick',this)">快速激活（安卓）</button>
+      <button class="tab" onclick="showTab('backup',this)">备用方式：手环端扫码激活</button>
+    </div>
+
+    <div id="tab-quick">
+      <div class="step" style="border-left-color:#2f6bff; background:#f0f6ff;">
+        <div class="step-header">
+          <div class="step-num" style="background:#2f6bff;">1</div>
+          <div class="step-title">下载 App，连接手环，一键激活</div>
+        </div>
+        <div class="step-body">
+          <p>手机下载安装 <strong>Ev课程表</strong>（仅安卓，iOS 用户请切到「备用方式」）：</p>
+          <p><a href="/apk-download.html?c=guide" class="link-btn" style="background:#2f6bff;color:#fff;">下载</a></p>
+          <p>打开 App 连接手环（前置：手机已装<strong>小米运动健康</strong>并连上手环）。</p>
+          <p>⊕ 菜单 → <strong>高级版</strong> → 输入上面购买的 <strong>4 位兑换码</strong> → <strong>一键激活</strong>。激活码自动生成并写入手环，完成 ✅</p>
+          <p style="font-size:.8rem;color:#999;margin-top:8px;">中途蓝牙断开也没关系，App 会自动暂存、连上后继续。装了 App 还同步获得：课表导入导出、上课提醒、桌面小组件。</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-backup" style="display:none">
+      <p style="font-size:.88rem;color:#666;margin-bottom:14px;">适合 iOS 等无安卓手机的用户：手环上扫码获取激活码，再手输到手环。</p>
+
     <!-- Step 2: matches band app Step 2 -->
     <div class="step">
       <div class="step-header">
-        <div class="step-num">2</div>
+        <div class="step-num">1</div>
         <div class="step-title">获取激活码</div>
       </div>
       <div class="step-body">
@@ -317,10 +306,10 @@
       </div>
     </div>
 
-    <!-- Step 3: matches band app Step 3 -->
+    <!-- backup step 2 -->
     <div class="step">
       <div class="step-header">
-        <div class="step-num">3</div>
+        <div class="step-num">2</div>
         <div class="step-title">输入激活码到手环</div>
       </div>
       <div class="step-body">
