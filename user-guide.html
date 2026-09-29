@@ -220,7 +220,10 @@
       .step { padding: 18px; }
       .step-body { margin-left: 0; margin-top: 10px; }
     }
-  </style>
+      .tabs{display:flex;gap:10px;margin-bottom:24px}
+    .tab{flex:1;padding:12px 10px;border-radius:12px;border:1px solid #e3e6f0;background:#fff;color:#666;font-size:.95rem;font-weight:600;cursor:pointer;transition:all .15s}
+    .tab.active{background:#2f6bff;border-color:#2f6bff;color:#fff}
+</style>
 </head>
 <body>
   <div class="container">
@@ -230,23 +233,6 @@
       <div class="icon">📱</div>
       <h1>用户激活手册</h1>
       <p>安卓手机推荐「快速激活」→ 其余用户走备用方式</p>
-    </div>
-
-    <div class="step" style="border-left-color:#2f6bff; background:#f0f6ff;">
-      <div class="step-header">
-        <div class="step-num" style="background:#2f6bff;">★</div>
-        <div class="step-title">推荐 · 安卓手机快速激活（免扫码、免手输 18 位）</div>
-      </div>
-      <div class="step-body">
-        <p style="margin-bottom:10px;">只需在手机 App 里输入 <strong>4 位兑换码</strong>，激活码自动生成并写入手环：</p>
-        <ol style="padding-left:20px; font-size:0.92rem; color:#555;">
-          <li style="margin-bottom:6px;">下载安卓 App：<a href="/apk-download.html?c=guide" style="background:#2f6bff;color:#fff;padding:4px 14px;border-radius:20px;text-decoration:none;font-size:.85rem;">⬇ 下载 Ev课程表 APK</a><span style="font-size:.78rem;color:#999;">　仅安卓；iOS 请用下方备用方式</span></li>
-          <li style="margin-bottom:6px;">打开 App 连接手环（前置：手机已装<strong>小米运动健康</strong>并连上手环）</li>
-          <li style="margin-bottom:6px;">⊕ 菜单 → <strong>高级版</strong> → 点「前往爱发电购买」，获得 4 位兑换码</li>
-          <li>回到激活页输入 4 位码 → <strong>一键激活</strong>，自动写入手环，完成 ✅</li>
-        </ol>
-        <p style="font-size:.8rem;color:#999;margin-top:10px;">装了 App 还同步获得：课表导入导出、上课提醒、桌面小组件。激活中途蓝牙断开也没关系，App 会自动暂存、连上后继续。手环端还没装 EV课程表？先用下方「安装 EV课程表到手环」。</p>
-      </div>
     </div>
 
     <!-- Astrobox card -->
@@ -268,8 +254,40 @@
       </div>
     </div>
 
-    <div class="divider"></div>
-    <h2 style="margin-bottom:20px;font-size:1.1rem;color:#1a1a2e;">备用方式：手环端扫码激活（iOS 等无安卓手机用户）</h2>
+    <div class="tabs">
+      <button class="tab active" onclick="showTab('quick',this)">快速激活（安卓）</button>
+      <button class="tab" onclick="showTab('backup',this)">备用方式：手环端扫码激活</button>
+    </div>
+
+    <div id="tab-quick">
+      <div class="step" style="border-left-color:#2f6bff; background:#f0f6ff;">
+        <div class="step-header">
+          <div class="step-num" style="background:#2f6bff;">1</div>
+          <div class="step-title">下载 App 并连接手环</div>
+        </div>
+        <div class="step-body">
+          <p>手机下载安装 <strong>Ev课程表</strong>（仅安卓，iOS 用户请切到「备用方式」）：</p>
+          <p><a href="/apk-download.html?c=guide" class="link-btn" style="background:#2f6bff;color:#fff;">下载</a></p>
+          <p>打开 App 连接手环。前置条件：手机已安装<strong>小米运动健康</strong>并连上手环。</p>
+          <p style="font-size:.8rem;color:#999;">下载页内有安装指引（允许未知来源等）。</p>
+        </div>
+      </div>
+
+      <div class="step" style="border-left-color:#2f6bff; background:#f0f6ff;">
+        <div class="step-header">
+          <div class="step-num" style="background:#2f6bff;">2</div>
+          <div class="step-title">购买兑换码并一键激活</div>
+        </div>
+        <div class="step-body">
+          <p>App 内 ⊕ 菜单 → <strong>高级版</strong> → 点「前往爱发电购买」，获得 <strong>4 位兑换码</strong>。</p>
+          <p>回到激活页输入 4 位码 → <strong>一键激活</strong>。激活码自动生成并写入手环，完成 ✅</p>
+          <p style="font-size:.8rem;color:#999;margin-top:8px;">中途蓝牙断开也没关系，App 会自动暂存、连上后继续。装了 App 还同步获得：课表导入导出、上课提醒、桌面小组件。</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-backup" style="display:none">
+      <p style="font-size:.88rem;color:#666;margin-bottom:14px;">适合 iOS 等无安卓手机的用户：购买后到手环上扫码获取激活码，再手输到手环。</p>
 
     <!-- Step 1: matches band app Step 1 -->
     <div class="step">
@@ -317,6 +335,7 @@
         </div>
       </div>
     </div>
+    </div><!-- /tab-backup -->
 
     <div class="divider"></div>
 
@@ -387,6 +406,16 @@
     t.send(JSON.stringify({ path: location.pathname + location.search }));
   } catch(_) {}
 })();
+</script>
+<script>
+function showTab(id, btn){
+  document.getElementById('tab-quick').style.display = (id==='quick') ? 'block' : 'none';
+  document.getElementById('tab-backup').style.display = (id==='backup') ? 'block' : 'none';
+  var ts = document.querySelectorAll('.tab');
+  for (var i = 0; i < ts.length; i++) {
+    ts[i].className = 'tab' + (ts[i] === btn ? ' active' : '');
+  }
+}
 </script>
 </body>
 </html>
