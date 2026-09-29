@@ -5,27 +5,38 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Ev课程表 · 安卓版下载</title>
 <style>
-:root{--bg:#f5f7fa;--surface:#fff;--line:#e5eaf1;--ink:#1a2233;--muted:#6b7686;--accent:#2f6bff;--ok:#16a34a;--warn:#d97706;--err:#dc2626}
+:root{--bg:#eef2f8;--surface:#fff;--line:#e5eaf1;--ink:#1a2233;--muted:#6b7686;--accent:#2f6bff;--accent2:#6d5bff;--ok:#16a34a;--warn:#d97706;--err:#dc2626}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;padding-bottom:40px}
-.wrap{max-width:520px;margin:0 auto;padding:20px 16px}
-h1{font-size:1.45rem;margin-bottom:4px}
-.sub{color:var(--muted);font-size:.88rem;margin-bottom:18px}
-.verchip{display:inline-block;background:var(--accent);color:#fff;font-size:.78rem;padding:2px 10px;border-radius:20px;vertical-align:2px;margin-left:6px}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
-.card h2{font-size:1rem;margin-bottom:10px;display:flex;align-items:center;gap:6px}
-.card h2 .no{display:inline-flex;width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;font-size:.75rem;align-items:center;justify-content:center;flex:none}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;padding-bottom:48px}
+.wrap{max-width:520px;margin:0 auto;padding:18px 16px}
+
+/* ---- Hero ---- */
+.hero{background:linear-gradient(135deg,#2f6bff 0%,#6d5bff 100%);border-radius:22px;padding:26px 22px 24px;color:#fff;
+      box-shadow:0 10px 30px rgba(47,107,255,.28);margin-bottom:14px;position:relative;overflow:hidden}
+.hero::after{content:"⌚";position:absolute;right:-14px;bottom:-22px;font-size:110px;opacity:.12;transform:rotate(-12deg)}
+.hero .row{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.hero .appicon{width:52px;height:52px;border-radius:14px;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-size:28px;flex:none;backdrop-filter:blur(4px)}
+.hero h1{font-size:1.5rem;letter-spacing:.5px}
+.verchip{display:inline-block;background:rgba(255,255,255,.22);color:#fff;font-size:.76rem;padding:2px 11px;border-radius:20px;vertical-align:3px;margin-left:8px;backdrop-filter:blur(4px)}
+.hero .sub{color:rgba(255,255,255,.85);font-size:.86rem;margin:2px 0 20px}
+.dlbtn{display:block;width:100%;background:#fff;color:var(--accent);border:none;border-radius:14px;padding:15px;font-size:1.05rem;font-weight:700;cursor:pointer;text-align:center;
+       box-shadow:0 4px 14px rgba(0,0,0,.14);transition:transform .12s}
+.dlbtn:active{transform:scale(.98)}
+.dlbtn[disabled]{opacity:.6;cursor:not-allowed}
+.dlmeta{color:rgba(255,255,255,.75);font-size:.76rem;margin-top:10px;text-align:center;word-break:break-all}
+.hero .foot-meta{color:rgba(255,255,255,.75)}
+
+/* ---- 卡片 ---- */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:18px;margin-bottom:14px;box-shadow:0 2px 10px rgba(23,43,99,.05)}
+.card h2{font-size:1rem;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.card h2 .no{display:inline-flex;width:22px;height:22px;border-radius:8px;background:linear-gradient(135deg,#2f6bff,#6d5bff);color:#fff;font-size:.75rem;align-items:center;justify-content:center;flex:none}
 .req{list-style:none}
-.req li{display:flex;gap:8px;padding:6px 0;font-size:.9rem;align-items:flex-start}
-.req .ico{flex:none}
+.req li{display:flex;gap:10px;padding:7px 0;font-size:.9rem;align-items:flex-start}
+.req .ico{flex:none;width:30px;height:30px;border-radius:9px;background:#eef3ff;display:flex;align-items:center;justify-content:center;font-size:15px}
 .req b{color:var(--ink)}
-.req .tip{color:var(--muted);font-size:.8rem;display:block}
-.dlbtn{display:block;width:100%;background:var(--accent);color:#fff;border:none;border-radius:12px;padding:14px;font-size:1.02rem;font-weight:600;cursor:pointer;text-align:center}
-.dlbtn:active{opacity:.85}
-.dlbtn[disabled]{background:#b9c6e8;cursor:not-allowed}
-.dlmeta{color:var(--muted);font-size:.78rem;margin-top:8px;text-align:center;word-break:break-all}
-.lines{margin-top:12px;border-top:1px dashed var(--line);padding-top:10px}
-.line{display:flex;align-items:center;justify-content:space-between;padding:7px 2px;font-size:.86rem;cursor:pointer;border-radius:8px}
+.req .tip{color:var(--muted);font-size:.78rem;display:block}
+.lines{margin-top:14px;border-top:1px dashed var(--line);padding-top:12px}
+.line{display:flex;align-items:center;justify-content:space-between;padding:8px 4px;font-size:.87rem;cursor:pointer;border-radius:9px}
 .line:hover{background:var(--bg)}
 .line .st{font-size:.72rem;color:var(--muted)}
 .line .st.ok{color:var(--ok)}
@@ -33,18 +44,32 @@ h1{font-size:1.45rem;margin-bottom:4px}
 .line.pick{font-weight:600}
 .sha{font-family:ui-monospace,Menlo,monospace;font-size:.68rem;color:var(--muted);word-break:break-all;margin-top:8px}
 ol.steps{padding-left:20px;font-size:.9rem}
-ol.steps li{margin-bottom:8px}
-ol.steps .tip{color:var(--muted);font-size:.8rem;display:block}
-.note{background:#fffbeb;border:1px solid #fde68a;border-radius:14px;padding:12px 16px;font-size:.82rem;color:#92400e;margin-bottom:14px}
-.foot{color:var(--muted);font-size:.75rem;text-align:center;margin-top:20px}
+ol.steps li{margin-bottom:9px}
+ol.steps .tip{color:var(--muted);font-size:.78rem;display:block}
+.method{background:#f0f6ff;border-radius:12px;padding:11px 13px;margin-bottom:9px;font-size:.88rem}
+.method b{color:var(--accent)}
+.method.alt{background:#f7f8fa}
+.note{background:#fffbeb;border:1px solid #fde68a;border-radius:16px;padding:12px 16px;font-size:.82rem;color:#92400e;margin-bottom:14px}
+.note a{color:#92400e;font-weight:600}
+.foot{color:var(--muted);font-size:.74rem;text-align:center;margin-top:22px}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Ev课程表 <span style="font-weight:400">安卓版</span><span class="verchip" id="ver">…</span></h1>
-  <div class="sub">手机端管理手环课表：连接手环、导入导出、上课提醒、高级版一键激活</div>
 
-  <div class="note">⚠️ 仅支持 <b>安卓手机</b>（iOS 暂不支持）。iOS 用户请用 <a href="/user-guide.html" style="color:#92400e;font-weight:600">原激活步骤（手环扫码方式）→</a></div>
+  <div class="hero">
+    <div class="row">
+      <div class="appicon">⌚</div>
+      <div>
+        <h1>Ev课程表 <span style="font-weight:400;font-size:.9rem">安卓版</span><span class="verchip" id="ver">…</span></h1>
+      </div>
+    </div>
+    <div class="sub">手机端管理手环课表：连接手环 · 导入导出 · 上课提醒 · 高级版一键激活</div>
+    <button class="dlbtn" id="dlMain" disabled>获取版本信息中…</button>
+    <div class="dlmeta" id="dlMeta"></div>
+  </div>
+
+  <div class="note">⚠️ 仅支持 <b>安卓手机</b>（iOS 暂不支持）。iOS 用户请用 <a href="/user-guide.html">原激活步骤（手环扫码方式）→</a></div>
 
   <div class="card">
     <h2>下载前置条件</h2>
@@ -56,9 +81,7 @@ ol.steps .tip{color:var(--muted);font-size:.8rem;display:block}
   </div>
 
   <div class="card">
-    <h2>下载安装包</h2>
-    <button class="dlbtn" id="dlMain" disabled>获取版本信息中…</button>
-    <div class="dlmeta" id="dlMeta"></div>
+    <h2><span class="no">↓</span>选择下载线路</h2>
     <div class="lines" id="lines"></div>
     <div class="sha" id="sha"></div>
   </div>
@@ -68,18 +91,15 @@ ol.steps .tip{color:var(--muted);font-size:.8rem;display:block}
     <ol class="steps">
       <li>点击上方按钮下载 APK（仅约 0.4 MB）</li>
       <li>打开下载的文件，若提示「禁止安装未知来源应用」，按手机指引<b>允许本次安装</b></li>
-      <li>安装完成后打开桌面上的 <b>Ev课程表</b></li>
+      <li>安装完成后打开桌面上的 <b>Ev课程表</b><span class="tip">已装过旧版本：直接覆盖安装即可，课表数据与激活状态都会保留</span></li>
     </ol>
   </div>
 
   <div class="card">
-    <h2><span class="no">2</span>连接手环并激活高级版</h2>
-    <ol class="steps">
-      <li>保持手环蓝牙连接，打开 <b>小米运动健康</b> 确认已连上手环</li>
-      <li>打开 Ev课程表 → 首页会自动检测并连接手环<span class="tip">如未连接：检查小米运动健康里手环状态，再回 App 下拉重试</span></li>
-      <li>⊕ 菜单 → <b>高级版</b>：已有兑换码直接输入 4 位一键激活<span class="tip">还没购买？激活页里「前往爱发电购买」，下单后回来填码即可；中途断开也没关系，会自动暂存续传</span></li>
-    </ol>
-    <p style="font-size:.8rem;color:#6b7686;margin-top:10px">iOS 用户请用 <a href="/user-guide.html">原激活步骤（手环扫码方式）</a>。</p>
+    <h2><span class="no">2</span>激活高级版</h2>
+    <div class="method"><b>方式一（推荐）：自动激活</b><br>购买后私信里点开<b>激活链接</b> → 页面点「打开 Ev课程表 自动激活」→ 兑换码自动填入并完成激活 ✅</div>
+    <div class="method alt"><b>方式二：手工输入</b><br>链接打不开时：打开 App → ⊕ 菜单 → <b>高级版</b> → 输入激活页面里显示的 <b>4 位兑换码</b> → 一键激活</div>
+    <p style="font-size:.78rem;color:#6b7686;margin-top:6px">还没购买？激活页里「前往爱发电购买」，下单后回来激活即可；中途蓝牙断开也没关系，会自动暂存续传。iOS 用户请用 <a href="/user-guide.html">原激活步骤</a>。</p>
   </div>
 
   <div class="foot">EV 课程表 · 下载页 · <span id="pgVer"></span></div>
@@ -97,13 +117,21 @@ ol.steps .tip{color:var(--muted);font-size:.8rem;display:block}
   } catch(e){}
 
   // ---- 版本信息（单一来源：/ev/update-ev.json） ----
-  var FALLBACK_ORIGIN = 'https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.62/EVSyncProbe-v0.5.62.apk';
+  // origin 支持 GitHub Release 与本站自托管两种；只有 GitHub origin 才拼镜像前缀
+  var FALLBACK_ORIGIN = 'https://app-auth.gudq.com/ev/EVSyncProbe-v0.5.98.apk';
   var origin = FALLBACK_ORIGIN, ver = '';
-  var MIRRORS = [
-    { name:'加速线路（国内推荐）', pre:'https://ghproxy.net/' },
-    { name:'备用加速线路',       pre:'https://gh-proxy.com/' },
-    { name:'GitHub 直连',        pre:'' }
-  ];
+
+  function buildMirrors(u){
+    if (u.indexOf('https://github.com/') === 0) {
+      return [
+        { name:'加速线路（国内推荐）', pre:'https://ghproxy.net/' },
+        { name:'备用加速线路',       pre:'https://gh-proxy.com/' },
+        { name:'GitHub 直连',        pre:'' }
+      ];
+    }
+    return [ { name:'官方直连（本站高速）', pre:'' } ];
+  }
+  var MIRRORS = buildMirrors(origin);
 
   function fileName(u){ return u.slice(u.lastIndexOf('/') + 1); }
 
@@ -114,6 +142,7 @@ ol.steps .tip{color:var(--muted);font-size:.8rem;display:block}
         if (m && m.downloadUrlOrigin) {
           origin = m.downloadUrlOrigin;
           ver = m.versionName || '';
+          MIRRORS = buildMirrors(origin);
         }
       }).catch(function(){});
   }
@@ -191,7 +220,7 @@ ol.steps .tip{color:var(--muted);font-size:.8rem;display:block}
     btn.textContent = '开始下载' + (ver ? ' v' + ver : '') +
                       '（' + MIRRORS[picked].name.replace(/（.*）/, '') + '）';
     btn.onclick = function(){ doDownload(picked); };
-    meta.textContent = fileName(origin);
+    meta.innerHTML = '<span class="foot-meta">' + fileName(origin) + '</span>';
   }
 
   function pickFastest(){

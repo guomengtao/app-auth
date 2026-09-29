@@ -1,3 +1,9 @@
-{"versionCode":84,"versionName":"0.5.83","sha256":"d6d137dad68c176cfa9f00e9a5132c773512684eb1a4c61a4d72bee0a7ffe79c",
- "downloadUrlMirror":"https://ghproxy.net/https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.83/EVSyncProbe-v0.5.83.apk","downloadUrlOrigin":"https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.83/EVSyncProbe-v0.5.83.apk",
- "isForce":false,"updateLog":"高级版激活升级：第一步可直接前往爱发电购买；四格兑换码支持粘贴；未连手环自动暂存续传；新增呼叫手环"}
+{
+ "versionCode": 99,
+ "versionName": "0.5.98",
+ "sha256": "f972272a0fe91c60313116fc461df35d9d87fabc77ff6c90e5350a1f2b66e71f",
+ "downloadUrlMirror": "https://app-auth.gudq.com/ev/EVSyncProbe-v0.5.98.apk",
+ "downloadUrlOrigin": "https://app-auth.gudq.com/ev/EVSyncProbe-v0.5.98.apk",
+ "isForce": false,
+ "updateLog": "私信激活链接：点开自动填码并一键激活；激活按钮新增「激活中」状态反馈；多项体验优化"
+}
