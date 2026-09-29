@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Ev课程表 · 安卓版下载</title>
+<style>
+:root{--bg:#f5f7fa;--surface:#fff;--line:#e5eaf1;--ink:#1a2233;--muted:#6b7686;--accent:#2f6bff;--ok:#16a34a;--warn:#d97706;--err:#dc2626}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;padding-bottom:40px}
+.wrap{max-width:520px;margin:0 auto;padding:20px 16px}
+h1{font-size:1.45rem;margin-bottom:4px}
+.sub{color:var(--muted);font-size:.88rem;margin-bottom:18px}
+.verchip{display:inline-block;background:var(--accent);color:#fff;font-size:.78rem;padding:2px 10px;border-radius:20px;vertical-align:2px;margin-left:6px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+.card h2{font-size:1rem;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.card h2 .no{display:inline-flex;width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;font-size:.75rem;align-items:center;justify-content:center;flex:none}
+.req{list-style:none}
+.req li{display:flex;gap:8px;padding:6px 0;font-size:.9rem;align-items:flex-start}
+.req .ico{flex:none}
+.req b{color:var(--ink)}
+.req .tip{color:var(--muted);font-size:.8rem;display:block}
+.dlbtn{display:block;width:100%;background:var(--accent);color:#fff;border:none;border-radius:12px;padding:14px;font-size:1.02rem;font-weight:600;cursor:pointer;text-align:center}
+.dlbtn:active{opacity:.85}
+.dlbtn[disabled]{background:#b9c6e8;cursor:not-allowed}
+.dlmeta{color:var(--muted);font-size:.78rem;margin-top:8px;text-align:center;word-break:break-all}
+.lines{margin-top:12px;border-top:1px dashed var(--line);padding-top:10px}
+.line{display:flex;align-items:center;justify-content:space-between;padding:7px 2px;font-size:.86rem;cursor:pointer;border-radius:8px}
+.line:hover{background:var(--bg)}
+.line .st{font-size:.72rem;color:var(--muted)}
+.line .st.ok{color:var(--ok)}
+.line .st.bad{color:var(--err)}
+.line.pick{font-weight:600}
+.sha{font-family:ui-monospace,Menlo,monospace;font-size:.68rem;color:var(--muted);word-break:break-all;margin-top:8px}
+ol.steps{padding-left:20px;font-size:.9rem}
+ol.steps li{margin-bottom:8px}
+ol.steps .tip{color:var(--muted);font-size:.8rem;display:block}
+.note{background:#fffbeb;border:1px solid #fde68a;border-radius:14px;padding:12px 16px;font-size:.82rem;color:#92400e;margin-bottom:14px}
+.foot{color:var(--muted);font-size:.75rem;text-align:center;margin-top:20px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Ev课程表 <span style="font-weight:400">安卓版</span><span class="verchip" id="ver">…</span></h1>
+  <div class="sub">手机端管理手环课表：连接手环、导入导出、上课提醒、高级版一键激活</div>
+
+  <div class="note">⚠️ 仅支持 <b>安卓手机</b>（iOS / 鸿蒙暂不支持）。下载前请先确认下面 3 个条件。</div>
+
+  <div class="card">
+    <h2>下载前置条件</h2>
+    <ul class="req">
+      <li><span class="ico">📱</span><div><b>安卓手机</b>（Android 8.0 以上）<span class="tip">iOS / 鸿蒙暂时无法使用，勿购买兑换码</span></div></li>
+      <li><span class="ico">🩺</span><div><b>已安装「小米运动健康」并连接手环</b><span class="tip">同步与激活都经由它与手环通信；如果你在用 EV 课程表，基本都已安装</span></div></li>
+      <li><span class="ico">⌚</span><div><b>手环已安装「EV 课程表」快应用</b><span class="tip">手环端 EV 版本需支持 interconnect 通道（近期版本均可）</span></div></li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>下载安装包</h2>
+    <button class="dlbtn" id="dlMain" disabled>获取版本信息中…</button>
+    <div class="dlmeta" id="dlMeta"></div>
+    <div class="lines" id="lines"></div>
+    <div class="sha" id="sha"></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="no">1</span>安装</h2>
+    <ol class="steps">
+      <li>点击上方按钮下载 APK（仅约 0.4 MB）</li>
+      <li>打开下载的文件，若提示「禁止安装未知来源应用」，按手机指引<b>允许本次安装</b></li>
+      <li>安装完成后打开桌面上的 <b>Ev课程表</b></li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2><span class="no">2</span>连接手环并激活高级版</h2>
+    <ol class="steps">
+      <li>保持手环蓝牙连接，打开 <b>小米运动健康</b> 确认已连上手环</li>
+      <li>打开 Ev课程表 → 首页会自动检测并连接手环<span class="tip">如未连接：检查小米运动健康里手环状态，再回 App 下拉重试</span></li>
+      <li>⊕ 菜单 → <b>高级版</b>：已有兑换码直接输入 4 位一键激活<span class="tip">还没购买？激活页里「前往爱发电购买」，下单后回来填码即可；中途断开也没关系，会自动暂存续传</span></li>
+    </ol>
+  </div>
+
+  <div class="foot">EV 课程表 · 下载页 · <span id="pgVer"></span></div>
+</div>
+
+<script>
+(function(){
+  // ---- 访问埋点（保留 deviceId/c/r 追踪参数，服务端拆 path/query 归因） ----
+  try {
+    fetch('/api/activate?section=visitor-track', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ path: window.location.pathname + window.location.search,
+                             ref: document.referrer || '' })
+    }).catch(function(){});
+  } catch(e){}
+
+  // ---- 版本信息（单一来源：/ev/update-ev.json） ----
+  var FALLBACK_ORIGIN = 'https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.62/EVSyncProbe-v0.5.62.apk';
+  var origin = FALLBACK_ORIGIN, ver = '';
+  var MIRRORS = [
+    { name:'加速线路（国内推荐）', pre:'https://ghproxy.net/' },
+    { name:'备用加速线路',       pre:'https://gh-proxy.com/' },
+    { name:'GitHub 直连',        pre:'' }
+  ];
+
+  function fileName(u){ return u.slice(u.lastIndexOf('/') + 1); }
+
+  function fetchManifest(){
+    return fetch('/ev/update-ev.json?v=' + Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(m){
+        if (m && m.downloadUrlOrigin) {
+          origin = m.downloadUrlOrigin;
+          ver = m.versionName || '';
+        }
+      }).catch(function(){});
+  }
+
+  function fetchSiteVersion(){
+    try {
+      fetch('/api/admin/health?section=version')
+        .then(function(r){ return r.json(); })
+        .then(function(v){
+          var el = document.getElementById('pgVer');
+          if (el && v.version) el.textContent = 'v' + v.version;
+        }).catch(function(){});
+    } catch(e){}
+  }
+
+  // 探测线路可用性（no-cors HEAD：网络层失败 reject，应用层 opaque resolve）
+  function probe(url, ms){
+    var ctl = ('AbortController' in window) ? new AbortController() : null;
+    var timer = ctl && setTimeout(function(){ ctl.abort(); }, ms || 3500);
+    return fetch(url, { method:'HEAD', mode:'no-cors', cache:'no-store',
+                        signal: ctl ? ctl.signal : undefined })
+      .then(function(){ if (timer) clearTimeout(timer); return true; })
+      .catch(function(){ if (timer) clearTimeout(timer); return false; });
+  }
+
+  function urlOf(line){ return line.pre + origin; }
+
+  function trackDownload(lineName){
+    try {
+      fetch('/api/activate?section=visitor-track', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ path: window.location.pathname,
+                               query: 'dl=' + encodeURIComponent(lineName) +
+                                      (window.location.search ? window.location.search.slice(1) + '&' : '') + 'src=apk-download' })
+      }).catch(function(){});
+    } catch(e){}
+  }
+
+  var picked = -1;
+
+  function renderLines(){
+    var box = document.getElementById('lines');
+    box.innerHTML = '';
+    for (var i = 0; i < MIRRORS.length; i++) (function(i){
+      var ln = MIRRORS[i];
+      var row = document.createElement('div');
+      row.className = 'line' + (i === picked ? ' pick' : '');
+      row.innerHTML = '<span>' + (i === picked ? '✓ ' : '') + ln.name + '</span>' +
+                      '<span class="st" id="st' + i + '">测速中…</span>';
+      row.onclick = function(){ doDownload(i); };
+      box.appendChild(row);
+    })(i);
+    MIRRORS.forEach(function(ln, i){
+      probe(urlOf(ln)).then(function(ok){
+        var st = document.getElementById('st' + i);
+        if (!st) return;
+        st.textContent = ok ? '可用' : '不可达';
+        st.className = 'st ' + (ok ? 'ok' : 'bad');
+      });
+    });
+  }
+
+  function doDownload(i){
+    picked = i;
+    trackDownload(MIRRORS[i].name);
+    window.location.href = urlOf(MIRRORS[i]);
+    renderLines();
+  }
+
+  function updateMain(){
+    var btn = document.getElementById('dlMain');
+    var meta = document.getElementById('dlMeta');
+    if (picked < 0) return;
+    btn.disabled = false;
+    btn.textContent = '开始下载' + (ver ? ' v' + ver : '') +
+                      '（' + MIRRORS[picked].name.replace(/（.*）/, '') + '）';
+    btn.onclick = function(){ doDownload(picked); };
+    meta.textContent = fileName(origin);
+  }
+
+  function pickFastest(){
+    var order = [];
+    for (var i = 0; i < MIRRORS.length; i++) order.push(i);
+    var next = function(){
+      if (!order.length) return;
+      var i = order.shift();
+      probe(urlOf(MIRRORS[i])).then(function(ok){
+        if (ok) {
+          picked = i;
+          updateMain();
+          renderLines();
+          showSha();
+        } else {
+          next();
+        }
+      });
+    };
+    next();
+  }
+
+  function showSha(){
+    try {
+      fetch('/ev/update-ev.json?v=' + Date.now())
+        .then(function(r){ return r.json(); })
+        .then(function(m){
+          if (m && m.sha256) {
+            var el = document.getElementById('sha');
+            el.textContent = 'SHA-256 ' + m.sha256.slice(0, 16) + '…（完整校验值见更新清单）';
+          }
+        }).catch(function(){});
+    } catch(e){}
+  }
+
+  fetchManifest().then(function(){
+    if (ver) document.getElementById('ver').textContent = 'v' + ver;
+    renderLines();
+    pickFastest();
+  });
+  fetchSiteVersion();
+})();
+</script>
+</body>
+</html>
