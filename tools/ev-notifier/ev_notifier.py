@@ -521,31 +521,30 @@ def _on_auth_failed(reason=""):
         pass
 
 
-def ensure_auto_start():
-    if not os.path.exists(LAUNCH_AGENT_DIR):
-        os.makedirs(LAUNCH_AGENT_DIR, exist_ok=True)
-    old_exists = os.path.exists(LAUNCH_AGENT_PATH)
-    script_path = os.path.abspath(__file__)
-    python_path = sys.executable
-    plist = {
+def _desired_launch_agent():
+    """当前这份程序「自己认为正确」的 LaunchAgent 内容（路径随运行环境自动漂移）。"""
+    return {
         "Label": LAUNCH_AGENT_LABEL,
-        "ProgramArguments": [python_path, script_path],
+        "ProgramArguments": [sys.executable, os.path.abspath(__file__)],
         "RunAtLoad": True,
         "KeepAlive": True,
         "StandardOutPath": os.path.expanduser("~/.ev_notifier_stdout.log"),
         "StandardErrorPath": os.path.expanduser("~/.ev_notifier_stderr.log"),
     }
+
+
+def ensure_auto_start():
+    if not os.path.exists(LAUNCH_AGENT_DIR):
+        os.makedirs(LAUNCH_AGENT_DIR, exist_ok=True)
+    old_exists = os.path.exists(LAUNCH_AGENT_PATH)
+    plist = _desired_launch_agent()
     with open(LAUNCH_AGENT_PATH, "wb") as f:
         plistlib.dump(plist, f)
     action = "updated" if old_exists else "enabled"
     print(f"Auto-start {action}: {LAUNCH_AGENT_PATH}")
-    try:
-        subprocess.run(
-            ["launchctl", "bootstrap", f"gui/{os.getuid()}", LAUNCH_AGENT_PATH],
-            capture_output=True, timeout=3
-        )
-    except Exception:
-        pass
+    # ⚠️ 这里**不再 bootstrap**：本进程已经在跑了，注册 job 会让 launchd 立刻再拉一个实例，
+    #    它抢不到 PID 锁就退出，KeepAlive 再补位 → "秒退秒起"的死循环。
+    #    job 的注册/重注册统一交给启动早期的 handover_to_launchd()（退场后再 bootstrap）。
 
 
 def disable_auto_start():
@@ -587,6 +586,102 @@ def stop_launchd_job():
     except Exception as e:
         _debug_log(f"launchd bootout failed: {e}")
     return False
+
+
+def _launchd_job_pid():
+    """当前 job 实际在跑的 PID（没跑返回 None）。
+
+    ⚠️ 不能用 `os.getppid() == 1` 判断"自己是不是被 launchd 拉起的"：
+    通过 Finder/ LaunchServices 双击启动的进程，父进程**同样是 1**，判定会直接翻车。
+    """
+    try:
+        r = subprocess.run(["launchctl", "list", LAUNCH_AGENT_LABEL],
+                           capture_output=True, timeout=3)
+        for line in (r.stdout or b"").decode("utf-8", "ignore").splitlines():
+            parts = line.split("\t")
+            if len(parts) >= 3 and parts[2].strip() == LAUNCH_AGENT_LABEL:
+                pid = int(parts[0].strip())
+                return pid if pid > 0 else None
+            parts_col = line.split()
+            if len(parts_col) >= 3 and parts_col[-1] == LAUNCH_AGENT_LABEL:
+                try:
+                    pid = int(parts_col[0])
+                    return pid if pid > 0 else None
+                except ValueError:
+                    return None
+    except Exception:
+        pass
+    return None
+
+
+def handover_to_launchd():
+    """确保「真正在跑的那一个实例」是被 launchd 托管的那个。
+
+    要解决的问题：用户双击 `/Applications/EvNotifier.app`（或手动跑仓库脚本）时，
+    启动出来的是**没人托管**的野进程 —— 崩溃不会自愈，下次登录 launchd 还会再拉一份，
+    两边长期并存。这里把这种情况收敛成：写好 plist → **延迟 2s bootstrap** → 本进程立即退场，
+    由 launchd 按 plist 重新拉起，最终只有一个受托管实例。
+
+    ⚠️ 安全约束（每一条都是真踩出来的）：
+      1. **只在自己就是 job 现有 PID 时认定为"已被托管"**，不能用 ppid 判定（双击启动 ppid 也是 1）；
+      2. 只在**已拿到 PID 锁**（没有别的活着实例）时才移交，否则两边会互相改 plist 抢主权；
+      3. 绝不在自己还活着时 bootstrap —— launchd 立刻拉起的实例会和本进程抢 PID 锁，
+         KeepAlive 下会形成"秒退→秒补位"的重启死循环；
+      4. `auto_start` 偏好为 OFF 时不动 plist（用户明确关了开机自启）；
+      5. 15s 内已尝试过移交就不再尝试（bootstrap 若系统性失败，至少让实例能裸跑，不至于点了没反应）。
+
+    返回 True = 已安排移交，调用方应当**立即 sys.exit(0)**（PID 锁要留给 launchd 拉起的新实例）。
+    """
+    now = time.time()
+    try:
+        if os.path.exists(HANDOVER_STAMP) and now - os.path.getmtime(HANDOVER_STAMP) < 15:
+            _debug_log("handover: recent attempt seen -> keep running unsupervised")
+            return False
+    except Exception:
+        pass
+
+    try:
+        if not load_notify_settings().get("auto_start", True):
+            return False        # 用户关掉了开机自启：别偷偷把 plist 写回去
+    except Exception:
+        pass
+
+    if _launchd_job_pid() == os.getpid():
+        return False            # 自己就是托管的那个 → 什么也别动
+
+    desired = _desired_launch_agent()
+    try:
+        os.makedirs(LAUNCH_AGENT_DIR, exist_ok=True)
+        with open(LAUNCH_AGENT_PATH, "wb") as f:
+            plistlib.dump(desired, f)
+    except Exception as e:
+        _debug_log(f"handover: write plist failed: {e}")
+        return False
+
+    try:
+        with open(HANDOVER_STAMP, "w") as f:
+            f.write(str(now))
+    except Exception:
+        pass
+
+    # 延迟 bootstrap：给本进程留出退场时间，避免与 launchd 新拉起的实例争 PID 锁
+    try:
+        subprocess.Popen(
+            ["/bin/sh", "-c",
+             f'sleep 2; launchctl bootstrap "gui/{os.getuid()}" "{LAUNCH_AGENT_PATH}"'],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True
+        )
+    except Exception as e:
+        _debug_log(f"handover: schedule bootstrap failed: {e}")
+
+    global _PID_LOCK_RETAIN
+    _PID_LOCK_RETAIN = True     # pid 文件留给随后被 launchd 拉起的新实例（它会自己判定 pid 已失效）
+    _debug_log("handover: handed over to launchd, exiting")
+    return True
+
+
+_PID_LOCK_RETAIN = False                                            # True = 退出时不删 pid 文件（移交场景）
+HANDOVER_STAMP = os.path.expanduser("~/.ev_launch_handover.stamp")  # 防移交失败的无限重试
 
 
 def load_notify_settings():
@@ -7387,6 +7482,11 @@ def _acquire_pid_lock():
 
 
 def _release_pid_lock():
+    global _PID_LOCK_RETAIN
+    if _PID_LOCK_RETAIN:
+        # 移交场景：pid 文件要留给 launchd 即将拉起的新实例，不能删
+        # （新实例判定其中的 PID 已失效后会自己接管）
+        return
     try:
         if os.path.exists(PID_FILE):
             os.unlink(PID_FILE)
@@ -7400,10 +7500,26 @@ if __name__ == "__main__":
         load_env()
         sys.exit(0 if _rewind_cursor_cli(sys.argv[1].split("=", 1)[1]) else 1)
     if not _acquire_pid_lock():
+        # 双击 App / 又跑一遍脚本最常见的死法：静默退出，用户以为"没启动成功"
+        try:
+            notify_macos("Ev Notifier 已在运行", "没有重复启动",
+                         "菜单栏 📦 Ev → 打开面板", sound=False)
+        except Exception:
+            pass
         sys.exit(0)
     atexit.register(_release_pid_lock)
     atexit.register(lambda: _voice_queue.put(None))
     atexit.register(lambda: _mark_clean_exit("atexit"))   # 崩溃(trap)不会走到这里 → 用于区分异常终止
+    # 双击 App / 手动跑脚本时，把自己换成「被 launchd 托管的那一个」再退场
+    # （详见 handover_to_launchd 注释）。被 launchd 自己拉起时这里直接跳过。
+    try:
+        if handover_to_launchd():
+            sys.exit(0)
+    except Exception as e:
+        try:
+            _debug_log(f"handover_to_launchd error: {e}")
+        except Exception:
+            pass
     load_env()
     _install_signal_flush()   # SIGTERM 不走 atexit，必须单独挂（否则退出时丢最后 2 秒消息）
     main()

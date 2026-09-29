@@ -45,24 +45,35 @@ KV_REST_API_TOKEN=your-token-here
 
 > 这两项在 Vercel 项目 Settings → Environment Variables 里可以找到。
 
-### 3. 构建桌面 App
+### 3. 构建 + 安装桌面 App
 
 ```bash
-bash tools/ev-notifier/build_app.sh
+bash tools/ev-notifier/build_app.sh            # 只构建 → tools/ev-notifier/EvNotifier.app
+bash tools/ev-notifier/build_app.sh --install  # 构建并安装到 /Applications/EvNotifier.app
 ```
 
-生成 `tools/ev-notifier/EvNotifier.app`。
+`EvNotifier.app` 是**正规 bundle 结构 + 自带 venv**（约 66MB，依赖装在 bundle 里，不污染全局 Python）：
+
+```
+EvNotifier.app/Contents/
+  Info.plist            LSUIElement=1（不出现在 Dock/启动台切换器）、版本号取自 version.json
+  MacOS/EvNotifier      启动器：相对 $0 解析路径，用 venv 里的 python 跑主脚本
+  Resources/venv/       bundle 自带虚拟环境（重复构建会缓存复用）
+  Resources/ev_notifier.py / version.json / EvNotifier.icns
+```
+
+> ⚠️ **改完代码要重新 `./build_app.sh --install`**（bundle 里是拷贝，不是软链），
+> 装完用 `launchctl kickstart -k "gui/$(id -u)/com.evnotifier.agent"` 重启客户端生效。
 
 ### 4. 双击启动
 
-在 Finder 中找到 `EvNotifier.app`，双击即可启动。
+打开 `/Applications/EvNotifier.app`（或启动台）即可。菜单栏出现 `📦 Ev` 图标，Dock 不显示图标。
 
-菜单栏出现 `📦 Ev` 图标，Dock 栏不会显示任何图标。
-
-> 也可以拖入 `/Applications/` 文件夹，像普通 App 一样从启动台打开：
-> ```bash
-> cp -r tools/ev-notifier/EvNotifier.app /Applications/
-> ```
+**启动路径自动移交**（v2.3.44+）：不管你是双击 App、还是在终端跑仓库脚本，
+进程起来后都会检查「正在跑的是不是 launchd 托管的那一个」——如果不是，它会把
+`com.evnotifier.agent.plist` 改指向当前的 `sys.executable` + 脚本路径，
+**延迟 2 秒 bootstrap 然后自己退场**，由 launchd 按新路径重新拉起，最终只有一个受托管实例。
+（绝不会在自己还活着的时候 bootstrap，否则会和 launchd 新拉起的实例抢 PID 锁 → 秒退秒起死循环。）
 
 ### 退出
 

@@ -1,61 +1,107 @@
 #!/bin/bash
-# 构建 EvNotifier.app 桌面应用
-# 运行后生成 EvNotifier.app，双击即可启动，不显示在 Dock 栏
-# 每次构建自动将版本号第三位 +1
+# 构建「自包含 venv」版 EvNotifier.app（正规 macOS bundle 结构）
+#
+# 用法：
+#   ./build_app.sh              → 构建到 tools/ev-notifier/EvNotifier.app
+#   ./build_app.sh --install    → 构建后安装到 /Applications/EvNotifier.app
+#
+# 为什么用 venv 而不是 PyInstaller：本机自用不需要公证/开发者账号，
+# venv 方案体积约 30MB、调试所见即所得；缺点依赖 Homebrew Python（升级大版本需重建）。
+#
+# ⚠️ 禁止 rm -rf：清旧产物一律 mv 到 /tmp/trash/
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-
-# ---- Auto-increment version (third digit +1) ----
-PY_FILE="$SCRIPT_DIR/ev_notifier.py"
-CURRENT_VER=$(grep -E '^VERSION\s*=' "$PY_FILE" | head -1 | sed 's/.*"v\(.*\)"/\1/')
-if [[ "$CURRENT_VER" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-    MAJOR="${BASH_REMATCH[1]}"
-    MINOR="${BASH_REMATCH[2]}"
-    PATCH="${BASH_REMATCH[3]}"
-    NEW_PATCH=$((PATCH + 1))
-    NEW_VER="v${MAJOR}.${MINOR}.${NEW_PATCH}"
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' "s/^VERSION = \"v${MAJOR}\.${MINOR}\.${PATCH}\"/VERSION = \"${NEW_VER}\"/" "$PY_FILE"
-    else
-        sed -i "s/^VERSION = \"v${MAJOR}\.${MINOR}\.${PATCH}\"/VERSION = \"${NEW_VER}\"/" "$PY_FILE"
-    fi
-    echo "  版本号: ${CURRENT_VER} → ${NEW_VER}"
-else
-    echo "  ⚠️  无法解析版本号: ${CURRENT_VER}"
-fi
-
 APP_NAME="EvNotifier"
 APP_DIR="$SCRIPT_DIR/$APP_NAME.app"
-CONTENTS_DIR="$APP_DIR/Contents"
-MACOS_DIR="$CONTENTS_DIR/MacOS"
-RESOURCES_DIR="$CONTENTS_DIR/Resources"
+CONTENTS="$APP_DIR/Contents"
+MACOS="$CONTENTS/MacOS"
+RES="$CONTENTS/Resources"
+VENV="$RES/venv"
 
-rm -rf "$APP_DIR"
-mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
+# 基础解释器：优先 Homebrew Python 3.14（与现有 LaunchAgent 同版本），缺失则退回 python3
+BASE_PY=""
+for cand in /opt/homebrew/opt/python@3.14/bin/python3.14 /opt/homebrew/bin/python3 /usr/bin/python3; do
+  [ -x "$cand" ] && BASE_PY="$cand" && break
+done
+if [ -z "$BASE_PY" ]; then
+  echo "❌ 找不到可用的 python3" >&2
+  exit 1
+fi
 
-# Info.plist - LSUIElement=true 隐藏 Dock 图标
-cat > "$CONTENTS_DIR/Info.plist" << 'PLIST'
+VER=$("$BASE_PY" -c "import json;print(json.load(open('$SCRIPT_DIR/version.json'))['version'])")
+echo "▶ EvNotifier $VER（base python: $BASE_PY）"
+
+# ---- 1. bundle 骨架（旧产物的 venv 先暂存到缓存里复用，避免每次重装依赖）----
+mkdir -p /tmp/trash 2>/dev/null || true
+VENV_CACHE=/tmp/evnotifier-venv-cache
+if [ -d "$APP_DIR" ]; then
+  if [ -x "$APP_DIR/Contents/Resources/venv/bin/python" ]; then
+    [ -d "$VENV_CACHE" ] && mv "$VENV_CACHE" "/tmp/trash/evnotifier-venv-cache.$(date +%s)"
+    mv "$APP_DIR/Contents/Resources/venv" "$VENV_CACHE"
+  fi
+  mv "$APP_DIR" "/tmp/trash/EvNotifier.app.$(date +%s)"
+fi
+mkdir -p "$MACOS" "$RES"
+if [ -d "$VENV_CACHE" ] && [ ! -d "$VENV" ]; then
+  mv "$VENV_CACHE" "$VENV"
+fi
+
+# ---- 2. bundle 自带 venv（已存在则复用，加快重复构建）----
+if [ ! -x "$VENV/bin/python" ]; then
+  echo "▶ 创建 venv ..."
+  "$BASE_PY" -m venv "$VENV"
+fi
+PY="$VENV/bin/python"
+"$PY" -m pip install -q -U pip wheel
+echo "▶ 安装依赖 ..."
+"$PY" -m pip install -q -r "$SCRIPT_DIR/requirements.txt"
+
+# ---- 3. 源码与资源 ----
+cp "$SCRIPT_DIR/ev_notifier.py" "$RES/ev_notifier.py"
+cp "$SCRIPT_DIR/version.json" "$RES/version.json"
+if [ -f "$SCRIPT_DIR/EvNotifier.icns" ]; then
+  cp "$SCRIPT_DIR/EvNotifier.icns" "$RES/EvNotifier.icns"
+fi
+[ -f "$SCRIPT_DIR/README.md" ] && cp "$SCRIPT_DIR/README.md" "$RES/README.md"
+
+# ---- 4. 启动器（相对自身路径解析，拷到任何位置都能跑）----
+cat > "$MACOS/EvNotifier" << 'EOF'
+#!/bin/sh
+# EvNotifier 启动器：用 bundle 自带 venv 运行 Resources 里的主脚本。
+# ⚠️ 必须相对 $0 解析路径：App 被拷到 /Applications 后绝对路径会变。
+DIR="$(cd "$(dirname "$0")/.." && pwd)"
+RES="$DIR/Resources"
+exec "$RES/venv/bin/python" -u "$RES/ev_notifier.py"
+EOF
+chmod +x "$MACOS/EvNotifier"
+
+# ---- 5. Info.plist ----
+cat > "$CONTENTS/Info.plist" << PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
   <key>CFBundleName</key>
-  <string>EvNotifier</string>
+  <string>$APP_NAME</string>
   <key>CFBundleDisplayName</key>
   <string>Ev 通知器</string>
   <key>CFBundleIdentifier</key>
-  <string>com.ev.notifier</string>
+  <string>com.evnotifier.app</string>
   <key>CFBundleVersion</key>
-  <string>1.0</string>
+  <string>$VER</string>
   <key>CFBundleShortVersionString</key>
-  <string>1.0</string>
+  <string>$VER</string>
   <key>CFBundleExecutable</key>
-  <string>EvNotifier</string>
+  <string>$APP_NAME</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
+  <key>CFBundleIconFile</key>
+  <string>$APP_NAME</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>11.0</string>
   <key>LSUIElement</key>
   <true/>
   <key>NSUIElement</key>
@@ -64,73 +110,21 @@ cat > "$CONTENTS_DIR/Info.plist" << 'PLIST'
 </plist>
 PLIST
 
-# 编译 Swift 原生启动器（隐藏 Dock 图标最可靠的方式）
-echo "  编译启动器..."
-swiftc -o "$MACOS_DIR/EvNotifier" "$SCRIPT_DIR/launcher.swift" 2>&1
+# ---- 6. ad-hoc 签名（避免 Gatekeeper 报「已损坏」）----
+codesign --force --deep --sign - "$APP_DIR" 2>/dev/null || echo "  ⚠️ 签名失败（不影响本机运行）"
 
-# 复制 ev_notifier.py 到 app bundle 内
-cp "$SCRIPT_DIR/ev_notifier.py" "$APP_DIR/ev_notifier.py"
+SIZE=$(du -sh "$APP_DIR" | awk '{print $1}')
+echo "✅ 构建完成: $APP_DIR （$SIZE）"
 
-# 应用图标：优先使用已有的 EvNotifier.icns，否则自动生成
-if [ -f "$SCRIPT_DIR/EvNotifier.icns" ]; then
-  echo "  使用已有图标: $SCRIPT_DIR/EvNotifier.icns"
-  cp "$SCRIPT_DIR/EvNotifier.icns" "$RESOURCES_DIR/EvNotifier.icns"
-else
-  echo "  生成图标..."
-  ICONSET_DIR="/tmp/ev_icon.iconset"
-  rm -rf "$ICONSET_DIR"
-  mkdir -p "$ICONSET_DIR"
-
-  python3 -c "
-import struct, zlib, os
-w, h = 1024, 1024
-raw = b''
-for y in range(h):
-    raw += b'\x00'
-    for x in range(w):
-        cx, cy = w//2, h//2
-        d = ((x-cx)**2 + (y-cy)**2) ** 0.5
-        r = 440
-        if d < r - 10:
-            raw += struct.pack('BBBB', 30, 64, 175, 255)
-        elif d < r:
-            a = max(0, min(255, int(255 * (r - d) / 10)))
-            raw += struct.pack('BBBB', 30, 64, 175, a)
-        else:
-            raw += struct.pack('BBBB', 0, 0, 0, 0)
-def chunk(ctype, data):
-    c = ctype + data
-    return struct.pack('>I', len(data)) + c + struct.pack('>I', zlib.crc32(c) & 0xffffffff)
-ihdr = struct.pack('>IIBBBBB', w, h, 8, 6, 0, 0, 0)
-png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', ihdr) + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b'')
-with open('/tmp/ev_icon_1024.png', 'wb') as f:
-    f.write(png)
-"
-  for size in 16 32 128 256 512; do
-    sips -z $size $size /tmp/ev_icon_1024.png --out "$ICONSET_DIR/icon_${size}x${size}.png" 2>/dev/null
-    sips -z $((size*2)) $((size*2)) /tmp/ev_icon_1024.png --out "$ICONSET_DIR/icon_${size}x${size}@2x.png" 2>/dev/null
-  done
-  iconutil -c icns "$ICONSET_DIR" -o "$RESOURCES_DIR/EvNotifier.icns" 2>/dev/null
-  cp "$RESOURCES_DIR/EvNotifier.icns" "$SCRIPT_DIR/EvNotifier.icns"
-  rm -rf "$ICONSET_DIR" /tmp/ev_icon_1024.png
+# ---- 7. 可选：安装到 /Applications ----
+if [ "$1" = "--install" ]; then
+  DEST="/Applications/$APP_NAME.app"
+  if [ -d "$DEST" ]; then
+    mv "$DEST" "/tmp/trash/EvNotifier.app.install.$(date +%s)"
+  fi
+  cp -R "$APP_DIR" "$DEST"
+  xattr -dr com.apple.quarantine "$DEST" 2>/dev/null || true
+  codesign --force --deep --sign - "$DEST" 2>/dev/null || true
+  touch "$DEST"
+  echo "✅ 已安装: $DEST"
 fi
-
-chmod +x "$MACOS_DIR/EvNotifier"
-
-echo "✅ 构建完成: $APP_DIR"
-
-# 复制到桌面
-DESKTOP_APP="$HOME/Desktop/$APP_NAME.app"
-rm -rf "$DESKTOP_APP"
-cp -r "$APP_DIR" "$DESKTOP_APP"
-echo "✅ 已复制到桌面: $DESKTOP_APP"
-
-# 刷新 Finder 让图标更新
-touch "$DESKTOP_APP"
-osascript -e 'tell application "Finder" to update item (POSIX file "'"$DESKTOP_APP"'" as alias)' 2>/dev/null || true
-
-echo ""
-echo "用法:"
-echo "  双击桌面上的 $APP_NAME.app 即可启动"
-echo "  或拖入 应用程序 文件夹方便日常使用:"
-echo "  cp -r \"$APP_DIR\" /Applications/"
