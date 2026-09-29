@@ -19,6 +19,7 @@
 
 var redis = require("../lib/redis");
 var deviceToken = require("../lib/device-token");
+var messageDelivery = require("../lib/message-delivery");
 var { requireAuth } = require("../lib/auth");
 
 var CHALLENGE_TTL = 600;            // 10 分钟
@@ -235,6 +236,62 @@ async function handleDeviceMe(req, res) {
   });
 }
 
+/**
+ * 设备拉取通知流（Ev Ops 安卓端 0.2.0 起：鉴权中转，替代共享 redis 凭据直连）。
+ *
+ * 认证 = x-ev-device-token 头（与 device-me 相同）。消息源 = Postgres message_delivery 表
+ * （与 Mac 端离线补拉同源），单调自增 id 做游标（seq）。
+ *
+ * 用法：
+ *   GET ?action=messages                 → 不带 since：只回当前水位线 max_seq（新设备首次
+ *                                          同步从「现在」开始，不回放历史，避免通知洪水）
+ *   GET ?action=messages&since=<seq>     → 增量：id > since 的消息（默认上限 100 条/次）。
+ *                                          离线多久都能补齐（受 336h 保留期上界约束），
+ *                                          顺带解决 pub/sub 不回放的离线漏消息老问题。
+ *
+ * 返回的每条消息 = { seq, message_id, type, ts, payload }，与 redis PUB/SUB 的
+ * { type, ts, seq, payload } 信封同构，客户端处理逻辑可完全复用。
+ */
+async function handleMessages(req, res) {
+  var tok = String((req.headers && (req.headers["x-ev-device-token"] || req.headers["X-Ev-Device-Token"])) || "");
+  if (!tok) {
+    return json(res, 401, { success: false, error: "Missing x-ev-device-token" });
+  }
+  var row = await deviceToken.verifyDeviceToken(tok, clientIp(req));
+  if (!row) {
+    return json(res, 401, { success: false, error: "Invalid or revoked device token" });
+  }
+
+  var q = (req.query || {});
+  if (q.since === undefined || String(q.since) === "") {
+    var watermark = await messageDelivery.getMaxSeq();
+    return json(res, 200, { success: true, messages: [], max_seq: watermark });
+  }
+
+  var since = parseInt(q.since, 10) || 0;
+  var limit = parseInt(q.limit, 10) || 100;
+  if (limit > 200) limit = 200;
+  var rows = await messageDelivery.getSince(since, limit);
+  var messages = [];
+  var maxSeq = since;
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    var payload = r.payload;
+    try { if (typeof payload === "string") payload = JSON.parse(payload); } catch (e) { /* 保持原样 */ }
+    var seq = parseInt(r.seq, 10) || 0;
+    if (seq > maxSeq) maxSeq = seq;
+    var ts = Math.floor(new Date(r.created_at).getTime() / 1000) || 0;
+    messages.push({
+      seq: seq,
+      message_id: r.message_id,
+      type: r.message_type,
+      ts: ts,
+      payload: payload || {},
+    });
+  }
+  return json(res, 200, { success: true, messages: messages, max_seq: maxSeq });
+}
+
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   var action = (req.query && req.query.action) || "";
@@ -259,6 +316,9 @@ module.exports = async (req, res) => {
       case "device-me":
         if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
         return await handleDeviceMe(req, res);
+      case "messages":
+        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
+        return await handleMessages(req, res);
       default:
         return json(res, 400, { success: false, error: "Unknown action" });
     }
