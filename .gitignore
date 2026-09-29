@@ -25,3 +25,5 @@ Desktop.ini
 
 # CodeBuddy 本地记忆与工作区数据（IDE 产生，不入库）
 .codebuddy/
+# EvNotifier 可分发构建产物（dmg / portable app）
+tools/ev-notifier/dist/
