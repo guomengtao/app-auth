@@ -594,21 +594,20 @@ def _launchd_job_pid():
     ⚠️ 不能用 `os.getppid() == 1` 判断"自己是不是被 launchd 拉起的"：
     通过 Finder/ LaunchServices 双击启动的进程，父进程**同样是 1**，判定会直接翻车。
     """
+    # ⚠️ 必须是 **不带参数的** `launchctl list`（输出 "PID\tStatus\tLabel" 行）。
+    #    带 label 的形式（`launchctl list com.evnotifier.agent`）打印的是 plist 字典，没有 PID。
     try:
-        r = subprocess.run(["launchctl", "list", LAUNCH_AGENT_LABEL],
-                           capture_output=True, timeout=3)
+        r = subprocess.run(["launchctl", "list"], capture_output=True, timeout=3)
         for line in (r.stdout or b"").decode("utf-8", "ignore").splitlines():
             parts = line.split("\t")
+            if len(parts) < 3:
+                parts = line.split()
             if len(parts) >= 3 and parts[2].strip() == LAUNCH_AGENT_LABEL:
-                pid = int(parts[0].strip())
-                return pid if pid > 0 else None
-            parts_col = line.split()
-            if len(parts_col) >= 3 and parts_col[-1] == LAUNCH_AGENT_LABEL:
                 try:
-                    pid = int(parts_col[0])
-                    return pid if pid > 0 else None
+                    pid = int(parts[0].strip())
                 except ValueError:
                     return None
+                return pid if pid > 0 else None
     except Exception:
         pass
     return None
@@ -2060,6 +2059,15 @@ def do_recovery_poll(last_id):
 
 
 def notify_macos(title, subtitle, body, sound=False):
+    # ── 安卓桥接：同一通知实时推送到手机（失败绝不影响 Mac 通知）──
+    try:
+        from android_bridge import forward_to_android
+        forward_to_android(title, subtitle, body, sound=sound)
+    except Exception as _ae:
+        try:
+            _debug_log(f"android forward skipped: {_ae}")
+        except Exception:
+            pass
     try:
         msg = f"{subtitle}\n{body}" if body else subtitle
         terminal_notifier = shutil.which("terminal-notifier")

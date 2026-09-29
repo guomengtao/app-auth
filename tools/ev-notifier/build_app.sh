@@ -4,9 +4,13 @@
 # 用法：
 #   ./build_app.sh              → 构建到 tools/ev-notifier/EvNotifier.app
 #   ./build_app.sh --install    → 构建后安装到 /Applications/EvNotifier.app
+#   ./build_app.sh --sync       → 已安装过的日常最快路径：只把源码推进 bundle 并重启客户端（秒级）
+#   ./build_app.sh --link       → 把 bundle 里的脚本换成指向仓库的软链（改代码连 --sync 都不用，只需重启）
+#
+# 什么时候才需要完整 --install：依赖变了（requirements.txt）或 bundle 结构/图标/版本变了。
 #
 # 为什么用 venv 而不是 PyInstaller：本机自用不需要公证/开发者账号，
-# venv 方案体积约 30MB、调试所见即所得；缺点依赖 Homebrew Python（升级大版本需重建）。
+# venv 方案体积约 66MB、调试所见即所得；缺点依赖 Homebrew Python（升级大版本需重建）。
 #
 # ⚠️ 禁止 rm -rf：清旧产物一律 mv 到 /tmp/trash/
 
@@ -19,6 +23,50 @@ CONTENTS="$APP_DIR/Contents"
 MACOS="$CONTENTS/MacOS"
 RES="$CONTENTS/Resources"
 VENV="$RES/venv"
+DEST="/Applications/$APP_NAME.app"
+GUI="gui/$(id -u)"
+LABEL="com.evnotifier.agent"
+
+# ---- 快路径：日常改代码用（跳过 venv 重建）----
+if [ "$1" = "--sync" ] || [ "$1" = "--link" ]; then
+  if [ ! -d "$DEST" ]; then
+    echo "❌ 还没安装：$DEST（先跑 ./build_app.sh --install）" >&2
+    exit 1
+  fi
+  DRES="$DEST/Contents/Resources"
+  if [ "$1" = "--link" ]; then
+    # 软链模式：bundle 直接指向仓库源文件，改代码后**只需重启**，连同步都省了
+    if [ -f "$DRES/ev_notifier.py" ] && [ ! -L "$DRES/ev_notifier.py" ]; then
+      mkdir -p /tmp/trash
+      mv "$DRES/ev_notifier.py" "/tmp/trash/ev_notifier.bundle-copy.$(date +%s)"
+    fi
+    ln -sf "$SCRIPT_DIR/ev_notifier.py" "$DRES/ev_notifier.py"
+    ln -sf "$SCRIPT_DIR/version.json" "$DRES/version.json"
+    echo "✅ bundle 脚本已改为软链 → 仓库源文件（仓库挪走会让 App 失效，介意别用）"
+  elif [ -L "$DRES/ev_notifier.py" ]; then
+    echo "  软链模式：bundle 读的就是仓库源文件，无需同步"
+  else
+    cp "$SCRIPT_DIR/ev_notifier.py" "$DRES/ev_notifier.py"
+    cp "$SCRIPT_DIR/version.json" "$DRES/version.json"
+    echo "  源码已同步进 bundle"
+  fi
+
+  # 让新代码生效：job 已注册就重启/启动，没注册就 bootstrap
+  # ⚠️ 判 PID 必须用不带参数的 `launchctl list`（带 label 打印的是 plist 字典，没有 PID）
+  CUR=$(launchctl list | awk -v l="$LABEL" '$3==l{print $1}' | head -1)
+  if [ -n "$CUR" ]; then
+    launchctl kickstart -k "$GUI/$LABEL" && echo "  ✅ 客户端已重启（PID $CUR → 新进程）"
+  elif launchctl print "$GUI/$LABEL" >/dev/null 2>&1; then
+    launchctl kickstart "$GUI/$LABEL" && echo "  ✅ job 已注册但没在跑，已启动"
+  else
+    launchctl bootstrap "$GUI" "$HOME/Library/LaunchAgents/$LABEL.plist" \
+      && echo "  ✅ job 未注册，已 bootstrap" \
+      || echo "  ⚠️ bootstrap 失败：双击 /Applications/EvNotifier.app 启动一次即可"
+  fi
+  sleep 2
+  tail -3 "$HOME/.ev_debug.log"
+  exit 0
+fi
 
 # 基础解释器：优先 Homebrew Python 3.14（与现有 LaunchAgent 同版本），缺失则退回 python3
 BASE_PY=""

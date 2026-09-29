@@ -50,6 +50,8 @@ KV_REST_API_TOKEN=your-token-here
 ```bash
 bash tools/ev-notifier/build_app.sh            # 只构建 → tools/ev-notifier/EvNotifier.app
 bash tools/ev-notifier/build_app.sh --install  # 构建并安装到 /Applications/EvNotifier.app
+bash tools/ev-notifier/build_app.sh --sync     # 日常改代码：同步源码 + 重启客户端（约 2 秒）
+bash tools/ev-notifier/build_app.sh --link     # bundle 脚本改软链到仓库：改代码连同步都不用
 ```
 
 `EvNotifier.app` 是**正规 bundle 结构 + 自带 venv**（约 66MB，依赖装在 bundle 里，不污染全局 Python）：
@@ -62,8 +64,11 @@ EvNotifier.app/Contents/
   Resources/ev_notifier.py / version.json / EvNotifier.icns
 ```
 
-> ⚠️ **改完代码要重新 `./build_app.sh --install`**（bundle 里是拷贝，不是软链），
-> 装完用 `launchctl kickstart -k "gui/$(id -u)/com.evnotifier.agent"` 重启客户端生效。
+> **日常迭代只需一步**：`./build_app.sh --sync`（拷贝源码进 bundle + `kickstart -k` 重启，约 2 秒）。
+> 想要更快可以 `./build_app.sh --link`：bundle 里的脚本变成指向仓库文件的软链，
+> 之后改代码只要重启客户端即可（代价：仓库被挪走/删掉 App 就废了）。
+>
+> ⚠️ 只有**依赖变了**（改 `requirements.txt`）或 bundle 结构/图标/版本号变了，才需要重新 `--install`。
 
 ### 4. 双击启动
 
