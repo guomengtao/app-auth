@@ -44,6 +44,25 @@ EvNotifier.app/Contents/
 | **改功能 / 修 bug**（日常 99%） | `./build_app.sh --sync` | ~2 秒 | 拷贝源码进 bundle → `launchctl kickstart -k` 重启客户端 → 打印最新日志 |
 | 想连这一步都省 | `./build_app.sh --link`（设置一次即可） | 0 | bundle 脚本改为软链到仓库源文件，之后改完只需重启客户端 |
 | 依赖/图标/版本变了 | `./build_app.sh --install` | ~40 秒 | 完整重建 bundle 并安装到 `/Applications`（venv 有缓存复用） |
+| **给别人装 / 换机** | `./build_app.sh --dmg` | ~10 秒 | 产出 `dist/EvNotifier-v{版本}-macos-arm64.dmg`（自持 Python，对方拖 Applications 即用） |
+| 只出 portable App 不打 dmg | `./build_app.sh --portable` | ~8 秒 | 产出 `dist/EvNotifier.app`（可直接整个拷走） |
+
+### 可分发版（portable / dmg）说明（v2.3.46）
+
+- 运行时用的是 **python-build-standalone（uv 托管的 CPython 3.12）**，官方设计为可重定位：
+  已实测「拷走 + 隐藏原始路径」仍能正常 import ssl/sqlite。**不能用 Homebrew Python** ——
+  其 `_ssl/_hashlib/_decimal` 依赖 openssl / mpdecimal 等外部 dylib（`otool -L` 可证）。
+- 依赖装进运行时自己的 `lib/python3.12/site-packages`（缓存于 `/tmp/evnotifier-portable-runtime`，
+  `requirements.txt` mtime 变化才重装）。uv 运行时带 PEP 668 标记，缓存副本里已删 `EXTERNALLY-MANAGED`。
+- 运行时放在 `Contents/Resources/python/` 而**不是** `Frameworks/`：
+  codesign 会把 `Frameworks/*` 当嵌套代码扫描，python 目录不是合法 bundle 结构 → 签名报错；
+  Resources 只做哈希密封，`codesign --verify --deep --strict` 全绿。
+- **换机安装**：dmg 双击 → 拖 EvNotifier.app 到 Applications → 打开（Gatekeeper 未公证，
+  首次需右键→打开，或 `xattr -dr com.apple.quarantine /Applications/EvNotifier.app`）→
+  写 `~/.ev-notifier.env`（KV_REST_API_URL / KV_REST_API_TOKEN）→ 首次面板登录（Keychain 存 token）。
+- ⚠️ **从 dmg 挂载卷里直接跑不会移交 LaunchAgent**（`handover_to_launchd()` 对 `/Volumes/` 路径直接跳过），
+  必须先拖进 Applications 再启动，否则重启后卷弹出 App 就没了。
+- ⚠️ **PUB/SUB 是广播**：多台机器同时在线，同一条推送会两边都弹窗+语音。要么别同时开，要么做消息定向过滤。
 
 > ⚠️ bundle 里默认是**拷贝**不是软链 —— 改了仓库源码后不 `--sync`（或不 `--link`），App 跑的还是旧代码。
 > ⚠️ `--link` 的代价：仓库被挪走或删掉，App 直接打不开。介意就用默认的拷贝模式。

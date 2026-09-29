@@ -52,6 +52,7 @@ bash tools/ev-notifier/build_app.sh            # 只构建 → tools/ev-notifier
 bash tools/ev-notifier/build_app.sh --install  # 构建并安装到 /Applications/EvNotifier.app
 bash tools/ev-notifier/build_app.sh --sync     # 日常改代码：同步源码 + 重启客户端（约 2 秒）
 bash tools/ev-notifier/build_app.sh --link     # bundle 脚本改软链到仓库：改代码连同步都不用
+bash tools/ev-notifier/build_app.sh --dmg      # 出可分发安装镜像 dist/EvNotifier-v{版本}-macos-arm64.dmg
 ```
 
 `EvNotifier.app` 是**正规 bundle 结构 + 自带 venv**（约 66MB，依赖装在 bundle 里，不污染全局 Python）：

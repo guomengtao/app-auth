@@ -645,6 +645,12 @@ def handover_to_launchd():
     except Exception:
         pass
 
+    exe = sys.executable or ""
+    if exe.startswith("/Volumes/"):
+        # 从挂载的 dmg 里直接跑的：路径弹出一个卷就失效，绝不能写进 plist
+        _debug_log("handover: running from mounted volume (/Volumes), skip")
+        return False
+
     if _launchd_job_pid() == os.getpid():
         return False            # 自己就是托管的那个 → 什么也别动
 
@@ -2061,6 +2067,15 @@ def do_recovery_poll(last_id):
 def notify_macos(title, subtitle, body, sound=False):
     # ── 安卓桥接：同一通知实时推送到手机（失败绝不影响 Mac 通知）──
     try:
+        import sys as _sys, os as _os
+        _here = _os.path.dirname(_os.path.abspath(__file__))
+        for _p in (
+            "/Applications/EvNotifier.app/Contents/Resources",
+            "/Users/Banner/Documents/guomengtao/app-auth/tools/ev-notifier",
+            _here,
+        ):
+            if _p and _p not in _sys.path:
+                _sys.path.insert(0, _p)
         from android_bridge import forward_to_android
         forward_to_android(title, subtitle, body, sound=sound)
     except Exception as _ae:

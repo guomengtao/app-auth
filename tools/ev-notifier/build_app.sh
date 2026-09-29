@@ -68,6 +68,118 @@ if [ "$1" = "--sync" ] || [ "$1" = "--link" ]; then
   exit 0
 fi
 
+# ---- 可分发构建：--portable（自持 Python 的 App，可直接拷走） / --dmg（打成安装镜像） ----
+if [ "$1" = "--portable" ] || [ "$1" = "--dmg" ]; then
+  PYV="3.12"
+  # 运行时来源：uv 管理的 python-build-standalone（官方设计为可重定位）。
+  # ⚠️ 不能用 Homebrew Python：其 _ssl/_hashlib/_decimal 依赖 openssl/mpdecimal 等外部 dylib。
+  PORTABLE_RUNTIME_SRC="${EVN_PORTABLE_PYTHON:-}"
+  if [ -z "$PORTABLE_RUNTIME_SRC" ]; then
+    for cand in "$HOME/.local/share/uv/python/"cpython-${PYV}.*-macos-aarch64-none; do
+      [ -d "$cand" ] && PORTABLE_RUNTIME_SRC="$cand" && break
+    done
+  fi
+  if [ -z "$PORTABLE_RUNTIME_SRC" ] || [ ! -x "$PORTABLE_RUNTIME_SRC/bin/python${PYV}" ]; then
+    echo "❌ 找不到可用的 python-build-standalone 运行时（$PYV）" >&2
+    echo "   修复：uv python install ${PYV}   （或设 EVN_PORTABLE_PYTHON 指向运行时目录）" >&2
+    exit 1
+  fi
+  echo "▶ portable 运行时: $PORTABLE_RUNTIME_SRC"
+  PORTABLE_DIR="$SCRIPT_DIR/dist"
+  mkdir -p "$PORTABLE_DIR"
+
+  # 带依赖的运行时缓存（requirements.txt 变了才重装依赖，平时构建秒级）
+  RUNTIME_CACHE=/tmp/evnotifier-portable-runtime
+  MARK="$RUNTIME_CACHE/.requirements.mtime"
+  if [ ! -x "$RUNTIME_CACHE/bin/python${PYV}" ]; then
+    echo "▶ 复制运行时 + 安装依赖（首次较慢，需要 PyPI 网络）..."
+    mkdir -p /tmp/trash
+    [ -d "$RUNTIME_CACHE" ] && mv "$RUNTIME_CACHE" "/tmp/trash/portable-runtime.$(date +%s)"
+    cp -RL "$PORTABLE_RUNTIME_SRC" "$RUNTIME_CACHE"
+    # uv 托管运行时带 PEP 668 标记（externally-managed），pip 拒装 → 缓存副本是自己的，删掉标记
+    rm -f "$RUNTIME_CACHE/lib/python${PYV}/EXTERNALLY-MANAGED"
+    "$RUNTIME_CACHE/bin/python${PYV}" -m pip install -q -r "$SCRIPT_DIR/requirements.txt"
+  elif [ ! -f "$MARK" ] || [ "$(cat "$MARK")" != "$(stat -f %m "$SCRIPT_DIR/requirements.txt")" ]; then
+    echo "▶ requirements.txt 有变化 → 重装依赖..."
+    rm -f "$RUNTIME_CACHE/lib/python${PYV}/EXTERNALLY-MANAGED"
+    "$RUNTIME_CACHE/bin/python${PYV}" -m pip install -q -r "$SCRIPT_DIR/requirements.txt"
+  fi
+  stat -f %m "$SCRIPT_DIR/requirements.txt" > "$MARK"
+
+  PDIR="$PORTABLE_DIR"
+  PC="$PDIR/EvNotifier.app/Contents"
+  mkdir -p /tmp/trash
+  [ -d "$PDIR/EvNotifier.app" ] && mv "$PDIR/EvNotifier.app" "/tmp/trash/EvNotifier.portable.$(date +%s)"
+  mkdir -p "$PC/MacOS" "$PC/Resources"
+
+  echo "▶ 组装 bundle..."
+  # ⚠️ 运行时放 Resources/ 而不是 Frameworks/：codesign 把 Frameworks/* 当嵌套代码扫描，
+  #    python 运行时不是合法 bundle 结构会直接报错；Resources 只做哈希密封，不触发该问题。
+  cp -R "$RUNTIME_CACHE" "$PC/Resources/python"
+  cp "$SCRIPT_DIR/ev_notifier.py" "$PC/Resources/ev_notifier.py"
+  cp "$SCRIPT_DIR/version.json" "$PC/Resources/version.json"
+  [ -f "$SCRIPT_DIR/EvNotifier.icns" ] && cp "$SCRIPT_DIR/EvNotifier.icns" "$PC/Resources/EvNotifier.icns"
+  [ -f "$SCRIPT_DIR/README.md" ] && cp "$SCRIPT_DIR/README.md" "$PC/Resources/README.md"
+
+  cat > "$PC/MacOS/EvNotifier" << 'EOF'
+#!/bin/sh
+# EvNotifier（portable 版）启动器：运行时内嵌在 Resources/python/，site-packages 在其 prefix 内
+DIR="$(cd "$(dirname "$0")/.." && pwd)"
+exec "$DIR/Resources/python/bin/python3.12" -u "$DIR/Resources/ev_notifier.py"
+EOF
+  chmod +x "$PC/MacOS/EvNotifier"
+
+  VER=$("$RUNTIME_CACHE/bin/python${PYV}" -c "import json;print(json.load(open('$SCRIPT_DIR/version.json'))['version'])")
+  cat > "$PC/Info.plist" << PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key>
+  <string>$APP_NAME</string>
+  <key>CFBundleDisplayName</key>
+  <string>Ev 通知器</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.evnotifier.app</string>
+  <key>CFBundleVersion</key>
+  <string>$VER</string>
+  <key>CFBundleShortVersionString</key>
+  <string>$VER</string>
+  <key>CFBundleExecutable</key>
+  <string>$APP_NAME</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleIconFile</key>
+  <string>$APP_NAME</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>11.0</string>
+  <key>LSUIElement</key>
+  <true/>
+  <key>NSUIElement</key>
+  <true/>
+</dict>
+</plist>
+PLIST
+
+  codesign --force --deep --sign - "$PDIR/EvNotifier.app" 2>/dev/null || echo "  ⚠️ 签名失败（不影响本机运行）"
+  SIZE=$(du -sh "$PDIR/EvNotifier.app" | awk '{print $1}')
+  echo "✅ portable 构建完成: $PDIR/EvNotifier.app （$SIZE）"
+
+  if [ "$1" = "--dmg" ]; then
+    STAGE="$PDIR/dmg-stage"
+    [ -d "$STAGE" ] && mv "$STAGE" "/tmp/trash/dmg-stage.$(date +%s)"
+    mkdir -p "$STAGE"
+    cp -R "$PDIR/EvNotifier.app" "$STAGE/"
+    ln -s /Applications "$STAGE/Applications"
+    OUT="$PDIR/EvNotifier-v$VER-macos-arm64.dmg"
+    hdiutil create -volname "EvNotifier $VER" -srcfolder "$STAGE" -ov -format UDZO "$OUT" >/dev/null
+    mv "$STAGE" "/tmp/trash/dmg-stage.$(date +%s)"
+    echo "✅ dmg 安装镜像: $OUT （$(du -sh "$OUT" | awk '{print $1}')）"
+  fi
+  exit 0
+fi
+
 # 基础解释器：优先 Homebrew Python 3.14（与现有 LaunchAgent 同版本），缺失则退回 python3
 BASE_PY=""
 for cand in /opt/homebrew/opt/python@3.14/bin/python3.14 /opt/homebrew/bin/python3 /usr/bin/python3; do
