@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>深链激活测试</title>
+<style>
+  body { font-family: -apple-system, "PingFang SC", sans-serif; margin: 0; padding: 24px 16px;
+         background: #f5f6f7; color: #1a1a1a; text-align: center; }
+  .card { max-width: 420px; margin: 0 auto; background: #fff; border-radius: 16px;
+          padding: 28px 20px; box-shadow: 0 2px 12px rgba(0,0,0,.06); }
+  h1 { font-size: 18px; margin: 0 0 6px; }
+  .sub { font-size: 13px; color: #888; margin-bottom: 22px; }
+  .code { font-size: 44px; font-weight: 700; letter-spacing: 8px; color: #c7254e;
+          background: #faf1f2; border-radius: 12px; padding: 14px 0; margin-bottom: 8px; }
+  .codelabel { font-size: 12px; color: #aaa; margin-bottom: 24px; }
+  .btn { display: block; width: 100%; box-sizing: border-box; padding: 14px 0; border-radius: 10px;
+         background: #07c160; color: #fff; font-size: 16px; font-weight: 600;
+         text-decoration: none; margin-bottom: 12px; }
+  .btn.gray { background: #576b95; }
+  .hint { font-size: 12px; color: #999; line-height: 1.7; text-align: left; margin-top: 18px;
+          border-top: 1px solid #eee; padding-top: 14px; }
+  .wx { display: none; background: #fff7e6; border-radius: 10px; padding: 12px;
+        font-size: 13px; color: #b26b00; margin-bottom: 16px; text-align: left; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>深链激活测试</h1>
+  <div class="sub">点击下方按钮拉起手机 App（scheme 深链验证）</div>
+  <div class="wx">⚠️ 你在微信里打开了本页。微信会拦截 App 跳转，请点右上角「···」→ 选择「在浏览器打开」，再用按钮激活。</div>
+  <div class="code" id="code">------</div>
+  <div class="codelabel">兑换码（拉不起来就手工输入这个）</div>
+  <a class="btn" id="openbtn" href="#">打开 App 快速激活</a>
+  <a class="btn gray" id="copybtn" href="javascript:void(0)">复制兑换码</a>
+  <div class="hint">
+    预期行为：系统浏览器里点按钮 → 弹「是否打开 Ev课程表」→ 确认后进入快速激活页。<br>
+    如果没有任何反应：说明该浏览器拦了 scheme，换个浏览器（华为浏览器 / Chrome）再试。
+  </div>
+</div>
+<script>
+  var q = {};
+  location.search.replace(/^\?/, "").split("&").forEach(function (p) {
+    var i = p.indexOf("=");
+    if (i > 0) q[decodeURIComponent(p.slice(0, i))] = decodeURIComponent(p.slice(i + 1));
+  });
+  var code = (q.code || "").replace(/[^0-9A-Za-z]/g, "").slice(0, 8) || "A1B2";
+  var scheme = (q.scheme || "evsched").replace(/[^a-z]/g, "");
+  // 白名单：只允许项目内两个 scheme，防止本页被当成任意 scheme 跳板
+  if (scheme !== "evsched" && scheme !== "evops") scheme = "evsched";
+  document.getElementById("code").textContent = code;
+  document.getElementById("openbtn").href = scheme + "://activate?code=" + code;
+  if (/MicroMessenger/i.test(navigator.userAgent)) {
+    document.querySelector(".wx").style.display = "block";
+  }
+  document.getElementById("copybtn").onclick = function () {
+    var done = function () { this.textContent = "已复制 ✓"; }.bind(this);
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(code).then(done).catch(function () { prompt("手动复制：", code); });
+    } else { prompt("手动复制：", code); }
+  };
+</script>
+</body>
+</html>
