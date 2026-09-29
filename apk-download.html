@@ -36,9 +36,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei
 .req .ico{flex:none;width:30px;height:30px;border-radius:9px;background:#eef3ff;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--accent)}
 .req .ico svg{width:17px;height:17px}
 [data-lucide]{display:inline-flex;align-items:center;justify-content:center;flex:none;vertical-align:-3px}
-.card h2 .no svg{width:13px;height:13px}
-.note [data-lucide],.wxbanner [data-lucide]{vertical-align:-2px}
-.note [data-lucide] svg,.wxbanner [data-lucide] svg{width:15px;height:15px}
+.lucide{display:inline-flex;align-items:center;justify-content:center;flex:none;vertical-align:-3px}
+.card h2 .no svg{width:12px;height:12px}
+.note .lucide svg,.wxbanner .lucide svg{width:13px;height:13px;vertical-align:-2px}
 .req b{color:var(--ink)}
 .req .tip{color:var(--muted);font-size:.78rem;display:block}
 .lines{margin-top:14px;border-top:1px dashed var(--line);padding-top:12px}
@@ -132,6 +132,8 @@ ol.steps .tip{color:var(--muted);font-size:.78rem;display:block}
       if (!LUCIDE[name]) continue;
       var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       svg.setAttribute('viewBox', '0 0 24 24');
+      svg.setAttribute('width', '16');
+      svg.setAttribute('height', '16');
       svg.setAttribute('fill', 'none');
       svg.setAttribute('stroke', 'currentColor');
       svg.setAttribute('stroke-width', '2');
@@ -139,6 +141,7 @@ ol.steps .tip{color:var(--muted);font-size:.78rem;display:block}
       svg.setAttribute('stroke-linejoin', 'round');
       svg.innerHTML = LUCIDE[name];
       els[i].appendChild(svg);
+      if (els[i].classList) { els[i].classList.add('lucide'); } else { els[i].className += ' lucide'; }
       els[i].removeAttribute('data-lucide');
     }
   })();
