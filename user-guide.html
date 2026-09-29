@@ -214,6 +214,12 @@
       color: #c43c3c;
       border: 1px solid #f5a0a0;
     }
+    .lab-tag.feature {
+      background: linear-gradient(135deg, #e0ecff, #cce0ff);
+      color: #2f5bc4;
+      border: 1px solid #a8c4f5;
+      text-transform: none;
+    }
 
     @media (max-width: 600px) {
       .container { padding: 28px 22px; }
@@ -252,7 +258,7 @@
     <!-- 购买（两种方式共用，永远是步骤 1） -->
     <div class="step" style="border-left-color:#c0c0c0; background:#fafafa;">
       <div class="step-header">
-        <div class="step-num" style="background:#888">1</div>
+        <div class="step-num">1</div>
         <div class="step-title" style="color:#666">购买高级版兑换码</div>
       </div>
       <div class="step-body">
@@ -279,7 +285,13 @@
           <p><a href="/apk-download.html?c=guide" class="link-btn" style="background:#2f6bff;color:#fff;">下载 Ev课程表安卓同步器</a></p>
           <p>打开 App 连接手环（前置：手机已装<strong>小米运动健康</strong>并连上手环）。</p>
           <p>手机打开 Ev课程表（同步器） → <span class="lab-tag settings">设置</span> → <span class="lab-tag premium">高级版</span>，输入上面购买的 <strong>4 位兑换码</strong> → <strong>一键激活</strong>，激活码自动生成并写入手环，完成 ✅</p>
-          <p style="font-size:.8rem;color:#999;margin-top:8px;">中途蓝牙断开也没关系，App 会自动暂存、连上后继续。装了 App 还同步获得：课表导入导出、上课提醒、桌面小组件。</p>
+          <p style="font-size:.8rem;color:#999;margin-top:8px;">中途蓝牙断开也没关系，App 会自动暂存、连上后继续。</p>
+          <div style="margin-top:10px;font-size:.88rem;color:#555;">装了 App 还同步获得：</div>
+          <div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap;">
+            <span class="lab-tag feature">课表导入导出</span>
+            <span class="lab-tag feature">上课提醒</span>
+            <span class="lab-tag feature">桌面小组件</span>
+          </div>
         </div>
       </div>
     </div>
