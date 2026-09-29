@@ -13,9 +13,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei
 /* ---- Hero ---- */
 .hero{background:linear-gradient(135deg,#2f6bff 0%,#6d5bff 100%);border-radius:22px;padding:26px 22px 24px;color:#fff;
       box-shadow:0 10px 30px rgba(47,107,255,.28);margin-bottom:14px;position:relative;overflow:hidden}
-.hero::after{content:"⌚";position:absolute;right:-14px;bottom:-22px;font-size:110px;opacity:.12;transform:rotate(-12deg)}
+.hero .wm{position:absolute;right:-34px;bottom:-46px;width:200px;height:200px;opacity:.14;transform:rotate(-12deg);pointer-events:none}
 .hero .row{display:flex;align-items:center;gap:12px;margin-bottom:6px}
 .hero .appicon{width:52px;height:52px;border-radius:14px;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-size:28px;flex:none;backdrop-filter:blur(4px)}
+.hero .appicon svg{width:30px;height:30px}
 .hero h1{font-size:1.5rem;letter-spacing:.5px}
 .verchip{display:inline-block;background:rgba(255,255,255,.22);color:#fff;font-size:.76rem;padding:2px 11px;border-radius:20px;vertical-align:3px;margin-left:8px;backdrop-filter:blur(4px)}
 .hero .sub{color:rgba(255,255,255,.85);font-size:.86rem;margin:2px 0 20px}
@@ -32,7 +33,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei
 .card h2 .no{display:inline-flex;width:22px;height:22px;border-radius:8px;background:linear-gradient(135deg,#2f6bff,#6d5bff);color:#fff;font-size:.75rem;align-items:center;justify-content:center;flex:none}
 .req{list-style:none}
 .req li{display:flex;gap:10px;padding:7px 0;font-size:.9rem;align-items:flex-start}
-.req .ico{flex:none;width:30px;height:30px;border-radius:9px;background:#eef3ff;display:flex;align-items:center;justify-content:center;font-size:15px}
+.req .ico{flex:none;width:30px;height:30px;border-radius:9px;background:#eef3ff;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--accent)}
+.req .ico svg{width:17px;height:17px}
+[data-lucide]{display:inline-flex;align-items:center;justify-content:center;flex:none;vertical-align:-3px}
+.card h2 .no svg{width:13px;height:13px}
+.note [data-lucide],.wxbanner [data-lucide]{vertical-align:-2px}
+.note [data-lucide] svg,.wxbanner [data-lucide] svg{width:15px;height:15px}
 .req b{color:var(--ink)}
 .req .tip{color:var(--muted);font-size:.78rem;display:block}
 .lines{margin-top:14px;border-top:1px dashed var(--line);padding-top:12px}
@@ -58,11 +64,11 @@ ol.steps .tip{color:var(--muted);font-size:.78rem;display:block}
 <body>
 <div class="wrap">
 
-  <div class="wxbanner" id="wxbanner">⚠️ 你在<b>微信</b>里打开了本页。微信会拦截 APK 下载，请点右上角「···」→ 选择「<b>在浏览器打开</b>」，再回来下载。</div>
+  <div class="wxbanner" id="wxbanner"><i data-lucide="triangle-alert"></i> 你在<b>微信</b>里打开了本页。微信会拦截 APK 下载，请点右上角「···」→ 选择「<b>在浏览器打开</b>」，再回来下载。</div>
 
   <div class="hero">
     <div class="row">
-      <div class="appicon">⌚</div>
+      <div class="appicon"><i data-lucide="watch"></i></div>
       <div>
         <h1>Ev课程表 <span style="font-weight:400;font-size:.9rem">安卓版</span><span class="verchip" id="ver">…</span></h1>
       </div>
@@ -70,21 +76,22 @@ ol.steps .tip{color:var(--muted);font-size:.78rem;display:block}
     <div class="sub">手机端管理手环课表：连接手环 · 导入导出 · 上课提醒 · 高级版一键激活</div>
     <button class="dlbtn" id="dlMain" disabled>获取版本信息中…</button>
     <div class="dlmeta" id="dlMeta"></div>
+    <svg class="wm" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="6"/><polyline points="12 10 12 12 13 13"/><path d="M16.13 7.66l-.81-4.05a2 2 0 0 0-2-1.61h-2.68a2 2 0 0 0-2 1.61l-.78 4.05"/><path d="M7.88 16.36l.8 4a2 2 0 0 0 2 1.61h2.72a2 2 0 0 0 2-1.61l.81-4.05"/></svg>
   </div>
 
-  <div class="note">⚠️ 仅支持 <b>安卓手机</b>（iOS 暂不支持）。iOS 用户请用 <a href="/user-guide.html">原激活步骤（手环扫码方式）→</a></div>
+  <div class="note"><i data-lucide="triangle-alert"></i> 仅支持 <b>安卓手机</b>（iOS 暂不支持）。iOS 用户请用 <a href="/user-guide.html">原激活步骤（手环扫码方式）→</a></div>
 
   <div class="card">
     <h2>下载前置条件</h2>
     <ul class="req">
-      <li><span class="ico">📱</span><div><b>安卓手机</b>（Android 8.0 以上）<span class="tip">iOS 暂不支持，请用<a href="/user-guide.html">原激活步骤</a></span></div></li>
-      <li><span class="ico">💊</span><div><b>已安装「小米运动健康」并连接手环</b><span class="tip">同步与激活都经由它与手环通信；如果你在用 EV 课程表，基本都已安装</span></div></li>
-      <li><span class="ico">⌚</span><div><b>手环已安装「EV 课程表」快应用</b><span class="tip">手环端 EV 版本需支持 interconnect 通道（近期版本均可）</span></div></li>
+      <li><span class="ico"><i data-lucide="smartphone"></i></span><div><b>安卓手机</b>（Android 8.0 以上）<span class="tip">iOS 暂不支持，请用<a href="/user-guide.html">原激活步骤</a></span></div></li>
+      <li><span class="ico"><i data-lucide="heart-pulse"></i></span><div><b>已安装「小米运动健康」并连接手环</b><span class="tip">同步与激活都经由它与手环通信；如果你在用 EV 课程表，基本都已安装</span></div></li>
+      <li><span class="ico"><i data-lucide="watch"></i></span><div><b>手环已安装「EV 课程表」快应用</b><span class="tip">手环端 EV 版本需支持 interconnect 通道（近期版本均可）</span></div></li>
     </ul>
   </div>
 
   <div class="card">
-    <h2><span class="no">↓</span>选择下载线路</h2>
+    <h2><span class="no"><i data-lucide="download"></i></span>选择下载线路</h2>
     <div class="lines" id="lines"></div>
     <div class="sha" id="sha"></div>
   </div>
@@ -110,6 +117,32 @@ ol.steps .tip{color:var(--muted);font-size:.78rem;display:block}
 
 <script>
 (function(){
+  // ---- Lucide 图标（https://lucide.dev，ISC 协议）内联渲染，无 CDN 依赖 ----
+  var LUCIDE = {
+    'watch': '<circle cx="12" cy="12" r="6"/><polyline points="12 10 12 12 13 13"/><path d="M16.13 7.66l-.81-4.05a2 2 0 0 0-2-1.61h-2.68a2 2 0 0 0-2 1.61l-.78 4.05"/><path d="M7.88 16.36l.8 4a2 2 0 0 0 2 1.61h2.72a2 2 0 0 0 2-1.61l.81-4.05"/>',
+    'smartphone': '<rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/>',
+    'heart-pulse': '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/><path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"/>',
+    'triangle-alert': '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+    'download': '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>'
+  };
+  (function renderIcons(){
+    var els = document.querySelectorAll('[data-lucide]');
+    for (var i = 0; i < els.length; i++) {
+      var name = els[i].getAttribute('data-lucide');
+      if (!LUCIDE[name]) continue;
+      var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('viewBox', '0 0 24 24');
+      svg.setAttribute('fill', 'none');
+      svg.setAttribute('stroke', 'currentColor');
+      svg.setAttribute('stroke-width', '2');
+      svg.setAttribute('stroke-linecap', 'round');
+      svg.setAttribute('stroke-linejoin', 'round');
+      svg.innerHTML = LUCIDE[name];
+      els[i].appendChild(svg);
+      els[i].removeAttribute('data-lucide');
+    }
+  })();
+
   // ---- 微信内置浏览器检测：微信拦截 APK 下载，引导去系统浏览器 ----
   if (/MicroMessenger/i.test(navigator.userAgent)) {
     var wx = document.getElementById('wxbanner');
