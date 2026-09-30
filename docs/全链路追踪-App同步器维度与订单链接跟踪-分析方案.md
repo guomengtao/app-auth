@@ -431,7 +431,7 @@ create table if not exists app_daily_stats (
 
 > **上线顺序铁律（配合 §6.1）**：**服务端必须先行**。P0 先只发服务端那半（B1/B2/B4 + 兼容分支），确认"老 APK 请求照常成功、新字段能被接收"之后再发新 APK；P1/P2 同理（先上服务端兜底与页面，再让客户端带新参数）。**任何一期都不得要求"客户端先发"**。
 
-### 7.1 P0 实施记录（2026-09-30，代码已完成，**尚未发布**）
+### 7.1 P0 实施记录（2026-09-30，服务端**已上线**；APK 已出包、**未放量**）
 
 **服务端（6 个文件）**
 
@@ -467,6 +467,39 @@ create table if not exists app_daily_stats (
 1. 先 `git push` 服务端（Vercel Git 集成自动部署）→ 观察老 APK 请求仍返回 `{success:true}`；
 2. 再 `bash apk/build.sh` 出包 → 验证新字段真的进了 `visitor_logs.install_id` / `tracking_events.watch_id`；
 3. 最后才更新 `ev/update-ev.json` 放量（在那之前老用户不会看到新版）。
+
+---
+
+### 7.2 上线记录（2026-09-30）
+
+**① 服务端已上线** —— commit `112f38d` → `origin/main`，Vercel 自动部署；`/version.json` 由 1.7.97 变为 **1.7.98** 确认生效。
+
+线上冒烟（真实请求打到生产）：
+
+| 用例 | 请求 | 结果 |
+|---|---|---|
+| 老 APK 报文（`deviceId` = 纯数字 nodeId，无 `install_id`） | `POST /api/activate?section=visitor-track` | `{"success":true,"isNewVisitor":true}` / HTTP 200 |
+| 新 APK 报文（`install_id` + `watch.device_id` + `watch.history[]`） | 同上 | `{"success":true,"isNewVisitor":true}` / HTTP 200 |
+
+**② 落库核对（直连生产库 Supabase，`Ev_POSTGRES_URL`）**
+
+- 结构：`tracking_events` 的 `install_id / watch_id / client` 三列与 `idx_te_install / idx_te_watch` 两索引均已自动建出；`visitor_logs` 的 `install_id / watch_device_id` 两列就位（`CREATE/ALTER ... IF NOT EXISTS` 在首次写时自动执行）。
+- 老 APK 行为（**兼容核心，逐条核对**）：
+
+  | 断言 | 实测 |
+  |---|---|
+  | `device_full` 保留原文 | ✅ `2137618976`（未被改成别的东西） |
+  | `client` 标记 | ✅ `legacy-apk` |
+  | nodeId 归一到 `watch_id` | ✅ `2137618976` |
+  | 老客户端无 `install_id` | ✅ 空串 |
+  | `visitor_logs.watch_device_id` | ✅ 空串（老 APK 不发） |
+
+- 新 APK 行为：`client=apk`、`install_id=apk-7f3a9c21`、`watch_id` = 手环**真实** deviceId、`device_norm=7890`（末 4 位派生正确）、`visitor_logs.watch_device_id` 同步落库、`watch_history` 两只手环完整透传。
+- 冒烟数据已清理（`path like '/p0-smoke-%'`，visitor_logs 4 条 + tracking_events 4 条，复查残留 0）。
+
+**③ APK 已出包（未放量）** —— `bash apk/build.sh` 产出 `dist/EVSyncProbe-v0.5.101.apk`（versionCode 102，421KB，已签名）；`version.env` 已自动 bump 到 0.5.102。**尚未**拷进 `ev/` 与更新 `update-ev.json`，所以老用户看不到新版。
+
+**④ 待办**：确认后更新 `ev/update-ev.json` 放量。注意 §4.5 兼容约束 —— **旧包 `EVSyncProbe-v0.5.98.apk` 保持可访问**（只新增，不替换），`update-ev.json` 字段名与结构冻结，`isForce` 保持 `false`。
 
 ---
 
