@@ -230,6 +230,10 @@ https://app-auth.gudq.com/deep-link-test.html?code=A7K2&u=od-1f3k9q&o=<out_trade
 | D4 | `api/activate.js:73`（`pageTitleForPath`） | 补齐新页面的中文名（通知/后台展示用） |
 | D5 | `api/activate.js:246-255` | `tracking.record(kind="visit")` 的 `payload` 增加 `group`（来自 `g=` 参数），画像汇总即可按「指南/激活/下载」分组出报表 |
 
+> **✅ D1–D5 已全部实施并上线**（commit `92354c8`，2026-09-30）。实施过程中的 3 处调整与实情记录见 **§7.5**：
+> ① `group` 取值改为「`body.group` 优先 → 退回 URL `g=`」；② 分组白名单限定 5 类；
+> ③ `apk-download.html` 原有埋点因用了 `fetch` 而**一直静默失效**，本次顺带修好。
+
 **统一 URL 参数约定**（贯穿网页 + APK + 快应用）：
 
 | 参数 | 含义 | 例 |
@@ -585,6 +589,86 @@ create table if not exists app_daily_stats (
 **⑤ 回归**：P1 自测 **30 项全绿**、P0 兼容回归 **77 项全绿**、APK `javac` **299 class / 0 错误**（本次未动 APK）。
 
 **⑥ 环境坑（记一笔）**：`.env.local` 里 `KV_REST_API_URL` / `KV_REST_API_TOKEN` 的值是 `[SENSITIVE]` 占位符，直接 `Object.assign(.env, .env.local)` 会**用占位符覆盖 `.env` 的真实值** → 读到 11 字符的假 URL，报 `Failed to parse URL from [SENSITIVE]`。本地脚本加载 env 时必须**跳过空值与 `[SENSITIVE]` 占位符**。
+
+---
+
+### 7.5 P2 实施记录（2026-09-30，**已上线**）
+
+**目标（D1–D5）**：把「每个页面各自复制一段 XHR」收敛成全站唯一的埋点入口，补上三个**完全没有埋点**的页面，并让访问记录带上「页面分组」，画像汇总可以按「指南 / 激活 / 下载 / 站内 / 工具」出报表。
+
+**D1 新增 `js/track.js`（全站唯一埋点入口）**
+
+| 要点 | 说明 |
+|---|---|
+| 接入方式 | `<script src="/js/track.js" data-group="guide"></script>`，一行 |
+| 兼容约定 | 只用 `var` + `XMLHttpRequest`；**不用** `fetch` / 箭头函数 / `const` / 模板字符串 —— 老 WebView 遇到不支持的语法会**整段**脚本报错（不是这一句失效，是整块失效） |
+| 配置来源 | 从**自己的 script 标签**读 `data-group` / `data-page` / `data-ref`；`document.currentScript` 在老 WebView 常为 `null`，实现里按 `src` 回退查找 |
+| 容错 | 上报包在 `try/catch` 里，失败静默 —— 埋点绝不能影响页面功能 |
+| 复用出口 | `window.WBTrack.send({path, query, group, ref})`，供点击级埋点（下载页的 `dl=`）复用 |
+
+**D2 补齐三个漏埋页面 + 1 个改统一**
+
+`activation-guide.html`（guide）、`android-apk.html`（download）、`pages.html`（home）；
+`deep-link-test.html` 把 P1 加的内联 XHR 换成统一脚本（activate），**旧的必须同时删掉，否则同一页会发两次**。
+
+**D3 已有页面切换统一脚本（9 个）**
+
+`activate` / `user-guide` / `course-guide` / `apk-download` / `ev-schedule` / `ev-timetable` / `redeem-counts` / `my-ip` / `index`。
+
+> **顺带发现并修掉一个实质故障**：`apk-download.html` 原先的访问埋点用的是 `fetch` —— 老 WebView（Chromium < 42）**根本没有 `fetch`**，这段等于**一直静默失败**。切到 XHR 后这条埋点才真正开始上报。（该页的版本拉取/测速仍在用 `fetch`，属页面自身逻辑，本次未动，见下方"遗留"。）
+
+**D4 页面中文名**：`pageTitleForPath()` 补齐 13 个页面的中文名（此前 Mac 通知里显示的是裸路径 `/activation-guide.html` 这种）。只影响显示文案，缺名字仍退回原 path，不影响埋点与任何判断分支。
+
+**D5 visit 事件带上 `group`**
+
+- 取值优先级：`body.group`（track.js 的 `data-group`）→ URL 的 `g=`（P1 起的私信深链带 `g=activate`）→ 空串。
+- `normalizeGroup()` 白名单限定 `guide / activate / download / home / tool`，未登记值/注入串/超长值一律记空（宁缺勿脏）。
+- 落点选择依据：**画像汇总（`lib/user-score.js`）查的正是 `tracking_events.payload`**，所以写 `payload.group` 就能直接出分组报表，不必再动 `visitor_logs`。
+
+**页面分组口径（本次定稿）**
+
+| group | 页面 |
+|---|---|
+| `guide` | user-guide / course-guide / activation-guide |
+| `activate` | activate.html / deep-link-test.html |
+| `download` | apk-download.html / android-apk.html |
+| `home` | index.html / ev-schedule.html / ev-timetable.html / pages.html |
+| `tool` | my-ip.html / redeem-counts.html |
+
+> `admin_Dx23.html` **有意保留**自己的手写埋点：它带 `keepalive: true`（请求要活过页面卸载），且语义是"后台被谁打开"的审计，不该和普通访客混到一个分组里。
+
+**顺带修掉一个原有 bug（`index.html`）**
+
+调查 `index.html` 时发现：本该是 `</script>` 的位置被写成了 `<script>`（只差一个斜杠）。它一直没报错，是因为**单独一行的 `<script>` 在 JS 里恰好是合法的比较表达式**（`undefined < undefined > undefined`），所以只是静默地多开了一层脚本块。本次一并修正为正确的闭合标签。
+
+> 这个 bug 是被自测**抓出来的**：那套自测会把每个页面里每一段内联 `<script>` 抽出来单独 `node --check`。改 P2 之前它是"恰好合法"，改完就变成了真报错 —— 说明这类"看起来能跑"的标记错位只有靠逐块语法检查才拦得住。
+
+**验证**
+
+| 项 | 结果 |
+|---|---|
+| P2 自测 | **102 项全绿**（`/tmp/p2-selftest.js`） |
+| ↳ `js/track.js` | 在 `vm` 里**真跑**：模拟 `document`/`location`/`XMLHttpRequest`，断言自动上报 1 次、path 带 search、group 取 `data-group`、`currentScript=null` 时按 src 回退、`WBTrack.send` 覆盖 path/query、无 `data-group` 时是空串；并剥注释后确认**代码区无任何 ES6 语法** |
+| ↳ 服务端 | 从 `api/activate.js` **切真实源码**跑 `normalizeGroup` / `pageTitleForPath`：白名单、大写归一、超长脏值丢弃、`null`/数字/注入串→空、13 个页面中文名 |
+| ↳ HTML | 13 个页面各**恰好 1 个**统一标签、**无手写 `visitor-track` 残留（防双发）**、`track.js` 标签位于"无未闭合脚本块"处 |
+| ↳ 全局 | **17 个 HTML 的每一段内联脚本逐块 `node --check`** 全绿（正是它抓到 index.html） |
+| P1 回归 | 全绿（其中 1 条断言按新口径更新：deep-link-test 的埋点由"页面内有 visitor-track 字符串"改为"已挂统一脚本且无残留"） |
+| P0 回归 | **77 项全绿** |
+| 服务端语法 | `api/activate.js` / `lib/tracking.js` / `lib/visitor-log.js` / `lib/afdian-processor.js` 全绿 |
+
+**上线记录**
+
+- commit `92354c8` → `origin/main`，Vercel 自动部署。
+- 部署确认：`/js/track.js` 由 **404 → 200**，且线上内容与本地 **sha256 逐字节一致**（`829a2089bff1…`）—— 这是 P2 最直接的可用性证据（脚本没上线等于全站埋点全停）。
+- 线上冒烟 **15 项全绿**：
+  - 页面：`activation-guide` / `android-apk` / `pages` 三页确认已挂统一脚本且 group 正确；`apk-download` / `deep-link-test` 确认已无手写埋点、无双发。
+  - 落库：4 条路径逐一核对 `tracking_events.payload.group` —— `body.group` 优先 → `guide`；退回 URL `g=` → `tool`；注入串 `HACK<script>x` → 空串；`body.group` 压过 URL `g=` → `download`。
+- 冒烟数据已清理（`tracking_events` 4 + `visitor_logs` 4 + `kv_zsets` 4 + `kv_lists` 4 + `kv_sets` 1 + `stats:pv` 减 4），复核残留全 0。**KV 在 Supabase 的 `kv_*` 表**（`DB_PROVIDER=supabase`），不是 Upstash —— 清理别走错地方。
+
+**遗留（未做，记在案）**
+
+1. `apk-download.html` 的**版本拉取 / 多线路测速**仍在用 `fetch`。如果这页真的会在老 WebView 里打开，这两个功能同样是失效的；但那是页面自身业务逻辑，改动面比埋点大，建议单独确认「这页的实际打开环境」后再决定要不要一起改。
+2. 分组目前只在 `tracking_events.payload.group`。若后台有哪个报表是读 `visitor_logs` 出分组的，需要在那边读取时走同样的 `payload`/`params` 口径（后台页面属 P4 范围）。
 
 ---
 
