@@ -1,9 +1,9 @@
 {
- "versionCode": 99,
- "versionName": "0.5.98",
- "sha256": "f972272a0fe91c60313116fc461df35d9d87fabc77ff6c90e5350a1f2b66e71f",
- "downloadUrlMirror": "https://app-auth.gudq.com/ev/EVSyncProbe-v0.5.98.apk",
- "downloadUrlOrigin": "https://app-auth.gudq.com/ev/EVSyncProbe-v0.5.98.apk",
+ "versionCode": 102,
+ "versionName": "0.5.101",
+ "sha256": "16abb54fe2a7230085a3f66252bc5bf047f8aa1abe5c33474ff907a914abb723",
+ "downloadUrlMirror": "https://app-auth.gudq.com/ev/EVSyncProbe-v0.5.101.apk",
+ "downloadUrlOrigin": "https://app-auth.gudq.com/ev/EVSyncProbe-v0.5.101.apk",
  "isForce": false,
- "updateLog": "私信激活链接：点开自动填码并一键激活；激活按钮新增「激活中」状态反馈；多项体验优化"
+ "updateLog": "设备连接上报升级：支持识别多只手环，换表/多表不再互相覆盖旧记录；修复设备标识在统计中记错的问题。本次为后台统计能力升级，界面与使用方式不变"
 }
