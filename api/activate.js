@@ -1,6 +1,6 @@
 var redis = require("../lib/redis");
 var crypto = require("../lib/crypto");
-var { validateRedeemCode, validateDeviceId, isNaDeviceId } = require("../lib/validate");
+var { validateRedeemCode, validateDeviceId, isNaDeviceId, normalizeDeviceId } = require("../lib/validate");
 var NA_USAGE_LIMIT_DEFAULT = 5;
 var quota = require("../lib/quota");
 var rateLimit = require("../lib/rate-limit");
@@ -103,14 +103,60 @@ function clipNum(v) {
 }
 
 /**
+ * 激活事件的客户端类型（tracking_events.client）。
+ * APK 代激活会在 deviceInfo.source 里写 "apk"（FastActivateActivity.deviceInfo()）；
+ * 其余（手环端自发 / 网页激活页）记 evapp。
+ * ⚠️ 只是**标注**，不参与任何校验分支 —— 老客户端不带 source 时按 evapp 落，不影响激活成败。
+ */
+function activationClient(deviceInfo) {
+  var s = String((deviceInfo && deviceInfo.source) || "").toLowerCase();
+  return s.indexOf("apk") >= 0 ? "apk" : "evapp";
+}
+
+/**
+ * 手环历史清单（多手环场景）：SyncEngine 以前只存单个 nodeId，后连接的手环会覆盖前一只。
+ * 这里把「当前 + 历史」列表单独收下来（最多 MAX_WATCH_HISTORY 只，逐项限长）。
+ * ⚠️ 客户端可控，必须逐项裁剪：条数上限 + 每字段限长 + 只保留白名单键。
+ */
+var MAX_WATCH_HISTORY = 10;
+function sanitizeWatchHistory(list) {
+  if (!Array.isArray(list)) return [];
+  var out = [];
+  for (var i = 0; i < list.length && out.length < MAX_WATCH_HISTORY; i++) {
+    var it = list[i];
+    if (!it || typeof it !== "object") continue;
+    var nodeId = clipStr(it.node_id, 64);
+    var deviceId = clipStr(it.device_id, 128);
+    if (!nodeId && !deviceId) continue;   // 两项全空的历史项没有意义，丢掉
+    out.push({
+      node_id: nodeId,
+      device_id: deviceId,
+      device_id4: deviceId ? normalizeDeviceId(deviceId) : "",
+      model: clipStr(it.model, 64),
+      ev_version: clipStr(it.ev_version, 24),
+      first_seen: clipInt(it.first_seen),
+      last_seen: clipInt(it.last_seen),
+      ok: clipInt(it.ok),
+      fail: clipInt(it.fail),
+    });
+  }
+  return out;
+}
+
+/**
  * APK 埋点带的设备上下文：白名单字段 + 逐个限长。
  * 埋点体是客户端可控的 JSON，不能原样落库（防超长/防塞任意字段）。
  * 字段口径见仓库文档 apk-tracking-telemetry-spec.md。
+ *
+ * ⚠️ 向下兼容铁律（分析方案 §6.1）：**只加字段，不改/不删任何已有字段名与层级**。
+ *    老版 APK 无法强制升级，会长期以旧格式上报；任何"收不到新字段就报错"的写法都不许出现。
  */
 function sanitizeDevice(body) {
   var d = (body && typeof body.device === "object" && body.device) || {};
   var a = (body && typeof body.app === "object" && body.app) || {};
   var w = (body && typeof body.watch === "object" && body.watch) || {};
+  // 手环真实 deviceId：新 APK 走 watch.device_id；老 APK 只会在顶层 deviceId 里塞 nodeId
+  var watchDeviceId = clipStr(w.device_id != null ? w.device_id : w.deviceId, 128);
   return {
     model: clipStr(d.model, 64),
     brand: clipStr(d.brand, 32),
@@ -128,11 +174,17 @@ function sanitizeDevice(body) {
     app_open_count: clipInt(a.open_count),
     app_foreground_ms: clipNum(a.foreground_ms),
     app_last_open: clipInt(a.last_open_ms),
+    // 📱 App 同步器维度（新增，见分析方案 §3.3-A1/A3）
+    //    install_id = 手机安装实例 ID（新 APK 一定有；老 APK 永远为空）
+    install_id: clipStr(body && body.install_id != null ? body.install_id : a.install_id, 64),
     watch_model: clipStr(w.model, 64),
     watch_ev_version: clipStr(w.ev_version, 24),
     watch_ev_code: clipInt(w.ev_code),
     watch_connected: w.connected === true || w.connected === 1,
     watch_node_id: clipStr(w.node_id, 64),
+    // 手环真实 deviceId（与激活记录同一把钥匙 → 手机↔手环可合并）
+    watch_device_id: watchDeviceId,
+    watch_device_id4: watchDeviceId ? normalizeDeviceId(watchDeviceId) : "",
     // 手环连接统计（APK-Stats 提供）：次数 / 成功 / 失败 / 失败步与原因
     watch_connect_total: clipInt(w.connect_total),
     watch_connect_ok: clipInt(w.connect_ok),
@@ -140,6 +192,8 @@ function sanitizeDevice(body) {
     watch_connect_last_ms: clipNum(w.connect_last_ms),
     watch_last_fail_step: clipInt(w.connect_last_fail_step),
     watch_last_fail_reason: clipStr(w.connect_last_fail_reason, 120),
+    // 多手环：历史清单（最多 10 只）
+    watch_history: sanitizeWatchHistory(w.history),
     nickname: clipStr(body && body.nickname, 64),
   };
 }
@@ -220,6 +274,11 @@ async function handleVisitorTrack(req, res) {
 
     // ⭐ 永久日志（业务表 visitor_logs）：放在响应之后执行，不占用用户等待时间。
     //    KV 的 stats:recent 只留 ~100 条、日报 7 天过期，长期存档靠这张表。
+    // App 同步器维度（§3.3-B2）：手环**真实** deviceId 只从这两处取 ——
+    //   ① 新 APK 上报的 watch.device_id；② 网页 query 里的 ?deviceId=（激活页/QR 过来的真实设备号）。
+    // ⚠️ 老 APK 把 XMS 数字 nodeId 塞在顶层 deviceId / watch.node_id 里，是**另一套编号**，
+    //    这里刻意不混入，避免两套编号在同一列互相污染（§6.1-K1）。
+    var watchDeviceId = dev.watch_device_id || (queryParams && queryParams.deviceId ? String(queryParams.deviceId) : "");
     background.run(
       visitorLog.logVisit({
         device: dev,
@@ -235,6 +294,8 @@ async function handleVisitorTrack(req, res) {
         source: "visit",
         query: fullQuery,
         params: queryParams,
+        installId: dev.install_id,
+        watchDeviceId: watchDeviceId,
       }),
       "visitor-log"
     );
@@ -243,14 +304,24 @@ async function handleVisitorTrack(req, res) {
     background.run(ipWarmup.warmup(ip), "ip-warmup");
 
     // 统一事件流（tracking_events）：供漏斗 / 画像汇总使用，失败不影响埋点响应
+    // client 判定：带 app 上下文的必是 APK；老 APK 会在 tracking 的 resolveIdentity 里
+    //   被进一步识别为 legacy-apk（它没有 install_id，deviceId 是数字 nodeId）。
     background.run(tracking.record({
       ts: ts,
       kind: "visit",
       ip: ip,
       visitorHash: vHash,
       deviceId: bodyDeviceId || (queryParams ? queryParams.deviceId || "" : ""),
+      installId: dev.install_id,
+      watchId: watchDeviceId,
+      client: (dev.app_version || dev.app_variant || dev.watch_node_id) ? "apk" : "web",
       channel: queryParams ? queryParams.c || "" : "",
-      payload: { path: path, query: fullQuery, params: queryParams || {}, ua: ua.slice(0, 200), ref: ref.slice(0, 200) },
+      payload: {
+        path: path, query: fullQuery, params: queryParams || {}, ua: ua.slice(0, 200), ref: ref.slice(0, 200),
+        // App 同步器维度明细（老客户端不带，读取侧需容忍缺省）
+        app_version: dev.app_version, app_variant: dev.app_variant,
+        watch_node_id: dev.watch_node_id, watch_device_id: dev.watch_device_id,
+      },
       dedupeKey: null,
     }), "tracking");
 
@@ -762,6 +833,7 @@ module.exports = async (req, res) => {
           outTradeNo: infoOutTradeNo,
           activationCode: activationCodeReuse,
           channel: (deviceInfo && deviceInfo.source) || "",
+          client: activationClient(deviceInfo),
           payload: {
             product_id: productId, months: months, reuse: true, activation_seq: reuseSeq,
             model: (deviceInfo && tracking.pickModel(deviceInfo.model, deviceInfo.product)) || "",
@@ -886,6 +958,7 @@ module.exports = async (req, res) => {
           redeemCode: code,
           activationCode: activationCodeNa,
           channel: (deviceInfo && deviceInfo.source) || "",
+          client: activationClient(deviceInfo),
           payload: {
             product_id: productId, months: months,
             is_na: true, na_device_index: naCount + 1, activation_seq: naFinalSeq,
@@ -1011,6 +1084,7 @@ module.exports = async (req, res) => {
       outTradeNo: infoOutTradeNo,
       activationCode: activationCode,
       channel: (deviceInfo && deviceInfo.source) || "",
+      client: activationClient(deviceInfo),
       payload: {
         product_id: productId, months: months, activation_seq: activationSeq,
         model: (deviceInfo && tracking.pickModel(deviceInfo.model, deviceInfo.product)) || "",

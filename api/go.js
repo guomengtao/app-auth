@@ -389,6 +389,7 @@ module.exports = async (req, res) => {
       ip: ip,
       visitorHash: vHash,
       deviceId: paramDeviceId(queryParams),
+      client: "web",
       channel: String((queryParams && queryParams.c) || req.query.utm_source || ""),
       payload: {
         slug: slug, target_url: entry.target_url || "",
