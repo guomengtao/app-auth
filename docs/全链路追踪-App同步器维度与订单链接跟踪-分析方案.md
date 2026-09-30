@@ -513,7 +513,7 @@ create table if not exists app_daily_stats (
 
 ---
 
-### 7.3 P1 实施记录（2026-09-30，代码已完成、**尚未发布**）
+### 7.3 P1 实施记录（2026-09-30，服务端 **已上线**）
 
 **目标**：订单激活链接带上「渠道 + 用户独立识别码」，让「支付 → 激活」从"靠 redeem_code 反查"升级为外键级确定关系；并把 `deep-link-test.html` 这个**此前埋点命中为 0** 的页面补上采集。
 
@@ -547,7 +547,44 @@ create table if not exists app_daily_stats (
 1. **渠道优先级第 2 档「同 IP 24h」实际用不上** —— 爱发电订单回调里**没有**客户端 IP。代码已写成"有 `order.client_ip` 才查"，属防御式保留；实际主力是第 1 档（备注 deviceId 反查），兜底第 3 档。
 2. **不改 `deviceInfo.source`** —— 文档 C5 建议顺带写成 `afdian:<c>`。实测 `activationClient()`（`api/activate.js:112`）就是读 `source` 判客户端类型，混入渠道会让客户端分类失真，所以渠道归因独立走 `channel` 字段，两者不共用。
 
-**发布顺序（未执行）**：先推服务端（本次改动对老 APK 全兼容：新参数全可缺省、老链接只有 `code` 照样能用），确认线上正常后，再出一版 APK（C4/C5 要新包才生效）并按 §4.5 增量放量。
+**发布顺序**：服务端已先行上线（见 §7.4）。APK 侧（`FastActivateActivity` 解析 `u/c/o`）需要**新包**才生效 —— 但要说明：**APK 不发这三个参数也不影响任何功能**，服务端会退回读「兑换码记录里存的 uid/channel」（由发码时写入），所以「支付 → 激活」的关系**在只有服务端改动的情况下就已经成立**；出新 APK 只是让"用户点的是哪条链接"这种更细的信息也被带上。按 §4.5 增量放量即可，无时间压力。
+
+---
+
+### 7.4 P1 上线记录（2026-09-30）
+
+**① 服务端已上线** —— commit `4469956` → `origin/main`，Vercel 自动部署。
+
+**部署确认方式（重要）**：本次 P1 **没有改 `version.json`**，所以「看 version.json 是否变号」这个用在 P0 的探针**这次无效**（轮询 10 分钟一直是 1.7.98）。改用两条行为探针：
+
+1. **静态页逐字比对**：`curl https://app-auth.gudq.com/deep-link-test.html` 与本地文件 `diff` → **完全一致**（5707 字节），说明新构建已生效。
+2. **函数确实在跑新代码**：冒烟用**超长非法兑换码**打 `/api/activate`，拿到的是 `lib/validate.js` 的 400 文案。而 P1 的 `bodyUid/bodyOrderNo/bodyChannel` 解析在 `api/activate.js:512`，**早于**码校验（`api/activate.js:593`）→ 这两次请求已经执行过新代码且未抛错，证明线上 `api/activate.js` 就是新版本（Vercel 一次部署内函数与静态文件同为原子发布）。
+
+**② 线上冒烟结果**
+
+| 用例 | 期望 | 实测 |
+|---|---|---|
+| 新链路 `visitor-track`，path=`/p1-smoke?code=…&u=od-test001&o=20260930001&c=t-9p-d&g=activate` | 200 且 `success:true` | ✅ `{"success":true,"isNewVisitor":true}` |
+| 老链接形状 `visitor-track`，只有 `code` | 200 且 `success:true` | ✅ `{"success":true,...}` |
+| 老 APK 报文（无 `uid/orderNo/channel`）打激活 | 结构化响应、不崩 | ✅ 400 + 中文校验文案（码格式非法，属正常拒绝） |
+| 新报文（带 `uid/orderNo/channel`）打激活 | 同上、不因新字段报错 | ✅ 同上 |
+| 直连 Supabase 查 `visitor_logs.params` | `u/c/o/g` 四件套落库 | ✅ `{"c":"t-9p-d","g":"activate","o":"20260930001","u":"od-test001","code":"SMOKECODE"}`；老链接行只有 `{"code":"OLDLINKONLY"}` |
+
+**③ 没有做「造一张真码跑完整激活」的端到端测试，原因是有副作用**：激活成功路径会 `pushNotification("new_activation")`（真推送到 Mac / 手机）+ 发邮件 + 在生产 Redis 留一条假激活记录。P1 的激活侧改动只是"多读三个可选字段"，且上面第 2 条已证明新代码在线上执行；因此判断**不值得为它制造假订单与假通知**。等真实订单自然发生时验证即可（`order_no/order_uid/channel` 会直接出现在激活记录里）。
+
+**④ 冒烟数据已清理干净**
+
+- 业务表：`visitor_logs` / `tracking_events` 中 `/p1-smoke*` 各行已删（残留 0）。
+- 当日统计（**修正了一个认知错误**）：线上 KV **不在 Upstash**，而是在 Supabase 的 `kv_*` 表（`DB_PROVIDER=supabase`，走 `lib/redis.js` 的 Postgres proxy）。清理时先误操作了 Upstash（造出一个孤立的 `stats:pv:2026-09-30`），已 `DEL` 复原；真正的统计在 `kv_strings` / `kv_zsets` / `kv_sets` / `kv_lists` 里：
+  - `kv_zsets` 去掉 `/p1-smoke`、`/p1-smoke-old`（2 行）
+  - `kv_strings` `stats:pv:2026-09-30` 131 → **129**
+  - `kv_lists` `stats:recent` 去掉 2 条含 `/p1-smoke` 的
+  - `kv_sets` `stats:uv:2026-09-30` 去掉 1 个访客哈希（两条冒烟同 IP 同 UA，故只占 1 个 UV）
+  - 复核残留：页面统计 0、recent 0
+
+**⑤ 回归**：P1 自测 **30 项全绿**、P0 兼容回归 **77 项全绿**、APK `javac` **299 class / 0 错误**（本次未动 APK）。
+
+**⑥ 环境坑（记一笔）**：`.env.local` 里 `KV_REST_API_URL` / `KV_REST_API_TOKEN` 的值是 `[SENSITIVE]` 占位符，直接 `Object.assign(.env, .env.local)` 会**用占位符覆盖 `.env` 的真实值** → 读到 11 字符的假 URL，报 `Failed to parse URL from [SENSITIVE]`。本地脚本加载 env 时必须**跳过空值与 `[SENSITIVE]` 占位符**。
 
 ---
 
