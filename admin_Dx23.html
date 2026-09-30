@@ -3392,6 +3392,7 @@
         <li class="menu-separator"><hr></li>
         <li><a href="javascript:void(0)" onclick="switchTab('afdian-orders')" data-tab="afdian-orders"><i data-lucide="heart" class="menu-icon"></i><span class="menu-text">爱发电订单</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('visitors')" data-tab="visitors"><i data-lucide="users" class="menu-icon"></i><span class="menu-text">访客统计</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('appstats')" data-tab="appstats"><i data-lucide="smartphone" class="menu-icon"></i><span class="menu-text">App 统计</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('logs')" data-tab="logs"><i data-lucide="scroll-text" class="menu-icon"></i><span class="menu-text">日志</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('delivery')" data-tab="delivery"><i data-lucide="send" class="menu-icon"></i><span class="menu-text">消息投递</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('devices')" data-tab="devices"><i data-lucide="shield-check" class="menu-icon"></i><span class="menu-text">已授权设备</span></a></li>
@@ -3821,6 +3822,17 @@
               <div id="visitorIpDetailBox" style="display:none;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding: 16px;margin-bottom: 16px"></div>
               <div id="visitorUniqueList"></div>
             </div>
+          </div>
+
+          <div class="panel" id="panel-appstats">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+              <span style="font-weight:700;font-size:1rem">App 统计</span>
+              <span style="font-size:0.75rem;color:var(--muted)">下载走 /dl/ 计数 · 装机与事件来自 APK 上报 · 老客户端无新事件属正常（§6.1）</span>
+              <div style="margin-left:auto">
+                <button class="btn btn-outline" onclick="loadAppStats()">🔄 刷新</button>
+              </div>
+            </div>
+            <div id="appStatsBody"><div style="color:var(--muted);font-size:0.875rem;padding:24px">加载中...</div></div>
           </div>
 
           <div class="panel" id="panel-settings">
@@ -5148,6 +5160,7 @@
       'direct-activate': { title: '快捷激活', sub: '跳过兑换码流程，直接为设备生成激活码' },
       'afdian-orders': { title: '爱发电订单', sub: '管理爱发电赞助订单，手动同步并查看激活码生成记录' },
       visitors: { title: '访客统计', sub: 'UV / PV / 热门页面 / 最近访客' },
+      appstats: { title: 'App 统计', sub: '下载 · 版本分布 · 客户端事件 · 升级漏斗' },
       'logs': { title: '系统日志', sub: 'Vercel部署事件 · 邮件发送记录 · 爱发电私信日志' },
       delivery: { title: '消息投递', sub: '追踪 Redis 推送消息的投递状态，排查丢通知问题' },
       devices: { title: '已授权设备', sub: '查看并撤销桌面客户端（EvNotifier）的长期访问令牌' },
@@ -5202,6 +5215,7 @@
       if (tab === 'direct-activate') initDirectActivate();
       if (tab === 'afdian-orders') { switchAfdianSubTab('orders'); }
       if (tab === 'visitors') loadVisitors();
+      if (tab === 'appstats') loadAppStats();
       if (tab === 'delivery') loadDeliveryMessages();
       if (tab === 'devices') loadDevices();
       
@@ -10568,7 +10582,103 @@
     (function() {
       setTimeout(updateVoiceButton, 200);
     })();
-function loadVisitors() {
+function loadAppStats() {
+      var box = document.getElementById('appStatsBody');
+      if (!box) return;
+      box.innerHTML = '<div style="color:var(--muted);font-size:0.875rem;padding:24px">加载中...</div>';
+      var escHtml = function (s) {
+        return String(s == null ? '' : s).replace(/[<>&"']/g, function (c) {
+          return { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+      };
+      api('/api/admin/health?section=stats&sub=app-stats&days=14').then(function (d) {
+        if (!d || !d.success) {
+          box.innerHTML = '<div style="color:var(--muted);padding:24px">加载失败（' + escHtml(d && d.error || '未知错误') + '）</div>';
+          return;
+        }
+        var kinds = {};
+        (d.kinds || []).forEach(function (k) { kinds[k.kind] = k.c; });
+        var dl = d.downloads || {};
+        var cok = kinds['app_connect_ok'] || 0, cfail = kinds['app_connect_fail'] || 0;
+        var cards = [
+          ['今日下载', dl.today || 0, '昨日 ' + (dl.yesterday || 0)],
+          ['连接成功（7天）', cok, '失败 ' + cfail + (cok + cfail > 0 ? ' · 成功率 ' + Math.round(cok / (cok + cfail) * 100) + '%' : '')],
+          ['升级漏斗（7天）', kinds['app_update_found'] || 0, '完成安装 ' + (kinds['app_update_installed'] || 0) + '（仅新版可见）'],
+          ['激活写入（7天）', kinds['app_activate_ok'] || 0, '导入成功 ' + (kinds['app_import_ok'] || 0) + ' · 导出 ' + (kinds['app_export_ok'] || 0)],
+        ];
+        var html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px">';
+        cards.forEach(function (c) {
+          html += '<div class="card" style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px">' +
+            '<div style="font-size:0.75rem;color:var(--muted)">' + c[0] + '</div>' +
+            '<div style="font-size:1.5rem;font-weight:700">' + c[1] + '</div>' +
+            '<div style="font-size:0.75rem;color:var(--muted)">' + escHtml(c[2]) + '</div></div>';
+        });
+        html += '</div>';
+        // 版本存量分布
+        html += '<div class="card" style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px">' +
+          '<div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">版本存量分布（近7天 APK 上报）</div>' +
+          '<table style="width:100%;border-collapse:collapse;font-size:0.8125rem">' +
+          '<tr style="color:var(--muted)"><th style="text-align:left;padding:4px 8px">版本</th><th style="text-align:left;padding:4px 8px">变体</th><th style="text-align:right;padding:4px 8px">上报次数</th><th style="text-align:right;padding:4px 8px">设备数</th></tr>';
+        if ((d.versions || []).length) {
+          d.versions.forEach(function (r) {
+            html += '<tr><td style="padding:4px 8px;border-top:1px solid var(--line)">' + escHtml(r.v) + '</td>' +
+              '<td style="padding:4px 8px;border-top:1px solid var(--line)">' + escHtml(r.variant) + '</td>' +
+              '<td style="padding:4px 8px;border-top:1px solid var(--line);text-align:right">' + r.visits + '</td>' +
+              '<td style="padding:4px 8px;border-top:1px solid var(--line);text-align:right">' + r.dev + '</td></tr>';
+          });
+        } else {
+          html += '<tr><td colspan="4" style="padding:8px;color:var(--muted)">暂无数据</td></tr>';
+        }
+        html += '</table></div>';
+        // 今日下载分版本
+        html += '<div class="card" style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px">' +
+          '<div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">今日下载分版本（' + escHtml(dl.day || '') + '）</div>';
+        if ((dl.todayByVersion || []).length) {
+          html += '<div style="display:flex;flex-wrap:wrap;gap:8px">';
+          dl.todayByVersion.forEach(function (r) {
+            html += '<span style="background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:4px 10px;font-size:0.8125rem">' + escHtml(r.version) + ' · <b>' + r.c + '</b></span>';
+          });
+          html += '</div>';
+        } else {
+          html += '<div style="color:var(--muted);font-size:0.8125rem">今日暂无下载（/dl/ 上线前的历史下载不计入）</div>';
+        }
+        html += '</div>';
+        // 事件日曲线（按天透视）
+        var piv = {}, days = [], dset = {};
+        (d.daily || []).forEach(function (r) {
+          if (!dset[r.d]) { dset[r.d] = 1; days.push(r.d); }
+          if (!piv[r.d]) piv[r.d] = {};
+          piv[r.d][r.kind] = (piv[r.d][r.kind] || 0) + r.c;
+        });
+        days.sort();
+        var cols = ['download', 'app_open', 'app_connect_ok', 'app_connect_fail', 'app_import_ok', 'app_export_ok', 'app_activate_ok', 'app_update_found', 'app_update_installed'];
+        var colNames = { download: '下载', app_open: '打开', app_connect_ok: '连成', app_connect_fail: '连败', app_import_ok: '导入', app_export_ok: '导出', app_activate_ok: '激活', app_update_found: '升发现', app_update_installed: '升安装' };
+        html += '<div class="card" style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px">' +
+          '<div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">客户端事件日曲线（近14天，失败类含 app_import_fail / app_export_fail）</div>' +
+          '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.8125rem;white-space:nowrap">' +
+          '<tr style="color:var(--muted)"><th style="text-align:left;padding:4px 8px">日期</th>';
+        cols.forEach(function (c) { html += '<th style="text-align:right;padding:4px 8px">' + colNames[c] + '</th>'; });
+        html += '</tr>';
+        if (days.length) {
+          days.forEach(function (dy) {
+            html += '<tr><td style="padding:4px 8px;border-top:1px solid var(--line)">' + escHtml(dy) + '</td>';
+            cols.forEach(function (c) {
+              var v = (piv[dy] || {})[c] || 0;
+              html += '<td style="padding:4px 8px;border-top:1px solid var(--line);text-align:right' + (v > 0 ? ';font-weight:600' : ';color:var(--muted)') + '">' + v + '</td>';
+            });
+            html += '</tr>';
+          });
+        } else {
+          html += '<tr><td colspan="10" style="padding:8px;color:var(--muted)">暂无数据</td></tr>';
+        }
+        html += '</table></div></div>';
+        box.innerHTML = html;
+      }).catch(function (e) {
+        box.innerHTML = '<div style="color:var(--muted);padding:24px">加载异常：' + escHtml(e && e.message || e) + '</div>';
+      });
+    }
+
+    function loadVisitors() {
       var overviewEl = document.getElementById('visitorOverview');
       var pagesEl = document.getElementById('visitorTopPages');
       var recentEl = document.getElementById('visitorRecent');

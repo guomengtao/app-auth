@@ -262,6 +262,55 @@ module.exports = async (req, res) => {
   // 简单 CORS（如未来需要在管理后台用 fetch 预检）
   res.setHeader("Cache-Control", "no-store");
 
+  // ── P5：/dl/:file APK 下载重定向 + 计数（vercel.json rewrite → /api/go?dl=:file）──
+  // 兼容铁律（§6.1）：/ev/*.apk 静态直链原样保留，/dl/ 只是新增入口，不是替换。
+  var dlFile = String((req.query && req.query.dl) || "").trim();
+  if (dlFile) {
+    // 文件名白名单：只放行本站 APK 命名，防开放重定向
+    var mDl = /^(EVSyncProbe-v\d+\.\d+\.\d+\.apk)$/.exec(dlFile);
+    if (!mDl) {
+      return res.status(404).json({ success: false, error: "Unknown file" });
+    }
+    var dlName = mDl[1];
+    var dlVer = (dlName.match(/v(\d+\.\d+\.\d+)\.apk$/) || [])[1] || "unknown";
+    var dlTs = Date.now();
+    var dlDate = todayKey(dlTs);
+
+    // 下载事件进 tracking_events（best-effort，绝不阻塞跳转）
+    try {
+      var trackingLib = require("../lib/tracking");
+      var dlIp = getClientIp(req).slice(0, 45);
+      trackingLib
+        .record({
+          kind: "download",
+          ip: dlIp,
+          visitorHash: visitorHashKey(dlIp + "|" + String(req.headers["user-agent"] || "")).slice(0, 12),
+          ts: dlTs,
+          payload: {
+            file: dlName,
+            version: dlVer,
+            from: String((req.query && req.query.from) || "").slice(0, 32),
+            ref: String(req.headers["referer"] || "").slice(0, 200),
+          },
+        })
+        .catch(function () {});
+    } catch (e) {}
+
+    // kv 日计数（beijing 日键；预聚合表 app_daily_stats 留待后续 cron）
+    return Promise.all([
+      redis.incr("stats:dl:" + dlDate).catch(function () { return null; }),
+      redis.incr("stats:dl:" + dlDate + ":v" + dlVer).catch(function () { return null; }),
+      redis.pexpire("stats:dl:" + dlDate, VISITOR_TTL * 1000).catch(function () {}),
+      redis.pexpire("stats:dl:" + dlDate + ":v" + dlVer, VISITOR_TTL * 1000).catch(function () {}),
+    ])
+      .catch(function () {})
+      .then(function () {
+        res.setHeader("Location", "/ev/" + dlName);
+        res.status(302);
+        res.end();
+      });
+  }
+
   try {
     var slug = pickSlug(req);
     if (!slug) {

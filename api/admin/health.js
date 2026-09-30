@@ -3491,6 +3491,77 @@ if ((isCron || isCronBackup) && isBackup) {
 
       var sub = req.query && req.query.sub;
 
+      // ── P5：App 统计（版本分布 / 事件日曲线 / 下载计数 / 升级漏斗）──
+      // 全部走 tracking_events 索引列 + kv_strings 点查/前缀查，不做全扫（§6-2）。
+      if (sub === "app-stats") {
+        var aDays = parseInt(req.query && req.query.days, 10) || 14;
+        if (aDays < 1) aDays = 1;
+        if (aDays > 90) aDays = 90;
+        var pgA = require("../../lib/postgres");
+        var EV_KINDS =
+          "'visit','app_open','app_connect_ok','app_connect_fail','app_import_ok','app_import_fail'," +
+          "'app_export_ok','app_export_fail','app_activate_ok','app_update_found','app_update_installed','download'";
+        var failRows = function () { return { rows: [] }; };
+        // 1) 版本×变体存量分布（近 7 天、带 app_version 的访问 = APK 装机上报）
+        var qVer = pgA
+          .query(
+            "select coalesce(nullif(payload->>'app_version',''),'(未知)') as v, " +
+              "coalesce(nullif(payload->>'app_variant',''),'-') as variant, count(*)::int as visits, " +
+              "count(distinct coalesce(nullif(install_id,''), visitor_hash, ip))::int as dev " +
+              "from tracking_events where kind='visit' and ts > now() - interval '7 days' " +
+              "and payload ? 'app_version' group by 1, 2 order by visits desc limit 20"
+          )
+          .catch(failRows);
+        // 2) 事件日曲线（近 N 天 × kind）
+        var qDaily = pgA
+          .query(
+            "select to_char(ts, 'MM-DD') as d, kind, count(*)::int as c from tracking_events " +
+              "where ts > now() - interval '" + aDays + " days' and kind in (" + EV_KINDS + ") " +
+              "group by 1, 2 order by 1"
+          )
+          .catch(failRows);
+        // 3) 7 天 kind 总计（升级漏斗从中取数）
+        var qKinds = pgA
+          .query(
+            "select kind, count(*)::int as c from tracking_events where ts > now() - interval '7 days' " +
+              "and kind in (" + EV_KINDS + ") group by 1 order by c desc"
+          )
+          .catch(failRows);
+        // 4) 下载计数：kv_strings 点查今日/昨日总数 + 前缀查今日分版本
+        var dayKeyFn = require("../../lib/rate-limit").beijingDateKey;
+        var dlToday = dayKeyFn(Date.now());
+        var dlYest = dayKeyFn(Date.now() - 86400000);
+        var kvGet = function (k) { return redis.get(k).catch(function () { return null; }); };
+        var qDlTotal = Promise.all([kvGet("stats:dl:" + dlToday), kvGet("stats:dl:" + dlYest)]).catch(function () { return [null, null]; });
+        var qDlVer = pgA
+          .query(
+            "select key, value::int as c from kv_strings where key like 'stats:dl:' || $1 || ':v%' order by key",
+            [dlToday]
+          )
+          .catch(failRows);
+        return Promise.all([qVer, qDaily, qKinds, qDlTotal, qDlVer]).then(function (rs) {
+          var parseC = function (x) { var n = parseInt(x, 10); return isFinite(n) ? n : 0; };
+          return res.json({
+            success: true,
+            days: aDays,
+            versions: (rs[0].rows || []),
+            daily: (rs[1].rows || []),
+            kinds: (rs[2].rows || []),
+            downloads: {
+              day: dlToday,
+              today: parseC(rs[3] && rs[3][0]),
+              yesterday: parseC(rs[3] && rs[3][1]),
+              todayByVersion: (rs[4].rows || []).map(function (r) {
+                return { version: String(r.key || "").replace(/^stats:dl:[^:]+:v/, ""), c: parseC(r.c) };
+              }),
+            },
+          });
+        }).catch(function (e) {
+          console.error("[app-stats] error:", e);
+          return res.status(500).json({ success: false, error: "app-stats failed" });
+        });
+      }
+
       if (sub === "visitor-overview") {
         return res.json(await handleVisitorOverview2());
       }
