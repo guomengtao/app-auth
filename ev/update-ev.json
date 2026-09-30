@@ -1,9 +1,9 @@
 {
- "versionCode": 102,
- "versionName": "0.5.101",
- "sha256": "16abb54fe2a7230085a3f66252bc5bf047f8aa1abe5c33474ff907a914abb723",
- "downloadUrlMirror": "https://app-auth.gudq.com/ev/EVSyncProbe-v0.5.101.apk",
- "downloadUrlOrigin": "https://app-auth.gudq.com/ev/EVSyncProbe-v0.5.101.apk",
+ "versionCode": 103,
+ "versionName": "0.5.102",
+ "sha256": "d2cc18551248fe6f07f613832c6601abf32cbbeb5119d7fe9417a61743e1c6a6",
+ "downloadUrlMirror": "https://app-auth.gudq.com/ev/EVSyncProbe-v0.5.102.apk",
+ "downloadUrlOrigin": "https://app-auth.gudq.com/ev/EVSyncProbe-v0.5.102.apk",
  "isForce": false,
- "updateLog": "设备连接上报升级：支持识别多只手环，换表/多表不再互相覆盖旧记录；修复设备标识在统计中记错的问题。本次为后台统计能力升级，界面与使用方式不变"
+ "updateLog": "关键操作统计升级：导入/导出课表、激活写入手环、发现/完成升级等关键操作会向后台回报成功或失败（失败不会逐条打扰，会合并汇总）；激活页访问统计补齐。界面与使用方式完全不变，无任何新权限"
 }
