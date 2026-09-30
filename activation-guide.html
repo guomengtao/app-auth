@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EV课程表 · 高级版激活流程 教学动画</title>
+<style>
+  :root{
+    --bg:#0b1220; --panel:#121a2b; --panel2:#0f1726; --line:#26334d;
+    --text:#e8edf5; --muted:#9fb0c9;
+    --drive:#ff5b5b;   /* 暖红=用户/手机侧操作（因） */
+    --device:#4fd1c5;  /* 青=手环侧（果/载体） */
+    --key:#ffd166;     /* 黄=兑换码/关键结论 */
+    --ok:#6ee7a0;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",sans-serif;
+    min-height:100vh; display:flex; flex-direction:column; align-items:center;
+    padding:18px 14px 26px;
+  }
+  h1{font-size:24px; margin-bottom:4px;}
+  .sub{color:var(--muted); font-size:14px; margin-bottom:14px; text-align:center;}
+  .sub b{color:var(--key); font-weight:600;}
+
+  /* ===== 流程步骤条 ===== */
+  .rail{display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-bottom:16px; max-width:960px;}
+  .rail button{
+    background:var(--panel); border:1px solid var(--line); color:var(--muted);
+    font-size:14px; padding:8px 14px; border-radius:999px; cursor:pointer; transition:.2s;
+  }
+  .rail button:hover{border-color:var(--device);}
+  .rail button.active{background:#1c2a44; color:#fff; border-color:var(--device); box-shadow:0 0 0 2px rgba(79,209,197,.18);}
+  .rail button .num{color:var(--key); margin-right:4px; font-weight:700;}
+
+  /* ===== 主区域 ===== */
+  .layout{display:flex; gap:16px; max-width:1060px; width:100%; align-items:stretch; flex-wrap:wrap; justify-content:center;}
+  .stage-card{
+    background:var(--panel); border:1px solid var(--line); border-radius:16px;
+    padding:10px 8px 4px; flex:1 1 560px; max-width:640px; position:relative;
+  }
+  .stage-card svg{width:100%; height:auto; display:block;}
+  .branch-tabs{display:flex; gap:8px; justify-content:center; padding:6px 0 2px;}
+  .branch-tabs button{
+    font-size:14px; padding:7px 16px; border-radius:8px; cursor:pointer;
+    background:var(--panel2); color:var(--muted); border:1px solid var(--line);
+  }
+  .branch-tabs button.on{background:#2a2233; color:var(--key); border-color:var(--key); font-weight:600;}
+  .branch-tabs button:not(.on):hover{color:var(--text);}
+
+  /* 信息面板 */
+  .info{
+    background:var(--panel2); border:1px solid var(--line); border-radius:16px;
+    padding:18px 18px 14px; flex:1 1 300px; max-width:380px; display:flex; flex-direction:column;
+  }
+  .info h2{font-size:19px; margin-bottom:8px; color:#fff;}
+  .info .desc{font-size:14.5px; line-height:1.75; color:var(--text);}
+  .info .desc b.r{color:var(--drive); font-weight:600;}
+  .info .desc b.c{color:var(--device); font-weight:600;}
+  .info .desc b.y{color:var(--key); font-weight:600;}
+  .ask{
+    margin-top:auto; padding-top:12px;
+  }
+  .ask .tag{
+    display:inline-block; background:#2a2413; color:var(--key); border:1px solid #4d4420;
+    font-size:13px; padding:3px 10px; border-radius:999px; margin-bottom:6px;
+  }
+  .ask p{font-size:14.5px; line-height:1.65; color:var(--key);}
+  .mech{
+    margin-top:10px; background:#0c1a24; border:1px solid #1d3b45; border-radius:10px;
+    padding:10px 12px; font-size:13.5px; line-height:1.7; color:#bfe9e4;
+  }
+
+  /* 蓝牙模拟条 */
+  .bt-bar{
+    display:flex; gap:10px; align-items:center; justify-content:center;
+    padding:4px 8px 12px; flex-wrap:wrap;
+  }
+  .bt-bar button{
+    font-size:14px; padding:7px 14px; border-radius:8px; cursor:pointer;
+    background:#33202a; color:#ffb4c0; border:1px solid #6b3547;
+  }
+  .bt-bar button.link{background:#12303a; color:#9adfd8; border-color:#2b5a63;}
+  .bt-hint{font-size:13.5px; color:var(--muted);}
+
+  /* ===== 底部控制 ===== */
+  .ctrl{display:flex; gap:12px; align-items:center; margin-top:16px; flex-wrap:wrap; justify-content:center;}
+  .ctrl button{
+    font-size:15px; padding:9px 22px; border-radius:10px; cursor:pointer; border:1px solid var(--line);
+    background:var(--panel); color:var(--text); transition:.15s;
+  }
+  .ctrl button.primary{background:#1c3a52; border-color:#2f6a8f; color:#bfe6ff;}
+  .ctrl button:hover{filter:brightness(1.2);}
+  .ctrl button:disabled{opacity:.35; cursor:not-allowed;}
+  .dots{display:flex; gap:7px;}
+  .dots i{width:9px; height:9px; border-radius:50%; background:var(--line);}
+  .dots i.on{background:var(--key);}
+
+  /* ===== SVG 动画 ===== */
+  .layer{display:none;}
+  .layer.show{display:block;}
+  .fadeup{animation:fadeup .7s ease both;}
+  @keyframes fadeup{from{opacity:0; transform:translateY(14px);} to{opacity:1; transform:translateY(0);}}
+  .fly{animation:flyRight 1.5s cubic-bezier(.45,.05,.55,.95) .5s both;}
+  @keyframes flyRight{
+    0%{transform:translate(0,0); opacity:0;}
+    12%{opacity:1;}
+    82%{transform:translate(408px,0); opacity:1;}
+    100%{transform:translate(415px,0); opacity:0;}
+  }
+  .pop{animation:popIn .55s cubic-bezier(.34,1.56,.64,1) 1.95s both;}
+  @keyframes popIn{from{opacity:0; transform:scale(.4);} to{opacity:1; transform:scale(1);}}
+  .pop-fast{animation:popIn .55s cubic-bezier(.34,1.56,.64,1) .2s both;}
+  .wave{animation:wave 1.4s ease-in-out infinite;}
+  @keyframes wave{0%,100%{opacity:.15;} 50%{opacity:.9;}}
+  .pulse{animation:pulse 1.6s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1;} 50%{opacity:.55;}}
+  .type1{animation:tin .1s linear 1.2s both;}
+  .type2{animation:tin .1s linear 1.5s both;}
+  .type3{animation:tin .1s linear 1.8s both;}
+  .type4{animation:tin .1s linear 2.1s both;}
+  @keyframes tin{from{opacity:0;} to{opacity:1;}}
+  .bt-off .band-group{opacity:.28; filter:grayscale(.8);}
+  .bt-off .bt-link-path{opacity:.12 !important;}
+  svg text{font-family:"PingFang SC","Microsoft YaHei",sans-serif;}
+</style>
+</head>
+<body>
+
+<h1>EV课程表 · 高级版激活流程</h1>
+<div class="sub">看懂「激活链接 + 4 位兑换码」是怎么一步步写进手环的 —— <b>激活码绑定设备 ID，最后一步永远是「码到手环」</b></div>
+
+<!-- 步骤导航 -->
+<div class="rail" id="rail"></div>
+
+<div class="layout">
+  <!-- 舞台 -->
+  <div class="stage-card">
+    <div class="branch-tabs" id="branchTabs" style="display:none;">
+      <button id="tabAuto" class="on">方式一：自动激活（推荐）</button>
+      <button id="tabManual">方式二：手工输入</button>
+    </div>
+    <svg id="stage" viewBox="0 0 820 480" role="img" aria-label="激活流程动画舞台">
+      <!-- ===== 通用设备轮廓 ===== -->
+      <g id="devices">
+        <!-- 手机 -->
+        <rect x="120" y="50" width="200" height="380" rx="26" fill="#1a2436" stroke="#31415f" stroke-width="2"/>
+        <rect x="130" y="64" width="180" height="352" rx="16" fill="#0d1524"/>
+        <rect x="190" y="56" width="60" height="7" rx="3.5" fill="#31415f"/>
+        <!-- 手环（胶囊屏） -->
+        <g class="band-group">
+          <rect x="606" y="52" width="68" height="60" rx="16" fill="#1a2436" stroke="#31415f" stroke-width="2"/>
+          <rect x="606" y="368" width="68" height="60" rx="16" fill="#1a2436" stroke="#31415f" stroke-width="2"/>
+          <rect x="590" y="80" width="100" height="320" rx="50" fill="#1a2436" stroke="#31415f" stroke-width="2"/>
+          <rect x="602" y="150" width="76" height="180" rx="18" fill="#0d1524" stroke="#31415f"/>
+          <text x="640" y="112" text-anchor="middle" font-size="13" fill="#9fb0c9">小米手环</text>
+        </g>
+      </g>
+
+      <!-- ===== intro 流程全景 ===== -->
+      <g id="g-intro" class="layer">
+        <text x="210" y="130" text-anchor="middle" font-size="17" fill="#e8edf5">手机侧（你操作的）</text>
+        <text x="640" y="130" text-anchor="middle" font-size="17" fill="#9adfd8">手环侧（最终生效）</text>
+        <!-- 四步竖排卡片 -->
+        <g class="fadeup">
+          <rect x="142" y="160" width="156" height="46" rx="10" fill="#1c2a44" stroke="#31415f"/>
+          <text x="155" y="188" font-size="14.5" fill="#ffd166">① 购买 → 私信激活链接</text>
+          <rect x="142" y="216" width="156" height="46" rx="10" fill="#1c2a44" stroke="#31415f"/>
+          <text x="155" y="244" font-size="14.5" fill="#e8edf5">② 装表盘到手环</text>
+          <rect x="142" y="272" width="156" height="46" rx="10" fill="#1c2a44" stroke="#31415f"/>
+          <text x="155" y="300" font-size="14.5" fill="#e8edf5">③ 装同步器·连手环</text>
+          <rect x="142" y="328" width="156" height="46" rx="10" fill="#2a2233" stroke="#ffd166"/>
+          <text x="155" y="356" font-size="14.5" fill="#ffd166">④ 激活：码 → 手环</text>
+        </g>
+        <!-- 虚线路径 -->
+        <path d="M 310 350 C 420 350 480 250 596 240" fill="none" stroke="#ffd166" stroke-width="2.5" stroke-dasharray="7 7" class="pulse"/>
+        <path d="M 596 240 l -14 -8 m 14 8 l -14 8" stroke="#ffd166" stroke-width="2.5" fill="none" transform="rotate(180 596 240)"/>
+        <g class="band-group">
+          <rect x="612" y="200" width="56" height="34" rx="8" fill="#121a2b" stroke="#31415f"/>
+          <text x="640" y="222" text-anchor="middle" font-size="13" fill="#5b6b87">？？？</text>
+        </g>
+        <text x="410" y="440" text-anchor="middle" font-size="15.5" fill="#ffd166">兑换码只有 4 位，最终写进手环的激活码却有 18 位 —— 中间发生了什么？</text>
+      </g>
+
+      <!-- ===== s1 购买兑换码 ===== -->
+      <g id="g-s1" class="layer">
+        <text x="210" y="120" text-anchor="middle" font-size="16" fill="#e8edf5">爱发电下单成功 🧾</text>
+        <rect x="150" y="140" width="140" height="50" rx="10" fill="#1c2a44" stroke="#31415f"/>
+        <text x="220" y="170" text-anchor="middle" font-size="14.5" fill="#9fb0c9">EV课程表 高级版</text>
+        <!-- 爱发电私信激活链接 -->
+        <g class="fadeup">
+          <rect x="142" y="212" width="156" height="120" rx="10" fill="#101b30" stroke="#31415f"/>
+          <text x="158" y="238" font-size="13.5" fill="#9fb0c9">📩 爱发电私信</text>
+          <text x="158" y="262" font-size="13.5" fill="#e8edf5">您的激活链接：</text>
+          <rect x="158" y="274" width="132" height="38" rx="8" fill="#1c3a52" stroke="#2f6a8f" stroke-width="1.5"/>
+          <text x="224" y="299" text-anchor="middle" font-size="12.5" fill="#bfe6ff">…?code=ABCD</text>
+          <text x="158" y="326" font-size="12.5" fill="#5b6b87">内含兑换码 ABCD · 可手工兜底</text>
+        </g>
+        <text x="410" y="440" text-anchor="middle" font-size="15" fill="#ffd166">链接长期有效、随时能找回 —— 点开它即可自动激活</text>
+      </g>
+
+      <!-- ===== s2 装表盘 ===== -->
+      <g id="g-s2" class="layer">
+        <text x="210" y="120" text-anchor="middle" font-size="16" fill="#e8edf5">先把「EV课程表」装进手环</text>
+        <g class="fadeup">
+          <rect x="142" y="146" width="156" height="66" rx="10" fill="#1c2a44" stroke="#31415f"/>
+          <text x="158" y="172" font-size="14" fill="#e8edf5">方式一 · Deck 安装</text>
+          <text x="158" y="196" font-size="12.5" fill="#6ee7a0">简单稳定 · 需下 rpk 包</text>
+          <rect x="142" y="224" width="156" height="66" rx="10" fill="#1c2a44" stroke="#31415f"/>
+          <text x="158" y="250" font-size="14" fill="#e8edf5">方式二 · Astrobox 推送</text>
+          <text x="158" y="274" font-size="12.5" fill="#9fb0c9">兜底 · 搜「EV课程表」</text>
+        </g>
+        <!-- rpk 包飞行 -->
+        <g class="fly">
+          <rect x="166" y="306" width="88" height="30" rx="8" fill="#2a2233" stroke="#4fd1c5" stroke-width="1.5"/>
+          <text x="210" y="326" text-anchor="middle" font-size="13" fill="#4fd1c5">EV课表.rpk</text>
+        </g>
+        <g class="pop">
+          <rect x="614" y="196" width="52" height="40" rx="9" fill="#12303a" stroke="#4fd1c5"/>
+          <text x="640" y="216" text-anchor="middle" font-size="11.5" fill="#4fd1c5">EV</text>
+          <text x="640" y="230" text-anchor="middle" font-size="11.5" fill="#4fd1c5">课程表</text>
+        </g>
+        <path d="M 300 321 C 420 321 500 240 596 218" fill="none" stroke="#4fd1c5" stroke-width="2" stroke-dasharray="6 6" opacity=".6"/>
+        <text x="410" y="440" text-anchor="middle" font-size="15" fill="#9adfd8">支持 10 Pro / 9 Pro / 9 / S3 / S4，方屏·胶囊·圆屏自动匹配</text>
+      </g>
+
+      <!-- ===== s3 连接手环 ===== -->
+      <g id="g-s3" class="layer">
+        <text x="210" y="120" text-anchor="middle" font-size="16" fill="#e8edf5">装同步器 App，连上手环</text>
+        <g class="fadeup">
+          <rect x="142" y="150" width="156" height="88" rx="10" fill="#1c2a44" stroke="#31415f"/>
+          <text x="158" y="176" font-size="14" fill="#e8edf5">Ev课程表同步器</text>
+          <text x="158" y="198" font-size="12.5" fill="#ffb4c0">仅安卓 · iOS 走备用方式</text>
+          <text x="158" y="222" font-size="12.5" fill="#9fb0c9">前置：小米运动健康已连</text>
+        </g>
+        <!-- 蓝牙波纹 -->
+        <g class="bt-link-path">
+          <circle cx="420" cy="240" r="18" fill="none" stroke="#4fd1c5" stroke-width="2" class="wave"/>
+          <circle cx="420" cy="240" r="34" fill="none" stroke="#4fd1c5" stroke-width="2" class="wave" style="animation-delay:.35s"/>
+          <circle cx="420" cy="240" r="50" fill="none" stroke="#4fd1c5" stroke-width="2" class="wave" style="animation-delay:.7s"/>
+          <text x="420" y="312" text-anchor="middle" font-size="14" fill="#9adfd8">蓝牙已连接</text>
+        </g>
+        <text x="410" y="440" text-anchor="middle" font-size="15" fill="#9adfd8">连接成功后，手机才有资格把激活码「写」进手环</text>
+      </g>
+
+      <!-- ===== s4 自动激活 ===== -->
+      <g id="g-s4auto" class="layer">
+        <text x="210" y="120" text-anchor="middle" font-size="16" fill="#e8edf5">点开激活链接</text>
+        <g class="fadeup">
+          <rect x="142" y="146" width="156" height="104" rx="10" fill="#101b30" stroke="#31415f"/>
+          <text x="158" y="172" font-size="13.5" fill="#9fb0c9">激活页面</text>
+          <rect x="150" y="188" width="150" height="42" rx="8" fill="#1c3a52" stroke="#2f6a8f"/>
+          <text x="225" y="214" text-anchor="middle" font-size="11.5" fill="#bfe6ff">打开 Ev课程表同步器 自动激活</text>
+        </g>
+        <!-- 码飞行 -->
+        <g class="fly">
+          <rect x="168" y="270" width="86" height="36" rx="8" fill="#2a2413" stroke="#ffd166" stroke-width="2"/>
+          <text x="211" y="294" text-anchor="middle" font-size="16" fill="#ffd166" font-weight="700" letter-spacing="3">ABCD</text>
+        </g>
+        <text x="220" y="336" text-anchor="middle" font-size="13" fill="#9fb0c9">App 自动填入 → 生成 18 位激活码</text>
+        <!-- 手环成功 -->
+        <g class="pop">
+          <circle cx="640" cy="240" r="22" fill="none" stroke="#6ee7a0" stroke-width="4"/>
+          <path d="M 630 240 l 7 8 l 14 -16" stroke="#6ee7a0" stroke-width="4" fill="none" stroke-linecap="round"/>
+        </g>
+      </g>
+
+      <!-- ===== s4 手工激活 ===== -->
+      <g id="g-s4manual" class="layer">
+        <text x="210" y="120" text-anchor="middle" font-size="16" fill="#e8edf5">同步器 App 里手工输码</text>
+        <g class="fadeup">
+          <rect x="142" y="142" width="156" height="130" rx="10" fill="#101b30" stroke="#31415f"/>
+          <text x="158" y="166" font-size="13" fill="#9fb0c9">设置 → 高级版</text>
+          <rect x="154" y="178" width="132" height="40" rx="8" fill="#0d1524" stroke="#31415f"/>
+          <text x="164" y="204" font-size="16" fill="#ffd166" letter-spacing="3"><tspan class="type1">A</tspan><tspan class="type2">B</tspan><tspan class="type3">C</tspan><tspan class="type4">D</tspan></text>
+          <rect x="154" y="230" width="132" height="34" rx="8" fill="#2a2233" stroke="#ffd166"/>
+          <text x="220" y="252" text-anchor="middle" font-size="13.5" fill="#ffd166">⚡ 一键激活</text>
+        </g>
+        <g class="fly">
+          <rect x="160" y="296" width="120" height="32" rx="8" fill="#2a2413" stroke="#ffd166" stroke-width="1.5"/>
+          <text x="220" y="317" text-anchor="middle" font-size="12.5" fill="#ffd166">18 位激活码</text>
+        </g>
+        <g class="pop">
+          <circle cx="640" cy="240" r="22" fill="none" stroke="#6ee7a0" stroke-width="4"/>
+          <path d="M 630 240 l 7 8 l 14 -16" stroke="#6ee7a0" stroke-width="4" fill="none" stroke-linecap="round"/>
+        </g>
+      </g>
+
+      <!-- ===== done 总结 ===== -->
+      <g id="g-done" class="layer">
+        <g class="pop-fast">
+          <circle cx="640" cy="240" r="26" fill="none" stroke="#6ee7a0" stroke-width="4"/>
+          <path d="M 628 240 l 8 9 l 16 -18" stroke="#6ee7a0" stroke-width="4" fill="none" stroke-linecap="round"/>
+          <text x="640" y="300" text-anchor="middle" font-size="14" fill="#6ee7a0">手环高级版 ✅</text>
+        </g>
+        <text x="210" y="140" text-anchor="middle" font-size="16" fill="#e8edf5">装了 App 还同步获得：</text>
+        <g class="fadeup">
+          <rect x="142" y="160" width="74" height="34" rx="8" fill="#1c2a44" stroke="#31415f"/>
+          <text x="179" y="182" text-anchor="middle" font-size="12.5" fill="#e8edf5">课表导入导出</text>
+          <rect x="224" y="160" width="60" height="34" rx="8" fill="#1c2a44" stroke="#31415f"/>
+          <text x="254" y="182" text-anchor="middle" font-size="12.5" fill="#e8edf5">呼叫手环</text>
+          <rect x="142" y="202" width="74" height="34" rx="8" fill="#1c2a44" stroke="#31415f"/>
+          <text x="179" y="224" text-anchor="middle" font-size="12.5" fill="#e8edf5">上课提醒</text>
+          <rect x="224" y="202" width="74" height="34" rx="8" fill="#1c2a44" stroke="#31415f"/>
+          <text x="261" y="224" text-anchor="middle" font-size="12.5" fill="#e8edf5">桌面小组件</text>
+        </g>
+        <text x="410" y="440" text-anchor="middle" font-size="15.5" fill="#ffd166">记住：激活码绑定设备 ID —— 设备 ID 不一致或换了新手环，都要重新生成/重新获取兑换码</text>
+      </g>
+    </svg>
+
+    <!-- 蓝牙模拟条（仅第4步显示） -->
+    <div class="bt-bar" id="btBar" style="display:none;">
+      <button id="btBtn">⚡ 模拟：中途蓝牙断开</button>
+      <span class="bt-hint" id="btHint">想一想：断开会前功尽弃吗？点按钮试试</span>
+    </div>
+  </div>
+
+  <!-- 信息面板 -->
+  <div class="info">
+    <h2 id="infoTitle"></h2>
+    <div class="desc" id="infoDesc"></div>
+    <div class="mech" id="infoMech" style="display:none;"></div>
+    <div class="ask">
+      <span class="tag">💡 想一想</span>
+      <p id="infoAsk"></p>
+    </div>
+  </div>
+</div>
+
+<!-- 控制条 -->
+<div class="ctrl">
+  <button id="btnPrev">← 上一步</button>
+  <div class="dots" id="dots"></div>
+  <button id="btnNext" class="primary">下一步 →</button>
+  <button id="btnRestart">↺ 重看一遍</button>
+</div>
+
+<script>
+  // ====== 教学参数（可集中调整） ======
+  var ORDER = ['intro','s1','s2','s3','s4','done'];
+  var RAIL_LABELS = {
+    intro:'流程全景', s1:'1 购买·收激活链接', s2:'2 装表盘到手环',
+    s3:'3 装同步器·连手环', s4:'4 激活（二选一）', done:'激活成功'
+  };
+
+  var CONTENT = {
+    intro:{
+      title:'一块手环课表的高级版，是怎么激活的？',
+      desc:'你在<b class="r">手机侧</b>完成购买、装表盘、装同步器这些操作；而权限最终要落到<b class="c">手环侧</b>才算生效。整条流程的主线只有一条：<b class="y">把绑定设备 ID 的激活码，安全地写进手环</b>。',
+      mech:'机制主张：兑换码（4 位）是"取货凭证"；App 用它 + 你手环的设备 ID 生成 18 位激活码；激活码写入手环后，手环本地解码校验，高级版才解锁。',
+      ask:'兑换码只有 4 位，为什么手环里最终是一串 18 位激活码？带着这个问题往下看。'
+    },
+    s1:{
+      title:'第 1 步 · 购买后收到激活链接',
+      desc:'在爱发电购买后，<b class="r">爱发电私信</b>会收到一条<b class="y">自动激活链接</b>（形如 …/deep-link-test.html?code=ABCD）。链接页面里同时包含手工兜底用的 <b class="y">4 位兑换码</b>，收藏好链接即可，随时能找回。',
+      mech:null,
+      ask:'激活链接丢了怎么办？—— 不会丢：它永久躺在爱发电 App 的私信记录里，比邮件和截图都可靠；实在找不到就找作者重发（爱发电私信 / QQ 群 936886288）。'
+    },
+    s2:{
+      title:'第 2 步 · 安装 EV课程表 到手环',
+      desc:'表盘本体要先装进手环：<br>· <b class="c">方式一（推荐）</b>：手机浏览器打开 Deck 安装到手环——<b class="y">需要下载 rpk 包，但手机上使用简单稳定</b>；<br>· <b class="r">方式二（兜底）</b>：装 Astrobox，搜「EV课程表」下载推送，搜不到就本地导入 .rpk。',
+      mech:null,
+      ask:'为什么要有两条路？—— Deck 简单稳定但需要下载 rpk 包，Astrobox 更通用，兜底保证人人装得上。'
+    },
+    s3:{
+      title:'第 3 步 · 装同步器 App，连接手环',
+      desc:'手机安装 <b class="r">Ev课程表同步器</b>（<b class="r">仅安卓</b>，iOS 用户走"手环端扫码激活"备用方式）。前置条件：手机已装<b class="r">小米运动健康</b>并连上手环。连接成功后，App 才有写入激活码的通道。',
+      mech:null,
+      ask:'如果手机蓝牙连的是别人的手环，会发生什么？—— 想想"设备 ID 绑定"，答案在第 4 步之后揭晓。'
+    },
+    s4:{
+      title:'第 4 步 · 激活（两种方式任选）',
+      descAuto:'<b class="r">方式一（推荐）自动激活</b>：在<b class="r">手机浏览器</b>里点开购买后私信收到的<b class="y">激活链接</b> → 页面点「打开 Ev课程表同步器 自动激活」→ App 自动填入兑换码并激活，完成 ✅（链接页里也有 4 位码，随时可改走手工）<br><br><b class="r">方式二 手工输入</b>：链接打不开时，打开同步器 → <b class="r">设置 → 高级版</b> → 输入 <b class="y">4 位兑换码</b> → <b class="y">一键激活</b>，激活码自动生成并写入手环 ✅',
+      ask:'中途蓝牙断开，激活会前功尽弃吗？—— 点舞台下方的「模拟蓝牙断开」按钮，亲眼看看 App 怎么处理。'
+    },
+    done:{
+      title:'激活成功 🎉',
+      desc:'高级版已在手环生效。装了同步器 App 还同步获得：<b class="r">课表导入导出、呼叫手环、上课提醒、桌面小组件</b>。<br><br><b class="y">三条避坑提醒：</b><br>① 激活码<b class="r">绑定设备 ID</b>，填错 ID 手环会解码失败 → 回激活页用正确设备 ID 重新生成；<br>② 换了新手环 = 新设备 ID，原兑换码不能跨设备 → 联系作者重新获取（QQ 群 936886288）；<br>③ 有效期看套餐（1/3/6/12个月/永久），到期前 7 天手环会提醒续期。',
+      mech:'回看机制主线：兑换码（凭证）+ 设备 ID → 生成激活码 → 写入手环 → 本地校验解锁。两条激活路径只是"送码进手环"的方式不同，本质是同一件事。',
+      ask:'现在你能回答开头的问题了吗：4 位兑换码是怎么变成 18 位激活码的？'
+    }
+  };
+
+  // ====== 状态机 ======
+  var idx = 0;
+  var branch = 'auto';       // s4 分支
+  var btState = 0;           // 0正常 1断开 2重连完成
+
+  var rail = document.getElementById('rail');
+  var dots = document.getElementById('dots');
+  ORDER.forEach(function(k,i){
+    var b = document.createElement('button');
+    b.innerHTML = '<span class="num">'+(k==='intro'||k==='done'?'':'')+'</span>'+RAIL_LABELS[k];
+    b.onclick = function(){ go(i); };
+    rail.appendChild(b);
+    var d = document.createElement('i');
+    dots.appendChild(d);
+  });
+
+  function showLayer(id){
+    var all = document.querySelectorAll('.layer');
+    for(var i=0;i<all.length;i++) all[i].classList.remove('show');
+    var el = document.getElementById('g-'+id);
+    if(el) el.classList.add('show');
+  }
+  function restartAnim(layerId){
+    // 通过移除/添加 class 强制 CSS 动画重新播放
+    var el = document.getElementById('g-'+layerId);
+    if(!el) return;
+    var clone = el.cloneNode(true);
+    el.parentNode.replaceChild(clone, el);
+    clone.classList.add('show');
+  }
+
+  function go(i){
+    idx = Math.max(0, Math.min(ORDER.length-1, i));
+    var key = ORDER[idx];
+    // 重置子状态
+    btState = 0;
+    document.getElementById('stage').classList.remove('bt-off');
+    document.getElementById('btBtn').textContent = '⚡ 模拟：中途蓝牙断开';
+    document.getElementById('btBtn').classList.remove('link');
+    document.getElementById('btHint').textContent = '想一想：断开会前功尽弃吗？点按钮试试';
+
+    // 图层
+    if(key==='s4'){
+      showLayer(branch==='auto' ? 's4auto' : 's4manual');
+      restartAnim(branch==='auto' ? 's4auto' : 's4manual');
+    } else {
+      showLayer(key);
+      restartAnim(key);
+    }
+
+    // 步骤条 & 进度点
+    var btns = rail.children, ds = dots.children;
+    for(var i=0;i<ORDER.length;i++){
+      btns[i].classList.toggle('active', i===idx);
+      ds[i].classList.toggle('on', i===idx);
+    }
+
+    // 分支切换条、蓝牙条显隐
+    document.getElementById('branchTabs').style.display = (key==='s4') ? 'flex' : 'none';
+    document.getElementById('btBar').style.display = (key==='s4') ? 'flex' : 'none';
+
+    // 信息面板
+    var c = CONTENT[key];
+    document.getElementById('infoTitle').textContent = c.title;
+    document.getElementById('infoDesc').innerHTML = (key==='s4') ? c.descAuto : c.desc;
+    var m = document.getElementById('infoMech');
+    if(c.mech){ m.style.display='block'; m.innerHTML = '🧩 '+c.mech; } else { m.style.display='none'; }
+    document.getElementById('infoAsk').textContent = c.ask;
+
+    // 按钮
+    document.getElementById('btnPrev').disabled = (idx===0);
+    document.getElementById('btnNext').disabled = (idx===ORDER.length-1);
+  }
+
+  document.getElementById('btnPrev').onclick = function(){ go(idx-1); };
+  document.getElementById('btnNext').onclick = function(){ go(idx+1); };
+  document.getElementById('btnRestart').onclick = function(){ go(0); };
+  document.addEventListener('keydown', function(e){
+    if(e.key==='ArrowRight') go(idx+1);
+    if(e.key==='ArrowLeft') go(idx-1);
+  });
+
+  // 分支切换
+  document.getElementById('tabAuto').onclick = function(){
+    branch='auto'; setTab(); showLayer('s4auto'); restartAnim('s4auto');
+  };
+  document.getElementById('tabManual').onclick = function(){
+    branch='manual'; setTab(); showLayer('s4manual'); restartAnim('s4manual');
+  };
+  function setTab(){
+    document.getElementById('tabAuto').classList.toggle('on', branch==='auto');
+    document.getElementById('tabManual').classList.toggle('on', branch==='manual');
+    btState = 0;
+    document.getElementById('stage').classList.remove('bt-off');
+    document.getElementById('btBtn').textContent = '⚡ 模拟：中途蓝牙断开';
+    document.getElementById('btBtn').classList.remove('link');
+    document.getElementById('btHint').textContent = '想一想：断开会前功尽弃吗？点按钮试试';
+  }
+
+  // 蓝牙断开模拟
+  document.getElementById('btBtn').onclick = function(){
+    var hint = document.getElementById('btHint');
+    var stage = document.getElementById('stage');
+    var btn = document.getElementById('btBtn');
+    if(btState===0){
+      btState=1; stage.classList.add('bt-off');
+      btn.textContent='🔗 重新连接手环'; btn.classList.add('link');
+      hint.innerHTML='蓝牙断了！但别慌 —— <b style="color:#ffd166">App 已自动暂存激活进度</b>，再点一次恢复连接';
+    } else if(btState===1){
+      btState=2; stage.classList.remove('bt-off');
+      btn.textContent='✅ 已恢复连接';
+      hint.innerHTML='连上后自动继续 —— 激活码照样写进手环，<b style="color:#6ee7a0">不会前功尽弃</b>';
+    }
+  };
+
+  go(0);
+</script>
+</body>
+</html>

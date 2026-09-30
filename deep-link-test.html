@@ -22,6 +22,8 @@
           border-top: 1px solid #eee; padding-top: 14px; }
   .wx { display: none; background: #fff7e6; border-radius: 10px; padding: 12px;
         font-size: 13px; color: #b26b00; margin-bottom: 16px; text-align: left; line-height: 1.6; }
+  .pc { display: none; background: #fff7e6; border-radius: 10px; padding: 12px;
+        font-size: 13px; color: #b26b00; margin-bottom: 16px; text-align: left; line-height: 1.6; }
 </style>
 </head>
 <body>
@@ -29,9 +31,10 @@
   <h1>Ev课程表激活</h1>
   <div class="sub">点下方按钮自动打开 App 填码激活（安卓手机）</div>
   <div class="wx">⚠️ 你在微信里打开了本页。微信会拦截 App 跳转，请点右上角「···」→ 选择「在浏览器打开」，再用按钮激活。</div>
+  <div class="pc">🖥️ 你在<b>电脑</b>上打开了本页。自动激活需要在<b>手机</b>上完成：请把这个链接发到手机（微信 / 短信均可），用手机浏览器打开后再点按钮。</div>
   <div class="code" id="code">------</div>
   <div class="codelabel">兑换码（拉不起来就手工输入这个）</div>
-  <a class="btn" id="openbtn" href="#">打开 Ev课程表 自动激活</a>
+  <a class="btn" id="openbtn" href="#">打开 Ev课程表同步器 自动激活</a>
   <a class="btn gray" id="copybtn" href="javascript:void(0)">复制兑换码</a>
   <div class="hint">
     预期行为：点按钮 → 弹「是否打开 Ev课程表」→ 确认后进入激活页，兑换码已自动填入并开始激活。<br>
@@ -52,6 +55,12 @@
   document.getElementById("openbtn").href = scheme + "://activate?code=" + code;
   if (/MicroMessenger/i.test(navigator.userAgent)) {
     document.querySelector(".wx").style.display = "block";
+  }
+  // 电脑端检测：本页的自动激活只能在手机上完成
+  var isTouch = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
+  var isMobileUA = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  if (!isTouch && !isMobileUA) {
+    document.querySelector(".pc").style.display = "block";
   }
   document.getElementById("copybtn").onclick = function () {
     var done = function () { this.textContent = "已复制 ✓"; }.bind(this);
