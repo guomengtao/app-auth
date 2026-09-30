@@ -2474,6 +2474,57 @@ def handle_message(msg, skip_notify=False, source="live"):
             lines.append(f"渠道: {utm}")
         lines.append(ts_label)
         body = "\n".join(lines)
+    elif mtype == "app_event":
+        # P3（§4.4-F4）：App 关键操作事件（导入/导出/激活/升级 + 失败整点汇总）
+        kind = p.get("kind", "")
+        pc = p.get("payload", {}) or {}
+        if kind == "hourly_fail_digest":
+            title = "失败汇总"
+            subtitle = (p.get("hour", "") or "") + " 整点合并"
+            lines = []
+            for it in (p.get("fails") or []):
+                name = it.get("kind_cn") or it.get("kind") or "?"
+                line = f"{name} ×{it.get('count', 0)}"
+                sample = (it.get("sample") or "").strip()
+                if sample:
+                    line += f"（{sample[:48]}）"
+                lines.append(line)
+            if not lines:
+                lines.append("无明细")
+            lines.append(ts_label)
+            body = "\n".join(lines)
+        else:
+            kind_cn = p.get("kind_cn") or kind
+            watch = p.get("watch_model", "") or ""
+            # 标题带手环机型：📥 导出成功 · 小米手环 10 Pro
+            title = kind_cn + (f" · {watch}" if watch else "")
+            subtitle = p.get("device_model", "") or p.get("install_id", "") or ""
+            lines = []
+            if pc.get("course_count"):
+                lines.append(f"课程: {pc['course_count']} 门")
+            if pc.get("target"):
+                lines.append(f"方式: {pc['target']}")
+            if pc.get("from_code") or pc.get("to_code"):
+                lines.append(f"版本: {pc.get('from_code', '?')} → {pc.get('to_code', '?')}")
+            if pc.get("activation_code"):
+                lines.append(f"激活码: {pc['activation_code']}")
+            if pc.get("stage"):
+                lines.append(f"阶段: {pc['stage']}")
+            if pc.get("reason"):
+                lines.append(f"原因: {str(pc['reason'])[:80]}")
+            if p.get("install_id"):
+                lines.append(f"用户: {p['install_id']}")
+            av = p.get("app_version", "") or ""
+            if av:
+                variant = p.get("app_variant", "") or ""
+                lines.append(f"APK: {av}{' (' + variant + ')' if variant else ''}")
+            geo_str = _zh_loc(p)
+            if geo_str:
+                lines.append(f"归属地: {geo_str}")
+            if p.get("ip"):
+                lines.append(f"IP: {p.get('ip')}")
+            lines.append(ts_label)
+            body = "\n".join(lines)
     else:
         body = json.dumps(p, ensure_ascii=False, indent=2)[:200]
     print(f"[{ts_label}] {title} | {subtitle}")
@@ -2553,6 +2604,35 @@ def handle_message(msg, skip_notify=False, source="live"):
                 voice_text = f"{who}用户来自{loc}，访问{page_cn}" if loc else f"{who}用户访问{page_cn}"
             else:
                 voice_text = f"{loc}用户访问{page_cn}" if loc else f"用户访问{page_cn}"
+        elif mtype == "app_event":
+            # P3（§4.4-F4）：App 事件语音。失败类只进整点汇总，不逐条播。
+            kind = p.get("kind", "")
+            pc = p.get("payload", {}) or {}
+            loc = _zh_loc(p)
+            where = f"{loc}" if loc else ""
+            if kind == "hourly_fail_digest":
+                parts = ["失败汇总"]
+                for it in (p.get("fails") or []):
+                    name = it.get("kind_cn") or it.get("kind") or ""
+                    if name:
+                        parts.append(f"{name}{it.get('count', 0)}次")
+                voice_text = "，".join(parts)
+            elif kind == "app_import_ok":
+                n = pc.get("course_count") or ""
+                voice_text = f"{where}用户导入课程表{n}门课" if n else f"{where}用户导入课程表"
+            elif kind == "app_export_ok":
+                n = pc.get("course_count") or ""
+                voice_text = f"{where}用户导出课程表{n}门课" if n else f"{where}用户导出课程表"
+            elif kind == "app_activate_ok":
+                voice_text = f"{where}用户激活成功"
+            elif kind == "app_update_installed":
+                voice_text = f"{where}用户升级到新版本"
+            elif kind == "app_update_found":
+                voice_text = f"{where}用户发现新版本"
+            elif kind:
+                voice_text = f"{where}用户{p.get('kind_cn') or kind}"
+            else:
+                voice_text = f"{title}, {subtitle}".replace("[", "").replace("]", "")
         elif mtype == "test_curl":
             voice_text = "收到测试消息"
         else:
@@ -2740,6 +2820,32 @@ def _format_message_detail(m):
         if loc:
             detail += f" | {loc}"
         type_label = "购买"
+    elif mtype == "app_event":
+        # P3（§4.4-F4）：消息面板里的 App 事件摘要
+        kind = p.get("kind", "")
+        if kind == "hourly_fail_digest":
+            parts = []
+            for it in (p.get("fails") or []):
+                parts.append(f"{it.get('kind_cn') or it.get('kind') or '?'}×{it.get('count', 0)}")
+            detail = f"共{p.get('total', 0)}条"
+            if parts:
+                detail += "：" + "，".join(parts)
+            type_label = "汇总"
+        else:
+            pc = p.get("payload", {}) or {}
+            bits = []
+            if pc.get("course_count"):
+                bits.append(f"{pc['course_count']}门")
+            if pc.get("target"):
+                bits.append(str(pc["target"]))
+            if pc.get("stage"):
+                bits.append(f"stage {pc['stage']}")
+            if pc.get("reason"):
+                bits.append(str(pc["reason"])[:40])
+            detail = p.get("device_model", "") or p.get("install_id", "") or ""
+            if bits:
+                detail = (detail + " | " if detail else "") + " | ".join(bits)
+            type_label = "App"
     return type_label, detail
 
 
@@ -2754,6 +2860,7 @@ _APK_PAGE_NAMES = {
     "/apk/transfer/export": "导出课表",
     "/apk/theme": "主题设置",
     "/apk/debug": "调试页",
+    "/apk/activate": "激活页",
 }
 
 
@@ -5199,12 +5306,19 @@ function filterVisitors(filter) {
     def _html_activations(self):
         """Activation records page - list new_activation and activation_failure messages."""
         messages = load_messages()
-        acts = [m for m in messages if m.get("type") in ("new_activation", "activation_failure")]
+        # P3（§4.4-F4）：App 端「写入手环成功」确认（app_event/app_activate_ok）也进激活记录页。
+        #   它与 new_activation 是两个节点（服务端发码 ✓ / 手环落盘 ✓），统计分开数、不互相混。
+        acts = [m for m in messages if m.get("type") in ("new_activation", "activation_failure")
+                or (m.get("type") == "app_event"
+                    and (m.get("payload") or {}).get("kind") == "app_activate_ok")]
         acts.sort(key=lambda x: x.get("ts", 0), reverse=True)
 
         total_count = len(acts)
         success_count = sum(1 for a in acts if a.get("type") == "new_activation")
         fail_count = sum(1 for a in acts if a.get("type") == "activation_failure")
+        app_ok_count = sum(1 for a in acts
+                           if a.get("type") == "app_event"
+                           and (a.get("payload") or {}).get("kind") == "app_activate_ok")
         today_str = _bj_today_str()          # 北京时间今天（与消息时间口径一致）
         today_acts = []
         for a in acts:
@@ -5228,6 +5342,10 @@ function filterVisitors(filter) {
           <div class="stat-card">
             <div class="stat-icon red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
             <div class="stat-body"><div class="stat-value">{fail_count}</div><div class="stat-label">Failed</div></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon emerald"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="M5 9h14"/><path d="M7 18h10"/><rect x="4" y="13" width="16" height="7" rx="2"/></svg></div>
+            <div class="stat-body"><div class="stat-value">{app_ok_count}</div><div class="stat-label">App 写入</div></div>
           </div>
         </div>"""
 
@@ -5342,11 +5460,13 @@ function filterVisitors(filter) {
             lt = _safe_localtime(ts)
             t = time.strftime("%Y-%m-%d %H:%M", lt) if lt else "-"
             date_str = time.strftime("%Y-%m-%d", lt) if lt else ""
-            product = p.get("product_name", "") or f"#{p.get('product_id', '')}"
+            is_app_ok = a.get("type") == "app_event" and p.get("kind") == "app_activate_ok"
+            pc_nested = p.get("payload") or {}
+            product = "App 写入手环" if is_app_ok else (p.get("product_name", "") or f"#{p.get('product_id', '')}")
             device = p.get("device_id", "")
-            act_code = p.get("activation_code", "")
+            act_code = p.get("activation_code", "") or (pc_nested.get("activation_code", "") if is_app_ok else "")
             redeem_code = p.get("redeem_code", "")
-            source = p.get("source", "")
+            source = p.get("source", "") or ("app" if is_app_ok else "")
             months = p.get("months", "")
             try:
                 m = int(months)

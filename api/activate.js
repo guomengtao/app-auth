@@ -51,6 +51,212 @@ var VISITOR_TTL = 7 * 24 * 60 * 60;
 var VISIT_PUSH_MAX = 15;
 var VISIT_PUSH_WINDOW_MS = 60 * 1000;
 
+// ============ P3：App 客户端事件（section=client-event，§4.4 / F1-F3）============
+// kind 白名单与推送分级（§8#4 拍板：成功实时有节流，失败整点合并）：
+//   realtime = 立即推 Mac/EvOps（每 kind 每分钟全局 ≤ APP_EVENT_PUSH_MAX 条，超限只落库）
+//   digest   = 只累计进「失败合并桶」，由 maybeFlushAppFailDigest() 每至多 1 小时合并推一条
+//   none     = 只落 tracking_events 不推（app_open/connect_ok 与 page_visit 高度重复，推了纯噪音）
+var APP_EVENT_KINDS = {
+  "app_open":             { push: "none",     cn: "打开应用" },
+  "app_connect_ok":       { push: "none",     cn: "连接手环成功" },
+  "app_connect_fail":     { push: "digest",   cn: "连接手环失败" },
+  "app_import_ok":        { push: "realtime", cn: "导入课表成功" },
+  "app_import_fail":      { push: "digest",   cn: "导入课表失败" },
+  "app_export_ok":        { push: "realtime", cn: "导出课表成功" },
+  "app_export_fail":      { push: "digest",   cn: "导出课表失败" },
+  "app_activate_ok":      { push: "realtime", cn: "App 激活成功" },
+  "app_update_found":     { push: "realtime", cn: "发现新版本" },
+  "app_update_installed": { push: "realtime", cn: "升级完成" },
+};
+var APP_EVENT_PUSH_MAX = 5;            // 每 kind 每分钟实时推送上限
+var APP_EVENT_PUSH_WINDOW_MS = 60 * 1000;
+var APP_EVENT_IP_MAX = 60;             // 每 IP 每分钟事件上报上限（防刷库）
+// 失败合并桶：List 存最近 50 条失败明细，每至多 1 小时 flush 成一条汇总通知
+var APP_FAIL_PENDING_KEY = "auth:appfail:pending";
+var APP_FAIL_FLUSH_KEY = "auth:appfail:lastflush";
+var APP_FAIL_FLUSH_INTERVAL_MS = 60 * 60 * 1000;
+var APP_FAIL_LIST_CAP = 50;
+// payload 白名单：客户端可控 JSON，只收这些键（逐个限长），防塞任意字段/超长串
+var APP_EVENT_PAYLOAD_KEYS = [
+  "course_count", "format", "source", "target", "stage", "reason",
+  "from_code", "to_code", "activation_code", "uid", "channel", "order_no",
+  "open_count", "upgrade_count", "schedule_index",
+];
+
+function sanitizeEventPayload(raw) {
+  var out = {};
+  if (!raw || typeof raw !== "object") return out;
+  for (var i = 0; i < APP_EVENT_PAYLOAD_KEYS.length; i++) {
+    var k = APP_EVENT_PAYLOAD_KEYS[i];
+    var v = raw[k];
+    if (v == null || v === "") continue;
+    if (typeof v === "number" && isFinite(v)) { out[k] = Math.round(v); }
+    else { out[k] = clipStr(v, 200); }
+  }
+  return out;
+}
+
+// 失败事件进合并桶（lpush+ltrim 限容量；lrange+del 取走即清，del 返回 0 说明被别的请求抢先取走）
+function accumulateAppFail(kind, payload, dev) {
+  return (async function () {
+    try {
+      var item = JSON.stringify({
+        kind: kind,
+        at: Date.now(),
+        model: dev.model,
+        app_version: dev.app_version,
+        stage: payload.stage || "",
+        reason: String(payload.reason || "").slice(0, 80),
+        course_count: payload.course_count || 0,
+        target: payload.target || "",
+      });
+      await redis.lpush(APP_FAIL_PENDING_KEY, item);
+      await redis.ltrim(APP_FAIL_PENDING_KEY, 0, APP_FAIL_LIST_CAP - 1);
+      await redis.pexpire(APP_FAIL_PENDING_KEY, 26 * 3600 * 1000).catch(function () {});
+    } catch (e) {
+      console.error("[client-event] fail accumulate failed (non-blocking):", e.message);
+    }
+  })();
+}
+
+// 惰性整点合并：任何 client-event 请求都会顺手检查一次；距上次 flush ≥1h 且桶里有货，
+// 就把整桶取走（lrange→del，del≥1 才推，天然防并发双推）合并成一条 app_event 汇总。
+// 注：Vercel Hobby 的 cron 最小粒度是每天，做不到真正的「整点触发」，这里用
+// 「事件驱动的 1 小时节流」近似 —— 没流量的时段汇总顺延到下一个请求到达时补发。
+function maybeFlushAppFailDigest() {
+  return (async function () {
+    try {
+      var now = Date.now();
+      var last = parseInt(String(await redis.get(APP_FAIL_FLUSH_KEY) || "0"), 10) || 0;
+      if (now - last < APP_FAIL_FLUSH_INTERVAL_MS) return;
+      var items = await redis.lrange(APP_FAIL_PENDING_KEY, 0, -1);
+      if (items && items.length) {
+        var deleted = await redis.del(APP_FAIL_PENDING_KEY);
+        if (deleted) {
+          var byKind = {};
+          var order = [];
+          for (var i = 0; i < items.length; i++) {
+            var it = null;
+            try { it = JSON.parse(items[i]); } catch (e) { continue; }
+            if (!it || !it.kind) continue;
+            if (!byKind[it.kind]) { byKind[it.kind] = { kind: it.kind, kind_cn: (APP_EVENT_KINDS[it.kind] || {}).cn || it.kind, count: 0, sample: "" }; order.push(it.kind); }
+            byKind[it.kind].count += 1;
+            if (!byKind[it.kind].sample) {
+              var bits = [];
+              if (it.model) bits.push(it.model);
+              if (it.stage) bits.push("stage " + it.stage);
+              if (it.reason) bits.push(it.reason);
+              byKind[it.kind].sample = bits.join(" · ").slice(0, 80);
+            }
+          }
+          var fails = order.map(function (k) { return byKind[k]; });
+          var total = fails.reduce(function (s, f) { return s + f.count; }, 0);
+          var bj = new Date(now + 8 * 3600 * 1000).toISOString().slice(0, 13).replace("T", " ");
+          await notify.pushNotification("app_event", {
+            kind: "hourly_fail_digest", kind_cn: "失败汇总",
+            hour: bj, total: total, fails: fails,
+          });
+        }
+      }
+      await redis.set(APP_FAIL_FLUSH_KEY, String(now));
+      await redis.pexpire(APP_FAIL_FLUSH_KEY, 7 * 24 * 3600 * 1000).catch(function () {});
+    } catch (e) {
+      console.error("[client-event] digest flush failed (non-blocking):", e.message);
+    }
+  })();
+}
+
+// P3/F1：App 客户端事件入口。老 APK 永远不会调这个 section —— 所以这里没有兼容包袱，
+//   但新 APK 的报文仍按「可缺省」处理（payload/dedupeKey/install_id 都可空）。
+async function handleClientEvent(req, res) {
+  try {
+    if (req.method !== "POST") {
+      return res.status(405).json({ success: false, error: "Request method not supported" });
+    }
+    var body = parseBody(req);
+    var kind = clipStr(body.kind, 40);
+    var meta = APP_EVENT_KINDS[kind];
+    if (!meta) {
+      return res.status(400).json({ success: false, error: "unknown kind: " + kind });
+    }
+    var ip = rateLimit.getClientIp(req);
+    var ua = String((req.headers && req.headers["user-agent"]) || "unknown");
+    var ts = Date.now();
+    // 每 IP 每分钟上限（防刷 tracking_events；正常用户一分钟到不了 60 个事件）
+    var rlKey = "auth:appev_rl:" + visitorHashKey(ip) + ":" + Math.floor(ts / 60000);
+    var rn = await redis.incr(rlKey);
+    if (rn === 1) { await redis.pexpire(rlKey, 120000).catch(function () {}); }
+    if (rn > APP_EVENT_IP_MAX) {
+      return res.status(429).json({ success: false, error: "rate limited" });
+    }
+    var dev = sanitizeDevice(body);
+    var payload = sanitizeEventPayload(body.payload);
+    var dedupeKey = clipStr(body.dedupeKey, 160).replace(/\s+/g, "_") || null;
+    var vHash = visitorHashKey(ip + "|" + ua.slice(0, 120));
+
+    // 统一事件流（tracking_events）：dedupe_key 唯一 → 客户端带 key 的重报天然幂等
+    background.run(tracking.record({
+      ts: ts,
+      kind: kind,
+      ip: ip,
+      visitorHash: vHash,
+      deviceId: clipStr(body.deviceId, 128),
+      installId: dev.install_id,
+      watchId: dev.watch_device_id,
+      client: "apk",
+      channel: "apk",
+      payload: Object.assign({}, payload, {
+        app_version: dev.app_version, app_variant: dev.app_variant,
+        app_open_count: dev.app_open_count, app_upgrade_count: dev.app_upgrade_count,
+        watch_node_id: dev.watch_node_id, watch_device_id: dev.watch_device_id,
+        watch_connected: dev.watch_connected,
+      }),
+      dedupeKey: dedupeKey,
+    }), "tracking");
+
+    // 推送分级（见 APP_EVENT_KINDS 注释）
+    if (meta.push === "realtime") {
+      background.run((async function () {
+        try {
+          var rateKey = "auth:appev_push:" + kind + ":" + Math.floor(Date.now() / APP_EVENT_PUSH_WINDOW_MS);
+          var n = await redis.incr(rateKey);
+          if (n === 1) { await redis.pexpire(rateKey, APP_EVENT_PUSH_WINDOW_MS).catch(function () {}); }
+          if (n > APP_EVENT_PUSH_MAX) {
+            console.warn("[client-event] push rate-limited: " + kind + " " + n + " > " + APP_EVENT_PUSH_MAX + "/min");
+            return;
+          }
+          var pushGeo = await getGeoFields(req);
+          await notify.pushNotification("app_event", {
+            kind: kind, kind_cn: meta.cn,
+            install_id: dev.install_id, device_id: dev.watch_device_id,
+            device_model: dev.model, device_brand: dev.brand,
+            os_version: dev.os, os_brand: dev.os_brand,
+            app_version: dev.app_version, app_variant: dev.app_variant,
+            watch_connected: dev.watch_connected, watch_model: dev.watch_model,
+            watch_ev_version: dev.watch_ev_version,
+            ip: ip,
+            country: pushGeo.country, region: pushGeo.region, city: pushGeo.city,
+            location_zh: pushGeo.location_zh, district_zh: pushGeo.district_zh,
+            location_full_zh: pushGeo.location_full_zh,
+            payload: payload,
+          });
+        } catch (e) {
+          console.error("[client-event] push failed (non-blocking):", e.message);
+        }
+      })(), "app-event-push");
+    } else if (meta.push === "digest") {
+      background.run(accumulateAppFail(kind, payload, dev), "appfail-acc");
+    }
+    // 惰性 flush 检查（app_open 每次启动都会发事件 → 这里是可靠的触发点）
+    background.run(maybeFlushAppFailDigest(), "appfail-flush");
+
+    return res.json({ success: true });
+  } catch (e) {
+    console.error("[client-event]", e);
+    return res.status(500).json({ success: false, error: e.message });
+  }
+}
+
 function visitorHashKey(str) {
   if (!str) return "unknown";
   var h = 0;
@@ -525,6 +731,10 @@ async function reportPipelineFailures(results, ops, ctx) {
 module.exports = async (req, res) => {
   if (req.query && req.query.section === "visitor-track") {
     return handleVisitorTrack(req, res);
+  }
+  // P3/F1：App 客户端事件（连接/导入导出/激活/升级）。不新建文件（Vercel 10 函数上限已超）。
+  if (req.query && req.query.section === "client-event") {
+    return handleClientEvent(req, res);
   }
 
   try { quota.bumpQuotaTick("/api/activate"); } catch (_) {}
