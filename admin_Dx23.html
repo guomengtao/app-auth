@@ -4446,6 +4446,9 @@
                 <label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:5px 12px;border:1px solid var(--line);border-radius:8px;font-size:0.75rem;color:var(--ink)" id="ujTypeLabelName">
                   <input type="radio" name="ujType" value="name" onchange="onUjTypeChange()"> 用户名
                 </label>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;padding:5px 12px;border:1px solid var(--line);border-radius:8px;font-size:0.75rem;color:var(--ink)" id="ujTypeLabelInstall">
+                  <input type="radio" name="ujType" value="install" onchange="onUjTypeChange()"> 安装实例（apk-xxxx）
+                </label>
               </div>
               <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
                 <button class="da-bulk-btn" onclick="ujQuick('paid-not-activated')">已付费未激活</button>
@@ -8457,6 +8460,52 @@
         html += '<div class="da-card" style="margin-top:16px"><div class="da-card-header"><div class="da-card-icon i-redeem">🗂️</div><div><div class="da-card-title">事件流构成</div><div class="da-card-sub">tracking_events 各类型条数</div></div></div>';
         html += '<div style="font-size:0.8125rem">' + evs.map(function (e) { return escapeHtml(e.kind) + ' × ' + e.count; }).join('　') + '</div></div>';
       }
+
+      // P4/B13：App 同步器维度（portrait.app —— tracking.js portrait() 聚合，老客户端计数自然为 0）
+      var pa = p.app || {};
+      if (pa && ((pa.variants || []).length || (pa.os_brands || []).length || (pa.binding || {}).installs)) {
+        html += '<div class="da-card" style="margin-top:16px"><div class="da-card-header"><div class="da-card-icon i-device">📲</div><div><div class="da-card-title">App 同步器维度</div><div class="da-card-sub">手机侧安装实例 × 手环绑定（近 ' + escapeHtml(String(p.days)) + ' 天）</div></div></div>';
+        html += '<div style="display:flex;gap:16px;flex-wrap:wrap">';
+
+        // 绑定关系
+        var bd = pa.binding || {};
+        html += '<div style="flex:1;min-width:200px"><table style="width:100%;font-size:0.8125rem;border-collapse:collapse">';
+        html += '<tr><td colspan="2" style="color:var(--muted);padding:3px 0;font-weight:600">绑定关系（手机 ↔ 手环）</td></tr>';
+        html += '<tr><td style="color:var(--muted);padding:3px 0">1:1（一机一环）</td><td>' + (bd.one2one || 0) + '</td></tr>';
+        html += '<tr><td style="color:var(--muted);padding:3px 0">1:N（一机多环）</td><td>' + (bd.one2many || 0) + (bd.one2many ? ' <span style="color:var(--warn)">← watch_history 已在记录</span>' : '') + '</td></tr>';
+        html += '<tr><td style="color:var(--muted);padding:3px 0">N:1（同环多机）</td><td>' + (bd.many2one || 0) + ' <span style="color:var(--muted);font-size:0.6875rem">重装/换机</span></td></tr>';
+        html += '<tr><td style="color:var(--muted);padding:3px 0">装机实例</td><td><b>' + (bd.installs || 0) + '</b></td></tr>';
+        // 连接与关键操作
+        var ae = pa.events || {};
+        var cOk = ae.app_connect_ok || 0, cFail = ae.app_connect_fail || 0;
+        var cRate = (cOk + cFail) > 0 ? Math.round(cOk / (cOk + cFail) * 100) + '%' : '—';
+        html += '<tr><td colspan="2" style="color:var(--muted);padding:6px 0 3px;font-weight:600">连接与关键操作</td></tr>';
+        html += '<tr><td style="color:var(--muted);padding:3px 0">连接成功 / 失败</td><td>' + cOk + ' / ' + cFail + ' · 成功率 <b>' + cRate + '</b></td></tr>';
+        html += '<tr><td style="color:var(--muted);padding:3px 0">导入成功 / 失败</td><td>' + (ae.import_ok || 0) + ' / ' + (ae.import_fail || 0) + '</td></tr>';
+        html += '<tr><td style="color:var(--muted);padding:3px 0">导出成功 / 失败</td><td>' + (ae.export_ok || 0) + ' / ' + (ae.export_fail || 0) + '</td></tr>';
+        html += '<tr><td style="color:var(--muted);padding:3px 0">激活写入 / 完成升级</td><td>' + (ae.app_activate_ok || 0) + ' / ' + (ae.app_update_installed || 0) + '</td></tr>';
+        html += '</table></div>';
+
+        // 变体 × 版本分布
+        html += '<div style="flex:1;min-width:200px">' + listCard('变体 × 版本', '🧩', (pa.variants || []).map(function (v) {
+          return { k: v.variant + ' v' + v.version + '（' + v.installs + ' 机）', n: v.visits };
+        }), 'k', 'n') + '</div>';
+
+        // 系统品牌（鸿蒙占比）
+        html += '<div style="flex:1;min-width:200px">';
+        html += listCard('系统品牌', '🏷️', (pa.os_brands || []).map(function (o) {
+          return { k: o.brand + '（' + o.installs + ' 机）', n: o.visits };
+        }), 'k', 'n');
+        var hb = (pa.os_brands || []).filter(function (o) { return o.brand === 'harmony'; })
+          .reduce(function (acc, o) { return acc + o.visits; }, 0);
+        var hbTotal = (pa.os_brands || []).reduce(function (acc, o) { return acc + o.visits; }, 0);
+        if (hbTotal > 0) {
+          html += '<div style="font-size:0.75rem;color:var(--muted);margin-top:4px">鸿蒙占比 ' + Math.round(hb / hbTotal * 100) + '%（' + hb + '/' + hbTotal + '）</div>';
+        }
+        html += '</div>';
+
+        html += '</div></div>';
+      }
       return html;
     }
 
@@ -8685,6 +8734,56 @@
       return html + '</div>';
     }
 
+    // P4/B12：App 同步器卡（数据来自 user.app —— visitor_logs.device jsonb 最新一行 + tracking_events 客户端事件）
+    function ujMaskDevice(s) {
+      var v = String(s || '');
+      return v.length <= 8 ? v : v.slice(0, 4) + '…' + v.slice(-4);
+    }
+    function ujAppCard(app) {
+      if (!app) return '';
+      var w = app.watch || {};
+      var ev = app.events || {};
+      var fmtDate = function (sec) { return sec ? new Date(sec * 1000).toLocaleDateString('zh-CN') : '—'; };
+      var rate = (w.connect_ok + w.connect_fail) > 0
+        ? Math.round(w.connect_ok / (w.connect_ok + w.connect_fail) * 100) + '%'
+        : '—';
+      var html = '<div class="da-card" style="margin-bottom:16px"><div class="da-card-header"><div class="da-card-icon i-duration">📱</div><div><div class="da-card-title">App 同步器</div>';
+      html += '<div class="da-card-sub">' + escapeHtml(app.install_id || '（老版本 APK，无安装实例 ID）') + (app.last_seen ? ' · 最近上报 ' + escapeHtml(new Date(app.last_seen).toLocaleString()) : '') + '</div></div></div>';
+      html += '<table style="width:100%;font-size:0.8125rem;border-collapse:collapse">';
+      html += '<tr><td style="color:var(--muted);padding:3px 0">手机</td><td>' + escapeHtml((app.model || '—') + ' · ' + (app.os_brand || '') + ' ' + (app.os || '')) + '</td></tr>';
+      html += '<tr><td style="color:var(--muted);padding:3px 0">APK</td><td>' + escapeHtml((app.variant || '—') + ' v' + (app.version || '?')) + ' · 装机 ' + escapeHtml(fmtDate(app.first_install)) + ' · 更新 ' + escapeHtml(fmtDate(app.last_update)) + '</td></tr>';
+      html += '<tr><td style="color:var(--muted);padding:3px 0">使用</td><td>打开 ' + (app.open_count || 0) + ' 次 · 前台约 ' + ujFmtDur(app.foreground_ms || 0) + '</td></tr>';
+      html += '<tr><td style="color:var(--muted);padding:3px 0">连接</td><td>成功 ' + (w.connect_ok || 0) + ' · 失败 ' + (w.connect_fail || 0) + ' · 成功率 <b>' + rate + '</b>' +
+        (w.last_fail_step ? ' <span style="color:var(--err)">（最近卡在第 ' + w.last_fail_step + ' 步：' + escapeHtml(w.last_fail_reason || '') + '）</span>' : '') + '</td></tr>';
+      html += '<tr><td style="color:var(--muted);padding:3px 0">手环</td><td>' + escapeHtml((w.model || '—') + ' · EV ' + (w.ev_version || '—') + ' · deviceId ' + (w.device_id ? ujMaskDevice(w.device_id) : '（未取到）')) + '</td></tr>';
+      var evBits = [];
+      ['import_ok', 'export_ok', 'app_activate_ok', 'app_update_installed'].forEach(function (k) {
+        if (ev[k]) evBits.push(({ import_ok: '导入成功', export_ok: '导出成功', app_activate_ok: '激活写入', app_update_installed: '完成升级' })[k] + ' ×' + ev[k].count);
+      });
+      ['import_fail', 'export_fail', 'app_connect_fail'].forEach(function (k) {
+        if (ev[k]) evBits.push('<span style="color:var(--err)">' + ({ import_fail: '导入失败', export_fail: '导出失败', app_connect_fail: '连接失败' })[k] + ' ×' + ev[k].count + '</span>');
+      });
+      html += '<tr><td style="color:var(--muted);padding:3px 0">关键操作</td><td>' + (evBits.length ? evBits.join(' · ') : '—') + '</td></tr>';
+      html += '</table>';
+      // 多手环历史清单（P4/A5；多只时逐行列出）
+      var hist = w.history || [];
+      if (hist.length > 1 || (hist.length === 1 && hist[0].device_id)) {
+        html += '<div style="margin-top:8px;font-size:0.75rem;color:var(--muted)">见过 ' + hist.length + ' 只手环：</div>';
+        html += '<table style="width:100%;font-size:0.75rem;border-collapse:collapse;margin-top:4px">';
+        html += '<tr style="color:var(--muted)"><td style="padding:2px 4px">nodeId</td><td>机型</td><td>EV 版本</td><td>真实 deviceId</td><td>成/败</td><td>最近</td></tr>';
+        hist.forEach(function (h) {
+          html += '<tr style="border-top:1px solid var(--line)"><td style="padding:2px 4px;font-family:monospace">' + escapeHtml(h.node_id || '—') + '</td>' +
+            '<td>' + escapeHtml(h.model || '—') + '</td>' +
+            '<td>' + escapeHtml(h.ev_version || '—') + '</td>' +
+            '<td style="font-family:monospace">' + escapeHtml(h.device_id ? ujMaskDevice(h.device_id) : '—') + '</td>' +
+            '<td>' + (h.ok || 0) + '/' + (h.fail || 0) + '</td>' +
+            '<td>' + escapeHtml(h.last_seen ? new Date(h.last_seen * 1000).toLocaleDateString('zh-CN') : '—') + '</td></tr>';
+        });
+        html += '</table>';
+      }
+      return html + '</div>';
+    }
+
     function renderUserJourney(data) {
       var u = data.user || {};
       var tl = data.timeline || [];
@@ -8715,6 +8814,9 @@
 
       // ②' 这个用户自己的数据完善度得分（与画像汇总页同一套口径）
       html += ujScoreCard(window._ujScore);
+
+      // ②'' P4/B12：App 同步器卡（有 App 上报才显示）
+      if (u.app) html += ujAppCard(u.app);
 
       // ③ 冲突提示 / 证据
       var warns = data.warnings || [];
