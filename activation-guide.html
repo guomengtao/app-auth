@@ -93,6 +93,15 @@
   .ctrl button.primary{background:#1c3a52; border-color:#2f6a8f; color:#bfe6ff;}
   .ctrl button:hover{filter:brightness(1.2);}
   .ctrl button:disabled{opacity:.35; cursor:not-allowed;}
+
+  /* ===== 出口指向 ===== */
+  .exit{margin-top:22px; text-align:center;}
+  .exit a{
+    display:inline-block; font-size:15px; padding:13px 28px; border-radius:12px;
+    background:linear-gradient(135deg,#2f6a8f,#1c3a52); color:#eaf6ff; text-decoration:none;
+    border:1px solid #2f6a8f; transition:.18s; box-shadow:0 6px 20px rgba(47,106,143,.25);
+  }
+  .exit a:hover{filter:brightness(1.15); transform:translateY(-1px);}
   .dots{display:flex; gap:7px;}
   .dots i{width:9px; height:9px; border-radius:50%; background:var(--line);}
   .dots i.on{background:var(--key);}
@@ -334,6 +343,11 @@
   <div class="dots" id="dots"></div>
   <button id="btnNext" class="primary">下一步 →</button>
   <button id="btnRestart">↺ 重看一遍</button>
+</div>
+
+<!-- 出口指向 -->
+<div class="exit">
+  <a href="/user-guide.html">已经看懂了？👉 点击进入【分步操作手册】，照着做即可完成激活</a>
 </div>
 
 <script>
