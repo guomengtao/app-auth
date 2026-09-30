@@ -431,7 +431,7 @@ create table if not exists app_daily_stats (
 
 > **上线顺序铁律（配合 §6.1）**：**服务端必须先行**。P0 先只发服务端那半（B1/B2/B4 + 兼容分支），确认"老 APK 请求照常成功、新字段能被接收"之后再发新 APK；P1/P2 同理（先上服务端兜底与页面，再让客户端带新参数）。**任何一期都不得要求"客户端先发"**。
 
-### 7.1 P0 实施记录（2026-09-30，服务端**已上线**；APK 已出包、**未放量**）
+### 7.1 P0 实施记录（2026-09-30，服务端与 APK **均已上线**）
 
 **服务端（6 个文件）**
 
@@ -497,9 +497,19 @@ create table if not exists app_daily_stats (
 - 新 APK 行为：`client=apk`、`install_id=apk-7f3a9c21`、`watch_id` = 手环**真实** deviceId、`device_norm=7890`（末 4 位派生正确）、`visitor_logs.watch_device_id` 同步落库、`watch_history` 两只手环完整透传。
 - 冒烟数据已清理（`path like '/p0-smoke-%'`，visitor_logs 4 条 + tracking_events 4 条，复查残留 0）。
 
-**③ APK 已出包（未放量）** —— `bash apk/build.sh` 产出 `dist/EVSyncProbe-v0.5.101.apk`（versionCode 102，421KB，已签名）；`version.env` 已自动 bump 到 0.5.102。**尚未**拷进 `ev/` 与更新 `update-ev.json`，所以老用户看不到新版。
+**③ APK 已出包并放量** —— `bash apk/build.sh` 产出 `dist/EVSyncProbe-v0.5.101.apk`（versionCode 102，421KB，已签名）；`version.env` 已自动 bump 到 0.5.102。
 
-**④ 待办**：确认后更新 `ev/update-ev.json` 放量。注意 §4.5 兼容约束 —— **旧包 `EVSyncProbe-v0.5.98.apk` 保持可访问**（只新增，不替换），`update-ev.json` 字段名与结构冻结，`isForce` 保持 `false`。
+放量 commit `e63c05b`：新增 `ev/EVSyncProbe-v0.5.101.apk`（sha256 `16abb54f…`，与构建产物逐字节一致）+ `update-ev.json` 指向新包（`isForce: false`）。**旧包 `EVSyncProbe-v0.5.98.apk` 保留可访问**（守住 §4.5 的"只新增不替换"）。
+
+线上核验（部署后）：
+
+| 检查 | 结果 |
+|---|---|
+| `ev/update-ev.json` | ✅ versionCode 102 / versionName 0.5.101 / 结构未变 |
+| 新包直链 `/ev/EVSyncProbe-v0.5.101.apk` | ✅ HTTP 200，421072 B，sha256 一致，与构建产物 `cmp` 逐字节相同 |
+| 旧包直链 `/ev/EVSyncProbe-v0.5.98.apk` | ✅ HTTP 200，sha256 仍为 `f972272a…`（老客户端更新通道未断） |
+
+**④ 后续**：P1（订单激活链接带 `u/c` + `deep-link-test.html` 补埋点）尚未开工。
 
 ---
 
