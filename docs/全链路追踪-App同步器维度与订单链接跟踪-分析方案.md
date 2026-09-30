@@ -509,7 +509,45 @@ create table if not exists app_daily_stats (
 | 新包直链 `/ev/EVSyncProbe-v0.5.101.apk` | ✅ HTTP 200，421072 B，sha256 一致，与构建产物 `cmp` 逐字节相同 |
 | 旧包直链 `/ev/EVSyncProbe-v0.5.98.apk` | ✅ HTTP 200，sha256 仍为 `f972272a…`（老客户端更新通道未断） |
 
-**④ 后续**：P1（订单激活链接带 `u/c` + `deep-link-test.html` 补埋点）尚未开工。
+**④ 后续**：P1 已完成（见 §7.3），**尚未发布**。
+
+---
+
+### 7.3 P1 实施记录（2026-09-30，代码已完成、**尚未发布**）
+
+**目标**：订单激活链接带上「渠道 + 用户独立识别码」，让「支付 → 激活」从"靠 redeem_code 反查"升级为外键级确定关系；并把 `deep-link-test.html` 这个**此前埋点命中为 0** 的页面补上采集。
+
+**服务端 / 网页（5 个文件）**
+
+| 文件 | 改动 |
+|---|---|
+| `lib/tracking.js` | 新增 `latestChannelForDevice(deviceFull)` / `latestChannelForIp(ip, beforeTs, windowMs)` 两条渠道反查查询（均失败返回 `""`，不抛） |
+| `lib/afdian-processor.js` | 新增 `orderUid()`、`resolveOrderChannel()`；`redeemData` / `orderRecord` 增 `uid` / `channel` / `channel_basis`；DM#1 激活链接 → `?code=&u=&o=&c=&g=activate`；DM#3 指导链接 → `?ev&u=&c=&g=guide`；`order` / `redeem` 两条 tracking 事件补上真实渠道（原为 `""`） |
+| `api/activate.js` | 解析请求里的 `uid` / `orderNo` / `channel`（**全白名单清洗 + 限长**）；派生 `actOrderNo / actUid / actChannel`；三条激活记录（复用 / NA / 普通）都写入 `order_no / order_uid / channel`；三条 `kind:"activation"` 事件的 `outTradeNo` 改用 `actOrderNo`、`channel` 改用 `actChannel`（退回 `deviceInfo.source`），payload 带 `uid` |
+| `api/admin/redeem-codes.js` | 直开批次生成 `da-<批次>`；`redeemData` / `recordData` / 返回结果都带 `uid` + `channel:"admin-direct"` |
+| `deep-link-test.html` | ① **补上 `visitor-track` 埋点**（这是「链接被点开」唯一的采集点）；② 解析 `u/c/o` 并**清洗后**拼进深链 `evsched://activate?code=&u=&c=&o=`；③ 有 `u/c` 时显示「溯源：…」一行 |
+
+**APK（1 个文件）**
+
+| 文件 | 改动 |
+|---|---|
+| `FastActivateActivity.java` | `handleDeepLink()` 解析 `u/c/o`，经 `sanitizeTrace()` 清洗后存 SharedPreferences（`K_TRACE_*`）；`activate()` 在**非空时**才往 body 加 `uid/channel/orderNo`；成功后 `clearTrace()` 防串号 |
+
+**验证**
+
+- `node --check` 4 个服务端文件全绿；两个 HTML 的内联脚本语法检查全绿。
+- **P1 自测 30 项全部通过**（`/tmp/p1-selftest.js`，用 `require.cache` 注入桩，直接跑**真实的 `processOrder()`** 并断言真发出去的私信内容）：`orderUid` 确定性/格式/唯一性、渠道优先级四档、异常降级、无备注订单走兜底、老链接兼容。样例产出：
+  - `deep-link-test.html?code=A7K2&u=od-5o6aqt1&o=2026093012345678901&c=t-9p-d&g=activate`
+  - `user-guide.html?ev&u=od-5o6aqt1&c=t-9p-d&g=guide`
+- **P0 回归 77 项仍全绿**（确认 P1 没碰坏 P0 的解析）。
+- APK `javac` 全量编译 **299 class / 0 错误**。
+
+**与原文案的有意偏差**
+
+1. **渠道优先级第 2 档「同 IP 24h」实际用不上** —— 爱发电订单回调里**没有**客户端 IP。代码已写成"有 `order.client_ip` 才查"，属防御式保留；实际主力是第 1 档（备注 deviceId 反查），兜底第 3 档。
+2. **不改 `deviceInfo.source`** —— 文档 C5 建议顺带写成 `afdian:<c>`。实测 `activationClient()`（`api/activate.js:112`）就是读 `source` 判客户端类型，混入渠道会让客户端分类失真，所以渠道归因独立走 `channel` 字段，两者不共用。
+
+**发布顺序（未执行）**：先推服务端（本次改动对老 APK 全兼容：新参数全可缺省、老链接只有 `code` 照样能用），确认线上正常后，再出一版 APK（C4/C5 要新包才生效）并按 §4.5 增量放量。
 
 ---
 

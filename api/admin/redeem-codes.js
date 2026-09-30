@@ -231,6 +231,9 @@ module.exports = async (req, res) => {
 
       var deviceHash = crypto.sha256(device);
       var now = Date.now();
+      // P1（§4.1）：本批次识别码（da-<批次>），同一次直开生成的多个码共用一个，
+      // 便于后台把「这一批码」和后续激活/访问对上；渠道固定 admin-direct。
+      var daBatchUid = "da-" + now.toString(36).slice(-6);
       var results = [];
       var saveTasks = [];
 
@@ -262,6 +265,8 @@ module.exports = async (req, res) => {
           used: true, used_device_id: deviceHash,
           generated_activation_code: activationCode,
           created_at: now, used_at: now, source: "direct",
+          // P1（§4.1）：直开也带溯源（批次 uid + 固定渠道），激活侧会读出来写进激活记录
+          uid: daBatchUid, channel: "admin-direct",
         };
 
         var recordData = {
@@ -271,6 +276,7 @@ module.exports = async (req, res) => {
           redeem_code: redeemCode, generated_at: now,
           expires_at: expiresAt, source: "direct",
           device_info: null, visitor_info: notify.collectRequestInfo(req),
+          uid: daBatchUid, channel: "admin-direct", order_no: "",
         };
 
         saveTasks.push(redis.set("auth:redeem:" + redeemCode, JSON.stringify(redeemData)));
@@ -283,6 +289,8 @@ module.exports = async (req, res) => {
           productId: productId, productName: productNames[productId],
           activationCode: activationCode, redeemCode: redeemCode,
           deviceId: device, months: m, expiresAt: expiresAt,
+          // P1（§4.1）：前端据此拼「带溯源码的激活链接」
+          uid: daBatchUid, channel: "admin-direct",
         });
       }
 

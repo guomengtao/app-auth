@@ -9973,6 +9973,17 @@
         html += '<button class="da-result-copy" onclick="daCopySingle(\'' + escapeHtml(r.redeemCode) + '\', this)">Copy</button>';
         html += '</div>';
 
+        // P1（§4.1）：带溯源码的激活链接 —— 用户点开后，「链接被点开 → 激活」能直接归到这一批
+        // （u=da-<批次> / c=admin-direct / g=activate）。发给用户比只给码更好追踪。
+        var daTraceLink = 'https://app-auth.gudq.com/deep-link-test.html?code=' + encodeURIComponent(r.redeemCode || '') +
+          (r.uid ? '&u=' + encodeURIComponent(r.uid) : '') +
+          '&c=' + encodeURIComponent(r.channel || 'admin-direct') + '&g=activate';
+        html += '<div class="da-result-row">';
+        html += '<span class="da-result-label">激活链接</span>';
+        html += '<span class="da-result-value">' + escapeHtml(r.uid || '—') + '</span>';
+        html += '<button class="da-result-copy" onclick="daCopySingle(\'' + escapeHtml(daTraceLink) + '\', this)">🔗 复制链接</button>';
+        html += '</div>';
+
         html += '<div class="da-result-row">';
         html += '<span class="da-result-label">Device ID</span>';
         html += '<span class="da-result-value">' + escapeHtml(r.deviceId) + '</span>';

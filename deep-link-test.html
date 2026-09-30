@@ -24,6 +24,7 @@
         font-size: 13px; color: #b26b00; margin-bottom: 16px; text-align: left; line-height: 1.6; }
   .pc { display: none; background: #fff7e6; border-radius: 10px; padding: 12px;
         font-size: 13px; color: #b26b00; margin-bottom: 16px; text-align: left; line-height: 1.6; }
+  .trace { display: none; font-size: 11px; color: #9aa0a6; margin-top: 14px; letter-spacing: .3px; }
 </style>
 </head>
 <body>
@@ -40,6 +41,7 @@
     预期行为：点按钮 → 弹「是否打开 Ev课程表」→ 确认后进入激活页，兑换码已自动填入并开始激活。<br>
     拉不起来就手工输入：打开 App → 高级版 → 输入上面的兑换码 → 一键激活。
   </div>
+  <div class="trace" id="trace"></div>
 </div>
 <script>
   var q = {};
@@ -51,8 +53,33 @@
   var scheme = (q.scheme || "evsched").replace(/[^a-z]/g, "");
   // 白名单：只允许项目内两个 scheme，防止本页被当成任意 scheme 跳板
   if (scheme !== "evsched" && scheme !== "evops") scheme = "evsched";
+  // 溯源参数（P1 §4.1）：u=用户识别码 / c=渠道 / o=订单号。
+  // ⚠️ 全部做白名单清洗后再拼进深链 —— 本页链接会出现在私信里，必须假定参数是脏的。
+  var uid = (q.u || "").replace(/[^0-9A-Za-z_-]/g, "").slice(0, 32);
+  var chn = (q.c || "").replace(/[^0-9A-Za-z_-]/g, "").slice(0, 32);
+  var ord = (q.o || "").replace(/[^0-9A-Za-z_-]/g, "").slice(0, 64);
   document.getElementById("code").textContent = code;
-  document.getElementById("openbtn").href = scheme + "://activate?code=" + code;
+  var deep = scheme + "://activate?code=" + code;
+  if (uid) deep += "&u=" + uid;
+  if (chn) deep += "&c=" + chn;
+  if (ord) deep += "&o=" + ord;
+  document.getElementById("openbtn").href = deep;
+  // 溯源码展示：方便用户截图给客服核对（有才显示，没有就当老链接）
+  if (uid || chn) {
+    var el = document.getElementById("trace");
+    el.textContent = "溯源：" + (uid ? uid : "—") + (chn ? " · " + chn : "");
+    el.style.display = "block";
+  }
+  // 全链路追踪：本页此前埋点命中为 0（「链接被点开」唯一的采集点）。写法与站内其他页保持一致。
+  // u/c/o/g 都在 location.search 里，服务端会拆进 params 列。
+  (function () {
+    try {
+      var t = new XMLHttpRequest();
+      t.open("POST", "/api/activate?section=visitor-track", true);
+      t.setRequestHeader("Content-Type", "application/json");
+      t.send(JSON.stringify({ path: location.pathname + location.search }));
+    } catch (_) {}
+  })();
   if (/MicroMessenger/i.test(navigator.userAgent)) {
     document.querySelector(".wx").style.display = "block";
   }

@@ -506,6 +506,13 @@ module.exports = async (req, res) => {
   var rawDeviceId = body.deviceId;
   var rawRedeemCode = body.redeemCode;
   var deviceInfo = body.deviceInfo || null;
+  // P1（§4.1）：深链带来的溯源参数。老 APK 不会发这三个字段 → 一律按缺省处理，不报错。
+  //   uid     = 用户独立识别码（od-xxxxxxxx / da-<批次>）
+  //   orderNo = 订单号原文（比 uid 更权威，能直接和爱发电订单对上）
+  //   channel = 渠道（c=，如 t-9p-d / afdian-dm / admin-direct / apk-fast）
+  var bodyUid = clipStr(body.uid, 32).replace(/[^0-9A-Za-z_-]/g, "");
+  var bodyOrderNo = clipStr(body.orderNo, 64).replace(/[^0-9A-Za-z_-]/g, "");
+  var bodyChannel = clipStr(body.channel, 32).replace(/[^0-9A-Za-z_-]/g, "");
   var visitorInfo = notify.collectRequestInfo(req);
   // 与限流检查并行：getGeoFields 只查一次区县缓存（不联网），不额外占用用户等待时间
   var geoPromise = getGeoFields(req);
@@ -680,6 +687,12 @@ module.exports = async (req, res) => {
 
     var info = parseRedisJson(codeData);
     var infoOutTradeNo = (info && info.out_trade_no) || "";   // 爱发电渠道的码才有，用于事件流关联订单
+    // P1（§4.1）：激活侧溯源三件套。优先级：
+    //   请求带来的（深链最权威）> 兑换码记录里存的（发码时写入）> 空（渠道再退回 deviceInfo.source）
+    // ⚠️ 老码没有 uid/channel 字段，老 APK 也不发这三个参数 → 全部走缺省，行为与改造前一致。
+    var actOrderNo = bodyOrderNo || infoOutTradeNo || "";
+    var actUid = bodyUid || (info && info.uid) || "";
+    var actChannel = bodyChannel || (info && info.channel) || "";
     if (!info) {
       saveFailureRecord("兑换码数据已损坏", device, code, "", "", visitorInfo, deviceInfo);
       var corruptNotifyResult = await notify.sendActivationFailure(req, {
@@ -793,6 +806,10 @@ module.exports = async (req, res) => {
             expires_at: reuseExpires,
             device_info: deviceInfo || firstRecord.device_info || null,
             visitor_info: visitorInfo,
+            // P1（§4.1）：激活记录直接带「订单 ↔ 用户 ↔ 渠道」，后台不必再反查
+            order_no: actOrderNo,
+            order_uid: actUid,
+            channel: actChannel,
           };
         }
         info.generated_activation_code = activationCodeReuse;
@@ -830,12 +847,13 @@ module.exports = async (req, res) => {
           deviceId: rawDeviceId || device,
           ip: (visitorInfo && visitorInfo.ip) || "",
           redeemCode: code,
-          outTradeNo: infoOutTradeNo,
+          outTradeNo: actOrderNo,
           activationCode: activationCodeReuse,
-          channel: (deviceInfo && deviceInfo.source) || "",
+          channel: actChannel || (deviceInfo && deviceInfo.source) || "",
           client: activationClient(deviceInfo),
           payload: {
             product_id: productId, months: months, reuse: true, activation_seq: reuseSeq,
+            uid: actUid,
             model: (deviceInfo && tracking.pickModel(deviceInfo.model, deviceInfo.product)) || "",
             product: (deviceInfo && deviceInfo.product) || "",
           },
@@ -931,6 +949,10 @@ module.exports = async (req, res) => {
           expires_at: naExpiresAt,
           device_info: deviceInfo || null,
           visitor_info: visitorInfo,
+          // P1（§4.1）：NA（多设备）分支同样带上溯源字段
+          order_no: actOrderNo,
+          order_uid: actUid,
+          channel: actChannel,
         };
 
         var naPipeline = redis.pipeline();
@@ -956,12 +978,14 @@ module.exports = async (req, res) => {
           deviceId: rawDeviceId || device,
           ip: (visitorInfo && visitorInfo.ip) || "",
           redeemCode: code,
+          outTradeNo: actOrderNo,
           activationCode: activationCodeNa,
-          channel: (deviceInfo && deviceInfo.source) || "",
+          channel: actChannel || (deviceInfo && deviceInfo.source) || "",
           client: activationClient(deviceInfo),
           payload: {
             product_id: productId, months: months,
             is_na: true, na_device_index: naCount + 1, activation_seq: naFinalSeq,
+            uid: actUid,
             model: (deviceInfo && tracking.pickModel(deviceInfo.model, deviceInfo.product)) || "",
             product: (deviceInfo && deviceInfo.product) || "",
           },
@@ -1081,12 +1105,13 @@ module.exports = async (req, res) => {
       deviceId: rawDeviceId || device,
       ip: (visitorInfo && visitorInfo.ip) || "",
       redeemCode: code,
-      outTradeNo: infoOutTradeNo,
+      outTradeNo: actOrderNo,
       activationCode: activationCode,
-      channel: (deviceInfo && deviceInfo.source) || "",
+      channel: actChannel || (deviceInfo && deviceInfo.source) || "",
       client: activationClient(deviceInfo),
       payload: {
         product_id: productId, months: months, activation_seq: activationSeq,
+        uid: actUid,
         model: (deviceInfo && tracking.pickModel(deviceInfo.model, deviceInfo.product)) || "",
         product: (deviceInfo && deviceInfo.product) || "",
         rom: (deviceInfo && deviceInfo.romVersion) || "",
@@ -1110,6 +1135,10 @@ module.exports = async (req, res) => {
       expires_at: expiresAt,
       device_info: deviceInfo || null,
       visitor_info: visitorInfo,
+      // P1（§4.1）：激活记录直接带「订单 ↔ 用户 ↔ 渠道」，后台不必再反查
+      order_no: actOrderNo,
+      order_uid: actUid,
+      channel: actChannel,
     };
 
     var USED_COUNTER_KEY = "auth:counter:used_redeem_codes";
