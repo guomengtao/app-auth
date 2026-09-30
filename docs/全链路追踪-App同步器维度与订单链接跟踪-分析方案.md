@@ -672,6 +672,38 @@ create table if not exists app_daily_stats (
 
 ---
 
+### 7.6 P3 实施与上线记录（2026-09-30，**服务端 + APK 均已上线**）
+
+**§8 五问已拍板**（用户选「全部按默认走」）：#1 随机 install_id、#2 渠道优先级（P0/P1 已按此实现）、#3 后台复制按钮（P4）、#4 成功实时（有节流）+ 失败整点合并、#5 `/dl/` 重定向（P5）。
+
+**服务端（app-auth `f5fce16`）**
+
+- `api/activate.js` 新增 `section=client-event`（不新建文件，Vercel 函数上限 10）：kind 白名单 10 种，payload 白名单 15 键限长，每 IP 每分钟 60 条限流，`dedupeKey` 幂等落库。
+- 推送分级（核心设计）：
+  - **realtime**（`import_ok`/`export_ok`/`activate_ok`/`update_found`/`update_installed`）：每 kind 每分钟全局 ≤5，超限只落库；
+  - **digest**（`connect_fail`/`import_fail`/`export_fail`）：进失败合并桶（`lpush+ltrim` 限 50），惰性 flush——距上次 ≥1h 时整桶合并成一条 `hourly_fail_digest`（`lrange→del` 原子取走，天然防并发双推）。**Vercel Hobby cron 最小粒度是每天，「整点」做不到，用事件驱动 1h 节流近似**，没流量的时段顺延到下个请求补发；
+  - **none**（`app_open`/`app_connect_ok`）：与 page_visit 高度重复，只落库不推。
+- `lib/notify.js` **零改动**：`pushNotification(type)` 的 type 本就是自由字符串。ev_notifier.py 加 `app_event` 模板四处（弹窗/语音/面板摘要/激活记录页，`app_activate_ok` 独立计数不与 `new_activation` 混算防双重计数）。EvOps 对未知类型默认弹通知，零改动。
+
+**APK（ev-schedule-android，versionCode 103 / v0.5.102）**
+
+- `Analytics.event(ctx, kind, payload, dedupeKey)` 新增，与 pageView 同构（device/app/watch 上下文）。
+- 打点：`EvApp`→app_open；`SyncEngine`→connect_ok/fail（stage 1-4）；`TransferActivity`→导入/导出 ok/fail（fail 带 reason）；`FastActivateActivity`→E2 补 `pageView(/apk/activate)`（App 访问最大盲区）+ A6 `activate_ok`（**onBackend 在 `clearTrace()` 前抓 uid/channel/order_no 溯源快照**，dedupeKey 按激活码幂等）；`UpdateChecker`→update_found/installed（按天+目标版本幂等）。
+
+**上线与验证**
+
+- 线上冒烟 8 项全绿（含 dedupe 重发只落一行、失败事件进合并桶、实时推送到达）。Mac 收到 2 条 `app_event` 新模板弹窗（「导出课表成功」样式）。落库核验：`watch_id` 归一、`client=apk`、payload 完整。
+- **真实环境验证（意外之喜）**：用户自行把同哈希的 0.5.102 装上了手机，产生 6 条真实 `app_connect_fail`（stage 1）进合并桶——APK 端到端链路无需再造数据即已验证。
+- 放量 `bbcd439`：`update-ev.json` → 103/0.5.102（sha256 `d2cc1855…` 与手机装包逐字节一致），旧包 v0.5.101/98 保留，isForce=false。updateLog 面向用户措辞（只说统计升级、界面不变、无新权限，不暴露埋点细节）。
+- EvNotifier 重启坑：**app 启动器（MacOS/EvNotifier）不会自动同步源码**，必须手动 `cp` Documents 源码进 `/Applications/EvNotifier.app/Contents/Resources/` 再重启（boot 43），否则新模板不生效。之前记忆里「启动时自动同步」是错的，已更正。
+
+**遗留**
+
+1. `app_connect_fail` 在用户手机上是真实持续的（stage 1 初始化服务失败 ×6）——若非测试环境噪音，值得查一下 SyncEngine 初始化链路。
+2. P4（后台报表/复制按钮）、P5（`/dl/` 重定向统计）未动。
+
+---
+
 ## 8. 需要你确认的 5 个问题
 
 | # | 问题 | 我的默认建议 |
