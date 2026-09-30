@@ -377,8 +377,8 @@
     tickCooldown();
   };
 
-  // 与其它页面一致：① 访客统计（写 visitor_logs）；② 给作者推一条 ev-notifier 访问通知
-  xhrPost('/api/activate?section=visitor-track', { path: window.location.pathname + window.location.search });
+  // 访客统计（写 visitor_logs）已改用全站统一脚本（P2/D3），见页尾 页尾那个统一埋点标签
+  // 下面这一条是给作者推 ev-notifier 访问通知（只推不落库），与访客统计是两件事，保留
   xhrPost('/api/admin/health?section=visit', {
     page: window.location.pathname,
     referrer: document.referrer || '',
@@ -389,5 +389,7 @@
   tickCooldown();
 })();
 </script>
+<!-- 全站统一访客埋点（P2/D1+D3）：替代本页原有的手写 XHR，避免双发 -->
+<script src="/js/track.js" data-group="tool"></script>
 </body>
 </html>

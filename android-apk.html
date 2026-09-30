@@ -98,4 +98,6 @@ render();
 <script>
 (function(){try{var r=new XMLHttpRequest();r.open('POST','/api/admin/health?section=visit',true);r.setRequestHeader('Content-Type','application/json');r.send(JSON.stringify({page:location.pathname,referrer:document.referrer||'',title:document.title||''}))}catch(_){}})
 </script>
+<!-- 全站统一访客埋点（P2/D2）：本页此前漏埋，纳入「下载」分组 -->
+<script src="/js/track.js" data-group="download"></script>
 </body></html>

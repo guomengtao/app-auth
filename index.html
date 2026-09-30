@@ -143,16 +143,12 @@
       if (sectionEl) sectionEl.style.display = '';
     }
   })();
-  <script>
-  (function(){
-    try {
-      var xhr = new XMLHttpRequest();
-      xhr.open('POST', '/api/activate?section=visitor-track', true);
-      xhr.setRequestHeader('Content-Type', 'application/json');
-      xhr.send(JSON.stringify({ path: window.location.pathname + window.location.search }));
-    } catch(e){}
-  })();
   </script>
+  <!-- 全站统一访客埋点（P2/D1+D3）：替代此处原有的手写 XHR，避免双发。
+       注：此处原本把 script 的**闭合标签**误写成了**开标签**（只差一个斜杠）。
+       单独一行的开标签在 JS 里恰好是合法的比较表达式（undefined 比较 undefined），
+       所以这个笔误一直没暴露成报错，只是静默地多开了一层脚本块 —— 本次一并修掉。 -->
+  <script src="/js/track.js" data-group="home"></script>
 <script>
 (function(){
   try {

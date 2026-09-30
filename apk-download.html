@@ -152,14 +152,8 @@ ol.steps .tip{color:var(--muted);font-size:.78rem;display:block}
     if (wx) wx.style.display = 'block';
   }
 
-  // ---- 访问埋点（保留 deviceId/c/r 追踪参数，服务端拆 path/query 归因） ----
-  try {
-    fetch('/api/activate?section=visitor-track', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ path: window.location.pathname + window.location.search,
-                             ref: document.referrer || '' })
-    }).catch(function(){});
-  } catch(e){}
+  // ---- 访问埋点：P2/D3 起改用全站统一脚本（见页尾 data-group="download" 那个标签）
+  //      原实现用的是 fetch —— 老 WebView（API<42）根本没有 fetch，这段等于静默失败，一并修掉。
 
   // ---- 版本信息（单一来源：/ev/update-ev.json） ----
   // origin 支持 GitHub Release 与本站自托管两种；只有 GitHub origin 才拼镜像前缀
@@ -216,13 +210,14 @@ ol.steps .tip{color:var(--muted);font-size:.78rem;display:block}
   function urlOf(line){ return line.pre + origin; }
 
   function trackDownload(lineName){
+    // 下载点击埋点（P2/D3）：复用全站统一脚本，不再自己拼 fetch（老 WebView 无 fetch）。
+    // query 保持原口径：dl=<线路名> + 页面自身的追踪参数 + src=apk-download
     try {
-      fetch('/api/activate?section=visitor-track', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ path: window.location.pathname,
-                               query: 'dl=' + encodeURIComponent(lineName) +
-                                      (window.location.search ? window.location.search.slice(1) + '&' : '') + 'src=apk-download' })
-      }).catch(function(){});
+      WBTrack.send({
+        path: window.location.pathname,
+        query: 'dl=' + encodeURIComponent(lineName) +
+               (window.location.search ? window.location.search.slice(1) + '&' : '') + 'src=apk-download'
+      });
     } catch(e){}
   }
 
@@ -309,5 +304,7 @@ ol.steps .tip{color:var(--muted);font-size:.78rem;display:block}
   fetchSiteVersion();
 })();
 </script>
+<!-- 全站统一访客埋点（P2/D1+D3）：替代本页原有的手写 fetch，避免双发；下载点击埋点也复用它的 WBTrack.send -->
+<script src="/js/track.js" data-group="download"></script>
 </body>
 </html>

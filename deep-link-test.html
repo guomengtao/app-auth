@@ -70,16 +70,9 @@
     el.textContent = "溯源：" + (uid ? uid : "—") + (chn ? " · " + chn : "");
     el.style.display = "block";
   }
-  // 全链路追踪：本页此前埋点命中为 0（「链接被点开」唯一的采集点）。写法与站内其他页保持一致。
-  // u/c/o/g 都在 location.search 里，服务端会拆进 params 列。
-  (function () {
-    try {
-      var t = new XMLHttpRequest();
-      t.open("POST", "/api/activate?section=visitor-track", true);
-      t.setRequestHeader("Content-Type", "application/json");
-      t.send(JSON.stringify({ path: location.pathname + location.search }));
-    } catch (_) {}
-  })();
+  // 全链路追踪：「链接被点开」唯一的采集点。P2/D2 起改用全站统一脚本
+  // （见页尾 data-group="activate" 那个标签），此处不再手写 XHR。
+  // u/c/o/g 都在 location.search 里，服务端会拆进 params 列、group 进 payload.group。
   if (/MicroMessenger/i.test(navigator.userAgent)) {
     document.querySelector(".wx").style.display = "block";
   }
@@ -96,5 +89,7 @@
     } else { prompt("手动复制：", code); }
   };
 </script>
+<!-- 全站统一访客埋点（P2/D1+D2）：替代此前手写的 XHR，避免两处并存导致双发 -->
+<script src="/js/track.js" data-group="activate"></script>
 </body>
 </html>

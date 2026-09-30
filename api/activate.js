@@ -70,6 +70,8 @@ function visitorTodayKey(ts) {
 
 
 // Page path -> Chinese title for visitor notifications
+// ⚠️ 只影响「通知/后台里显示什么」，不参与任何判断分支 —— 缺名字的页面退回原 path，不影响埋点。
+//    P2/D4：补齐这次新纳入埋点的页面（原来是裸路径，Mac 通知里看着像乱码）。
 function pageTitleForPath(p) {
   var map = {
     '/apk/home': '首页（周视图）',
@@ -78,13 +80,36 @@ function pageTitleForPath(p) {
     '/apk/message': '留言页',
     '/apk/transfer': '导入导出',
     '/apk/debug': '调试页',
+    '/apk/activate': 'App内激活页',
     '/user-guide.html': '用户指南',
+    '/course-guide.html': '使用教程',
+    '/activation-guide.html': '激活流程教学动画',
     '/ev-schedule.html': 'EV课程表主页',
-    '/activate': '激活页'
+    '/ev-timetable.html': 'EV课程表介绍',
+    '/apk-download.html': '安卓版下载',
+    '/android-apk.html': '安卓APK页面档案',
+    '/deep-link-test.html': '激活页（私信深链）',
+    '/pages.html': '页面总览',
+    '/my-ip.html': 'IP查询',
+    '/redeem-counts.html': '兑换码数量',
+    '/index.html': '首页',
+    '/activate.html': '激活页',
+    '/activate': '激活页',
+    '/ev-login.html': '登录页',
+    '/login_aXs12.html': '登录页'
   };
   if (map[p]) return map[p];
   if (p.startsWith('/apk/')) return p.replace('/apk/', '');
   return p;
+}
+
+// 页面分组（P2/D5）：画像汇总按「指南 / 激活 / 下载 / 站内 / 工具」出报表。
+// 客户端来自 track.js 的 data-group，或 URL 上的 g=<分组>（P1 起的深链就带 g=activate）。
+// 白名单限定，避免脏值进库；超出的一律记空。
+var ALLOWED_GROUPS = { guide: 1, activate: 1, download: 1, home: 1, tool: 1 };
+function normalizeGroup(v) {
+  var g = clipStr(v, 24).toLowerCase().replace(/[^a-z_-]/g, "");
+  return ALLOWED_GROUPS[g] ? g : "";
 }
 
 function clipStr(v, n) {
@@ -208,6 +233,9 @@ async function handleVisitorTrack(req, res) {
     // APK 埋点可以直接带 deviceId（优先于 query 里的 ?deviceId=），供 tracking_events 归因
     var bodyDeviceId = String(body.deviceId || "");
     var dev = sanitizeDevice(body);
+    // P2/D5：页面分组。优先 body.group（来自 js/track.js 的 data-group），
+    //   退回 URL 上的 g=（P1 起的私信深链带 g=activate）；都不合法则记空串（不进报表）。
+    var bodyGroup = normalizeGroup(body.group);
     // 前端发的是 pathname + search；这里拆成两列：
     //   path  → 只留 pathname（否则「热门页面」会被 ?deviceId=1 / ?deviceId=2 分裂成无数条）
     //   query → 完整参数串，长期留存在 visitor_logs.query / params，供渠道归因
@@ -318,6 +346,8 @@ async function handleVisitorTrack(req, res) {
       channel: queryParams ? queryParams.c || "" : "",
       payload: {
         path: path, query: fullQuery, params: queryParams || {}, ua: ua.slice(0, 200), ref: ref.slice(0, 200),
+        // 页面分组（P2/D5）：画像汇总按它分「指南 / 激活 / 下载 / 站内 / 工具」出报表
+        group: bodyGroup || normalizeGroup(queryParams && queryParams.g) || "",
         // App 同步器维度明细（老客户端不带，读取侧需容忍缺省）
         app_version: dev.app_version, app_variant: dev.app_variant,
         watch_node_id: dev.watch_node_id, watch_device_id: dev.watch_device_id,
