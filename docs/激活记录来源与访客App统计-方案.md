@@ -3,6 +3,15 @@
 > 2026-10-01 · 需求来源：后台 `admin_Dx23.html?tab=records` / `?tab=visitors`
 > 结论先行：**绝大部分数据服务端已经有了，本轮主要是「把已有数据摆出来」+ 少量埋点补齐**，不需要大改。
 
+## ✅ 实施记录（2026-10-01 全部上线）
+
+| 阶段 | commit | 内容 |
+|---|---|---|
+| P1 | `9c1cf98` | 激活来源列：activate.js 三条记录路径写 `act_source`；后台徽章列+筛选，老记录前台兜底推导 |
+| P2 | `6b4ccec` | 访客 App/网页区分：比方案更省——永久表 `visitor_logs.device` jsonb（APK 埋点非空/网页恒 null）直接 SQL `filter` 拆分，**历史数据也生效**；dailyStats/dayOverview 加 pv_app/uv_app；走势图加橙色 App UV 线；UV/PV 卡片拆分行；最近访客 📱/🌐 徽章。无需新 Redis 键 |
+| P3 | `81907be` | App 统计页新增：装机量（install_id 首见日口径，近30天每日新装机+累计，老 APK 不计入有标注）；连接手环失败分析（近14天 stage×reason 归因 TOP + 最近20条明细 + 导入/导出成败计数） |
+| P4 | 未做 | APK `codeSource` 精确标注深链/手输（下一版 APK 顺车；当前用 trace 参数推导已够用） |
+
 ---
 
 ## 1. 先回答小疑问：访客统计里的 🔊 语音按钮控制什么？
