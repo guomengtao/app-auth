@@ -11,6 +11,9 @@
     { "source": "/pages/", "destination": "/pages.html" }
   ],
   "redirects": [
+    { "source": "/pages.html", "destination": "/ui-gallery-9.html", "permanent": true },
+    { "source": "/pages", "destination": "/ui-gallery-9.html", "permanent": true },
+    { "source": "/pages/", "destination": "/ui-gallery-9.html", "permanent": true },
     { "source": "/api/oauth/login", "destination": "/api/oauth", "permanent": false },
     { "source": "/api/oauth/callback", "destination": "/api/oauth", "permanent": false }
   ],
