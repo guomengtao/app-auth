@@ -1,4 +1,4 @@
-// api/admin/review.js — pages.html 逐页截图档案「审核结果」存取
+// api/admin/review.js — ui-gallery-9.html 逐页截图档案「审核结果」存取
 //
 // 数据模型：HASH review:pages
 //   field:  <pageId>|<shotFile>

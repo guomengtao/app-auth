@@ -7,8 +7,8 @@
     { "source": "/my-ip", "destination": "/my-ip.html" },
     { "source": "/ip", "destination": "/my-ip.html" },
     { "source": "/ev-login", "destination": "/ev-login.html" },
-    { "source": "/pages", "destination": "/pages.html" },
-    { "source": "/pages/", "destination": "/pages.html" }
+    { "source": "/feedback", "destination": "/feedback.html" },
+    { "source": "/feedback/", "destination": "/feedback.html" }
   ],
   "redirects": [
     { "source": "/pages.html", "destination": "/ui-gallery-9.html", "permanent": true },

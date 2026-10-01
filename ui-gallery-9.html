@@ -49,6 +49,8 @@ body {
 .row .k { color:var(--muted); font-weight:600; margin-right:4px; }
 .pts { margin-top:6px; padding-left:18px; font-size:.86rem; color:#444; }
 .pts li { margin-bottom:2px; }
+.fb-link { color:var(--accent); font-size:.78rem; text-decoration:none; border:1px solid var(--line); border-radius:12px; padding:2px 10px; }
+.fb-link:hover { background:var(--accent); color:#fff; border-color:var(--accent); }
 .checklist { margin-top:8px; font-size:.82rem; }
 .checklist div { margin-bottom:2px; }
 .ok { color:#2e7d32; } .err { color:#e53935; font-weight:600; } .pend { color:#f0a000; }
@@ -63,7 +65,7 @@ body {
 <body>
 <div class="topbar">
   <div class="topbar-inner">
-    <div class="t-title">Ev课程表 · 页面总览<small>逐页截图档案 · 排障索引</small></div>
+    <div class="t-title">Ev课程表 · UI 截图档案<small>手环 9（胶囊屏）· 排障索引</small></div>
     <div class="t-meta">
       <span class="chip" id="verChip"></span>
       <span>截图时间 <b id="capTime"></b></span>
@@ -74,9 +76,9 @@ body {
 </div>
 <div class="wrap" id="app"></div>
 <div class="footer">
-  Ev课程表 · 页面总览（逐页截图档案）<br>
-  截图环境：标准版手环 9（胶囊屏 192×490）；应用版本随每页档案标注<br>
-  本页为排障索引；高级版页面以「未解锁」演示态采集，仅供对照参考
+  Ev课程表 · UI 截图档案（手环 9 · 胶囊屏 192×490）<br>
+  应用版本随每页档案标注；高级版页面以「未解锁」演示态采集，仅供对照参考<br>
+  遇到问题？<a href="/feedback.html" style="color:var(--accent)">前往 帮助与反馈</a>
 </div>
 <div class="lightbox" id="lightbox" onclick="hideLightbox()"><img id="lightboxImg" src=""></div>
 <script>
@@ -144,6 +146,7 @@ function renderCard(p){
   if(p.premium) badges += '<span class="badge-premium">高级版</span>';
   if(hasIssuePage(p)) badges += '<span class="badge-issue">已知问题</span>';
   var html = '<div class="p-name">'+p.name+badges+'</div>';
+  html += '<div class="row"><a class="fb-link" href="/feedback.html?type=ui&page='+encodeURIComponent(p.name)+'">反馈此页</a></div>';
   if(p.usage) html += '<div class="row"><span class="k">用途</span>'+p.usage+'</div>';
   if(p.entry) html += '<div class="row"><span class="k">入口</span>'+p.entry+'</div>';
   if(p.points && p.points.length) html += '<div class="pts"><li>'+p.points.join('</li><li>')+'</li></div>';

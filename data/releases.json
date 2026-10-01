@@ -1,0 +1,13 @@
+{
+  "updatedAt": "2026-10-01",
+  "watch": {
+    "version": "1.7.7",
+    "notes": "修复 工具-加载动画 页可能黑屏的问题；新增 帮助与反馈 入口",
+    "url": "/ev-schedule.html"
+  },
+  "apk": {
+    "version": "0.5.102",
+    "notes": "新增 课程可视化编辑器（首页 ✏️ 直接改课表）；首页视觉精修",
+    "url": "/apk-download.html"
+  }
+}

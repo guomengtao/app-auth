@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>帮助与反馈 · Ev课程表</title>
+<meta name="description" content="Ev课程表 帮助与反馈：常见问题自助解答、QQ 群交流、问题与建议提交（支持截图）。">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --bg:#f3f4f8; --surface:#ffffff; --ink:#1a1a2e; --muted:#6b7280;
+  --line:#e7e9f0; --accent:#6c63ff; --ok:#2e7d32; --warn:#f0a000; --err:#e53935;
+}
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+  background:var(--bg); color:var(--ink); line-height:1.6; }
+.wrap { max-width:760px; margin:0 auto; padding:18px 20px 60px; }
+.topbar { position:sticky; top:0; z-index:20; background:rgba(243,244,248,0.94); border-bottom:1px solid var(--line); backdrop-filter:blur(6px); }
+.topbar-inner { max-width:760px; margin:0 auto; padding:12px 20px; display:flex; align-items:center; justify-content:space-between; }
+.t-title { font-size:1.15rem; font-weight:800; }
+.t-title small { font-weight:500; color:var(--muted); font-size:.75rem; margin-left:8px; }
+.t-links { font-size:.8rem; }
+.t-links a { color:var(--muted); text-decoration:none; margin-left:12px; }
+.t-links a:hover { color:var(--accent); }
+/* 版本提示条 */
+.verbar { display:none; background:#fff8e6; border:1px solid #f2dfa8; border-radius:12px; padding:10px 14px; margin:14px 0 0; font-size:.88rem; }
+.verbar.show { display:block; }
+.verbar b { color:#92400e; }
+.verbar a { color:var(--accent); font-weight:700; text-decoration:none; }
+/* 通用卡片/标题 */
+.card { background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:18px; margin-top:16px; }
+h2.sec { font-size:1.02rem; font-weight:800; margin-top:28px; display:flex; align-items:center; gap:8px; }
+h2.sec::before { content:""; width:4px; height:18px; background:var(--accent); border-radius:2px; }
+h2.sec small { font-weight:500; color:var(--muted); font-size:.75rem; }
+/* FAQ 折叠 */
+.faq-item { border:1px solid var(--line); border-radius:12px; margin-top:10px; overflow:hidden; }
+.faq-q { padding:12px 14px; cursor:pointer; font-weight:700; font-size:.92rem; display:flex; justify-content:space-between; align-items:center; list-style:none; }
+.faq-q::-webkit-details-marker { display:none; }
+.faq-q .tag { font-weight:700; font-size:.68rem; padding:2px 8px; border-radius:10px; color:#fff; flex:0 0 auto; margin-left:10px; }
+.tag-ok { background:var(--ok); } .tag-fixing { background:var(--warn); } .tag-info { background:var(--muted); } .tag-gather { background:#b8860b; }
+.faq-a { padding:0 14px 12px; font-size:.88rem; color:#374151; display:none; }
+.faq-item.open .faq-a { display:block; }
+.faq-item.open .faq-q { border-bottom:1px dashed var(--line); }
+.faq-a a { color:var(--accent); }
+/* QQ 群 */
+.group-row { display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+.group-num { font-size:1.3rem; font-weight:800; letter-spacing:1px; }
+.btn { display:inline-block; background:var(--accent); color:#fff; text-decoration:none; font-weight:700;
+  font-size:.85rem; padding:8px 16px; border-radius:20px; border:none; cursor:pointer; }
+.btn.ghost { background:var(--surface); color:var(--accent); border:1px solid var(--accent); }
+.btn:active { opacity:.8; }
+.qr-note { font-size:.78rem; color:var(--muted); }
+/* 留言板表单 */
+.field { margin-top:12px; }
+.field label { display:block; font-size:.8rem; font-weight:700; color:var(--muted); margin-bottom:4px; }
+.field label .opt { font-weight:500; }
+textarea, input[type=text], input[type=email], input[type=tel] {
+  width:100%; border:1px solid var(--line); border-radius:10px; padding:10px 12px;
+  font-size:.92rem; font-family:inherit; background:var(--bg); color:var(--ink); resize:vertical;
+}
+textarea:focus, input:focus { outline:none; border-color:var(--accent); background:#fff; }
+.chips { display:flex; flex-wrap:wrap; gap:8px; }
+.chip-btn { border:1px solid var(--line); background:var(--surface); color:var(--ink);
+  padding:6px 14px; border-radius:18px; font-size:.85rem; cursor:pointer; }
+.chip-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.drop { border:2px dashed var(--line); border-radius:12px; padding:18px; text-align:center;
+  font-size:.82rem; color:var(--muted); cursor:pointer; margin-top:6px; }
+.drop.on { border-color:var(--accent); background:#f5f4ff; }
+.thumbs { display:flex; gap:10px; margin-top:8px; flex-wrap:wrap; }
+.thumbs .th { position:relative; width:76px; height:76px; border-radius:10px; overflow:hidden; border:1px solid var(--line); }
+.thumbs .th img { width:100%; height:100%; object-fit:cover; }
+.thumbs .th .rm { position:absolute; top:2px; right:2px; background:rgba(0,0,0,.6); color:#fff;
+  border:none; border-radius:50%; width:20px; height:20px; font-size:12px; cursor:pointer; line-height:20px; }
+.contact-row { display:flex; gap:8px; flex-wrap:wrap; }
+.contact-row input { flex:1; min-width:160px; }
+.privacy { font-size:.75rem; color:var(--muted); margin-top:10px; line-height:1.7; }
+.submit-row { margin-top:14px; display:flex; gap:10px; align-items:center; }
+#fbMsg { font-size:.85rem; margin-left:4px; }
+#fbMsg.ok { color:var(--ok); } #fbMsg.err { color:var(--err); }
+.known-list { font-size:.85rem; padding-left:18px; }
+.known-list li { margin-bottom:6px; }
+.known-list .v { color:var(--accent); font-weight:700; }
+@media (max-width:600px){ .wrap{padding:14px 14px 50px;} .card{padding:14px;} }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="t-title">帮助与反馈<small>Ev课程表</small></div>
+    <div class="t-links">
+      <a href="/ui-gallery-9.html">UI 截图档案</a>
+      <a href="/">首页</a>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <!-- ① 版本提示条 -->
+  <div class="verbar" id="verbar"></div>
+
+  <!-- ② 常见问题 -->
+  <h2 class="sec">常见问题 <small>点开看答案 · 大部分问题这里就能解决</small></h2>
+  <div id="faqBox"></div>
+
+  <!-- ③ QQ 群 -->
+  <h2 class="sec">QQ 群交流 <small>讨论、反馈、第一时间获取更新</small></h2>
+  <div class="card">
+    <div class="group-row">
+      <div>
+        <div class="group-num">936886288</div>
+        <div class="qr-note">EV 课程表用户群 · 加群请备注「课程表用户」</div>
+      </div>
+      <div style="margin-left:auto; display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn ghost" onclick="copyGroup()">复制群号</button>
+        <a class="btn" href="https://qm.qq.com/q/6lmyuev7VY"
+           target="_blank" rel="noopener">一键加群</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ④ 留言板 -->
+  <h2 class="sec">留言板 <small>问题与建议 · 支持粘贴/拖拽截图</small></h2>
+  <div class="card">
+    <div class="field">
+      <label>反馈类型</label>
+      <div class="chips" id="typeChips"></div>
+    </div>
+    <div class="field">
+      <label>问题描述 <span class="opt">（越具体越快解决：做了什么、期望什么、实际发生什么）</span></label>
+      <textarea id="fbText" rows="5" maxlength="2000" placeholder="例如：打开 工具-加载动画 页面后黑屏，手环 9 Pro，v1.7.6"></textarea>
+    </div>
+    <div class="field">
+      <label>截图 <span class="opt">（可选，最多 3 张；将自动压缩上传，请自行遮挡隐私信息）</span></label>
+      <div class="drop" id="dropZone">点击选择 / 拖拽 / 直接 Ctrl+V 粘贴截图到这里</div>
+      <input type="file" id="fileInput" accept="image/*" multiple style="display:none">
+      <div class="thumbs" id="thumbs"></div>
+    </div>
+    <div class="field">
+      <label>联系方式 <span class="opt">（选填，需回复请留一种：QQ / 邮箱 / 手机）</span></label>
+      <div class="contact-row">
+        <input type="text" id="ctType" placeholder="类型：QQ/邮箱/手机" style="flex:0 0 130px;">
+        <input type="text" id="ctValue" placeholder="联系方式（匿名可留空）">
+      </div>
+    </div>
+    <div class="privacy">
+      提交即表示同意以上信息仅用于本次反馈的处理与回复，不公开、不作其他用途。
+      想即时讨论请加上方 QQ 群。匿名提交将无法获得单独回复。
+    </div>
+    <div class="submit-row">
+      <input type="text" id="hpField" name="website" value="" style="position:absolute; left:-9999px; height:0;" tabindex="-1" autocomplete="off">
+      <button class="btn" id="fbSubmit" onclick="submitFeedback()">提交反馈</button>
+      <span id="fbMsg"></span>
+    </div>
+  </div>
+
+  <!-- ⑤ 已知问题与修复记录（数据就绪后开放） -->
+  <h2 class="sec">已知问题与修复记录 <small>你的反馈我们都在处理</small></h2>
+  <div class="card">
+    <ul class="known-list">
+      <li><span class="v">v1.7.7</span> 修复「工具-加载动画」页可能黑屏的问题</li>
+      <li><span class="v">v0.5.102</span> App 新增 课程可视化编辑器；首页视觉精修</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+/* ================= 追踪参数（向下兼容：缺省容忍，全部可选） ================= */
+var QP = (function(){
+  var p = {};
+  try {
+    var q = location.search.substring(1);
+    var kv = q.split("&");
+    for (var i=0;i<kv.length;i++){
+      var j = kv[i].indexOf("=");
+      if (j > 0) p[decodeURIComponent(kv[i].substring(0,j))] = decodeURIComponent(kv[i].substring(j+1));
+    }
+  } catch(e){}
+  return {
+    src: p.src || "web",
+    v: p.v || "unknown",
+    m: p.m || "unknown",
+    ch: p.ch || "unknown",
+    page: p.page || "",
+    type: p.type || ""
+  };
+})();
+
+/* ================= FAQ ================= */
+fetch("/data/faq.json").then(function(r){ return r.json(); }).then(function(data){
+  var box = document.getElementById("faqBox");
+  var html = "";
+  var tagCls = { "已解决":"tag-ok", "修复中":"tag-fixing", "收集信息中":"tag-gather", "指引":"tag-info", "已有设置":"tag-info" };
+  for (var i=0;i<data.items.length;i++){
+    var it = data.items[i];
+    html += '<details class="faq-item" id="faq-'+it.id+'">'
+         +  '<summary class="faq-q"><span>'+it.q+'</span>'
+         +  '<span class="tag '+(tagCls[it.tag]||"tag-info")+'">'+it.tag+'</span></summary>'
+         +  '<div class="faq-a">'+it.a+'</div></details>';
+  }
+  box.innerHTML = html;
+  if (QP.type === "ui") openFaq("ui-issue");
+  if (QP.v && QP.v !== "unknown") openFaq("exit-app");
+}).catch(function(){ document.getElementById("faqBox").innerHTML =
+  '<div class="card">FAQ 加载失败，请刷新重试；或直接在下方留言。</div>'; });
+
+function openFaq(id){
+  var el = document.getElementById("faq-"+id);
+  if (el) el.open = true;
+}
+
+/* ================= 版本提示条 ================= */
+fetch("/api/feedback/version").then(function(r){ return r.json(); }).then(function(d){
+  if (!d.ok) return;
+  var bar = document.getElementById("verbar");
+  var uv = (QP.src === "app") ? QP.v : "";
+  var lines = [];
+  if (d.watch && d.watch.notes) lines.push("手环端 v"+d.watch.version+"："+d.watch.notes);
+  if (d.apk && d.apk.notes) lines.push("App v"+d.apk.version+"："+d.apk.notes);
+  if (!lines.length) return;
+  var needUpdate = uv && d.apk && uv !== d.apk.version;
+  bar.innerHTML = "<b>最新版本</b>　" + lines.join("　·　")
+    + '　<a href="'+(d.apk ? d.apk.url : "/")+'">获取最新版 →</a>'
+    + (needUpdate ? "<br><b>你当前使用 v"+uv+"，建议更新体验最新版（可能已修复你遇到的问题）</b>" : "");
+  bar.className = "verbar show";
+}).catch(function(){ /* 版本条失败静默，不打扰 */ });
+
+/* ================= QQ 群号复制 ================= */
+function copyGroup(){
+  var done = function(){ var m = msg("群号已复制：936886288", true); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText("936886288").then(done).catch(fallbackCopy);
+  } else { fallbackCopy(); }
+  function fallbackCopy(){
+    var i = document.createElement("input");
+    i.value = "936886288"; document.body.appendChild(i); i.select();
+    try { document.execCommand("copy"); } catch(e){}
+    document.body.removeChild(i); done();
+  }
+  function msg(t){ var m = document.getElementById("fbMsg"); m.textContent = t; m.className = "ok"; }
+}
+
+/* ================= 留言板 ================= */
+var TYPES = ["界面问题","功能异常","功能建议","字体/显示","同步问题","其他"];
+var selType = (QP.type === "ui") ? "界面问题" : "";
+var images = []; // {dataUrl, w, h}
+
+(function initType(){
+  var box = document.getElementById("typeChips");
+  for (var i=0;i<TYPES.length;i++){
+    (function(t){
+      var b = document.createElement("button");
+      b.className = "chip-btn" + (t === selType ? " active" : "");
+      b.textContent = t;
+      b.onclick = function(){
+        selType = t;
+        var all = box.querySelectorAll(".chip-btn");
+        for (var k=0;k<all.length;k++) all[k].className = "chip-btn";
+        b.className = "chip-btn active";
+      };
+      box.appendChild(b);
+    })(TYPES[i]);
+  }
+  if (QP.page) {
+    document.getElementById("fbText").value = "【页面】" + QP.page + "：";
+  }
+})();
+
+var drop = document.getElementById("dropZone");
+var fileInput = document.getElementById("fileInput");
+drop.onclick = function(){ fileInput.click(); };
+drop.ondragover = function(e){ e.preventDefault(); drop.className = "drop on"; };
+drop.ondragleave = function(){ drop.className = "drop"; };
+drop.ondrop = function(e){
+  e.preventDefault(); drop.className = "drop";
+  for (var i=0;i<e.dataTransfer.files.length;i++) addImage(e.dataTransfer.files[i]);
+};
+fileInput.onchange = function(){
+  for (var i=0;i<fileInput.files.length;i++) addImage(fileInput.files[i]);
+  fileInput.value = "";
+};
+document.getElementById("fbText").addEventListener("paste", function(e){
+  var items = (e.clipboardData || {}).items || [];
+  for (var i=0;i<items.length;i++){
+    if (items[i].type && items[i].type.indexOf("image") === 0) {
+      addImage(items[i].getAsFile());
+    }
+  }
+});
+
+function addImage(file){
+  if (!file || file.type.indexOf("image") !== 0) return;
+  if (images.length >= 3) return setMsg("最多 3 张截图", "err");
+  var reader = new FileReader();
+  reader.onload = function(){
+    var img = new Image();
+    img.onload = function(){
+      // 压缩：≤960px、webp q70、目标 ≤80KB（超了降质量重压，够看清问题即可）
+      var maxW = 960;
+      var scale = Math.min(1, maxW / img.width);
+      var cv = document.createElement("canvas");
+      cv.width = Math.round(img.width * scale);
+      cv.height = Math.round(img.height * scale);
+      cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+      var q = 0.7, out = cv.toDataURL("image/webp", q);
+      while (out.length > 150 * 1024 && q > 0.4) { q -= 0.1; out = cv.toDataURL("image/webp", q); }
+      images.push(out);
+      renderThumbs();
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function renderThumbs(){
+  var box = document.getElementById("thumbs");
+  box.innerHTML = "";
+  for (var i=0;i<images.length;i++){
+    (function(idx){
+      var d = document.createElement("div");
+      d.className = "th";
+      d.innerHTML = '<img src="'+images[idx]+'"><button class="rm" title="移除">×</button>';
+      d.querySelector(".rm").onclick = function(){ images.splice(idx,1); renderThumbs(); };
+      box.appendChild(d);
+    })(i);
+  }
+}
+
+function setMsg(t, cls){
+  var m = document.getElementById("fbMsg");
+  m.textContent = t; m.className = cls || "";
+}
+
+function submitFeedback(){
+  var text = document.getElementById("fbText").value.trim();
+  if (!text) return setMsg("请先填写问题描述", "err");
+  var contact = document.getElementById("ctValue").value.trim();
+  var ctType = document.getElementById("ctType").value.trim();
+  if (contact && !ctType) return setMsg("请同时填写联系方式类型（QQ/邮箱/手机）", "err");
+  setMsg("提交中…");
+  fetch("/api/feedback", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      src: QP.src, app_version: QP.v, device_model: QP.m, channel: QP.ch,
+      page: QP.page, type: selType || "其他", content: text,
+      contact_type: contact ? ctType : "", contact: contact,
+      images: images,
+      hp: document.getElementById("hpField").value
+    })
+  }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+  .then(function(res){
+    if (res.ok && res.j.ok) {
+      setMsg("✓ 提交成功，感谢反馈！" + (contact ? "我们会通过你留下的方式回复。" : "可加 QQ 群关注处理进度。"), "ok");
+      document.getElementById("fbText").value = "";
+      images = []; renderThumbs();
+    } else if (res.status === 404) {
+      setMsg("留言通道即将开放，请先加 QQ 群反馈", "err");
+    } else {
+      setMsg("提交失败：" + ((res.j && res.j.error) || "请稍后再试"), "err");
+    }
+  }).catch(function(){
+    setMsg("网络异常，请稍后再试；紧急问题请加 QQ 群", "err");
+  });
+}
+</script>
+</body>
+</html>

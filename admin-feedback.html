@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>反馈管理 · Ev课程表 Admin</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root { --bg:#f3f4f8; --surface:#fff; --ink:#1a1a2e; --muted:#6b7280; --line:#e7e9f0;
+  --accent:#6c63ff; --ok:#2e7d32; --warn:#f0a000; --err:#e53935; }
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+  background:var(--bg); color:var(--ink); line-height:1.6; }
+.wrap { max-width:860px; margin:0 auto; padding:18px 20px 60px; }
+.topbar { background:var(--surface); border-bottom:1px solid var(--line); }
+.topbar-inner { max-width:860px; margin:0 auto; padding:12px 20px; display:flex; align-items:center; gap:12px; }
+.t-title { font-size:1.05rem; font-weight:800; }
+.filterbar { display:flex; gap:8px; margin:14px 0 0; flex-wrap:wrap; align-items:center; }
+.fbtn { border:1px solid var(--line); background:var(--surface); color:var(--ink);
+  padding:5px 14px; border-radius:18px; font-size:.82rem; cursor:pointer; }
+.fbtn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.card { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:14px; margin-top:12px; }
+.card .head { display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:.8rem; color:var(--muted); }
+.card .head .id { font-weight:800; color:var(--ink); font-size:.95rem; }
+.status { padding:2px 10px; border-radius:10px; font-size:.72rem; font-weight:700; color:#fff; }
+.status.new { background:#6c63ff; } .status.processing { background:#f0a000; }
+.status.resolved { background:var(--ok); } .status.wontfix { background:var(--muted); }
+.card .content { margin-top:8px; font-size:.9rem; white-space:pre-wrap; word-break:break-word; }
+.card .contact { margin-top:6px; font-size:.82rem; color:var(--accent); font-weight:700; }
+.card .imgs { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+.card .imgs img { width:110px; height:150px; object-fit:cover; border-radius:8px; border:1px solid var(--line); cursor:zoom-in; }
+.actions { display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; align-items:center; }
+.abtn { border:1px solid var(--line); background:var(--surface); color:var(--ink);
+  padding:4px 12px; border-radius:14px; font-size:.78rem; cursor:pointer; }
+.abtn:hover { border-color:var(--accent); color:var(--accent); }
+.abtn.danger { color:var(--err); }
+.note-input { flex:1; min-width:180px; border:1px solid var(--line); border-radius:8px;
+  padding:4px 10px; font-size:.8rem; font-family:inherit; }
+.empty { text-align:center; color:var(--muted); padding:30px; font-size:.9rem; }
+.login-tip { background:#fff8e6; border:1px solid #f2dfa8; border-radius:12px; padding:14px; margin-top:14px; font-size:.9rem; }
+.login-tip a { color:var(--accent); font-weight:700; }
+</style>
+</head>
+<body>
+<div class="topbar"><div class="topbar-inner">
+  <div class="t-title">反馈管理</div>
+  <a href="/admin_Dx23.html" style="font-size:.8rem; color:var(--muted); text-decoration:none;">← 后台首页</a>
+</div></div>
+
+<div class="wrap">
+  <div class="filterbar" id="filterbar">
+    <button class="fbtn active" data-status="">全部</button>
+    <button class="fbtn" data-status="new">新</button>
+    <button class="fbtn" data-status="processing">处理中</button>
+    <button class="fbtn" data-status="resolved">已解决</button>
+    <button class="fbtn" data-status="wontfix">不予处理</button>
+    <button class="fbtn" onclick="load()">刷新</button>
+  </div>
+  <div id="app"><div class="empty">加载中…</div></div>
+</div>
+
+<script>
+var STATUS_CN = { new:"新", processing:"处理中", resolved:"已解决", wontfix:"不予处理" };
+var curStatus = "";
+
+function load() {
+  var app = document.getElementById("app");
+  app.innerHTML = '<div class="empty">加载中…</div>';
+  var qs = curStatus ? "?status=" + curStatus : "";
+  fetch("/api/admin/feedback" + qs, { credentials: "same-origin" })
+    .then(function(r){
+      if (r.status === 401) throw new Error("unauthorized");
+      return r.json();
+    })
+    .then(function(j){
+      if (!j.success) throw new Error(j.error || "load failed");
+      if (!j.items.length) { app.innerHTML = '<div class="empty">暂无反馈</div>'; return; }
+      app.innerHTML = "";
+      for (var i=0;i<j.items.length;i++) app.appendChild(renderCard(j.items[i]));
+    })
+    .catch(function(e){
+      if (e.message === "unauthorized") {
+        app.innerHTML = '<div class="login-tip">未登录或登录已过期。请先到 '
+          + '<a href="/admin_Dx23.html">后台首页</a> 登录（管理员账号），再回到本页。</div>';
+      } else {
+        app.innerHTML = '<div class="empty">加载失败：' + e.message + '</div>';
+      }
+    });
+}
+
+function esc(s){ return (s==null?"":String(s)).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+function renderCard(f){
+  var card = document.createElement("div");
+  card.className = "card";
+  var d = new Date(f.created_at);
+  var when = isNaN(d) ? String(f.created_at) : d.toLocaleString("zh-CN");
+  var contact = f.contact ? (esc(f.contact_type || "联系") + "：" + esc(f.contact)) : "匿名";
+  var imgs = "";
+  for (var i=0;i<(f.images||[]).length;i++){
+    imgs += '<img src="'+f.images[i]+'" onclick="window.open(this.src)">';
+  }
+  card.innerHTML =
+    '<div class="head">'
+    + '<span class="id">#'+f.id+'</span>'
+    + '<span class="status '+esc(f.status)+'">'+(STATUS_CN[f.status]||esc(f.status))+'</span>'
+    + '<span>'+esc(f.type)+'</span>'
+    + '<span>'+esc(f.src)+' · v'+esc(f.app_version)+' · '+esc(f.device_model)+' · '+esc(f.channel)+'</span>'
+    + (f.page ? '<span>页面：'+esc(f.page)+'</span>' : '')
+    + '<span style="margin-left:auto">'+esc(when)+'</span>'
+    + '</div>'
+    + '<div class="content">'+esc(f.content)+'</div>'
+    + (f.images && f.images.length ? '<div class="imgs">'+imgs+'</div>' : '')
+    + '<div class="contact">👤 '+contact+'</div>'
+    + '<div class="actions">'
+    + '<button class="abtn" onclick="setStatus('+f.id+',\'processing\')">处理中</button>'
+    + '<button class="abtn" onclick="setStatus('+f.id+',\'resolved\')">已解决</button>'
+    + '<button class="abtn" onclick="setStatus('+f.id+',\'wontfix\')">不予处理</button>'
+    + '<input class="note-input" id="note-'+f.id+'" placeholder="备注（仅后台可见）" value="'+esc(f.admin_note||"")+'">'
+    + '<button class="abtn" onclick="saveNote('+f.id+')">存备注</button>'
+    + '<button class="abtn danger" onclick="delFeedback('+f.id+')">删除</button>'
+    + '</div>';
+  return card;
+}
+
+function setStatus(id, status){ mutate("PUT", { id: id, status: status }); }
+function saveNote(id){
+  mutate("PUT", { id: id, admin_note: document.getElementById("note-"+id).value });
+}
+function delFeedback(id){
+  if (!confirm("确认删除反馈 #"+id+"？（不可恢复）")) return;
+  mutate("DELETE", null, "?id=" + id);
+}
+
+function mutate(method, body, qs) {
+  fetch("/api/admin/feedback" + (qs || ""), {
+    method: method,
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined
+  }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+  .then(function(res){
+    if (!res.ok) { alert("操作失败：" + (res.j.error || res.status)); return; }
+    load();
+  }).catch(function(e){ alert("请求异常：" + e.message); });
+}
+
+(function initFilter(){
+  var bar = document.getElementById("filterbar");
+  var btns = bar.querySelectorAll(".fbtn[data-status]");
+  for (var i=0;i<btns.length;i++){
+    btns[i].onclick = function(){
+      for (var k=0;k<btns.length;k++) btns[k].className = "fbtn";
+      this.className = "fbtn active";
+      curStatus = this.getAttribute("data-status");
+      load();
+    };
+  }
+})();
+
+load();
+</script>
+</body>
+</html>
