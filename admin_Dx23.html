@@ -10695,6 +10695,66 @@ function loadAppStats() {
           html += '<div style="color:var(--muted);font-size:0.8125rem">今日暂无下载（/dl/ 上线前的历史下载不计入）</div>';
         }
         html += '</div>';
+        // 装机量（P3）：install_id 首见日口径，老 APK（无 install_id）不计入
+        var inst = d.installs || {};
+        var instDaily = inst.daily || [];
+        var instMax = 1;
+        instDaily.forEach(function (r) { if (r.n > instMax) instMax = r.n; });
+        html += '<div class="card" style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px">' +
+          '<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:12px">' +
+          '<div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">装机量（近30天每日新装机 · install_id 首见口径）</div>' +
+          '<div style="font-size:0.9375rem;font-weight:700;color:var(--ink)">累计 <b>' + (inst.total || 0) + '</b> 台</div>' +
+          '</div>';
+        if (instDaily.length) {
+          instDaily.forEach(function (r) {
+            var w = Math.round(r.n / instMax * 100);
+            html += '<div style="margin-bottom:8px">' +
+              '<div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--ink);font-size:0.8125rem">' + escHtml(r.d) + '</span><span style="color:var(--muted);font-size:0.8125rem">+' + r.n + '</span></div>' +
+              '<div style="height:6px;background:var(--line);border-radius:6px;overflow:hidden"><div style="height:100%;width:' + w + '%;background:linear-gradient(90deg,#0ea5e9,#6366f1);border-radius:6px"></div></div>' +
+              '</div>';
+          });
+          html += '<div style="font-size:0.6875rem;color:var(--muted);margin-top:6px">注：老版 APK 不上报 install_id，未计入；装机 ≠ 激活（激活见激活记录页）</div>';
+        } else {
+          html += '<div style="color:var(--muted);font-size:0.8125rem">近30天暂无新装机上报（新版 APK 上线后才计数）</div>';
+        }
+        html += '</div>';
+        // 连接手环失败分析（P3）
+        var conn = d.connect || {};
+        var iok = kinds['app_import_ok'] || 0, ifail = kinds['app_import_fail'] || 0;
+        var eok = kinds['app_export_ok'] || 0, efail = kinds['app_export_fail'] || 0;
+        html += '<div class="card" style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px">' +
+          '<div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px">连接手环失败分析（近14天）</div>' +
+          '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;font-size:0.8125rem">' +
+          '<span style="background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:4px 10px">导入成功 <b>' + iok + '</b> · 失败 <b style="color:' + (ifail > 0 ? 'var(--err)' : 'inherit') + '">' + ifail + '</b></span>' +
+          '<span style="background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:4px 10px">导出成功 <b>' + eok + '</b> · 失败 <b style="color:' + (efail > 0 ? 'var(--err)' : 'inherit') + '">' + efail + '</b></span>' +
+          '</div>';
+        if ((conn.failAgg || []).length) {
+          html += '<div style="font-size:0.75rem;color:var(--muted);margin-bottom:6px">失败归因 TOP（stage = 失败步骤 · reason = 原因摘要）</div>' +
+            '<table style="width:100%;border-collapse:collapse;font-size:0.8125rem;margin-bottom:14px">' +
+            '<tr style="color:var(--muted)"><th style="text-align:left;padding:4px 8px">步骤(stage)</th><th style="text-align:left;padding:4px 8px">原因(reason)</th><th style="text-align:right;padding:4px 8px">次数</th></tr>';
+          conn.failAgg.forEach(function (r) {
+            html += '<tr><td style="padding:4px 8px;border-top:1px solid var(--line);font-family:monospace">' + escHtml(r.stage) + '</td>' +
+              '<td style="padding:4px 8px;border-top:1px solid var(--line);max-width:380px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escHtml(r.reason) + '">' + escHtml(r.reason) + '</td>' +
+              '<td style="padding:4px 8px;border-top:1px solid var(--line);text-align:right;font-weight:600;color:var(--err)">' + r.c + '</td></tr>';
+          });
+          html += '</table>';
+        } else {
+          html += '<div style="color:var(--ok);font-size:0.8125rem;margin-bottom:10px">近14天无连接失败上报 🎉</div>';
+        }
+        if ((conn.recent || []).length) {
+          html += '<div style="font-size:0.75rem;color:var(--muted);margin-bottom:6px">最近失败明细（最新 20 条）</div>' +
+            '<table style="width:100%;border-collapse:collapse;font-size:0.75rem;white-space:nowrap">' +
+            '<tr style="color:var(--muted)"><th style="text-align:left;padding:4px 8px">时间</th><th style="text-align:left;padding:4px 8px">机型</th><th style="text-align:left;padding:4px 8px">版本</th><th style="text-align:left;padding:4px 8px">步骤</th><th style="text-align:left;padding:4px 8px">原因</th></tr>';
+          conn.recent.forEach(function (r) {
+            html += '<tr><td style="padding:4px 8px;border-top:1px solid var(--line);color:var(--muted)">' + (r.ts ? new Date(r.ts).toLocaleString('zh-CN') : '-') + '</td>' +
+              '<td style="padding:4px 8px;border-top:1px solid var(--line)">' + escHtml(r.model || '-') + '</td>' +
+              '<td style="padding:4px 8px;border-top:1px solid var(--line)">' + escHtml(r.ver || '-') + '</td>' +
+              '<td style="padding:4px 8px;border-top:1px solid var(--line);font-family:monospace">' + escHtml(r.stage) + '</td>' +
+              '<td style="padding:4px 8px;border-top:1px solid var(--line);max-width:300px;overflow:hidden;text-overflow:ellipsis" title="' + escHtml(r.reason) + '">' + escHtml(r.reason) + '</td></tr>';
+          });
+          html += '</table>';
+        }
+        html += '</div>';
         // 事件日曲线（按天透视）
         var piv = {}, days = [], dset = {};
         (d.daily || []).forEach(function (r) {

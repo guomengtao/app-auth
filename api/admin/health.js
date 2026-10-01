@@ -3555,7 +3555,38 @@ if ((isCron || isCronBackup) && isBackup) {
             [dlToday]
           )
           .catch(failRows);
-        return Promise.all([qVer, qDaily, qKinds, qDlTotal, qDlVer]).then(function (rs) {
+        // 5) 装机量（P3）：install_id 首见日 = 新装机日；distinct 总数 = 累计装机（老 APK 无 install_id 不计入）
+        var qInstTotal = pgA
+          .query("select count(distinct install_id)::int as n from tracking_events where install_id <> ''")
+          .catch(failRows);
+        var qInstDaily = pgA
+          .query(
+            "select first_day as d, count(*)::int as n from (" +
+              "select install_id, min(to_char((ts + interval '8 hours')::date, 'YYYY-MM-DD')) as first_day " +
+              "from tracking_events where install_id <> '' group by install_id" +
+            ") t where first_day > to_char(now() - interval '30 days', 'YYYY-MM-DD') " +
+            "group by 1 order by 1"
+          )
+          .catch(failRows);
+        // 6) 连接手环失败归因（P3）：近 14 天 stage×reason 聚合 + 最近 20 条明细
+        var qFailAgg = pgA
+          .query(
+            "select coalesce(nullif(payload->>'stage',''),'-') as stage, " +
+              "coalesce(nullif(payload->>'reason',''),'-') as reason, count(*)::int as c " +
+              "from tracking_events where kind='app_connect_fail' and ts > now() - interval '14 days' " +
+              "group by 1, 2 order by c desc limit 20"
+          )
+          .catch(failRows);
+        var qFailRecent = pgA
+          .query(
+            "select ts, coalesce(nullif(payload->>'model',''),'') as model, " +
+              "coalesce(nullif(payload->>'app_version',''),'') as ver, " +
+              "coalesce(nullif(payload->>'stage',''),'-') as stage, " +
+              "coalesce(nullif(payload->>'reason',''),'-') as reason " +
+              "from tracking_events where kind='app_connect_fail' order by ts desc limit 20"
+          )
+          .catch(failRows);
+        return Promise.all([qVer, qDaily, qKinds, qDlTotal, qDlVer, qInstTotal, qInstDaily, qFailAgg, qFailRecent]).then(function (rs) {
           var parseC = function (x) { var n = parseInt(x, 10); return isFinite(n) ? n : 0; };
           return res.json({
             success: true,
@@ -3563,6 +3594,20 @@ if ((isCron || isCronBackup) && isBackup) {
             versions: (rs[0].rows || []),
             daily: (rs[1].rows || []),
             kinds: (rs[2].rows || []),
+            installs: {
+              total: (rs[5].rows && rs[5].rows[0] && rs[5].rows[0].n) || 0,
+              daily: (rs[6].rows || []),
+            },
+            connect: {
+              failAgg: (rs[7].rows || []),
+              recent: (rs[8].rows || []).map(function (r) {
+                return {
+                  ts: r.ts ? new Date(r.ts).getTime() : 0,
+                  model: r.model || "", ver: r.ver || "",
+                  stage: r.stage || "-", reason: r.reason || "-",
+                };
+              }),
+            },
             downloads: {
               day: dlToday,
               today: parseC(rs[3] && rs[3][0]),
