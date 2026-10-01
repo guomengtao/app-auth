@@ -78,7 +78,8 @@ async function submit(req, res) {
   } catch (e) { /* non-blocking */ }
 
   var ip = rateLimit.getClientIp(req);
-  var ipHash = rateLimit.hashKey(ip);
+  var crypto = require("crypto");
+  var ipHash = crypto.createHash("sha256").update(ip).digest("hex").slice(0, 16);
   var dayKey = rateLimit.beijingDateKey(Date.now());
   try {
     var dKey = "feedback:daily:" + dayKey + ":" + ipHash;
