@@ -207,9 +207,9 @@ function openFaq(id){
   if (el) el.open = true;
 }
 
-/* ================= 版本提示条 ================= */
-fetch("/api/feedback/version").then(function(r){ return r.json(); }).then(function(d){
-  if (!d.ok) return;
+/* ================= 版本提示条（静态数据，无需后端） ================= */
+fetch("/data/releases.json").then(function(r){ return r.json(); }).then(function(d){
+  if (!d || !d.watch) return;
   var bar = document.getElementById("verbar");
   var uv = (QP.src === "app") ? QP.v : "";
   var lines = [];

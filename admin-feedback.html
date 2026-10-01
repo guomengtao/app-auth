@@ -66,7 +66,7 @@ function load() {
   var app = document.getElementById("app");
   app.innerHTML = '<div class="empty">加载中…</div>';
   var qs = curStatus ? "?status=" + curStatus : "";
-  fetch("/api/admin/feedback" + qs, { credentials: "same-origin" })
+  fetch("/api/feedback" + qs, { credentials: "same-origin" })
     .then(function(r){
       if (r.status === 401) throw new Error("unauthorized");
       return r.json();
@@ -132,7 +132,7 @@ function delFeedback(id){
 }
 
 function mutate(method, body, qs) {
-  fetch("/api/admin/feedback" + (qs || ""), {
+  fetch("/api/feedback" + (qs || ""), {
     method: method,
     credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
