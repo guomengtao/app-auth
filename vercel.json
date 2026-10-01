@@ -14,6 +14,7 @@
     { "source": "/api/notify/ack", "destination": "/api/feedback?kind=ack", "permanent": false },
     { "source": "/api/admin/go-links", "destination": "/api/admin/catalog?kind=go", "permanent": false },
     { "source": "/api/admin/products", "destination": "/api/admin/catalog?kind=products", "permanent": false },
+    { "source": "/api/admin/health", "destination": "/api/admin/catalog?kind=health", "permanent": false },
     { "source": "/api/afdian/webhook", "destination": "/api/afdian?kind=webhook", "permanent": false },
     { "source": "/api/afdian/query-orders", "destination": "/api/afdian?kind=query", "permanent": false },
     { "source": "/pages.html", "destination": "/ui-gallery-9.html", "permanent": true },
