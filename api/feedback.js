@@ -219,6 +219,28 @@ async function adminDelete(req, res) {
   res.status(200).json({ success: true, id: id });
 }
 
+// ======================= ack：APK 推送回执（原 api/notify/ack 并入） =======================
+
+async function pushAck(req, res) {
+  var body = parseBody(req);
+  var messageId = body.messageId || "";
+  var deviceId = body.deviceId || "";
+  if (!messageId) {
+    res.status(400).json({ success: false, error: "Missing messageId" });
+    return;
+  }
+  try {
+    var md = require("./lib/message-delivery");
+    if (md && md.ackDelivery) {
+      await md.ackDelivery(messageId, deviceId);
+    }
+    res.status(200).json({ success: true });
+  } catch (e) {
+    console.error("[feedback/ack]", e && e.message);
+    res.status(500).json({ success: false, error: "ack failed" });
+  }
+}
+
 // ======================= 入口分派 =======================
 
 module.exports = async (req, res) => {
@@ -226,6 +248,12 @@ module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") { res.status(204).end(); return; }
+
+  // 原 /api/notify/ack（APK 推送回执）经 rewrite 并入，kind=ack 分派
+  if ((req.query && req.query.kind) === "ack" && req.method === "POST") {
+    await pushAck(req, res);
+    return;
+  }
 
   if (req.method === "POST") { await submit(req, res); return; }
 

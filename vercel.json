@@ -11,6 +11,7 @@
     { "source": "/feedback/", "destination": "/feedback.html" }
   ],
   "redirects": [
+    { "source": "/api/notify/ack", "destination": "/api/feedback?kind=ack", "permanent": false },
     { "source": "/api/admin/go-links", "destination": "/api/admin/catalog?kind=go", "permanent": false },
     { "source": "/api/admin/products", "destination": "/api/admin/catalog?kind=products", "permanent": false },
     { "source": "/api/afdian/webhook", "destination": "/api/afdian?kind=webhook", "permanent": false },
@@ -27,11 +28,11 @@
       "schedule": "0 3 * * *"
     },
     {
-      "path": "/api/admin/health?section=backup&cron=1",
+      "path": "/api/admin/catalog?kind=health&section=backup&cron=1",
       "schedule": "0 4 * * *"
     },
     {
-    "path": "/api/admin/health?section=sync&cron=1",
+    "path": "/api/admin/catalog?kind=health&section=sync&cron=1",
     "schedule": "0 5 * * *"
   }
   ]
