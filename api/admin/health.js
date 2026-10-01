@@ -3330,7 +3330,19 @@ if ((isCron || isCronBackup) && isBackup) {
           console.log("[visitor-overview] visitor_logs read failed:", e && e.message);
         }
 
-        return { success: true, today: { uv: todayUv, pv: todayPv }, yesterday: { uv: ydUv, pv: ydPv }, topPages: topPages };
+        // App/网页拆分（device jsonb 非空 = APK 埋点；只有永久表能算，KV 无此口径）
+        var appSplitToday = null, appSplitYesterday = null;
+        try {
+          if (dbToday) appSplitToday = { uv: dbToday.uv_app || 0, pv: dbToday.pv_app || 0 };
+          if (dbYesterday) appSplitYesterday = { uv: dbYesterday.uv_app || 0, pv: dbYesterday.pv_app || 0 };
+        } catch (e2) {}
+
+        return {
+          success: true,
+          today: { uv: todayUv, pv: todayPv, app: appSplitToday },
+          yesterday: { uv: ydUv, pv: ydPv, app: appSplitYesterday },
+          topPages: topPages,
+        };
       }
 
       async function handleVisitorTrend2(days) {
@@ -3343,7 +3355,7 @@ if ((isCron || isCronBackup) && isBackup) {
         } catch (e) {
           console.log("[visitor-trend] visitor_logs aggregate failed:", e && e.message);
         }
-        var labels = [], uvData = [], pvData = [];
+        var labels = [], uvData = [], pvData = [], uvAppData = [], pvAppData = [];
         for (var i = days - 1; i >= 0; i--) {
           var d2 = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
           var dk = todayKey(d2.getTime());
@@ -3351,14 +3363,18 @@ if ((isCron || isCronBackup) && isBackup) {
           if (dbMap[dk] && (dbMap[dk].pv > 0 || dbMap[dk].uv > 0)) {
             uvData.push(dbMap[dk].uv);
             pvData.push(dbMap[dk].pv);
+            uvAppData.push(dbMap[dk].uv_app || 0);
+            pvAppData.push(dbMap[dk].pv_app || 0);
             continue;
           }
           var uv = await redis.scard("stats:uv:" + dk).catch(function() { return 0; });
           var pvRaw = await redis.get("stats:pv:" + dk).catch(function() { return null; });
           uvData.push(uv || 0);
           pvData.push(parseInt(pvRaw, 10) || 0);
+          uvAppData.push(0);
+          pvAppData.push(0);
         }
-        return { success: true, days: days, labels: labels, uv: uvData, pv: pvData };
+        return { success: true, days: days, labels: labels, uv: uvData, pv: pvData, uvApp: uvAppData, pvApp: pvAppData };
       }
 
       async function handleVisitorRecent2() {

@@ -10755,21 +10755,28 @@ function loadAppStats() {
           var y = ov.yesterday || {};
           var pctUv = y.uv ? Math.round((t.uv - y.uv) / y.uv * 100) : (t.uv > 0 ? 100 : 0);
           var pctPv = y.pv ? Math.round((t.pv - y.pv) / y.pv * 100) : (t.pv > 0 ? 100 : 0);
+          function appSplitSub(day) {
+            if (!day || !day.app) return '';
+            var au = day.app.uv || 0, ap = day.app.pv || 0;
+            var wu = Math.max((day.uv || 0) - au, 0), wp = Math.max((day.pv || 0) - ap, 0);
+            return '📱App ' + au + '/' + ap + ' · 🌐网页 ' + wu + '/' + wp;
+          }
 
           var cards = [
-            { label: '今日 UV', val: t.uv || 0, sub: '昨日 ' + (y.uv || 0), trend: pctUv },
-            { label: '今日 PV', val: t.pv || 0, sub: '昨日 ' + (y.pv || 0), trend: pctPv },
-            { label: '昨日 UV', val: y.uv || 0, sub: '对比前一日' },
-            { label: '昨日 PV', val: y.pv || 0, sub: '对比前一日' },
+            { label: '今日 UV', val: t.uv || 0, sub: '昨日 ' + (y.uv || 0), trend: pctUv, split: appSplitSub(t) },
+            { label: '今日 PV', val: t.pv || 0, sub: '昨日 ' + (y.pv || 0), trend: pctPv, split: appSplitSub(t) },
+            { label: '昨日 UV', val: y.uv || 0, sub: '对比前一日', split: appSplitSub(y) },
+            { label: '昨日 PV', val: y.pv || 0, sub: '对比前一日', split: appSplitSub(y) },
           ];
           overviewEl.innerHTML = cards.map(function(c) {
             var trendHtml = typeof c.trend === 'number'
               ? '<span style="color: ' + (c.trend >= 0 ? 'var(--ok)' : 'var(--err)') + ';font-size:0.75rem;margin-left:6px">' + (c.trend >= 0 ? '▲' : '▼') + Math.abs(c.trend) + '%</span>'
               : '';
+            var splitHtml = c.split ? '<div style="font-size:0.6875rem;color:var(--accent-text);margin-top:3px">' + c.split + '</div>' : '';
             return '<div class="card" style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding: 16px 16px">' +
               '<div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">' + c.label + '</div>' +
               '<div style="font-size:1.5rem;font-weight:800;color:var(--ink);margin-top:4px">' + c.val + trendHtml + '</div>' +
-              '<div style="font-size:0.75rem;color:var(--muted);margin-top:4px">' + c.sub + '</div>' +
+              '<div style="font-size:0.75rem;color:var(--muted);margin-top:4px">' + c.sub + '</div>' + splitHtml +
               '</div>';
           }).join('');
 
@@ -10835,8 +10842,12 @@ function loadAppStats() {
                 var queryHint = v.query ? '<div style="font-size:0.6875rem;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px" title="' + escapeHtml('?' + String(v.query).replace(/^\?/, '')) + '">?' + escapeHtml(String(v.query).replace(/^\?/, '')) + '</div>' : '';
                 var ispHint = v.isp ? '<div style="font-size:0.6875rem;color: var(--accent-text);margin-top: 2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px">' + escapeHtml(v.isp) + '</div>' : '';
                 var vidx = 'visitorDetail' + idx;
+                // App/网页来源徽章：APK 埋点行带 device 上下文，网页行为空
+                var srcBadge = v.dev
+                  ? '<span title="App 埋点' + (v.dm ? ' · ' + escapeHtml(v.dm) : '') + '" style="font-size:0.625rem;background:#e3f2fd;color:#1565c0;border:1px solid #90caf9;border-radius:4px;padding:1px 4px;margin-right:4px;white-space:nowrap">📱App</span>'
+                  : '<span title="网页访问" style="font-size:0.625rem;background:var(--row-hover);color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:1px 4px;margin-right:4px;white-space:nowrap">🌐网页</span>';
                 rowsHtml += '<tr class="visitor-row" onclick="toggleVisitorDetail(event, this)" data-vidx="' + vidx + '">' +
-                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-family:monospace;color: var(--accent-text);font-size:0.75rem">' + escapeHtml(v.hash || '-') + '</td>' +
+                  '<td style="padding:6px 8px;border-bottom:1px solid var(--line);font-family:monospace;color: var(--accent-text);font-size:0.75rem;white-space:nowrap">' + srcBadge + escapeHtml(v.hash || '-') + '</td>' +
                   '<td style="padding:6px 8px;border-bottom:1px solid var(--line);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(fullUrl) + '">' +
                   '<span style="display:inline-flex;align-items:center;gap:4px;max-width:100%">' +
                   '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;max-width:90px">' + escapeHtml(v.path || '/') + '</span>' +
@@ -11282,10 +11293,13 @@ function loadAppStats() {
       var labels = tr.labels || [];
       var uv = tr.uv || [];
       var pv = tr.pv || [];
+      var uvApp = tr.uvApp || [];
+      var hasAppData = uvApp.some(function(x) { return x > 0; });
       var max = 1;
       for (var i = 0; i < uv.length; i++) {
         if (uv[i] > max) max = uv[i];
         if (pv[i] > max) max = pv[i];
+        if (hasAppData && uvApp[i] > max) max = uvApp[i];
       }
 
       var padL = 36, padR = 10, padT = 10, padB = 28;
@@ -11323,6 +11337,7 @@ function loadAppStats() {
 
       drawLine(uv, '#6366f1');
       drawLine(pv, '#10b981');
+      if (hasAppData) drawLine(uvApp, '#f59e0b');
 
       ctx.fillStyle = '#94a3b8';
       ctx.font = '10px sans-serif';
@@ -11343,6 +11358,12 @@ function loadAppStats() {
       ctx.fillRect(legX + 44, padT - 6, 10, 10);
       ctx.fillStyle = '#334155';
       ctx.fillText('PV', legX + 58, padT + 3);
+      if (hasAppData) {
+        ctx.fillStyle = '#f59e0b';
+        ctx.fillRect(legX + 88, padT - 6, 10, 10);
+        ctx.fillStyle = '#334155';
+        ctx.fillText('App UV', legX + 102, padT + 3);
+      }
     }
 
     var deliveryPage = 0;
