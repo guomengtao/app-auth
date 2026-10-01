@@ -3392,9 +3392,7 @@
         <li class="menu-separator"><hr></li>
         <li><a href="javascript:void(0)" onclick="switchTab('afdian-orders')" data-tab="afdian-orders"><i data-lucide="heart" class="menu-icon"></i><span class="menu-text">爱发电订单</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('visitors')" data-tab="visitors"><i data-lucide="users" class="menu-icon"></i><span class="menu-text">访客统计</span></a></li>
-        <li><a href="javascript:void(0)" onclick="switchTab('appstats')" data-tab="appstats"><i data-lucide="smartphone" class="menu-icon"></i><span class="menu-text">App 统计</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('logs')" data-tab="logs"><i data-lucide="scroll-text" class="menu-icon"></i><span class="menu-text">日志</span></a></li>
-        <li><a href="javascript:void(0)" onclick="switchTab('delivery')" data-tab="delivery"><i data-lucide="send" class="menu-icon"></i><span class="menu-text">消息投递</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('devices')" data-tab="devices"><i data-lucide="shield-check" class="menu-icon"></i><span class="menu-text">已授权设备</span></a></li>
         <li class="menu-separator"><hr></li>
         <li><a href="javascript:void(0)" onclick="switchTab('settings')" data-tab="settings"><i data-lucide="settings" class="menu-icon"></i><span class="menu-text">设置</span></a></li>
@@ -3798,6 +3796,7 @@
                 <button id="visitorSubTab0" class="visitor-sub-tab active" onclick="switchVisitorSubTab('recent')">最近访客</button>
                 <button id="voiceToggleBtn" class="visitor-sub-tab" onclick="toggleVoice()" title="语音播报新访客" style="margin-left:8px">🔊 语音</button>
                 <button id="visitorSubTab1" class="visitor-sub-tab" onclick="switchVisitorSubTab('unique')">唯一 IP 记录</button>
+                <button id="visitorSubTab2" class="visitor-sub-tab" onclick="switchVisitorSubTab('appstats')">📱 App 统计</button>
               </div>
               <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
                 <select id="visitorDays" style="padding: 6px 12px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:0.8125rem">
@@ -3809,6 +3808,7 @@
                 <button class="btn btn-outline" onclick="refreshVisitorPane()">🔄 刷新</button>
               </div>
             </div>
+            <div id="visitorSubWeb">
             <div id="visitorOverview" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap: 16px;margin-bottom: 16px"></div>
             <div style="display:grid;grid-template-columns:2fr 1fr;gap: 16px;margin-bottom: 16px">
               <div class="card" style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px">
@@ -3831,17 +3831,18 @@
               <div id="visitorIpDetailBox" style="display:none;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding: 16px;margin-bottom: 16px"></div>
               <div id="visitorUniqueList"></div>
             </div>
-          </div>
+            </div><!-- /visitorSubWeb -->
 
-          <div class="panel" id="panel-appstats">
-            <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
-              <span style="font-weight:700;font-size:1rem">App 统计</span>
-              <span style="font-size:0.75rem;color:var(--muted)">下载走 /dl/ 计数 · 装机与事件来自 APK 上报 · 老客户端无新事件属正常（§6.1）</span>
-              <div style="margin-left:auto">
-                <button class="btn btn-outline" onclick="loadAppStats()">🔄 刷新</button>
+            <!-- App 统计（子页签：原独立页迁入） -->
+            <div id="visitorSubAppstats" style="display:none">
+              <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+                <span style="font-size:0.75rem;color:var(--muted)">下载走 /dl/ 计数 · 装机与事件来自 APK 上报 · 老客户端无新事件属正常（§6.1）</span>
+                <div style="margin-left:auto">
+                  <button class="btn btn-outline" onclick="loadAppStats()">🔄 刷新</button>
+                </div>
               </div>
+              <div id="appStatsBody"><div style="color:var(--muted);font-size:0.875rem;padding:24px">加载中...</div></div>
             </div>
-            <div id="appStatsBody"><div style="color:var(--muted);font-size:0.875rem;padding:24px">加载中...</div></div>
           </div>
 
           <div class="panel" id="panel-settings">
@@ -4331,6 +4332,7 @@
             <button class="logs-tab" onclick="switchDirectActivateTab('decrypt')" id="daSubTabDecrypt" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">🔍 解密验证</button>
             <button class="logs-tab" onclick="switchDirectActivateTab('profile')" id="daSubTabProfile" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">👤 用户画像</button>
             <button class="logs-tab" onclick="switchDirectActivateTab('summary')" id="daSubTabSummary" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">📊 画像汇总</button>
+            <button class="logs-tab" onclick="switchDirectActivateTab('delivery')" id="daSubTabDelivery" style="padding: 8px 24px;border:none;background:none;font-size:0.875rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all 0.15s;">📨 消息投递</button>
           </div>
 
           <div id="daSubGenerate">
@@ -4528,6 +4530,95 @@
             </div>
             <div id="pjResult"></div>
           </div>
+
+          <!-- 消息投递（子页签：原独立页迁入） -->
+          <div id="daSubDelivery" style="display:none">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+              <span style="font-size:0.8125rem;color:var(--muted)">追踪 Redis 推送消息的投递状态，排查丢通知问题</span>
+              <div style="margin-left:auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                <div style="display:flex;align-items:center;gap:4px">
+                  <label style="font-size:0.75rem;color:var(--muted)">状态：</label>
+                  <select id="deliveryFilterStatus" class="filter-select" style="font-size:0.8125rem;padding:4px 8px" onchange="loadDeliveryMessages()">
+                    <option value="">全部</option>
+                    <option value="pending">待投递</option>
+                    <option value="published">已发布</option>
+                    <option value="delivered">已送达</option>
+                    <option value="confirmed">已确认</option>
+                    <option value="failed">失败</option>
+                  </select>
+                </div>
+                <div style="display:flex;align-items:center;gap:4px">
+                  <label style="font-size:0.75rem;color:var(--muted)">类型：</label>
+                  <select id="deliveryFilterType" class="filter-select" style="font-size:0.8125rem;padding:4px 8px" onchange="loadDeliveryMessages()">
+                    <option value="">全部</option>
+                    <option value="new_activation">激活</option>
+                    <option value="new_order">订单</option>
+                    <option value="page_visit">访问（APK / 网页）</option>
+                    <option value="activation_failure">失败</option>
+                    <option value="purchase_click">购买点击</option>
+                    <option value="visit">访问（旧版 APK）</option>
+                  </select>
+                </div>
+                <button class="btn btn-outline" onclick="loadDeliveryMessages()">🔄 刷新</button>
+                <button class="btn btn-sm" onclick="loadDeliveryStats()" style="font-size:0.75rem">📊 统计</button>
+                <button class="btn btn-sm" onclick="retryStuckPending(this)" style="font-size:0.75rem" title="补发所有「卡在 pending」的记录：记录建了但推送被服务端冻结截断，通知其实没发出去">🔁 补发卡住的</button>
+              </div>
+            </div>
+
+            <div id="deliveryStats" style="display:none;margin-bottom:16px">
+              <div class="stats-bar">
+                <div class="stat-card" style="border-left: 3px solid var(--info)">
+                  <div class="number" id="deliveryStatTotal">-</div>
+                  <div class="label">7天总数</div>
+                </div>
+                <div class="stat-card" style="border-left: 3px solid var(--warn)">
+                  <div class="number" id="deliveryStatPending">-</div>
+                  <div class="label">待投递</div>
+                </div>
+                <div class="stat-card" style="border-left: 3px solid var(--info)">
+                  <div class="number" id="deliveryStatPublished">-</div>
+                  <div class="label">已发布</div>
+                </div>
+                <div class="stat-card" style="border-left: 3px solid var(--ok)">
+                  <div class="number" id="deliveryStatDelivered">-</div>
+                  <div class="label">已送达 ✓</div>
+                </div>
+                <div class="stat-card" style="border-left: 3px solid var(--accent)">
+                  <div class="number" id="deliveryStatConfirmed">-</div>
+                  <div class="label">已确认 ✓✓</div>
+                </div>
+                <div class="stat-card" style="border-left: 3px solid var(--err)">
+                  <div class="number" id="deliveryStatFailed">-</div>
+                  <div class="label">失败 ✗</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:100px">时间</th>
+                    <th style="width:90px">类型</th>
+                    <th style="width:70px">状态</th>
+                    <th>内容</th>
+                    <th style="width:90px">关联</th>
+                    <th style="width:160px">时间线</th>
+                    <th style="width:60px">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="deliveryTable">
+                  <tr><td colspan="7" class="empty">加载中...</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div style="margin-top:16px;display:flex;justify-content:center;align-items:center;gap:12px;font-size:0.875rem">
+              <button class="btn btn-sm" onclick="deliveryPage=Math.max(0,deliveryPage-1);loadDeliveryMessages()">‹ 上一页</button>
+              <span id="deliveryPageInfo" style="color:var(--muted)">第 1 页</span>
+              <button class="btn btn-sm" onclick="deliveryPage++;loadDeliveryMessages()">下一页 ›</button>
+            </div>
+          </div>
         </div>
 
         <!-- Afdian Orders Panel (with sub-tabs) -->
@@ -4694,98 +4785,6 @@
             </div>
           </details>
           </div><!-- /afdian-sub-purchase -->
-        </div>
-
-        <div class="panel" id="panel-delivery">
-          <div class="toolbar">
-            <div>
-              <h2 style="margin:0;display:flex;align-items:center;gap:8px">📨 消息投递</h2>
-              <span class="muted" style="font-size:0.8125rem">追踪 Redis 推送消息的投递状态，排查丢通知问题</span>
-            </div>
-            <span class="spacer"></span>
-            <div style="display:flex;align-items:center;gap:12px">
-              <div style="display:flex;align-items:center;gap:4px">
-                <label style="font-size:0.75rem;color:var(--muted)">状态：</label>
-                <select id="deliveryFilterStatus" class="filter-select" style="font-size:0.8125rem;padding:4px 8px" onchange="loadDeliveryMessages()">
-                  <option value="">全部</option>
-                  <option value="pending">待投递</option>
-                  <option value="published">已发布</option>
-                  <option value="delivered">已送达</option>
-                  <option value="confirmed">已确认</option>
-                  <option value="failed">失败</option>
-                </select>
-              </div>
-              <div style="display:flex;align-items:center;gap:4px">
-                <label style="font-size:0.75rem;color:var(--muted)">类型：</label>
-                <select id="deliveryFilterType" class="filter-select" style="font-size:0.8125rem;padding:4px 8px" onchange="loadDeliveryMessages()">
-                  <option value="">全部</option>
-                  <option value="new_activation">激活</option>
-                  <option value="new_order">订单</option>
-                  <option value="page_visit">访问（APK / 网页）</option>
-                  <option value="activation_failure">失败</option>
-                  <option value="purchase_click">购买点击</option>
-                  <option value="visit">访问（旧版 APK）</option>
-                </select>
-              </div>
-              <button class="btn btn-outline" onclick="loadDeliveryMessages()">🔄 刷新</button>
-              <button class="btn btn-sm" onclick="loadDeliveryStats()" style="font-size:0.75rem">📊 统计</button>
-              <button class="btn btn-sm" onclick="retryStuckPending(this)" style="font-size:0.75rem" title="补发所有「卡在 pending」的记录：记录建了但推送被服务端冻结截断，通知其实没发出去">🔁 补发卡住的</button>
-            </div>
-          </div>
-
-          <div id="deliveryStats" style="display:none;margin-bottom:16px">
-            <div class="stats-bar">
-              <div class="stat-card" style="border-left: 3px solid var(--info)">
-                <div class="number" id="deliveryStatTotal">-</div>
-                <div class="label">7天总数</div>
-              </div>
-              <div class="stat-card" style="border-left: 3px solid var(--warn)">
-                <div class="number" id="deliveryStatPending">-</div>
-                <div class="label">待投递</div>
-              </div>
-              <div class="stat-card" style="border-left: 3px solid var(--info)">
-                <div class="number" id="deliveryStatPublished">-</div>
-                <div class="label">已发布</div>
-              </div>
-              <div class="stat-card" style="border-left: 3px solid var(--ok)">
-                <div class="number" id="deliveryStatDelivered">-</div>
-                <div class="label">已送达 ✓</div>
-              </div>
-              <div class="stat-card" style="border-left: 3px solid var(--accent)">
-                <div class="number" id="deliveryStatConfirmed">-</div>
-                <div class="label">已确认 ✓✓</div>
-              </div>
-              <div class="stat-card" style="border-left: 3px solid var(--err)">
-                <div class="number" id="deliveryStatFailed">-</div>
-                <div class="label">失败 ✗</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th style="width:100px">时间</th>
-                  <th style="width:90px">类型</th>
-                  <th style="width:70px">状态</th>
-                  <th>内容</th>
-                  <th style="width:90px">关联</th>
-                  <th style="width:160px">时间线</th>
-                  <th style="width:60px">操作</th>
-                </tr>
-              </thead>
-              <tbody id="deliveryTable">
-                <tr><td colspan="7" class="empty">加载中...</td></tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div style="margin-top:16px;display:flex;justify-content:center;align-items:center;gap:12px;font-size:0.875rem">
-            <button class="btn btn-sm" onclick="deliveryPage=Math.max(0,deliveryPage-1);loadDeliveryMessages()">‹ 上一页</button>
-            <span id="deliveryPageInfo" style="color:var(--muted)">第 1 页</span>
-            <button class="btn btn-sm" onclick="deliveryPage++;loadDeliveryMessages()">下一页 ›</button>
-          </div>
         </div>
 
         <div class="panel" id="panel-devices">
@@ -5166,12 +5165,12 @@
       products: { title: '产品管理', sub: '管理可授权的产品列表' },
       codes: { title: '兑换码管理', sub: '生成、筛选与导出兑换码' },
       records: { title: '激活记录', sub: '查看设备激活历史' },
-      'direct-activate': { title: '快捷激活', sub: '跳过兑换码流程，直接为设备生成激活码' },
+      'direct-activate': { title: '快捷激活', sub: '直接生成激活码 · 解密验证 · 用户画像 · 消息投递' },
       'afdian-orders': { title: '爱发电订单', sub: '管理爱发电赞助订单，手动同步并查看激活码生成记录' },
-      visitors: { title: '访客统计', sub: 'UV / PV / 热门页面 / 最近访客' },
-      appstats: { title: 'App 统计', sub: '下载 · 版本分布 · 客户端事件 · 升级漏斗' },
+      visitors: { title: '访客统计', sub: 'UV / PV / 热门页面 / 最近访客 / App 统计' },
+      appstats: { title: '访客统计', sub: 'UV / PV / 热门页面 / 最近访客 / App 统计' },
       'logs': { title: '系统日志', sub: 'Vercel部署事件 · 邮件发送记录 · 爱发电私信日志' },
-      delivery: { title: '消息投递', sub: '追踪 Redis 推送消息的投递状态，排查丢通知问题' },
+      delivery: { title: '快捷激活', sub: '直接生成激活码 · 解密验证 · 用户画像 · 消息投递' },
       devices: { title: '已授权设备', sub: '查看并撤销桌面客户端（EvNotifier）的长期访问令牌' },
       settings: { title: '设置', sub: '外观 · 数据 · 安全 · 邮件 · 备份恢复' },
       health: { title: '服务器状态', sub: '检测 Postgres / 鉴权 / 激活链路是否正常' },
@@ -5180,6 +5179,9 @@
     };
 
     function switchTab(tab) {
+      // 深链兼容：appstats/delivery 已分别并入 访客统计 / 快捷激活 子页签
+      if (tab === 'appstats') { window._pendingVisitorSub = 'appstats'; tab = 'visitors'; }
+      if (tab === 'delivery') { window._pendingDaSub = 'delivery'; tab = 'direct-activate'; }
       currentTab = tab;
       try {
         var url = new URL(window.location.href);
@@ -5221,11 +5223,21 @@
         switchLogsTab(sub);
       }
       if (tab === 'settings') initSettingsPanel();
-      if (tab === 'direct-activate') initDirectActivate();
+      if (tab === 'direct-activate') {
+        initDirectActivate();
+        if (window._pendingDaSub === 'delivery') {
+          window._pendingDaSub = null;
+          switchDirectActivateTab('delivery');
+        }
+      }
       if (tab === 'afdian-orders') { switchAfdianSubTab('orders'); }
-      if (tab === 'visitors') loadVisitors();
-      if (tab === 'appstats') loadAppStats();
-      if (tab === 'delivery') loadDeliveryMessages();
+      if (tab === 'visitors') {
+        loadVisitors();
+        if (window._pendingVisitorSub === 'appstats') {
+          window._pendingVisitorSub = null;
+          switchVisitorSubTab('appstats');
+        }
+      }
       if (tab === 'devices') loadDevices();
       
       try {
@@ -8282,15 +8294,19 @@
       var profileTab = document.getElementById('daSubTabProfile');
       var summarySub = document.getElementById('daSubSummary');
       var summaryTab = document.getElementById('daSubTabSummary');
+      var deliverySub = document.getElementById('daSubDelivery');
+      var deliveryTab = document.getElementById('daSubTabDelivery');
 
       if (generateSub) generateSub.style.display = 'none';
       if (decryptSub) decryptSub.style.display = 'none';
       if (profileSub) profileSub.style.display = 'none';
       if (summarySub) summarySub.style.display = 'none';
+      if (deliverySub) deliverySub.style.display = 'none';
       if (generateTab) { generateTab.classList.remove('active'); generateTab.style.color = 'var(--muted)'; generateTab.style.borderBottomColor = 'transparent'; }
       if (decryptTab) { decryptTab.classList.remove('active'); decryptTab.style.color = 'var(--muted)'; decryptTab.style.borderBottomColor = 'transparent'; }
       if (profileTab) { profileTab.classList.remove('active'); profileTab.style.color = 'var(--muted)'; profileTab.style.borderBottomColor = 'transparent'; }
       if (summaryTab) { summaryTab.classList.remove('active'); summaryTab.style.color = 'var(--muted)'; summaryTab.style.borderBottomColor = 'transparent'; }
+      if (deliveryTab) { deliveryTab.classList.remove('active'); deliveryTab.style.color = 'var(--muted)'; deliveryTab.style.borderBottomColor = 'transparent'; }
 
       if (tab === 'generate') {
         if (generateSub) generateSub.style.display = '';
@@ -8305,6 +8321,10 @@
         if (summarySub) summarySub.style.display = '';
         if (summaryTab) { summaryTab.classList.add('active'); summaryTab.style.color = 'var(--accent)'; summaryTab.style.borderBottomColor = 'var(--accent)'; }
         loadPortraitSummary();
+      } else if (tab === 'delivery') {
+        if (deliverySub) deliverySub.style.display = '';
+        if (deliveryTab) { deliveryTab.classList.add('active'); deliveryTab.style.color = 'var(--accent)'; deliveryTab.style.borderBottomColor = 'var(--accent)'; }
+        loadDeliveryMessages();
       }
     }
 
@@ -10697,7 +10717,7 @@ function loadAppStats() {
         html += '</div>';
         // 装机量（P3）：install_id 首见日口径，老 APK（无 install_id）不计入
         var inst = d.installs || {};
-        var instDaily = inst.daily || [];
+        var instDaily = (inst.daily || []).slice().reverse(); // 日期倒序：最新在最前
         var instMax = 1;
         instDaily.forEach(function (r) { if (r.n > instMax) instMax = r.n; });
         html += '<div class="card" style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px">' +
@@ -10762,7 +10782,7 @@ function loadAppStats() {
           if (!piv[r.d]) piv[r.d] = {};
           piv[r.d][r.kind] = (piv[r.d][r.kind] || 0) + r.c;
         });
-        days.sort();
+        days.sort().reverse(); // 日期倒序：最新日期在最前面
         var cols = ['download', 'app_open', 'app_connect_ok', 'app_connect_fail', 'app_import_ok', 'app_export_ok', 'app_activate_ok', 'app_update_found', 'app_update_installed'];
         var colNames = { download: '下载', app_open: '打开', app_connect_ok: '连成', app_connect_fail: '连败', app_import_ok: '导入', app_export_ok: '导出', app_activate_ok: '激活', app_update_found: '升发现', app_update_installed: '升安装' };
         html += '<div class="card" style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px">' +
@@ -10936,10 +10956,28 @@ function loadAppStats() {
     }
 
     function switchVisitorSubTab(sub) {
-      var recentSec = document.getElementById('visitorRecentSection');
-      var uniqueSec = document.getElementById('visitorUniqueIpSection');
+      var webSec = document.getElementById('visitorSubWeb');
+      var appSec = document.getElementById('visitorSubAppstats');
       var tab0 = document.getElementById('visitorSubTab0');
       var tab1 = document.getElementById('visitorSubTab1');
+      var tab2 = document.getElementById('visitorSubTab2');
+
+      if (sub === 'appstats') {
+        if (webSec) webSec.style.display = 'none';
+        if (appSec) appSec.style.display = '';
+        if (tab0) tab0.classList.remove('active');
+        if (tab1) tab1.classList.remove('active');
+        if (tab2) tab2.classList.add('active');
+        if (typeof loadAppStats === 'function') loadAppStats();
+        return;
+      }
+
+      if (webSec) webSec.style.display = '';
+      if (appSec) appSec.style.display = 'none';
+      if (tab2) tab2.classList.remove('active');
+
+      var recentSec = document.getElementById('visitorRecentSection');
+      var uniqueSec = document.getElementById('visitorUniqueIpSection');
 
       if (sub === 'recent') {
         if (recentSec) recentSec.style.display = '';
@@ -10955,8 +10993,13 @@ function loadAppStats() {
       }
     }
 
-    // 顶部「🔄 刷新」：刷新当前子页（最近访客 / 唯一 IP 记录）
+    // 顶部「🔄 刷新」：刷新当前子页（最近访客 / 唯一 IP 记录 / App 统计）
     function refreshVisitorPane() {
+      var appSec = document.getElementById('visitorSubAppstats');
+      if (appSec && appSec.style.display !== 'none') {
+        loadAppStats();
+        return;
+      }
       var uniqueSec = document.getElementById('visitorUniqueIpSection');
       if (uniqueSec && uniqueSec.style.display !== 'none') {
         loadUniqueIps(true);
@@ -12013,6 +12056,167 @@ function loadAppStats() {
       }
     }
   </script>
+
+<style>
+    .lucide-inline{width:1em;height:1em;display:inline-block;vertical-align:-0.15em;margin-right:4px;flex:none}
+</style>
+
+<script data-lucide-mapper="1">
+(function () {
+  if (typeof lucide === 'undefined' || !lucide.createIcons) { return; }
+  var MAP = {
+    "\u2190": "arrow-left",
+    "\u2191": "arrow-up",
+    "\u2192": "arrow-right",
+    "\u2193": "arrow-down",
+    "\u2194": "move-horizontal",
+    "\u2197": "arrow-up-right",
+    "\u21a9": "corner-up-left",
+    "\u25b2": "chevron-up",
+    "\u25b6": "play",
+    "\u25bc": "chevron-down",
+    "\u25cb": "circle",
+    "\u25cf": "circle",
+    "\u2630": "menu",
+    "\u267e": "infinity",
+    "\u2699": "settings",
+    "\u26a0": "alert-triangle",
+    "\u26a1": "zap",
+    "\u26aa": "circle",
+    "\u26ab": "circle",
+    "\u2705": "check-circle",
+    "\u270e": "edit",
+    "\u270f": "pencil",
+    "\u2713": "check",
+    "\u2715": "x",
+    "\u2717": "x",
+    "\u274c": "x-circle",
+    "\u2753": "help-circle",
+    "\u2795": "plus",
+    "\u2b07": "arrow-down",
+    "\u2b1b": "square",
+    "\u2b1c": "square",
+    "\ud83c\udf0d": "earth",
+    "\ud83c\udf10": "globe",
+    "\ud83c\udf19": "moon",
+    "\ud83c\udf32": "tree-pine",
+    "\ud83c\udf33": "tree-pine",
+    "\ud83c\udf89": "party-popper",
+    "\ud83c\udf9f": "ticket",
+    "\ud83c\udfa8": "palette",
+    "\ud83c\udfab": "ticket",
+    "\ud83c\udfaf": "target",
+    "\ud83c\udfc6": "trophy",
+    "\ud83c\udff7": "tag",
+    "\ud83d\udc41": "eye",
+    "\ud83d\udc64": "user",
+    "\ud83d\udc96": "heart",
+    "\ud83d\udca1": "lightbulb",
+    "\ud83d\udcac": "message-circle",
+    "\ud83d\udcb0": "coins",
+    "\ud83d\udcbe": "save",
+    "\ud83d\udcc1": "folder",
+    "\ud83d\udcc5": "calendar",
+    "\ud83d\udcc9": "trending-down",
+    "\ud83d\udcca": "bar-chart-3",
+    "\ud83d\udcd0": "ruler",
+    "\ud83d\udcd6": "book-open",
+    "\ud83d\udcdc": "scroll-text",
+    "\ud83d\udcdd": "file-text",
+    "\ud83d\udce1": "radio-tower",
+    "\ud83d\udce4": "upload",
+    "\ud83d\udce5": "download",
+    "\ud83d\udce6": "package",
+    "\ud83d\udce7": "mail",
+    "\ud83d\udce8": "send",
+    "\ud83d\udcec": "mailbox",
+    "\ud83d\udced": "inbox",
+    "\ud83d\udcee": "mailbox",
+    "\ud83d\udcf1": "smartphone",
+    "\ud83d\udcf2": "smartphone",
+    "\ud83d\udcf8": "camera",
+    "\ud83d\udd01": "repeat",
+    "\ud83d\udd04": "refresh-cw",
+    "\ud83d\udd07": "volume-x",
+    "\ud83d\udd0a": "volume-2",
+    "\ud83d\udd0c": "plug",
+    "\ud83d\udd0d": "search",
+    "\ud83d\udd0e": "search",
+    "\ud83d\udd10": "lock",
+    "\ud83d\udd14": "bell",
+    "\ud83d\udd17": "link",
+    "\ud83d\udd34": "circle",
+    "\ud83d\udd35": "circle",
+    "\ud83d\udd50": "clock",
+    "\ud83d\udda5": "monitor",
+    "\ud83d\uddc2": "folder-open",
+    "\ud83d\uddc4": "archive",
+    "\ud83d\uddd1": "trash-2",
+    "\ud83d\ude48": "eye-off",
+    "\ud83d\ude80": "rocket",
+    "\ud83d\udeab": "ban",
+    "\ud83d\udee1": "shield",
+    "\ud83d\udfe0": "circle",
+    "\ud83d\udfe1": "circle",
+    "\ud83d\udfe2": "circle",
+    "\ud83d\udfe3": "circle",
+    "\ud83e\udd16": "bot",
+    "\ud83e\udde9": "puzzle",
+    "\ud83e\uddea": "flask-conical",
+    "\ud83e\uddec": "dna",
+    "\ud83e\udded": "compass"
+  };
+  var keys = Object.keys(MAP);
+  function esc(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+  var RE = new RegExp('(' + keys.map(esc).join('|') + ')', 'g');
+
+  function swap(textNode) {
+    var data = textNode.data;
+    RE.lastIndex = 0;
+    if (!RE.test(data)) { RE.lastIndex = 0; return; }
+    RE.lastIndex = 0;
+    var frag = document.createDocumentFragment();
+    var last = 0, m;
+    while ((m = RE.exec(data)) !== null) {
+      if (m.index > last) { frag.appendChild(document.createTextNode(data.slice(last, m.index))); }
+      var i = document.createElement('i');
+      i.setAttribute('data-lucide', MAP[m[0]]);
+      i.setAttribute('class', 'lucide-inline');
+      frag.appendChild(i);
+      last = m.index + m[0].length;
+      if (data.charCodeAt(last) === 0xFE0F) { last += 1; }
+    }
+    if (last < data.length) { frag.appendChild(document.createTextNode(data.slice(last))); }
+    textNode.parentNode.replaceChild(frag, textNode);
+  }
+
+  function scan() {
+    var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+    var nodes = [];
+    while (walker.nextNode()) { nodes.push(walker.currentNode); }
+    var changed = false;
+    for (var i = 0; i < nodes.length; i += 1) {
+      RE.lastIndex = 0;
+      if (nodes[i].data && RE.test(nodes[i].data)) { swap(nodes[i]); changed = true; }
+    }
+    if (changed) { lucide.createIcons(); }
+  }
+
+  function start() {
+    if (typeof lucide === 'undefined' || !lucide.createIcons) { return; }
+    scan();
+    if (typeof MutationObserver !== 'undefined' && document.body) {
+      new MutationObserver(function () { scan(); }).observe(document.body, { childList: true, subtree: true });
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start);
+  } else {
+    start();
+  }
+})();
+</script>
 
 </body>
 </html>
