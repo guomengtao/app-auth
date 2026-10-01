@@ -3620,6 +3620,15 @@
                   <option value="">全部版本</option>
                 </select>
               </div>
+              <div class="filter-group">
+                <label class="filter-label">激活来源</label>
+                <select id="filterRecordSource" onchange="applyRecordExtraFilter()" class="filter-select">
+                  <option value="">全部来源</option>
+                  <option value="apk-deeplink">同步器·深链</option>
+                  <option value="apk-manual">同步器·手输</option>
+                  <option value="evapp">手环/网页</option>
+                </select>
+              </div>
               <div class="filter-actions">
                 <button class="btn btn-outline" onclick="clearRecordFilter()" style="height:40px;padding:0 16px">清除</button>
                 <button class="btn btn-primary" onclick="loadRecords()" style="height:40px;padding:0 16px">搜索</button>
@@ -5823,6 +5832,8 @@
       if (modelSel) modelSel.value = '';
       var verSel = document.getElementById('filterRecordVersion');
       if (verSel) verSel.value = '';
+      var srcSel = document.getElementById('filterRecordSource');
+      if (srcSel) srcSel.value = '';
       var hint = document.getElementById('recordFilterHint');
       if (hint) hint.style.display = 'none';
       var btns = document.querySelectorAll('.filter-seg-btn');
@@ -5884,8 +5895,10 @@
       if (!_lastLoadedRecords) return;
       var modelSel = document.getElementById('filterRecordModel');
       var verSel = document.getElementById('filterRecordVersion');
+      var srcSel = document.getElementById('filterRecordSource');
       var filterModel = modelSel ? modelSel.value : '';
       var filterVer = verSel ? verSel.value : '';
+      var filterSource = srcSel ? srcSel.value : '';
 
       var filtered = _lastLoadedRecords.filter(function(r) {
         if (filterModel) {
@@ -5895,6 +5908,10 @@
         if (filterVer) {
           if (r.status === 'failure') return false;
           if (getRecordVersion(r) !== filterVer) return false;
+        }
+        if (filterSource) {
+          if (r.status === 'failure') return false;
+          if (recordActSource(r) !== filterSource) return false;
         }
         return true;
       });
@@ -5921,6 +5938,8 @@
       if (modelSel) modelSel.value = '';
       var verSel = document.getElementById('filterRecordVersion');
       if (verSel) verSel.value = '';
+      var srcSelDeep = document.getElementById('filterRecordSource');
+      if (srcSelDeep) srcSelDeep.value = '';
       var btns = document.querySelectorAll('.filter-seg-btn');
       btns.forEach(function(b) {
         b.classList.remove('active');
@@ -6014,8 +6033,10 @@
 
         var modelSel = document.getElementById('filterRecordModel');
         var verSel = document.getElementById('filterRecordVersion');
+        var srcSel = document.getElementById('filterRecordSource');
         var filterModel = modelSel ? modelSel.value : '';
         var filterVer = verSel ? verSel.value : '';
+        var filterSource = srcSel ? srcSel.value : '';
         var displayRecords = allRecords.filter(function(r) {
           if (filterModel) {
             if (r.status === 'failure') return false;
@@ -6025,11 +6046,15 @@
             if (r.status === 'failure') return false;
             if (getRecordVersion(r) !== filterVer) return false;
           }
+          if (filterSource) {
+            if (r.status === 'failure') return false;
+            if (recordActSource(r) !== filterSource) return false;
+          }
           return true;
         });
 
         if (hint) {
-          var hasFilter = rc || deviceId || ip || (status && status !== 'all') || filterModel || filterVer;
+          var hasFilter = rc || deviceId || ip || (status && status !== 'all') || filterModel || filterVer || filterSource;
           // 接口返回被裁剪时必须显式告知（历史 bug：静默少一截，页面看起来像"记录丢了"）
           var truncNote = '';
           if (_recordsMeta && _recordsMeta.truncated) {
@@ -6044,6 +6069,10 @@
             if (status && status !== 'all') parts.push('状态: <b>' + (status === 'failure' ? '失败' : '成功') + '</b>');
             if (filterModel) parts.push('型号: <b>' + escapeHtml(filterModel) + '</b>');
             if (filterVer) parts.push('版本: <b>' + escapeHtml(filterVer) + '</b>');
+            if (filterSource) {
+              var srcLabel = { 'apk-deeplink': '同步器·深链', 'apk-manual': '同步器·手输', 'evapp': '手环/网页' }[filterSource] || filterSource;
+              parts.push('来源: <b>' + srcLabel + '</b>');
+            }
             hint.style.display = 'block';
             hint.innerHTML = '筛选: ' + parts.join(', ') + ' — <b>' + foundCount + '</b> 条结果。' + (truncNote ? ' ' + truncNote : '');
           } else if (truncNote) {
@@ -6074,14 +6103,36 @@
       }
     }
 
+    // 激活来源：优先读服务端 act_source（新记录），老记录用 device_info.source + channel/uid/order_no 兜底推导
+    function recordActSource(r) {
+      if (r.act_source) return String(r.act_source);
+      var src = String((r.device_info && r.device_info.source) || '').toLowerCase();
+      if (src.indexOf('apk') >= 0) {
+        return (r.channel || r.order_uid || r.order_no) ? 'apk-deeplink' : 'apk-manual';
+      }
+      return 'evapp';
+    }
+    var ACT_SOURCE_BADGES = {
+      'apk-deeplink': ['同步器·深链', '#e3f2fd', '#1565c0', '#90caf9', '同步器深链拉起自动填码激活（爱发电私信链接等）'],
+      'apk-manual':  ['同步器·手输', '#e0f2f1', '#00695c', '#80cbc4', '在同步器 APK 里手工输入 4 位兑换码激活'],
+      'evapp':       ['手环/网页', 'var(--row-hover)', 'var(--ink-2)', 'transparent', '手环端自发或网页激活页（老记录无更细分）']
+    };
+    function actSourceBadge(r) {
+      if (r.status === 'failure') return '<span style="color: var(--ink-3);font-size:0.75rem">-</span>';
+      var s = recordActSource(r);
+      var m = ACT_SOURCE_BADGES[s];
+      if (!m) return '<span style="color: var(--ink-3);font-size:0.6875rem" title="' + escapeHtml(s) + '">' + escapeHtml(s) + '</span>';
+      return '<span class="badge" style="background:' + m[1] + ';color:' + m[2] + ';border:1px solid ' + m[3] + ';white-space:nowrap;font-size:0.6875rem" title="' + m[4] + '">' + m[0] + '</span>';
+    }
+
     function renderRecordsTable(allRecords, highlightRc, highlightAc, rc) {
       allRecords = allRecords || [];
-      var tableHtml = '<table><thead><tr><th>状态</th><th>激活码</th><th>兑换码</th><th style="max-width:80px">设备ID</th><th>渠道</th><th>产品</th><th>版本号</th><th>手环型号</th><th>激活时间</th><th>到期时间</th><th style="width:60px">操作</th></tr></thead><tbody>';
+      var tableHtml = '<table><thead><tr><th>状态</th><th>激活码</th><th>兑换码</th><th style="max-width:80px">设备ID</th><th>渠道</th><th>来源</th><th>产品</th><th>版本号</th><th>手环型号</th><th>激活时间</th><th>到期时间</th><th style="width:60px">操作</th></tr></thead><tbody>';
       if (allRecords.length === 0) {
         var emptyReason = rc
           ? 'No records found for redeem code "' + rc + '".'
           : 'No activation records.';
-        tableHtml += '<tr><td colspan="11" class="empty">' + escapeHtml(emptyReason) + '</td></tr>';
+        tableHtml += '<tr><td colspan="12" class="empty">' + escapeHtml(emptyReason) + '</td></tr>';
       } else {
         allRecords.forEach(function(r, idx) {
           var isFailure = r.status === 'failure';
@@ -6171,6 +6222,7 @@
           } else {
             tableHtml += '<td style="color: var(--ink-3);font-size:0.75rem">-</td>';
           }
+          tableHtml += '<td>' + actSourceBadge(r) + '</td>';
           tableHtml += '<td>' + escapeHtml(r.product_id || '') + '</td>';
           tableHtml += '<td style="font-size:0.8125rem">' + versionCell + '</td>';
           tableHtml += '<td style="font-size:0.8125rem">' + modelCell + '</td>';
@@ -6184,7 +6236,7 @@
           }
           tableHtml += '<td>' + actionCell + '</td>';
           tableHtml += '</tr>';
-          tableHtml += '<tr class="record-detail-row" id="detailRow' + idx + '"><td colspan="11">' + renderRecordDetail(r) + '</td></tr>';
+          tableHtml += '<tr class="record-detail-row" id="detailRow' + idx + '"><td colspan="12">' + renderRecordDetail(r) + '</td></tr>';
         });
       }
       tableHtml += '</tbody></table>';

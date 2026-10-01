@@ -345,6 +345,21 @@ function activationClient(deviceInfo) {
 }
 
 /**
+ * 激活来源细分（写入记录顶层 act_source，后台「来源」列用）。
+ *   apk-deeplink  同步器深链拉起自动填码（trace 参数 uid/channel/orderNo 任一有值）
+ *   apk-manual    同步器里手工输入 4 位兑换码
+ *   evapp         手环端自发 / 网页激活页（暂无更细分）
+ * ⚠️ 只加不改（§6.1）：老记录无此字段，后台按 device_info.source + channel/uid/order_no 兜底推导；
+ *    任何读法都必须容忍 act_source 缺失，不许报错。
+ */
+function activationSource(deviceInfo, channel, uid, orderNo) {
+  if (activationClient(deviceInfo) === "apk") {
+    return (channel || uid || orderNo) ? "apk-deeplink" : "apk-manual";
+  }
+  return "evapp";
+}
+
+/**
  * 手环历史清单（多手环场景）：SyncEngine 以前只存单个 nodeId，后连接的手环会覆盖前一只。
  * 这里把「当前 + 历史」列表单独收下来（最多 MAX_WATCH_HISTORY 只，逐项限长）。
  * ⚠️ 客户端可控，必须逐项裁剪：条数上限 + 每字段限长 + 只保留白名单键。
@@ -1050,6 +1065,7 @@ module.exports = async (req, res) => {
             order_no: actOrderNo,
             order_uid: actUid,
             channel: actChannel,
+            act_source: activationSource(deviceInfo, actChannel, actUid, actOrderNo),
           };
         }
         info.generated_activation_code = activationCodeReuse;
@@ -1193,6 +1209,7 @@ module.exports = async (req, res) => {
           order_no: actOrderNo,
           order_uid: actUid,
           channel: actChannel,
+          act_source: activationSource(deviceInfo, actChannel, actUid, actOrderNo),
         };
 
         var naPipeline = redis.pipeline();
@@ -1379,6 +1396,7 @@ module.exports = async (req, res) => {
       order_no: actOrderNo,
       order_uid: actUid,
       channel: actChannel,
+      act_source: activationSource(deviceInfo, actChannel, actUid, actOrderNo),
     };
 
     var USED_COUNTER_KEY = "auth:counter:used_redeem_codes";
