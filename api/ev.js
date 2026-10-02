@@ -292,6 +292,44 @@ async function handleMessages(req, res) {
   return json(res, 200, { success: true, messages: messages, max_seq: maxSeq });
 }
 
+/**
+ * 项目管理平台（EvOps）运行态端点：
+ *   GET ?action=project-beat&app_version=<x>&device=<id>
+ *
+ *  - 尽力记录心跳到 data/heartbeats.jsonl（serverless 只读环境静默跳过）；
+ *  - 返回服务器时间 server_time（App 用来判定「离线」与相对时间）；
+ *  - 返回 online：各项目「已部署 / 运行中」版本（手动维护的事实源 data/online-versions.json）。
+ *
+ * App 端把静态开发版本（本机扫描）与 online 比对，产出『待发版 / 已同步 / 未上报』状态。
+ */
+async function handleProjectBeat(req, res) {
+  var q = (req.query || {});
+  var body = (req.method === "POST" && req.body && typeof req.body === "object") ? req.body : {};
+  var appVersion = String(q.app_version || body.app_version || "").slice(0, 32);
+  var device = String(q.device || body.device || "").slice(0, 64);
+
+  // 1) 记录心跳（尽力而为）
+  try {
+    var fs = require("fs");
+    var path = require("path");
+    var dir = path.join(process.cwd(), "data");
+    try { fs.mkdirSync(dir, { recursive: true }); } catch (e) { /* ignore */ }
+    var line = JSON.stringify({ ts: Date.now(), app_version: appVersion, device: device }) + "\n";
+    fs.appendFileSync(path.join(dir, "heartbeats.jsonl"), line);
+  } catch (e) { /* 只读环境忽略 */ }
+
+  // 2) 已部署版本（手动维护事实源）
+  var online = {};
+  try {
+    var fs2 = require("fs");
+    var fp = require("path").join(process.cwd(), "data", "online-versions.json");
+    if (fs2.existsSync(fp)) online = JSON.parse(fs2.readFileSync(fp, "utf-8"));
+  } catch (e) { online = {}; }
+  if (online && online._note) delete online._note; // 备注不进比对
+
+  return json(res, 200, { ok: true, server_time: Date.now(), online: online });
+}
+
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   var action = (req.query && req.query.action) || "";
@@ -319,6 +357,10 @@ module.exports = async (req, res) => {
       case "messages":
         if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
         return await handleMessages(req, res);
+      case "project-beat":
+        // 公开端点（EvOps 安卓端不需要登录即可上报心跳 / 拉取已部署版本）。
+        // 读 / 写均为尽力而为：serverless 文件系统只读时静默跳过，绝不影响返回。
+        return await handleProjectBeat(req, res);
       default:
         return json(res, 400, { success: false, error: "Unknown action" });
     }
