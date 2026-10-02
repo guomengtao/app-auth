@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ev课程表 · 页面总览（手环 10 Pro 截图档案）</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --bg:#f3f4f8; --surface:#ffffff; --card-bg:#ffffff; --ink:#1a1a2e;
+  --muted:#6b7280; --line:#e7e9f0; --accent:#6c63ff;
+}
+body {
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+  background:var(--bg); color:var(--ink); line-height:1.6; padding-bottom:40px;
+}
+/* 画框用写死高度而非 aspect-ratio：老 WebView/旧内核不支持 aspect-ratio 会塌成 0 高致图片不可见（192:490 定比） */
+.topbar { position:sticky; top:0; z-index:20; background:rgba(255,255,255,0.92); border-bottom:1px solid var(--line); }
+.topbar-inner { max-width:1100px; margin:0 auto; padding:14px 20px 8px; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; }
+.t-title { font-size:1.25rem; font-weight:800; }
+.t-title small { font-weight:500; color:var(--muted); font-size:.78rem; margin-left:8px; }
+.t-meta { display:flex; flex-wrap:wrap; gap:12px; align-items:center; font-size:.78rem; color:var(--muted); }
+.chip { background:var(--accent); color:#fff; padding:3px 10px; border-radius:20px; font-weight:700; }
+.filterbar { max-width:1100px; margin:0 auto; padding:0 20px 12px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.fbtn { border:1px solid var(--line); background:var(--surface); color:var(--ink); padding:6px 14px; border-radius:20px; font-size:.82rem; cursor:pointer; }
+.fbtn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.fcheck { display:flex; align-items:center; gap:6px; font-size:.82rem; color:var(--muted); margin-left:auto; cursor:pointer; }
+.wrap { max-width:1100px; margin:0 auto; padding:18px 20px; }
+.group { background:var(--surface); border:1px solid var(--line); border-radius:16px; margin-bottom:16px; overflow:hidden; }
+.group-head { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; cursor:pointer; user-select:none; }
+.group-head h2 { font-size:1.05rem; font-weight:700; }
+.group-head .count { color:var(--muted); font-size:.8rem; }
+.group-body { padding:0 18px 18px; }
+.card { display:flex; gap:18px; padding:18px 0; border-top:1px solid var(--line); flex-wrap:wrap; }
+.card:first-child { border-top:none; }
+.device { width:200px; flex:0 0 auto; height:510px; border-radius:100px; background:#0b0b0f; padding:8px; overflow:hidden; }
+.device img { width:100%; height:100%; object-fit:cover; border-radius:92px; display:block; cursor:zoom-in; }
+.device.empty { display:flex; align-items:center; justify-content:center; text-align:center; color:#9aa; font-size:.8rem; }
+.device.empty .ph { padding:10px; }
+.shots { display:flex; gap:10px; flex-wrap:wrap; }
+.shots .device { width:150px; height:383px; border-radius:78px; padding:6px; }
+.shots .device img { border-radius:70px; }
+.info { flex:1; min-width:260px; }
+.p-name { font-size:1.05rem; font-weight:700; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.badge-premium { background:#b8860b; color:#fff; font-size:.7rem; padding:2px 8px; border-radius:12px; font-weight:700; }
+.badge-issue { background:#e53935; color:#fff; font-size:.7rem; padding:2px 8px; border-radius:12px; font-weight:700; }
+.badge-pending { background:#f0a000; color:#fff; font-size:.7rem; padding:2px 8px; border-radius:12px; font-weight:700; }
+.row { margin-top:8px; font-size:.88rem; }
+.row .k { color:var(--muted); font-weight:600; margin-right:4px; }
+.pts { margin-top:6px; padding-left:18px; font-size:.86rem; color:#444; }
+.pts li { margin-bottom:2px; }
+.fb-link { color:var(--accent); font-size:.78rem; text-decoration:none; border:1px solid var(--line); border-radius:12px; padding:2px 10px; }
+.fb-link:hover { background:var(--accent); color:#fff; border-color:var(--accent); }
+.checklist { margin-top:8px; font-size:.82rem; }
+.checklist div { margin-bottom:2px; }
+.ok { color:#2e7d32; } .err { color:#e53935; font-weight:600; } .pend { color:#f0a000; }
+.meta { margin-top:8px; font-size:.76rem; color:var(--muted); border-top:1px dashed var(--line); padding-top:6px; }
+.footer { text-align:center; color:var(--muted); font-size:.8rem; padding:24px 20px; line-height:1.8; }
+.lightbox { position:fixed; inset:0; background:rgba(0,0,0,0.85); display:none; align-items:center; justify-content:center; z-index:50; cursor:zoom-out; }
+.lightbox.show { display:flex; }
+.lightbox img { max-width:90vw; max-height:90vh; border-radius:24px; }
+@media (max-width:600px){ .device{width:160px;height:408px;} .shots .device{width:120px;height:306px;} }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="t-title">Ev课程表 · UI 截图档案<small>手环 10 Pro（480×336 方屏）· 排障索引</small></div>
+    <div class="t-meta">
+      <span class="chip" id="verChip"></span>
+      <span>截图时间 <b id="capTime"></b></span>
+      <span>页面更新 <b id="pageTime"></b></span>
+    </div>
+  </div>
+  <div class="filterbar" id="filterbar"></div>
+  <div class="filterbar" id="siteNav"></div>
+</div>
+<div class="wrap" id="app"></div>
+<div class="footer">
+  Ev课程表 · UI 截图档案（手环 9 · 胶囊屏 192×490）<br>
+  应用版本随每页档案标注；高级版页面以「未解锁」演示态采集，仅供对照参考<br>
+  遇到问题？<a href="/feedback.html" style="color:var(--accent)">前往 帮助与反馈</a>
+</div>
+<div class="lightbox" id="lightbox" onclick="hideLightbox()"><img id="lightboxImg" src=""></div>
+<script>
+var DATA = {"watchApp":{"name":"Ev课程表","repo":"guomengtao/class-schedule","version":"1.6.151","versionCode":980,"channel":"t-9p-d","updatedAt":"2026-09-28 15:10"},"captureEnv":{"device":"小米手环 10 Pro（480×336 方屏）","vvd":"xiaomi_band","size":"480x336","adb":"emulator-5554","grpc":8554,"note":"10 Pro 截图待采集：条目结构与手环9档案（ui-gallery-9.html）完全对齐，截图落盘 images/ev-schedule-10pro/pages/ 同名文件后自动点亮"},"pageUpdatedAt":"2026-10-02","capturedAt":"待采集","pages":[{"id":"welcome","name":"欢迎页","group":"核心主流程","route":"pages/welcome","premium":false,"premiumNote":"","usage":"应用入口：进入首页 / 设置 / 退出","entry":"启动应用即是","points":["「进入首页」进课程表","「设置」进设置页","「退出」关闭快应用"],"shots":[{"file":"pages/welcome-default.png","state":"default","version":"1.6.142","at":"2026-09-27 19:42"}],"check":{},"enabled":true,"auto":true,"why":""},{"id":"index","name":"首页（课程表）","group":"核心主流程","route":"pages/index","premium":false,"premiumNote":"","usage":"主界面：当天课程、日期导航、自定义内容、快速添加、设置入口","entry":"欢迎页 →「进入首页」","points":["← / → 切换日期","「快速添加」展开快捷操作","底部「课程表1」进课程表管理"],"shots":[{"file":"pages/index-list.png","state":"list","version":"1.6.142","at":"2026-09-27 20:32"},{"file":"pages/index-noclock.png","state":"无时间模块","version":"1.6.146","at":"2026-09-28 11:47"}],"check":{"时钟模块":"✅ 已移除（9b6eb15）：假期模式下与顶部日期重复，顶部只保留日期行"},"enabled":true,"auto":true,"why":""},{"id":"detail","name":"课程详情","group":"核心主流程","route":"pages/detail","premium":false,"premiumNote":"","usage":"查看/编辑单节课的详情","entry":"首页 → 点某一节课","points":["显示课程名、时间、地点","可编辑与删除"],"shots":[{"file":"pages/detail-step1.png","state":"step1-选择课程","version":"1.6.142","at":"2026-09-28 03:25"},{"file":"pages/detail-step2.png","state":"step2-时间","version":"1.6.142","at":"2026-09-28 03:25"},{"file":"pages/detail-step2b.png","state":"step2-时间底部","version":"1.6.142","at":"2026-09-28 03:25"},{"file":"pages/detail-step3.png","state":"step3-位置与星期","version":"1.6.142","at":"2026-09-28 03:25"},{"file":"pages/detail-step4.png","state":"step4-确认","version":"1.6.142","at":"2026-09-28 03:25"},{"file":"pages/detail-step4b.png","state":"step4-确认底部","version":"1.6.142","at":"2026-09-28 03:25"}],"check":{"周视图入口":"✅ 已修复（5873530）：周视图→编辑页正确回填真实课程（语文/08:00-08:45/星期一/101）"},"enabled":true,"auto":false,"why":"需要首页已有课程数据"},{"id":"add-course","name":"添加课程","group":"核心主流程","route":"pages/add-course","premium":false,"premiumNote":"","usage":"新增一节课：选星期、节次、课程名","entry":"首页 →「快速添加」/「+」","points":["先选星期与节次","再填课程名","本节次冲突会提示"],"shots":[{"file":"pages/add-course-form.png","state":"form","version":"1.6.142","at":"2026-09-27 19:43"}],"check":{},"enabled":true,"auto":true,"why":""},{"id":"course-manager","name":"课程管理","group":"课程管理","route":"pages/course-manager","premium":false,"premiumNote":"","usage":"批量管理已添加的课程（改名/删除/排序）","entry":"首页 → 课程区域入口","points":["列表逐行可点","删除有二次确认"],"shots":[{"file":"pages/course-manager-list.png","state":"list","version":"1.6.142","at":"2026-09-28 00:40"},{"file":"pages/course-manager-planA.png","state":"方案A-工具行合并","version":"1.6.147","at":"2026-09-28 12:07"},{"file":"pages/course-manager-radius14.png","state":"按钮14px圆角","version":"1.6.148","at":"2026-09-28 12:19"}],"check":{"胶囊屏布局":"✅ 已优化（8bf8138/574c759）：清除+添加合并一行、课程项紧凑化、按钮 14px 圆角，一屏 3 项"},"enabled":true,"auto":false,"why":"入口位置待核对"},{"id":"custom-content-edit","name":"自定义内容编辑","group":"课程管理","route":"pages/custom-content-edit","premium":false,"premiumNote":"","usage":"编辑首页那行自定义文案","entry":"首页设置 →「自定义」→ 输入行","points":["支持中文输入","留空则隐藏该行"],"shots":[{"file":"pages/custom-content-edit-default.png","state":"default","version":"1.6.142","at":"2026-09-28 00:40"}],"check":{},"enabled":true,"auto":false,"why":"入口在首页设置页内"},{"id":"countdown-manage","name":"倒数日管理","group":"课程管理","route":"pages/countdown-manage","premium":false,"premiumNote":"","usage":"管理倒数日（如「距离考试还有 N 天」）","entry":"首页/工具页入口","points":["新增/编辑/删除倒数日","首页可显示天数"],"shots":[{"file":"pages/countdown-manage-empty.png","state":"empty","version":"1.6.142","at":"2026-09-28 00:40"}],"check":{},"enabled":true,"auto":false,"why":"入口位置待核对"},{"id":"schedule-manager","name":"课程表管理","group":"课表视图","route":"pages/schedule-manager","premium":false,"premiumNote":"","usage":"管理多张课表（免费版仅 1 张）；点行弹出底部操作面板","entry":"首页底部「课程表1」","points":["点课程名/圆圈/行尾空白都应弹出面板（整行热区）","面板内「删除」需二次确认","新增第 2 张课表需高级版"],"shots":[{"file":"pages/schedule-manager-unlock-modal.png","state":"unlock-modal","version":"1.6.142","at":"2026-09-27 20:33"}],"check":{"symmetric":"已通过（左 8 / 右 8）"},"enabled":true,"auto":true,"why":""},{"id":"week-view","name":"周视图","group":"课表视图","route":"pages/week-view","premium":false,"premiumNote":"","usage":"按周查看课程分布","entry":"首页/课表页入口","points":["左右切换周","点课程进详情"],"shots":[{"file":"pages/week-view-default.png","state":"default","version":"1.6.142","at":"2026-09-28 00:40"},{"file":"pages/week-view-capsule-fit.png","state":"列宽修复后（f793759）","version":"1.6.148","at":"2026-09-28 12:26"}],"check":{"跳编辑页":"✅ 已修复（5873530）：点课程格进编辑页正确回填（此前 100% 显示「这门课已经被删除」）","胶囊屏列宽":"✅ 已修复（f793759）：极简/清爽/紧凑模板按真实屏宽自适应列宽，周五不再被裁半字"},"enabled":true,"auto":false,"why":"入口位置待核对"},{"id":"schedule-qrcode","name":"课表二维码","group":"课表视图","route":"pages/schedule-qrcode","premium":false,"premiumNote":"","usage":"把课表生成二维码，用于分享/迁移","entry":"课表管理页入口","points":["生成二维码","对方扫码即可导入"],"shots":[{"file":"pages/schedule-qrcode-default.png","state":"default","version":"1.6.142","at":"2026-09-28 00:40"}],"check":{},"enabled":true,"auto":false,"why":"入口在课表管理页内"},{"id":"workday-info","name":"工作日信息","group":"课表视图","route":"pages/workday-info","premium":false,"premiumNote":"","usage":"显示调休/节假日信息","entry":"工具页入口","points":["显示今天是否上班","显示下一个假期"],"shots":[{"file":"pages/workday-info-default.png","state":"default","version":"1.6.142","at":"2026-09-28 00:40"},{"file":"pages/workday-info-s1.png","state":"s1","version":"1.6.142","at":"2026-09-28 02:45"},{"file":"pages/workday-info-s2.png","state":"s2","version":"1.6.142","at":"2026-09-28 02:45"},{"file":"pages/workday-info-s3.png","state":"s3","version":"1.6.142","at":"2026-09-28 02:45"},{"file":"pages/workday-info-s4.png","state":"s4","version":"1.6.142","at":"2026-09-28 02:45"},{"file":"pages/workday-info-s5.png","state":"s5","version":"1.6.142","at":"2026-09-28 02:45"},{"file":"pages/workday-info-s6.png","state":"s6","version":"1.6.142","at":"2026-09-28 02:45"},{"file":"pages/workday-info-s7.png","state":"s7","version":"1.6.142","at":"2026-09-28 02:45"},{"file":"pages/workday-info-s8.png","state":"s8","version":"1.6.142","at":"2026-09-28 02:45"},{"file":"pages/workday-info-s9.png","state":"s9","version":"1.6.142","at":"2026-09-28 02:45"}],"check":{},"enabled":true,"auto":false,"why":"入口位置待核对"},{"id":"settings","name":"设置","group":"设置与系统","route":"pages/settings","premium":false,"premiumNote":"主题配色、多课表、云备份等功能需解锁高级版","usage":"昵称、主题配色（底部抽屉）、课程字号、周课表、首页设置、数据备份等","entry":"欢迎页 →「设置」；首页底部 →「设置」","points":["主题配色从底部抽屉弹出","点未解锁的主题会弹「解锁高级版」"],"shots":[{"file":"pages/settings-list.png","state":"list","version":"1.6.142","at":"2026-09-27 19:44"},{"file":"pages/settings-theme-drawer.png","state":"theme-drawer","version":"1.6.142","at":"2026-09-27 19:44"},{"file":"pages/settings-unlock-modal.png","state":"unlock-modal","version":"1.6.142","at":"2026-09-27 19:44"},{"file":"pages/settings-s1.png","state":"s1","version":"1.6.142","at":"2026-09-28 02:45"},{"file":"pages/settings-s2.png","state":"s2","version":"1.6.142","at":"2026-09-28 02:45"},{"file":"pages/settings-s3.png","state":"s3","version":"1.6.142","at":"2026-09-28 02:45"},{"file":"pages/settings-scroll-fixed.png","state":"滚动修复-底部","version":"1.6.151","at":"2026-09-28 15:05"}],"check":{"symmetric":"已通过（左 16 / 右 16）","scroll":"✅ 已修复（2026-09-28）：内容区加滚动容器，底部行全部可达（逐屏巡航验证）"},"enabled":true,"auto":true,"why":""},{"id":"tools","name":"工具","group":"设置与系统","route":"pages/tools","premium":false,"premiumNote":"","usage":"工具箱入口合集","entry":"设置页 → 工具","points":["聚合二维码生成、倒数日等入口"],"shots":[{"file":"pages/tools-default.png","state":"default","version":"1.6.142","at":"2026-09-28 00:40"},{"file":"pages/tools-s1.png","state":"s1","version":"1.6.142","at":"2026-09-28 02:45"},{"file":"pages/tools-s2.png","state":"s2","version":"1.6.142","at":"2026-09-28 02:45"},{"file":"pages/tools-s3.png","state":"s3","version":"1.6.142","at":"2026-09-28 02:45"}],"check":{},"enabled":true,"auto":false,"why":"入口在设置页下方"},{"id":"homepage-settings","name":"首页设置","group":"设置与系统","route":"pages/homepage-settings","premium":false,"premiumNote":"「自定义」与部分开关需解锁高级版","usage":"首页各模块开关：快速添加、课程提醒、总课程/今日/明日导航、自定义、管理钉首页（时钟模块已随 9b6eb15 移除）","entry":"设置页 →「首页设置」","points":["未解锁时进页即弹「解锁高级版」","开关立即生效并回到首页可见"],"shots":[{"file":"pages/homepage-settings-unlock-modal.png","state":"unlock-modal","version":"1.6.142","at":"2026-09-28 00:40"},{"file":"pages/homepage-settings-s1.png","state":"s1","version":"1.6.142","at":"2026-09-28 02:45"},{"file":"pages/homepage-settings-s2.png","state":"s2","version":"1.6.142","at":"2026-09-28 02:45"},{"file":"pages/homepage-settings-s3.png","state":"s3","version":"1.6.142","at":"2026-09-28 02:45"}],"check":{"symmetric":"已通过（左 16 / 右 16）"},"enabled":true,"auto":false,"why":"入口在设置页下方（页面不可滚动），需临时改路由进入"},{"id":"reset-data","name":"重置数据","group":"设置与系统","route":"pages/reset-data","premium":false,"premiumNote":"","usage":"清空本地课程/设置数据","entry":"设置页 → 重置数据","points":["有二次确认弹窗","重置后回到初始状态"],"shots":[{"file":"pages/reset-data-unlock-modal.png","state":"unlock-modal","version":"1.6.142","at":"2026-09-28 00:40"},{"file":"pages/reset-data-dialog-fixed.png","state":"弹窗对称修复","version":"1.6.151","at":"2026-09-28 15:08"}],"check":{"symmetric":"✅ 已修复（2026-09-28，实测左 16 / 右 16）：根容器 padding 移内层"},"enabled":true,"auto":false,"why":"入口在设置页下方"},{"id":"backup-restore","name":"数据备份","group":"设置与系统","route":"pages/backup-restore","premium":true,"premiumNote":"云备份与恢复需解锁高级版","usage":"本地/云备份与恢复课程数据","entry":"设置页 → 数据备份","points":["未解锁时点云备份弹「解锁高级版」"],"shots":[{"file":"pages/backup-restore-unlock-modal.png","state":"unlock-modal","version":"1.6.142","at":"2026-09-28 00:40"},{"file":"pages/backup-restore-dialog-fixed.png","state":"弹窗对称修复","version":"1.6.151","at":"2026-09-28 15:10"}],"check":{"symmetric":"✅ 已修复（2026-09-28，实测左 16 / 右 16）：根容器 padding 移内层 + 删除双 capsule 块重复覆盖"},"enabled":true,"auto":false,"why":"入口在设置页下方"},{"id":"activation","name":"激活 / 激活码","group":"设置与系统","route":"pages/activation","premium":false,"premiumNote":"","usage":"输入激活码解锁高级版；展示设备码","entry":"设置页 → 高级版 / 解锁入口","points":["显示设备码供后台绑定","输入激活码后即时解锁"],"shots":[{"file":"pages/activation-default.png","state":"default","version":"1.6.142","at":"2026-09-28 00:40"},{"file":"pages/activation-s1.png","state":"s1","version":"1.6.142","at":"2026-09-28 02:45"},{"file":"pages/activation-s2.png","state":"s2","version":"1.6.142","at":"2026-09-28 02:45"},{"file":"pages/activation-s3.png","state":"s3","version":"1.6.142","at":"2026-09-28 02:45"},{"file":"pages/activation-s4.png","state":"s4","version":"1.6.142","at":"2026-09-28 02:45"},{"file":"pages/activation-s5.png","state":"s5","version":"1.6.142","at":"2026-09-28 02:45"},{"file":"pages/activation-fullwidth.png","state":"通栏无框","version":"1.6.146","at":"2026-09-28 11:40"}],"check":{"胶囊屏布局":"✅ 已优化（eb295d3）：各栏目 100% 通栏、去除卡片方框，验证按钮通栏"},"enabled":true,"auto":false,"why":"入口位置待核对"},{"id":"device-info","name":"设备信息","group":"设置与系统","route":"pages/device-info","premium":false,"premiumNote":"","usage":"显示设备型号、屏型、版本号等 —— 排障必备","entry":"设置页 → 设备信息","points":["含版本号/versionCode","含屏型（胶囊/方屏/圆屏）"],"shots":[{"file":"pages/device-info-default.png","state":"default","version":"1.6.142","at":"2026-09-28 00:40"},{"file":"pages/device-info-s1.png","state":"s1","version":"1.6.142","at":"2026-09-28 02:45"},{"file":"pages/device-info-s2.png","state":"s2","version":"1.6.142","at":"2026-09-28 02:45"},{"file":"pages/device-info-s3.png","state":"s3","version":"1.6.142","at":"2026-09-28 02:45"},{"file":"pages/device-info-s4.png","state":"s4","version":"1.6.142","at":"2026-09-28 02:45"},{"file":"pages/device-info-s5.png","state":"s5","version":"1.6.142","at":"2026-09-28 02:45"},{"file":"pages/device-info-s6.png","state":"s6","version":"1.6.142","at":"2026-09-28 02:45"}],"check":{},"enabled":true,"auto":false,"why":"入口在设置页下方"},{"id":"pinned-pages","name":"钉首页管理","group":"设置与系统","route":"pages/pinned-pages","premium":false,"premiumNote":"","usage":"选择哪些页面钉到首页快捷入口","entry":"首页设置 →「管理钉首页」","points":["勾选要钉的页面","首页出现快捷入口"],"shots":[{"file":"pages/pinned-pages-empty.png","state":"empty","version":"1.6.142","at":"2026-09-28 00:40"}],"check":{},"enabled":true,"auto":false,"why":"入口在首页设置页内"},{"id":"vibration-lab","name":"振动实验室","group":"实验室工具","route":"pages/vibration-lab","premium":false,"premiumNote":"","usage":"调试手环振动强度/节奏","entry":"工具页（实验室分组）","points":["逐档试振动","用于确认设备振动能力"],"shots":[{"file":"pages/vibration-lab-default.png","state":"default","version":"1.6.142","at":"2026-09-28 01:35"}],"check":{},"enabled":false,"auto":false,"why":"首批不采（实验室工具折叠）"},{"id":"vibration-lab-v2","name":"振动实验室 v2","group":"实验室工具","route":"pages/vibration-lab-v2","premium":false,"premiumNote":"","usage":"振动实验室升级版","entry":"工具页（实验室分组）","points":["批量振动序列调试"],"shots":[{"file":"pages/vibration-lab-v2-default.png","state":"default","version":"1.6.142","at":"2026-09-28 01:35"}],"check":{},"enabled":false,"auto":false,"why":"首批不采"},{"id":"qrcode-generator","name":"二维码生成","group":"实验室工具","route":"pages/qrcode-generator","premium":false,"premiumNote":"","usage":"把任意文本生成二维码","entry":"工具页","points":["输入文本即出码"],"shots":[{"file":"pages/qrcode-generator-default.png","state":"default","version":"1.6.142","at":"2026-09-28 01:35"}],"check":{},"enabled":false,"auto":false,"why":"首批不采"},{"id":"black-screen-check","name":"黑屏检查","group":"实验室工具","route":"pages/black-screen-check","premium":false,"premiumNote":"","usage":"排查首页右侧黑板/黑屏问题","entry":"工具页","points":["显示区域与像素级检查"],"shots":[{"file":"pages/black-screen-check-default.png","state":"default","version":"1.6.142","at":"2026-09-28 01:35"}],"check":{},"enabled":false,"auto":false,"why":"首批不采"},{"id":"chinese-input","name":"中文输入","group":"实验室工具","route":"pages/chinese-input","premium":false,"premiumNote":"","usage":"手环上的中文输入方案","entry":"工具页","points":["拼音/手写候选"],"shots":[{"file":"pages/chinese-input-default.png","state":"default","version":"1.6.142","at":"2026-09-28 01:35"}],"check":{},"enabled":false,"auto":false,"why":"首批不采"},{"id":"device-id-diagnosis","name":"设备 ID 诊断","group":"实验室工具","route":"pages/device-id-diagnosis","premium":false,"premiumNote":"","usage":"排查设备 ID / 激活绑定问题 —— 排障常用","entry":"工具页","points":["显示设备 UUID 与来源","判断是否被识别为同一设备"],"shots":[{"file":"pages/device-id-diagnosis-default.png","state":"default","version":"1.6.142","at":"2026-09-28 01:35"}],"check":{},"enabled":false,"auto":false,"why":"首批不采（但排障价值高，建议第二批补）"},{"id":"statistics","name":"统计","group":"其他","route":"pages/statistics","premium":true,"premiumNote":"统计功能需解锁高级版","usage":"课程/使用统计","entry":"入口待核对","points":["按周/月统计课程数"],"shots":[{"file":"pages/statistics-default.png","state":"default","version":"1.6.142","at":"2026-09-28 01:35"},{"file":"pages/statistics-s1.png","state":"s1","version":"1.6.142","at":"2026-09-28 02:45"}],"check":{},"enabled":false,"auto":false,"why":"首批不采"},{"id":"donate","name":"赞助","group":"其他","route":"pages/donate","premium":false,"premiumNote":"","usage":"赞助支持开发者","entry":"设置页 / 欢迎页入口","points":["赞助方式说明"],"shots":[{"file":"pages/donate-default.png","state":"default","version":"1.6.142","at":"2026-09-28 01:35"}],"check":{},"enabled":false,"auto":false,"why":"首批不采"}]};
+var currentGroup = '';
+var onlyIssue = false;
+
+function issueLevel(v){
+  if(!v) return null;
+  if(v.indexOf('❌') >= 0 || v.indexOf('待修') >= 0) return 'err';
+  if(v.indexOf('待') >= 0) return 'pend';
+  return 'ok';
+}
+function hasIssuePage(p){
+  var c = p.check || {}; var ks = Object.keys(c);
+  for(var i=0;i<ks.length;i++){ if(issueLevel(c[ks[i]])==='err') return true; }
+  return false;
+}
+function renderShots(p){
+  var shots = p.shots;
+  if(!shots || !shots.length){
+    return '<div class="shots"><div class="device empty"><div class="ph">待采集<br><span style="font-size:.72rem">尚无截图</span></div></div></div>';
+  }
+  var html = '<div class="shots">';
+  for(var i=0;i<shots.length;i++){
+    var s = shots[i];
+    html += '<div class="shot-unit" data-project="ev-schedule-watch10pro" data-page="'+p.id+'" data-file="'+s.file+'">'
+         +  '<div class="device" onclick="openLightbox(this)"><img loading="lazy" src="/images/ev-schedule-10pro/'+s.file+'" alt="'+s.state+'" onerror="imgError(this)"></div>'
+         +  '</div>';
+  }
+  return html + '</div>';
+}
+function renderCheck(check){
+  var keys = Object.keys(check); if(!keys.length) return '';
+  var html = '<div class="checklist">';
+  for(var i=0;i<keys.length;i++){
+    var k = keys[i]; var v = check[k]; var lv = issueLevel(v);
+    var cls = lv==='err' ? 'err' : (lv==='pend' ? 'pend' : 'ok');
+    var mark = lv==='err' ? '❌' : (lv==='pend' ? '⚠️' : '✅');
+    html += '<div class="'+cls+'">'+mark+' '+k+'：'+v+'</div>';
+  }
+  return html + '</div>';
+}
+function renderMeta(shots, why){
+  if(!shots || !shots.length){
+    return '<div class="meta">未采集'+(why ? ' · '+why : '')+'</div>';
+  }
+  var html = '<div class="meta">截图记录：<br>';
+  for(var i=0;i<shots.length;i++){
+    var s = shots[i];
+    html += '· '+s.state+' <b>v'+s.version+'</b> · '+s.at+'<br>';
+  }
+  return html + '</div>';
+}
+function renderCard(p){
+  var card = document.createElement('div');
+  card.className = 'card';
+  card.setAttribute('data-group', p.group);
+  if(hasIssuePage(p)) card.setAttribute('data-issue', '1');
+  var left = document.createElement('div');
+  left.innerHTML = renderShots(p);
+  var info = document.createElement('div');
+  info.className = 'info';
+  var badges = '';
+  if(p.premium) badges += '<span class="badge-premium">高级版</span>';
+  if(hasIssuePage(p)) badges += '<span class="badge-issue">已知问题</span>';
+  var html = '<div class="p-name">'+p.name+badges+'</div>';
+  html += '<div class="row"><a class="fb-link" href="/feedback.html?type=ui&page='+encodeURIComponent(p.name)+'">反馈此页</a></div>';
+  if(p.usage) html += '<div class="row"><span class="k">用途</span>'+p.usage+'</div>';
+  if(p.entry) html += '<div class="row"><span class="k">入口</span>'+p.entry+'</div>';
+  if(p.points && p.points.length) html += '<div class="pts"><li>'+p.points.join('</li><li>')+'</li></div>';
+  if(p.premiumNote) html += '<div class="row" style="color:#b8860b">🔒 '+p.premiumNote+'</div>';
+  html += renderCheck(p.check);
+  html += renderMeta(p.shots, p.why);
+  info.innerHTML = html;
+  card.appendChild(left); card.appendChild(info);
+  return card;
+}
+function renderGroup(name, pages){
+  var g = document.createElement('div');
+  g.className = 'group'; g.setAttribute('data-group', name);
+  var head = document.createElement('div');
+  head.className = 'group-head';
+  head.innerHTML = '<h2>'+name+'</h2><span class="count">'+pages.length+' 页</span>';
+  head.setAttribute('onclick', "toggleGroup('"+name+"')");
+  var body = document.createElement('div');
+  body.className = 'group-body'; body.id = 'gb-'+name;
+  for(var i=0;i<pages.length;i++){ body.appendChild(renderCard(pages[i])); }
+  g.appendChild(head); g.appendChild(body);
+  return g;
+}
+function uniqueGroups(){
+  var seen = {}; var arr = [];
+  for(var i=0;i<DATA.pages.length;i++){ var g = DATA.pages[i].group; if(!seen[g]){ seen[g]=1; arr.push(g); } }
+  return arr;
+}
+function toggleGroup(name){
+  var b = document.getElementById('gb-'+name);
+  b.style.display = (b.style.display === 'none') ? 'block' : 'none';
+}
+function setGroup(name){ currentGroup = name; applyFilter(); }
+function applyFilter(){
+  var groups = document.getElementsByClassName('group');
+  for(var i=0;i<groups.length;i++){
+    var g = groups[i]; var cards = g.getElementsByClassName('card'); var anyVisible = false;
+    for(var j=0;j<cards.length;j++){
+      var c = cards[j]; var show = true;
+      if(currentGroup && c.getAttribute('data-group') !== currentGroup) show = false;
+      if(onlyIssue && c.getAttribute('data-issue') !== '1') show = false;
+      c.style.display = show ? 'flex' : 'none';
+      if(show) anyVisible = true;
+    }
+    g.style.display = anyVisible ? 'block' : 'none';
+  }
+  var btns = document.getElementsByClassName('fbtn');
+  for(var k=0;k<btns.length;k++){ btns[k].className = 'fbtn' + (btns[k].getAttribute('data-g') === currentGroup ? ' active' : ''); }
+}
+function buildFilter(){
+  var bar = document.getElementById('filterbar');
+  var all = document.createElement('button');
+  all.className = 'fbtn active'; all.setAttribute('data-g', ''); all.textContent = '全部';
+  all.setAttribute('onclick', "setGroup('')");
+  bar.appendChild(all);
+  var groups = uniqueGroups();
+  for(var i=0;i<groups.length;i++){
+    var b = document.createElement('button');
+    b.className = 'fbtn'; b.setAttribute('data-g', groups[i]); b.textContent = groups[i];
+    b.setAttribute('onclick', "setGroup('"+groups[i]+"')");
+    bar.appendChild(b);
+  }
+  var lbl = document.createElement('label');
+  lbl.className = 'fcheck';
+  lbl.innerHTML = '<input type="checkbox" id="onlyIssue" onchange="onlyIssue=this.checked;applyFilter();"> 只看有问题的';
+  bar.appendChild(lbl);
+}
+function imgError(img){
+  var d = img.parentNode;
+  if(d){ d.className = 'device empty'; d.innerHTML = '<div class="ph">截图缺失</div>'; }
+}
+function openLightbox(el){
+  var img = el.getElementsByTagName('img')[0];
+  document.getElementById('lightboxImg').src = img ? img.src : '';
+  document.getElementById('lightbox').className = 'lightbox show';
+}
+function hideLightbox(){ document.getElementById('lightbox').className = 'lightbox'; }
+function render(){
+  document.getElementById('verChip').textContent = 'v'+DATA.watchApp.version+' ('+DATA.watchApp.versionCode+')';
+  document.getElementById('capTime').textContent = DATA.capturedAt || DATA.pageUpdatedAt;
+  document.getElementById('pageTime').textContent = DATA.pageUpdatedAt;
+  buildFilter();
+  var groups = uniqueGroups();
+  var app = document.getElementById('app');
+  var byGroup = {};
+  for(var i=0;i<DATA.pages.length;i++){ var g = DATA.pages[i].group; (byGroup[g] = byGroup[g] || []).push(DATA.pages[i]); }
+  for(var j=0;j<groups.length;j++){ app.appendChild(renderGroup(groups[j], byGroup[groups[j]])); }
+}
+render();
+
+</script>
+<script src="/js/review-widget.js"></script>
+<script>ReviewWidget.mountAll({ projectId: "ev-schedule-watch10pro" });</script>
+<script src="/js/site-nav.js"></script>
+<script>if(window.SiteNav)SiteNav.mountNav('siteNav','ui-gallery-10-pro');</script>
+<script>
+(function(){
+  try {
+    var r = new XMLHttpRequest();
+    r.open('POST', '/api/admin/health?section=visit', true);
+    r.setRequestHeader('Content-Type', 'application/json');
+    r.send(JSON.stringify({page:location.pathname, referrer:document.referrer||'', title:document.title||''}));
+  } catch(_) {}
+})();
+</script>
+<!-- 全站统一访客埋点（P2/D2）：本页此前漏埋，纳入「站内」分组 -->
+<script src="/js/track.js" data-group="home"></script>
+</body>
+</html>
