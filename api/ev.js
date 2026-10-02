@@ -31,8 +31,11 @@ var MAX_LABEL_LEN = 64;
 
 var BEAT_KEY = "ev:beat:";
 var BEAT_DEVICES = "ev:beat:devices";
+var BEAT_HIST = "ev:beat:hist:";     // 每台设备心跳历史（zset，score=member=ts 毫秒）
 var ONLINE_HASH = "ev:online";       // 部署流程回写的线上版本（Redis，优先于文件）
+var ONLINE_TS = "ev:online:ts";      // 各项目线上版本部署时间戳（hash project→ms）
 var ONLINE_WINDOW = 10 * 60 * 1000; // 心跳 10 分钟内算「在线」
+var HIST_MAX_WINDOW_H = 24 * 7;      // 历史心跳最多回看 7 天
 
 /** 读取在线版本：文件 data/online-versions.json 作种子，Redis ev:online 覆盖（部署回写）。 */
 function loadOnlineSync() {
@@ -348,6 +351,8 @@ async function handleProjectBeat(req, res) {
       JSON.stringify({ app_version: appVersion, ts: Date.now() }),
       BEAT_DEVICES, device
     );
+    // 历史序列：每次心跳记一个点（member=ts），用于画在线时长曲线
+    await redis.zadd(BEAT_HIST + device, Date.now(), String(Date.now()));
   } catch (e) { /* redis 不可用忽略 */ }
 
   // 2) 已部署版本（文件种子 + Redis 覆盖）
@@ -357,12 +362,59 @@ async function handleProjectBeat(req, res) {
 }
 
 /**
+ * 单设备心跳历史（画在线时长曲线）：GET ?action=project-history&device=<id>&window=<h>
+ * 返回该设备最近 window 小时内（默认 24h，最多 7 天）的心跳时间戳数组（升序）。
+ * 顺带清理超窗口旧点（量小，逐条 zrem，避免无限增长）。无 device → 空数组。
+ */
+async function handleProjectHistory(req, res) {
+  var q = (req.query || {});
+  var device = String(q.device || "").slice(0, 64);
+  if (!device) return json(res, 200, { ok: true, history: [] });
+
+  var windowMs = 24 * 60 * 60 * 1000;
+  var w = parseInt(q.window, 10);
+  if (w > 0 && w <= HIST_MAX_WINDOW_H) windowMs = w * 60 * 60 * 1000;
+  var now = Date.now();
+  var minTs = now - windowMs;
+  var history = [];
+
+  try {
+    var members = await redis.zrange(BEAT_HIST + device, 0, -1);
+    if (members && members.length) {
+      for (var i = 0; i < members.length; i++) {
+        var ts = parseInt(members[i], 10) || 0;
+        if (ts >= minTs) history.push(ts);
+        else { try { await redis.zrem(BEAT_HIST + device, members[i]); } catch (e) {} }
+      }
+    }
+  } catch (e) { history = []; }
+
+  return json(res, 200, {
+    ok: true,
+    device: device,
+    window_h: windowMs / 3600000,
+    server_time: now,
+    history: history,
+  });
+}
+
+/**
  * 运行态总览（聚合心跳）：GET ?action=project-status
  * 返回 devices（每台设备最后心跳 / 运行版本）、online_count（10 分钟内在线数）、
  * total、last_beat（全局最近心跳）、online（已部署版本）。App 用它画「运行态总览」与设备趋势。
  */
 async function handleProjectStatus(req, res) {
   var online = await loadOnline();
+  var onlineTs = {};
+  try {
+    var ots = await redis.hgetall(ONLINE_TS);
+    if (ots && typeof ots === "object") {
+      Object.keys(ots).forEach(function (k) {
+        var n = parseInt(ots[k], 10);
+        if (Number.isFinite(n)) onlineTs[k] = n;
+      });
+    }
+  } catch (e) { onlineTs = {}; }
   var devices = [];
   var now = Date.now();
   try {
@@ -395,6 +447,7 @@ async function handleProjectStatus(req, res) {
     ok: true,
     server_time: now,
     online: online,
+    online_ts: onlineTs,
     devices: devices,
     total: devices.length,
     online_count: onlineCount,
@@ -422,6 +475,11 @@ async function handleReportDeploy(req, res) {
 
   try { await redis.hset(ONLINE_HASH, (function () { var o = {}; o[project] = version; return o; })()); }
   catch (e) { /* redis 失败仍尝试回写文件 */ }
+
+  try {
+    var tsObj = {}; tsObj[project] = String(Date.now());
+    await redis.hset(ONLINE_TS, tsObj);
+  } catch (e) { /* redis 失败忽略部署时间戳 */ }
 
   try {
     var fp = path.join(process.cwd(), "data", "online-versions.json");
@@ -467,6 +525,10 @@ module.exports = async (req, res) => {
       case "project-status":
         // 公开端点：聚合心跳为运行态总览（在线设备数 / 最近心跳 / 设备列表）。
         return await handleProjectStatus(req, res);
+      case "project-history":
+        // 公开端点：单设备心跳历史（画在线时长曲线）。
+        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
+        return await handleProjectHistory(req, res);
       case "report-deploy":
         if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
         return await handleReportDeploy(req, res);
