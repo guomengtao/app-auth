@@ -42,7 +42,9 @@ body {
 .group.closed .group-body { display:none; }
 .card { display:flex; gap:18px; padding:18px 0; border-top:1px solid var(--line); flex-wrap:wrap; }
 .card:first-child { border-top:none; }
-.device { width:200px; flex:0 0 auto; height:510px; border-radius:100px; background:#0b0b0f; padding:8px; overflow:hidden; }
+/* shot-unit：公共包 review-widget.js 的接入契约容器（勿改类名，勿 fork 公共包） */
+.shot-unit { display:flex; flex-direction:column; align-items:center; flex:0 0 auto; }
+.device { position:relative; width:200px; flex:0 0 auto; height:510px; border-radius:100px; background:#0b0b0f; padding:8px; overflow:hidden; }
 .device img { width:100%; height:100%; object-fit:cover; border-radius:92px; display:block; cursor:zoom-in; }
 .info { flex:1; min-width:260px; }
 .p-name { font-size:1.05rem; font-weight:700; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
@@ -55,6 +57,9 @@ body {
 .pts { margin-top:6px; padding-left:18px; font-size:.86rem; color:#444; }
 .pts li { margin-bottom:2px; }
 .meta { margin-top:8px; font-size:.76rem; color:var(--muted); border-top:1px dashed var(--line); padding-top:6px; }
+.fb-link { color:var(--accent); text-decoration:none; font-size:.85rem; font-weight:600; }
+.fb-link:hover { text-decoration:underline; }
+.note a { color:inherit; font-weight:700; }
 .note { background:#fff8e6; border:1px solid #f2dfa8; border-radius:12px; padding:12px 16px; font-size:.85rem; color:#7a4b00; margin-bottom:16px; }
 .footer { text-align:center; color:var(--muted); font-size:.8rem; padding:24px 20px; line-height:1.8; }
 .lightbox { position:fixed; inset:0; background:rgba(0,0,0,0.85); display:none; align-items:center; justify-content:center; z-index:50; cursor:zoom-out; }
@@ -91,6 +96,13 @@ body {
   </div>
 
   <div class="note">
+    <b>发现问题怎么反馈？</b>每张截图下方有 <b>审核 / 换最新版 / 删除 / 记录</b> 四个按钮（与
+    <a href="/ui-gallery-9.html">页面档案</a> 同一套组件）：<b>审核</b> 里可在截图上按住拖框圈出问题区域（可多处框选），
+    勾选问题类型（文字遮挡/省略/布局错位等）并写批注后提交；<b>记录</b> 可查看该页历史反馈与处理状态。
+    也可点卡片里的「反馈此页」用文字描述。<b>这些反馈会真的进入开发者的待办清单</b>，不是摆设。
+  </div>
+
+  <div class="note" style="background:#eef3ff;border-color:#c9d6ff;color:#2b3a8f">
     <b>关于「模板选择」页：</b><code>pages/template-picker</code> 已在 manifest 注册，但全仓无任何入口跳转（<code>grep</code> 只在 manifest.json 命中），属于<b>未接线的死页</b>，因此无截图、也不在下面分组中。
   </div>
 
@@ -250,7 +262,11 @@ function esc(s) {
 
 function pageCard(p) {
   var html = '<div class="card">';
-  html += '<div class="device"><img loading="lazy" src="' + IMG + p.file + '" alt="' + esc(p.name) + '" onerror="imgError(this)"></div>';
+  /* .shot-unit[data-project][data-page][data-file] 是公共包 review-widget.js 的接入契约：
+     工具条/审核面板/拖框标注/历史记录全由它挂载，此处只负责按约定输出结构，不自行实现。 */
+  html += '<div class="shot-unit" data-project="evbox" data-page="' + esc(p.id) + '" data-file="' + esc(p.file) + '">';
+  html += '<div class="device" onclick="openLightbox(this)"><img loading="lazy" src="' + IMG + p.file + '" alt="' + esc(p.name) + '" onerror="imgError(this)"></div>';
+  html += '</div>';
   html += '<div class="info">';
   html += '<div class="p-name">' + esc(p.name);
   if (p.tag === '高级版') html += '<span class="badge badge-premium">高级版</span>';
@@ -263,6 +279,7 @@ function pageCard(p) {
     for (var i = 0; i < p.points.length; i++) html += '<li>' + esc(p.points[i]) + '</li>';
     html += '</ul>';
   }
+  html += '<div class="row"><a class="fb-link" href="/feedback.html?type=ui&page=' + encodeURIComponent(p.name) + '">反馈此页（文字描述）</a></div>';
   html += '<div class="meta">截图：' + IMG + esc(p.file) + ' · 192×490 · 采集于 ' + '2026-10-02' + '</div>';
   html += '</div></div>';
   return html;
@@ -285,6 +302,9 @@ function render(filterId) {
   }
   app.innerHTML = html;
   document.getElementById('pageCount').textContent = PAGES.length + ' 个页面';
+  /* 分组筛选会整体重建 innerHTML，旧的 .shot-unit 连同 data-rv-mounted 标记一起被丢弃，
+     所以每次重绘都必须重新挂载一次（公共包内部按标记去重，重复调用安全）。 */
+  mountReview();
 }
 
 function renderFilters() {
@@ -312,7 +332,9 @@ function toggleGroup(gid) {
 }
 
 function openLightbox(el) {
-  document.getElementById('lightboxImg').src = el.src;
+  /* el 传的是 .device 容器，取其中 img 的真实 src（与 ui-gallery-9 同一写法） */
+  var img = el.getElementsByTagName('img')[0];
+  document.getElementById('lightboxImg').src = img ? img.src : '';
   document.getElementById('lightbox').className = 'lightbox show';
 }
 function hideLightbox() {
@@ -323,6 +345,14 @@ function imgError(el) {
   el.parentNode.style.background = '#3a3a44';
 }
 
+/* 统一审核反馈：调用全站公共包，本页不 fork、不修改其实现。
+   projectId 用 evbox —— 与 ui-gallery-9 的 ev-schedule-watch9 同库隔离（field = projectId|pageId|shotFile）。 */
+function mountReview() {
+  if (window.ReviewWidget && ReviewWidget.mountAll) {
+    ReviewWidget.mountAll({ projectId: 'evbox' });
+  }
+}
+
 document.addEventListener('DOMContentLoaded', function () {
   renderFilters();
   render('all');
@@ -330,6 +360,8 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 
 <script src="/js/site-nav.js"></script>
+<!-- 统一审核反馈组件：全站单一来源，本页只调用不修改（契约见 js/review-widget.js 文件头） -->
+<script src="/js/review-widget.js"></script>
 <script>
   if (window.SiteNav && SiteNav.mountNav) {
     SiteNav.mountNav('siteNavAnchor', 'evbox');
