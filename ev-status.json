@@ -1,15 +1,15 @@
 {
   "schema": 2,
-  "generated_at": "2026-10-03T00:24:46+08:00",
+  "generated_at": "2026-10-03T01:08:34+08:00",
   "generator": "scripts/collect-status.js",
   "note": "会话进度（动态层）。projects[] 沿用 projects.json 原字段 + plan/sessions 统计。",
-  "count": 15,
+  "count": 18,
   "summary": {
-    "total": 15,
-    "done": 3,
+    "total": 18,
+    "done": 10,
     "in_progress": 0,
     "blocked": 0,
-    "planned": 12,
+    "planned": 8,
     "active_sessions": 2
   },
   "tasks": [
@@ -71,105 +71,6 @@
       "source": "plan"
     },
     {
-      "id": "T1-SessionReport",
-      "project": "ev-android",
-      "title": "会话黑板落盘钩子（L1）",
-      "status": "planned",
-      "owner": null,
-      "blocked_by": null,
-      "updated_at": null,
-      "evidence": [],
-      "source": "plan"
-    },
-    {
-      "id": "T2-Collector",
-      "project": "ev-android",
-      "title": "采集器 collect-status.js（L2 核心）",
-      "status": "done",
-      "owner": null,
-      "blocked_by": null,
-      "updated_at": null,
-      "evidence": [],
-      "source": "plan"
-    },
-    {
-      "id": "T3-Plan",
-      "project": "ev-android",
-      "title": "计划表解析（本文件）",
-      "status": "planned",
-      "owner": null,
-      "blocked_by": null,
-      "updated_at": null,
-      "evidence": [],
-      "source": "plan"
-    },
-    {
-      "id": "T4-Launchd",
-      "project": "ev-android",
-      "title": "launchd 定时采集（L2 自动化）",
-      "status": "planned",
-      "owner": null,
-      "blocked_by": null,
-      "updated_at": null,
-      "evidence": [],
-      "source": "plan"
-    },
-    {
-      "id": "T5-DynamicApi",
-      "project": "ev-android",
-      "title": "api/ev.js 加 session-status（L3 动态层）",
-      "status": "planned",
-      "owner": null,
-      "blocked_by": null,
-      "updated_at": null,
-      "evidence": [],
-      "source": "plan"
-    },
-    {
-      "id": "T6-TasksPage",
-      "project": "ev-android",
-      "title": "EvOps 任务进度页（L4）",
-      "status": "planned",
-      "owner": null,
-      "blocked_by": null,
-      "updated_at": null,
-      "evidence": [],
-      "source": "plan"
-    },
-    {
-      "id": "T7-RequirementsFix",
-      "project": "ev-android",
-      "title": "修 F1：docs.requirements 常年空",
-      "status": "planned",
-      "owner": null,
-      "blocked_by": null,
-      "updated_at": null,
-      "evidence": [],
-      "source": "plan"
-    },
-    {
-      "id": "T8-PROJECTMAP",
-      "project": "ev-android",
-      "title": "PROJECT-MAP 认领区改由脚本刷新",
-      "status": "planned",
-      "owner": null,
-      "blocked_by": null,
-      "updated_at": null,
-      "evidence": [],
-      "source": "plan"
-    },
-    {
-      "id": "T9-Archive",
-      "project": "ev-android",
-      "title": "会话黑板回收（>24h 进 _archived）",
-      "status": "planned",
-      "owner": null,
-      "blocked_by": null,
-      "updated_at": null,
-      "evidence": [],
-      "source": "plan"
-    },
-    {
       "id": "冒烟-成功路径",
       "project": "ev-android",
       "title": "冒烟-成功路径",
@@ -181,6 +82,138 @@
         "217d100"
       ],
       "source": "session"
+    },
+    {
+      "id": "T1-SessionReport",
+      "project": "ev-ops-android",
+      "title": "会话黑板落盘钩子（L1）",
+      "status": "done",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
+    },
+    {
+      "id": "T10-RequirementsFix",
+      "project": "ev-ops-android",
+      "title": "修 F1：docs.requirements 常年空",
+      "status": "planned",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
+    },
+    {
+      "id": "T11-PROJECTMAP",
+      "project": "ev-ops-android",
+      "title": "PROJECT-MAP 认领区改由脚本刷新",
+      "status": "planned",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
+    },
+    {
+      "id": "T12-Archive",
+      "project": "ev-ops-android",
+      "title": "会话黑板回收（>24h 进 _archived）",
+      "status": "planned",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
+    },
+    {
+      "id": "T2-Collector",
+      "project": "ev-ops-android",
+      "title": "采集器 collect-status.js（L2 核心）",
+      "status": "done",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
+    },
+    {
+      "id": "T3-Plan",
+      "project": "ev-ops-android",
+      "title": "计划表解析（本文件）",
+      "status": "done",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
+    },
+    {
+      "id": "T4-Launchd",
+      "project": "ev-ops-android",
+      "title": "定时采集（L2 自动化）—— 2026-10-03 改用事件驱动落地：",
+      "status": "done",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
+    },
+    {
+      "id": "T5-DynamicApi",
+      "project": "ev-ops-android",
+      "title": "api/ev.js 加 session-status（L3 动态层）",
+      "status": "planned",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
+    },
+    {
+      "id": "T6-TasksPage",
+      "project": "ev-ops-android",
+      "title": "EvOps 任务进度页（L4）",
+      "status": "done",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
+    },
+    {
+      "id": "T7-Pipeline",
+      "project": "ev-ops-android",
+      "title": "项目动态页（链路可视化）+ 任务按来源分显示",
+      "status": "done",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
+    },
+    {
+      "id": "T8-StatusSource",
+      "project": "ev-ops-android",
+      "title": "App 侧实时数据源（优先 GET、失败回退 APK 快照）",
+      "status": "done",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
+    },
+    {
+      "id": "T9-IconLucide",
+      "project": "ev-ops-android",
+      "title": "图标统一走 Lucide + 自适应启动图标",
+      "status": "done",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
     }
   ],
   "projects": [
@@ -197,12 +230,12 @@
         "branch": "main"
       },
       "version": {
-        "value": "1.7.9",
-        "code": "1011",
+        "value": "1.7.10",
+        "code": "1012",
         "source": "src/manifest.json"
       },
       "git": {
-        "dirty": 48,
+        "dirty": 2,
         "ahead": 0,
         "behind": 0
       },
@@ -244,8 +277,8 @@
         "source": "apk/version.env"
       },
       "git": {
-        "dirty": 4,
-        "ahead": 8,
+        "dirty": 0,
+        "ahead": 0,
         "behind": 0
       },
       "docs": {
@@ -412,8 +445,8 @@
         "source": "src/manifest.json"
       },
       "git": {
-        "dirty": 35,
-        "ahead": 2,
+        "dirty": 0,
+        "ahead": 0,
         "behind": 0
       },
       "docs": {
@@ -491,7 +524,7 @@
         "branch": "main"
       },
       "version": {
-        "value": "0.4.0",
+        "value": "0.4.1",
         "code": null,
         "source": "version.json"
       },
@@ -564,8 +597,8 @@
     },
     {
       "id": "ev-android",
-      "name_cn": "EvOps（本项目）",
-      "name_en": "EvOps",
+      "name_cn": "EvNotifier（安卓通知端）",
+      "name_en": "EvNotifier",
       "category": "ev",
       "local_path": "~/Documents/guomengtao/ev/ev-android",
       "repo": {
@@ -575,12 +608,12 @@
         "branch": "main"
       },
       "version": {
-        "value": "0.1.55",
+        "value": "0.1.61",
         "code": null,
         "source": "version.txt"
       },
       "git": {
-        "dirty": 13,
+        "dirty": 1,
         "ahead": 0,
         "behind": 0
       },
@@ -595,13 +628,55 @@
         "health": "unknown"
       },
       "plan": {
-        "tasks_total": 10,
-        "tasks_done": 2,
+        "tasks_total": 1,
+        "tasks_done": 1,
         "file": "data/plan/TASKS.md"
       },
       "sessions": {
         "active": 1,
         "last_session_at": "2026-10-02T21:31:35+0800"
+      }
+    },
+    {
+      "id": "ev-ops-android",
+      "name_cn": "EvOps（项目管理平台）",
+      "name_en": "EvOps",
+      "category": "ev",
+      "local_path": "~/Documents/guomengtao/ev/ev-ops-android",
+      "repo": {
+        "remote": "git@github.com:guomengtao/ev-ops-android.git",
+        "host": "github",
+        "visibility": "private",
+        "branch": "main"
+      },
+      "version": {
+        "value": "0.1.28",
+        "code": null,
+        "source": "version.txt"
+      },
+      "git": {
+        "dirty": 2,
+        "ahead": 0,
+        "behind": 0
+      },
+      "docs": {
+        "requirements": null,
+        "overview": null
+      },
+      "runtime": {
+        "type": "app",
+        "last_beat": null,
+        "deployed_version": null,
+        "health": "unknown"
+      },
+      "plan": {
+        "tasks_total": 12,
+        "tasks_done": 8,
+        "file": "data/plan/TASKS.md"
+      },
+      "sessions": {
+        "active": 0,
+        "last_session_at": "2026-10-02T22:51:00+0800"
       }
     },
     {
