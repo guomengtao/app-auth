@@ -73,6 +73,7 @@ body {
     </div>
   </div>
   <div class="filterbar" id="filterbar"></div>
+  <div class="filterbar" id="siteNav"></div>
 </div>
 <div class="wrap" id="app"></div>
 <div class="footer">
@@ -240,6 +241,8 @@ render();
 </script>
 <script src="/js/review-widget.js"></script>
 <script>ReviewWidget.mountAll({ projectId: "ev-schedule-watch9" });</script>
+<script src="/js/site-nav.js"></script>
+<script>if(window.SiteNav)SiteNav.mountNav('siteNav','ui-gallery-9');</script>
 <script>
 (function(){
   try {
