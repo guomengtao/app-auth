@@ -1,0 +1,650 @@
+{
+  "schema": 2,
+  "generated_at": "2026-10-03T00:24:46+08:00",
+  "generator": "scripts/collect-status.js",
+  "note": "会话进度（动态层）。projects[] 沿用 projects.json 原字段 + plan/sessions 统计。",
+  "count": 15,
+  "summary": {
+    "total": 15,
+    "done": 3,
+    "in_progress": 0,
+    "blocked": 0,
+    "planned": 12,
+    "active_sessions": 2
+  },
+  "tasks": [
+    {
+      "id": "vela CLI P1",
+      "project": "class-schedule",
+      "title": "vela CLI P1",
+      "status": "done",
+      "owner": "65482-20261002225100",
+      "blocked_by": null,
+      "updated_at": "2026-10-02T22:51:00+0800",
+      "evidence": [
+        "651d309"
+      ],
+      "source": "session"
+    },
+    {
+      "id": "C1-QA",
+      "project": "class-schedule",
+      "title": "每日质检任务接黑板",
+      "status": "planned",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
+    },
+    {
+      "id": "A1-SessionStatus",
+      "project": "app-auth",
+      "title": "action 落地 动态层状态读写入口",
+      "status": "planned",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
+    },
+    {
+      "id": "A2-Verify",
+      "project": "app-auth",
+      "title": "线上 curl 复核 session-status 端点",
+      "status": "planned",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
+    },
+    {
+      "id": "R1-Scan",
+      "project": "region-manager",
+      "title": "补全要求文档（F1 相关）",
+      "status": "planned",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
+    },
+    {
+      "id": "T1-SessionReport",
+      "project": "ev-android",
+      "title": "会话黑板落盘钩子（L1）",
+      "status": "planned",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
+    },
+    {
+      "id": "T2-Collector",
+      "project": "ev-android",
+      "title": "采集器 collect-status.js（L2 核心）",
+      "status": "done",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
+    },
+    {
+      "id": "T3-Plan",
+      "project": "ev-android",
+      "title": "计划表解析（本文件）",
+      "status": "planned",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
+    },
+    {
+      "id": "T4-Launchd",
+      "project": "ev-android",
+      "title": "launchd 定时采集（L2 自动化）",
+      "status": "planned",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
+    },
+    {
+      "id": "T5-DynamicApi",
+      "project": "ev-android",
+      "title": "api/ev.js 加 session-status（L3 动态层）",
+      "status": "planned",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
+    },
+    {
+      "id": "T6-TasksPage",
+      "project": "ev-android",
+      "title": "EvOps 任务进度页（L4）",
+      "status": "planned",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
+    },
+    {
+      "id": "T7-RequirementsFix",
+      "project": "ev-android",
+      "title": "修 F1：docs.requirements 常年空",
+      "status": "planned",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
+    },
+    {
+      "id": "T8-PROJECTMAP",
+      "project": "ev-android",
+      "title": "PROJECT-MAP 认领区改由脚本刷新",
+      "status": "planned",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
+    },
+    {
+      "id": "T9-Archive",
+      "project": "ev-android",
+      "title": "会话黑板回收（>24h 进 _archived）",
+      "status": "planned",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
+    },
+    {
+      "id": "冒烟-成功路径",
+      "project": "ev-android",
+      "title": "冒烟-成功路径",
+      "status": "done",
+      "owner": "32826-20261002212918",
+      "blocked_by": null,
+      "updated_at": "2026-10-02T21:31:35+0800",
+      "evidence": [
+        "217d100"
+      ],
+      "source": "session"
+    }
+  ],
+  "projects": [
+    {
+      "id": "class-schedule",
+      "name_cn": "EV课程表（手环）",
+      "name_en": "class-schedule",
+      "category": "ev",
+      "local_path": "~/Documents/guomengtao/ev/class-schedule",
+      "repo": {
+        "remote": "git@github.com:guomengtao/class-schedule.git",
+        "host": "github",
+        "visibility": "public",
+        "branch": "main"
+      },
+      "version": {
+        "value": "1.7.9",
+        "code": "1011",
+        "source": "src/manifest.json"
+      },
+      "git": {
+        "dirty": 48,
+        "ahead": 0,
+        "behind": 0
+      },
+      "docs": {
+        "requirements": ".codebuddy/memory/MEMORY.md",
+        "overview": null
+      },
+      "runtime": {
+        "type": "watch-app",
+        "last_beat": null,
+        "deployed_version": null,
+        "health": "unknown"
+      },
+      "plan": {
+        "tasks_total": 1,
+        "tasks_done": 0,
+        "file": "data/plan/TASKS.md"
+      },
+      "sessions": {
+        "active": 0,
+        "last_session_at": "2026-10-02T22:51:00+0800"
+      }
+    },
+    {
+      "id": "ev-schedule-android",
+      "name_cn": "EV课程表安卓同步器",
+      "name_en": "ev-schedule-android",
+      "category": "ev",
+      "local_path": "~/Documents/guomengtao/ev/ev-schedule-android",
+      "repo": {
+        "remote": "git@github.com:guomengtao/ev-schedule-android.git",
+        "host": "github",
+        "visibility": "private",
+        "branch": "main"
+      },
+      "version": {
+        "value": "0.5.111",
+        "code": "112",
+        "source": "apk/version.env"
+      },
+      "git": {
+        "dirty": 4,
+        "ahead": 8,
+        "behind": 0
+      },
+      "docs": {
+        "requirements": ".codebuddy/memory/MEMORY.md",
+        "overview": null
+      },
+      "runtime": {
+        "type": "app",
+        "last_beat": null,
+        "deployed_version": null,
+        "health": "unknown"
+      },
+      "plan": {
+        "tasks_total": 0,
+        "tasks_done": 0,
+        "file": "data/plan/TASKS.md"
+      },
+      "sessions": {
+        "active": 0,
+        "last_session_at": "2026-10-02T22:51:00+0800"
+      }
+    },
+    {
+      "id": "app-auth",
+      "name_cn": "网站后台",
+      "name_en": "app-auth",
+      "category": "ev",
+      "local_path": "~/Documents/guomengtao/ev/app-auth",
+      "repo": {
+        "remote": "git@github.com:guomengtao/app-auth.git",
+        "host": "github",
+        "visibility": "public",
+        "branch": "main"
+      },
+      "version": {
+        "value": "1.7.101",
+        "code": "80",
+        "source": "version.json"
+      },
+      "git": {
+        "dirty": 0,
+        "ahead": 0,
+        "behind": 0
+      },
+      "docs": {
+        "requirements": ".codebuddy/memory/MEMORY.md",
+        "overview": null
+      },
+      "runtime": {
+        "type": "site",
+        "last_beat": null,
+        "deployed_version": null,
+        "health": "unknown"
+      },
+      "plan": {
+        "tasks_total": 2,
+        "tasks_done": 0,
+        "file": "data/plan/TASKS.md"
+      },
+      "sessions": {
+        "active": 0,
+        "last_session_at": "2026-10-02T22:51:00+0800"
+      }
+    },
+    {
+      "id": "ev-notifier",
+      "name_cn": "EvNotifier（Mac 通知中枢）",
+      "name_en": "ev-notifier",
+      "category": "ev",
+      "local_path": "~/Documents/guomengtao/ev/ev-notifier",
+      "repo": {
+        "remote": "git@github.com:guomengtao/ev-notifier.git",
+        "host": "github",
+        "visibility": "private",
+        "branch": "main"
+      },
+      "version": {
+        "value": "2.3.47",
+        "code": null,
+        "source": "version.json"
+      },
+      "git": {
+        "dirty": 0,
+        "ahead": 0,
+        "behind": 0
+      },
+      "docs": {
+        "requirements": null,
+        "overview": null
+      },
+      "runtime": {
+        "type": "service",
+        "last_beat": null,
+        "deployed_version": null,
+        "health": "unknown"
+      },
+      "plan": {
+        "tasks_total": 0,
+        "tasks_done": 0,
+        "file": "data/plan/TASKS.md"
+      },
+      "sessions": {
+        "active": 0,
+        "last_session_at": "2026-10-02T22:51:00+0800"
+      }
+    },
+    {
+      "id": "ev-schedule-sync",
+      "name_cn": "EV同步器（Rust + AstroBox 插件）",
+      "name_en": "ev-schedule-sync",
+      "category": "ev",
+      "local_path": "~/Documents/guomengtao/ev/ev-schedule-sync",
+      "repo": {
+        "remote": "git@github.com:guomengtao/ev-schedule-sync.git",
+        "host": "github",
+        "visibility": "private",
+        "branch": "main"
+      },
+      "version": {
+        "value": "1.0.0",
+        "code": null,
+        "source": "Cargo.toml"
+      },
+      "git": {
+        "dirty": 0,
+        "ahead": 0,
+        "behind": 0
+      },
+      "docs": {
+        "requirements": null,
+        "overview": null
+      },
+      "runtime": {
+        "type": "tool",
+        "last_beat": null,
+        "deployed_version": null,
+        "health": "unknown"
+      },
+      "plan": {
+        "tasks_total": 0,
+        "tasks_done": 0,
+        "file": "data/plan/TASKS.md"
+      },
+      "sessions": {
+        "active": 0,
+        "last_session_at": "2026-10-02T22:51:00+0800"
+      }
+    },
+    {
+      "id": "evbox",
+      "name_cn": "EvBox 工具箱",
+      "name_en": "evbox",
+      "category": "ev",
+      "local_path": "~/Documents/guomengtao/ev/evbox",
+      "repo": {
+        "remote": "https://github.com/guomengtao/evbox.git",
+        "host": "github",
+        "visibility": "private",
+        "branch": "main"
+      },
+      "version": {
+        "value": "1.0.22",
+        "code": "23",
+        "source": "src/manifest.json"
+      },
+      "git": {
+        "dirty": 35,
+        "ahead": 2,
+        "behind": 0
+      },
+      "docs": {
+        "requirements": ".codebuddy/memory/MEMORY.md",
+        "overview": null
+      },
+      "runtime": {
+        "type": "watch-app",
+        "last_beat": null,
+        "deployed_version": null,
+        "health": "unknown"
+      },
+      "plan": {
+        "tasks_total": 0,
+        "tasks_done": 0,
+        "file": "data/plan/TASKS.md"
+      },
+      "sessions": {
+        "active": 0,
+        "last_session_at": "2026-10-02T22:51:00+0800"
+      }
+    },
+    {
+      "id": "ev-face",
+      "name_cn": "表盘",
+      "name_en": "ev-face",
+      "category": "ev",
+      "local_path": "~/Documents/guomengtao/ev/ev-face",
+      "repo": {
+        "remote": "https://github.com/guomengtao/ev-face.git",
+        "host": "github",
+        "visibility": "private",
+        "branch": "main"
+      },
+      "version": {
+        "value": "1.0.0",
+        "code": "1",
+        "source": "src/manifest.json"
+      },
+      "git": {
+        "dirty": 0,
+        "ahead": 0,
+        "behind": 0
+      },
+      "docs": {
+        "requirements": null,
+        "overview": null
+      },
+      "runtime": {
+        "type": "watch-app",
+        "last_beat": null,
+        "deployed_version": null,
+        "health": "unknown"
+      },
+      "plan": {
+        "tasks_total": 0,
+        "tasks_done": 0,
+        "file": "data/plan/TASKS.md"
+      },
+      "sessions": {
+        "active": 0,
+        "last_session_at": "2026-10-02T22:51:00+0800"
+      }
+    },
+    {
+      "id": "ev-emubuddy",
+      "name_cn": "模拟器保姆 EvEmuBuddy",
+      "name_en": "ev-emubuddy",
+      "category": "ev",
+      "local_path": "~/Documents/guomengtao/ev/ev-emubuddy",
+      "repo": {
+        "remote": "git@github.com:guomengtao/ev-emubuddy.git",
+        "host": "github",
+        "visibility": "private",
+        "branch": "main"
+      },
+      "version": {
+        "value": "0.4.0",
+        "code": null,
+        "source": "version.json"
+      },
+      "git": {
+        "dirty": 0,
+        "ahead": 0,
+        "behind": 0
+      },
+      "docs": {
+        "requirements": null,
+        "overview": null
+      },
+      "runtime": {
+        "type": "tool",
+        "last_beat": null,
+        "deployed_version": null,
+        "health": "unknown"
+      },
+      "plan": {
+        "tasks_total": 0,
+        "tasks_done": 0,
+        "file": "data/plan/TASKS.md"
+      },
+      "sessions": {
+        "active": 0,
+        "last_session_at": "2026-10-02T22:51:00+0800"
+      }
+    },
+    {
+      "id": "region-manager",
+      "name_cn": "区域管理 RegionManager",
+      "name_en": "region-manager",
+      "category": "ev",
+      "local_path": "~/Documents/guomengtao/ev/region-manager",
+      "repo": {
+        "remote": "git@github.com:guomengtao/region-manager.git",
+        "host": "github",
+        "visibility": "private",
+        "branch": "main"
+      },
+      "version": {
+        "value": "v1.5.0",
+        "code": null,
+        "source": "region_manager.py"
+      },
+      "git": {
+        "dirty": 0,
+        "ahead": 0,
+        "behind": 0
+      },
+      "docs": {
+        "requirements": null,
+        "overview": null
+      },
+      "runtime": {
+        "type": "tool",
+        "last_beat": null,
+        "deployed_version": null,
+        "health": "unknown"
+      },
+      "plan": {
+        "tasks_total": 1,
+        "tasks_done": 0,
+        "file": "data/plan/TASKS.md"
+      },
+      "sessions": {
+        "active": 0,
+        "last_session_at": "2026-10-02T22:51:00+0800"
+      }
+    },
+    {
+      "id": "ev-android",
+      "name_cn": "EvOps（本项目）",
+      "name_en": "EvOps",
+      "category": "ev",
+      "local_path": "~/Documents/guomengtao/ev/ev-android",
+      "repo": {
+        "remote": "git@github.com:guomengtao/ev-notifier-android.git",
+        "host": "github",
+        "visibility": "private",
+        "branch": "main"
+      },
+      "version": {
+        "value": "0.1.55",
+        "code": null,
+        "source": "version.txt"
+      },
+      "git": {
+        "dirty": 13,
+        "ahead": 0,
+        "behind": 0
+      },
+      "docs": {
+        "requirements": null,
+        "overview": null
+      },
+      "runtime": {
+        "type": "app",
+        "last_beat": null,
+        "deployed_version": null,
+        "health": "unknown"
+      },
+      "plan": {
+        "tasks_total": 10,
+        "tasks_done": 2,
+        "file": "data/plan/TASKS.md"
+      },
+      "sessions": {
+        "active": 1,
+        "last_session_at": "2026-10-02T21:31:35+0800"
+      }
+    },
+    {
+      "id": "ev-tank-battle",
+      "name_cn": "坦克大战",
+      "name_en": "ev-tank-battle",
+      "category": "lab",
+      "local_path": "~/Documents/guomengtao/lab/ev-tank-battle",
+      "repo": {
+        "remote": "https://github.com/guomengtao/ev-tank-battle.git",
+        "host": "github",
+        "visibility": "private",
+        "branch": "main"
+      },
+      "version": {
+        "value": "1.0.1",
+        "code": "2",
+        "source": "src/manifest.json"
+      },
+      "git": {
+        "dirty": 1,
+        "ahead": 0,
+        "behind": 0
+      },
+      "docs": {
+        "requirements": null,
+        "overview": null
+      },
+      "runtime": {
+        "type": "watch-app",
+        "last_beat": null,
+        "deployed_version": null,
+        "health": "unknown"
+      },
+      "plan": {
+        "tasks_total": 0,
+        "tasks_done": 0,
+        "file": "data/plan/TASKS.md"
+      },
+      "sessions": {
+        "active": 0,
+        "last_session_at": "2026-10-02T22:51:00+0800"
+      }
+    }
+  ]
+}
