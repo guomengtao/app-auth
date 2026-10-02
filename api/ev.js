@@ -351,7 +351,8 @@ async function handleProjectBeat(req, res) {
       JSON.stringify({ app_version: appVersion, ts: Date.now() }),
       BEAT_DEVICES, device
     );
-    // 历史序列：每次心跳记一个点（member=ts），用于画在线时长曲线
+    // 历史序列：每次心跳记一个点（member=ts），用于画心跳新鲜度曲线。
+    // ts 一律取服务端 Date.now()：不接受客户端传时间，避免伪造/回填历史。
     await redis.zadd(BEAT_HIST + device, Date.now(), String(Date.now()));
   } catch (e) { /* redis 不可用忽略 */ }
 
@@ -362,7 +363,7 @@ async function handleProjectBeat(req, res) {
 }
 
 /**
- * 单设备心跳历史（画在线时长曲线）：GET ?action=project-history&device=<id>&window=<h>
+ * 单设备心跳历史（画心跳新鲜度曲线）：GET ?action=project-history&device=<id>&window=<h>
  * 返回该设备最近 window 小时内（默认 24h，最多 7 天）的心跳时间戳数组（升序）。
  * 顺带清理超窗口旧点（量小，逐条 zrem，避免无限增长）。无 device → 空数组。
  */
@@ -526,7 +527,7 @@ module.exports = async (req, res) => {
         // 公开端点：聚合心跳为运行态总览（在线设备数 / 最近心跳 / 设备列表）。
         return await handleProjectStatus(req, res);
       case "project-history":
-        // 公开端点：单设备心跳历史（画在线时长曲线）。
+        // 公开端点：单设备心跳历史（画心跳新鲜度曲线）。
         if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
         return await handleProjectHistory(req, res);
       case "report-deploy":
