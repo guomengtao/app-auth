@@ -45,8 +45,8 @@
     { id: "ev-timetable",     name: "课程表介绍",      url: "/ev-timetable.html",  group: "product",  desc: "手环智能课程管理介绍" },
 
     { id: "my-ip",            name: "我的 IP 信息",    url: "/my-ip.html",         group: "tool",     desc: "查看公网 IP 与归属地" },
-    { id: "feedback",         name: "帮助与反馈",      url: "/feedback.html",      group: "tool",     desc: "问题反馈与帮助" },
-    { id: "ev-login",         name: "授权设备",        url: "/ev-login.html",      group: "tool",     desc: "EvNotifier 授权设备登录" }
+    { id: "feedback",         name: "帮助与反馈",      url: "/feedback.html",      group: "tool",     desc: "问题反馈与帮助" }
+    // ⚠️ 不进公开目录：ev-login 是 EvNotifier 内部设备授权页（/ev-login?c=... 由客户端拉起），非面向用户入口
   ];
 
   function groupName(id) {
