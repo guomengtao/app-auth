@@ -1,15 +1,15 @@
 {
   "schema": 2,
-  "generated_at": "2026-10-03T01:08:34+08:00",
+  "generated_at": "2026-10-03T01:31:06+08:00",
   "generator": "scripts/collect-status.js",
   "note": "会话进度（动态层）。projects[] 沿用 projects.json 原字段 + plan/sessions 统计。",
-  "count": 18,
+  "count": 20,
   "summary": {
-    "total": 18,
+    "total": 20,
     "done": 10,
     "in_progress": 0,
     "blocked": 0,
-    "planned": 8,
+    "planned": 10,
     "active_sessions": 2
   },
   "tasks": [
@@ -120,6 +120,28 @@
       "id": "T12-Archive",
       "project": "ev-ops-android",
       "title": "会话黑板回收（>24h 进 _archived）",
+      "status": "planned",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
+    },
+    {
+      "id": "T13-SessionRules",
+      "project": "ev-ops-android",
+      "title": "会话规则与任务分类（方案已写，待定 D1~D5 后做 S1）",
+      "status": "planned",
+      "owner": null,
+      "blocked_by": null,
+      "updated_at": null,
+      "evidence": [],
+      "source": "plan"
+    },
+    {
+      "id": "T14-NoteFix",
+      "project": "ev-ops-android",
+      "title": "补 note：会话结尾的「结果一句话」当前被采集器丢掉，App 看不到",
       "status": "planned",
       "owner": null,
       "blocked_by": null,
@@ -670,7 +692,7 @@
         "health": "unknown"
       },
       "plan": {
-        "tasks_total": 12,
+        "tasks_total": 14,
         "tasks_done": 8,
         "file": "data/plan/TASKS.md"
       },
