@@ -21,11 +21,44 @@ var redis = require("../lib/redis");
 var deviceToken = require("../lib/device-token");
 var messageDelivery = require("../lib/message-delivery");
 var { requireAuth } = require("../lib/auth");
+var fs = require("fs");
+var path = require("path");
 
 var CHALLENGE_TTL = 600;            // 10 分钟
 var POLL_INTERVAL = 2;              // 建议客户端轮询间隔（秒）
 var START_RATE_LIMIT = 10;          // 同 IP 每分钟最多发起几次
 var MAX_LABEL_LEN = 64;
+
+var BEAT_KEY = "ev:beat:";
+var BEAT_DEVICES = "ev:beat:devices";
+var ONLINE_HASH = "ev:online";       // 部署流程回写的线上版本（Redis，优先于文件）
+var ONLINE_WINDOW = 10 * 60 * 1000; // 心跳 10 分钟内算「在线」
+
+/** 读取在线版本：文件 data/online-versions.json 作种子，Redis ev:online 覆盖（部署回写）。 */
+function loadOnlineSync() {
+  var online = {};
+  try {
+    var fp = path.join(process.cwd(), "data", "online-versions.json");
+    if (fs.existsSync(fp)) {
+      var o = JSON.parse(fs.readFileSync(fp, "utf-8"));
+      if (o && typeof o === "object") {
+        Object.keys(o).forEach(function (k) { if (k !== "_note") online[k] = o[k]; });
+      }
+    }
+  } catch (e) { /* ignore */ }
+  return online;
+}
+
+async function loadOnline() {
+  var online = loadOnlineSync();
+  try {
+    var ov = await redis.hgetall(ONLINE_HASH);
+    if (ov && typeof ov === "object") {
+      Object.keys(ov).forEach(function (k) { if (ov[k] != null && ov[k] !== "") online[k] = ov[k]; });
+    }
+  } catch (e) { /* redis 不可用退回文件 */ }
+  return online;
+}
 
 function json(res, status, body) {
   res.setHeader("Cache-Control", "no-store");
@@ -296,9 +329,9 @@ async function handleMessages(req, res) {
  * 项目管理平台（EvOps）运行态端点：
  *   GET ?action=project-beat&app_version=<x>&device=<id>
  *
- *  - 尽力记录心跳到 data/heartbeats.jsonl（serverless 只读环境静默跳过）；
+ *  - 把心跳持久化到 Redis（durable，跨 serverless 实例）：ev:beat:<device> + 设备集合；
  *  - 返回服务器时间 server_time（App 用来判定「离线」与相对时间）；
- *  - 返回 online：各项目「已部署 / 运行中」版本（手动维护的事实源 data/online-versions.json）。
+ *  - 返回 online：各项目「已部署 / 运行中」版本（文件种子 + Redis 覆盖）。
  *
  * App 端把静态开发版本（本机扫描）与 online 比对，产出『待发版 / 已同步 / 未上报』状态。
  */
@@ -308,26 +341,97 @@ async function handleProjectBeat(req, res) {
   var appVersion = String(q.app_version || body.app_version || "").slice(0, 32);
   var device = String(q.device || body.device || "").slice(0, 64);
 
-  // 1) 记录心跳（尽力而为）
+  // 1) 持久化心跳（Redis；失败不阻断返回）
   try {
-    var fs = require("fs");
-    var path = require("path");
-    var dir = path.join(process.cwd(), "data");
-    try { fs.mkdirSync(dir, { recursive: true }); } catch (e) { /* ignore */ }
-    var line = JSON.stringify({ ts: Date.now(), app_version: appVersion, device: device }) + "\n";
-    fs.appendFileSync(path.join(dir, "heartbeats.jsonl"), line);
-  } catch (e) { /* 只读环境忽略 */ }
+    await redis.setWithSadd(
+      BEAT_KEY + device,
+      JSON.stringify({ app_version: appVersion, ts: Date.now() }),
+      BEAT_DEVICES, device
+    );
+  } catch (e) { /* redis 不可用忽略 */ }
 
-  // 2) 已部署版本（手动维护事实源）
-  var online = {};
-  try {
-    var fs2 = require("fs");
-    var fp = require("path").join(process.cwd(), "data", "online-versions.json");
-    if (fs2.existsSync(fp)) online = JSON.parse(fs2.readFileSync(fp, "utf-8"));
-  } catch (e) { online = {}; }
-  if (online && online._note) delete online._note; // 备注不进比对
+  // 2) 已部署版本（文件种子 + Redis 覆盖）
+  var online = await loadOnline();
 
   return json(res, 200, { ok: true, server_time: Date.now(), online: online });
+}
+
+/**
+ * 运行态总览（聚合心跳）：GET ?action=project-status
+ * 返回 devices（每台设备最后心跳 / 运行版本）、online_count（10 分钟内在线数）、
+ * total、last_beat（全局最近心跳）、online（已部署版本）。App 用它画「运行态总览」与设备趋势。
+ */
+async function handleProjectStatus(req, res) {
+  var online = await loadOnline();
+  var devices = [];
+  var now = Date.now();
+  try {
+    var members = await redis.smembers(BEAT_DEVICES);
+    if (members && members.length) {
+      var keys = members.map(function (m) { return BEAT_KEY + m; });
+      var vals = await redis.mget(keys);
+      for (var i = 0; i < members.length; i++) {
+        var raw = vals[i];
+        if (!raw) continue;
+        var obj;
+        try { obj = JSON.parse(raw); } catch (e) { continue; }
+        devices.push({
+          device: members[i],
+          app_version: obj.app_version || "",
+          last_beat: obj.ts || 0,
+        });
+      }
+      devices.sort(function (a, b) { return (b.last_beat || 0) - (a.last_beat || 0); });
+    }
+  } catch (e) { devices = []; }
+
+  var lastBeat = 0, onlineCount = 0;
+  for (var j = 0; j < devices.length; j++) {
+    if (devices[j].last_beat > lastBeat) lastBeat = devices[j].last_beat;
+    if (now - devices[j].last_beat < ONLINE_WINDOW) onlineCount++;
+  }
+
+  return json(res, 200, {
+    ok: true,
+    server_time: now,
+    online: online,
+    devices: devices,
+    total: devices.length,
+    online_count: onlineCount,
+    last_beat: lastBeat,
+  });
+}
+
+/**
+ * 部署流程自动回写在线版本：POST ?action=report-deploy
+ * body = { project, version }。带 DEPLOY_TOKEN 时要求 Bearer；未配置则放开（个人环境）。
+ * 写入 Redis ev:online（durable）并尽力回写 data/online-versions.json（git 可追踪历史）。
+ */
+async function handleReportDeploy(req, res) {
+  var secret = process.env.DEPLOY_TOKEN;
+  if (secret) {
+    var h = (req.headers && req.headers.authorization) || "";
+    if (h !== "Bearer " + secret) return json(res, 401, { success: false, error: "unauthorized" });
+  }
+  var body = (req.body && typeof req.body === "object") ? req.body : {};
+  var project = String(body.project || "").slice(0, 64);
+  var version = String(body.version || "").slice(0, 32);
+  if (!project || !version) {
+    return json(res, 400, { success: false, error: "Missing project/version" });
+  }
+
+  try { await redis.hset(ONLINE_HASH, (function () { var o = {}; o[project] = version; return o; })()); }
+  catch (e) { /* redis 失败仍尝试回写文件 */ }
+
+  try {
+    var fp = path.join(process.cwd(), "data", "online-versions.json");
+    var o = {};
+    try { if (fs.existsSync(fp)) o = JSON.parse(fs.readFileSync(fp, "utf-8")); } catch (e) { o = {}; }
+    o[project] = version;
+    fs.writeFileSync(fp, JSON.stringify(o, null, 2));
+  } catch (e) { /* 只读环境忽略 */ }
+
+  return json(res, 200, { success: true, project: project, version: version });
 }
 
 module.exports = async (req, res) => {
@@ -359,8 +463,13 @@ module.exports = async (req, res) => {
         return await handleMessages(req, res);
       case "project-beat":
         // 公开端点（EvOps 安卓端不需要登录即可上报心跳 / 拉取已部署版本）。
-        // 读 / 写均为尽力而为：serverless 文件系统只读时静默跳过，绝不影响返回。
         return await handleProjectBeat(req, res);
+      case "project-status":
+        // 公开端点：聚合心跳为运行态总览（在线设备数 / 最近心跳 / 设备列表）。
+        return await handleProjectStatus(req, res);
+      case "report-deploy":
+        if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
+        return await handleReportDeploy(req, res);
       default:
         return json(res, 400, { success: false, error: "Unknown action" });
     }
