@@ -8,7 +8,9 @@
     { "source": "/ip", "destination": "/my-ip.html" },
     { "source": "/ev-login", "destination": "/ev-login.html" },
     { "source": "/feedback", "destination": "/feedback.html" },
-    { "source": "/feedback/", "destination": "/feedback.html" }
+    { "source": "/feedback/", "destination": "/feedback.html" },
+    { "source": "/evbox", "destination": "/evbox.html" },
+    { "source": "/evbox/", "destination": "/evbox.html" }
   ],
   "redirects": [
     { "source": "/api/notify/ack", "destination": "/api/feedback?kind=ack", "permanent": false },

@@ -38,6 +38,7 @@
     { id: "ui-gallery-9",     name: "手环端页面总览",  url: "/ui-gallery-9.html",  group: "archive",  desc: "手环端逐页截图档案（排障索引）" },
     { id: "ui-gallery-10-pro", name: "手环10Pro页面总览", url: "/ui-gallery-10-pro.html", group: "archive",  desc: "手环 10 Pro 逐页截图档案（与手环9同构，截图采集中）" },
     { id: "android-apk",      name: "安卓 APK 总览",   url: "/android-apk.html",    group: "archive",  desc: "安卓同步器逐页截图档案" },
+    { id: "evbox",            name: "EvBox 工具箱总览", url: "/evbox.html",         group: "archive",  desc: "EvBox 工具箱 21 个页面截图与功能说明" },
 
     { id: "apk-download",     name: "安卓版下载",      url: "/apk-download.html",  group: "product",  desc: "下载 Ev课程表同步器 APK" },
     { id: "ev-schedule",      name: "产品介绍",        url: "/ev-schedule.html",   group: "product",  desc: "小米手环课程管理产品介绍" },

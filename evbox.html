@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EvBox 工具箱 · 页面总览（逐页截图档案）</title>
+<meta name="description" content="EvBox 工具箱 v1.0.22 逐页截图档案：首页、工具箱（倒数日/农历/计算器/一言/答案/二维码/震动）、设备诊断、设置与系统，共 21 个页面真实截图与功能说明。">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --bg:#f3f4f8; --surface:#ffffff; --ink:#1a1a2e;
+  --muted:#6b7280; --line:#e7e9f0; --accent:#6c63ff;
+  --premium:#b8860b; --ok:#2e7d32;
+}
+body {
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+  background:var(--bg); color:var(--ink); line-height:1.6; padding-bottom:40px;
+}
+/* 画框用写死高度而非 aspect-ratio：老 WebView 不支持 aspect-ratio 会塌成 0 高致图片不可见（192:490 定比） */
+.topbar { position:sticky; top:0; z-index:20; background:rgba(255,255,255,0.92); border-bottom:1px solid var(--line); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
+.topbar-inner { max-width:1100px; margin:0 auto; padding:14px 20px 10px; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; }
+.t-title { font-size:1.25rem; font-weight:800; }
+.t-title small { font-weight:500; color:var(--muted); font-size:.78rem; margin-left:8px; }
+.t-meta { display:flex; flex-wrap:wrap; gap:10px; align-items:center; font-size:.78rem; color:var(--muted); }
+.chip { background:var(--accent); color:#fff; padding:3px 10px; border-radius:20px; font-weight:700; }
+.chip.ghost { background:transparent; color:var(--muted); border:1px solid var(--line); }
+.filterbar { max-width:1100px; margin:0 auto; padding:0 20px 12px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.fbtn { border:1px solid var(--line); background:var(--surface); color:var(--ink); padding:6px 14px; border-radius:20px; font-size:.82rem; cursor:pointer; }
+.fbtn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.wrap { max-width:1100px; margin:0 auto; padding:18px 20px; }
+.hero { background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:20px 22px; margin-bottom:16px; }
+.hero h1 { font-size:1.35rem; font-weight:800; margin-bottom:6px; }
+.hero p { font-size:.9rem; color:#3f3f4a; }
+.hero .facts { margin-top:12px; display:flex; flex-wrap:wrap; gap:8px; }
+.fact { background:#f5f5fb; border:1px solid var(--line); border-radius:12px; padding:5px 12px; font-size:.8rem; color:var(--muted); }
+.fact b { color:var(--ink); }
+.group { background:var(--surface); border:1px solid var(--line); border-radius:16px; margin-bottom:16px; overflow:hidden; }
+.group-head { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; cursor:pointer; user-select:none; }
+.group-head h2 { font-size:1.05rem; font-weight:700; }
+.group-head .count { color:var(--muted); font-size:.8rem; }
+.group-body { padding:0 18px 18px; }
+.group.closed .group-body { display:none; }
+.card { display:flex; gap:18px; padding:18px 0; border-top:1px solid var(--line); flex-wrap:wrap; }
+.card:first-child { border-top:none; }
+.device { width:200px; flex:0 0 auto; height:510px; border-radius:100px; background:#0b0b0f; padding:8px; overflow:hidden; }
+.device img { width:100%; height:100%; object-fit:cover; border-radius:92px; display:block; cursor:zoom-in; }
+.info { flex:1; min-width:260px; }
+.p-name { font-size:1.05rem; font-weight:700; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.badge { color:#fff; font-size:.7rem; padding:2px 8px; border-radius:12px; font-weight:700; }
+.badge-premium { background:var(--premium); }
+.badge-new { background:var(--accent); }
+.route { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.76rem; color:var(--muted); }
+.row { margin-top:8px; font-size:.88rem; }
+.row .k { color:var(--muted); font-weight:600; margin-right:4px; }
+.pts { margin-top:6px; padding-left:18px; font-size:.86rem; color:#444; }
+.pts li { margin-bottom:2px; }
+.meta { margin-top:8px; font-size:.76rem; color:var(--muted); border-top:1px dashed var(--line); padding-top:6px; }
+.note { background:#fff8e6; border:1px solid #f2dfa8; border-radius:12px; padding:12px 16px; font-size:.85rem; color:#7a4b00; margin-bottom:16px; }
+.footer { text-align:center; color:var(--muted); font-size:.8rem; padding:24px 20px; line-height:1.8; }
+.lightbox { position:fixed; inset:0; background:rgba(0,0,0,0.85); display:none; align-items:center; justify-content:center; z-index:50; cursor:zoom-out; }
+.lightbox.show { display:flex; }
+.lightbox img { max-width:90vw; max-height:90vh; border-radius:24px; }
+@media (max-width:600px){ .device{width:150px;height:383px;} .info{min-width:0;} }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="t-title">EvBox 工具箱 · 页面总览<small>逐页截图档案 · 手环 9（192×490 胶囊屏）</small></div>
+    <div class="t-meta">
+      <span class="chip">v1.0.22</span>
+      <span class="chip ghost" id="pageCount"></span>
+    </div>
+  </div>
+  <div class="filterbar" id="filterbar"></div>
+  <div class="filterbar" id="siteNavAnchor"></div>
+</div>
+
+<div class="wrap">
+  <div class="hero">
+    <h1>EvBox 工具箱 · 21 个页面真实截图与功能说明</h1>
+    <p>本页所有截图都来自 <b>Vela 模拟器（xiaomi_band，192×490）</b> 上运行的 <b>EvBox v1.0.22 正式版 rpk</b>，逐页实机抓取，不是设计稿。点任意截图可放大查看。</p>
+    <div class="facts">
+      <span class="fact">包名 <b>com.application.watch.evbox</b></span>
+      <span class="fact">注册页面 <b>23</b></span>
+      <span class="fact">已采集 <b>21</b></span>
+      <span class="fact">设备 <b>Emulator·Vela / 手环</b></span>
+      <span class="fact">采集日 <b>2026-10-02</b></span>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>关于「模板选择」页：</b><code>pages/template-picker</code> 已在 manifest 注册，但全仓无任何入口跳转（<code>grep</code> 只在 manifest.json 命中），属于<b>未接线的死页</b>，因此无截图、也不在下面分组中。
+  </div>
+
+  <div id="app"></div>
+</div>
+
+<div class="footer">
+  EvBox 工具箱 · 页面截图档案 · 2026-10-02 采集于 Vela 模拟器<br>
+  页面功能说明对应 v1.0.22 源码；行为以实际设备为准
+</div>
+
+<div class="lightbox" id="lightbox" onclick="hideLightbox()"><img id="lightboxImg" src="" alt=""></div>
+
+<script>
+/* 兼容约束（与站内一致）：只用 var + 普通函数 + 字符串拼接，不用 const/let/箭头函数/模板字符串 */
+var IMG = '/images/evbox/pages/';
+
+var GROUPS = [
+  { id: 'main',  name: '核心主流程' },
+  { id: 'tools', name: '工具箱' },
+  { id: 'diag',  name: '设备与诊断' },
+  { id: 'set',   name: '设置与系统' }
+];
+
+var PAGES = [
+  { id:'welcome', name:'欢迎页', group:'main', route:'pages/welcome', file:'welcome.png',
+    usage:'应用启动后的入口页，三个按钮分流：进入首页 / 直接进设置 / 退出应用。',
+    entry:'冷启动 EvBox 即是',
+    points:['「进入首页」进入工具箱主界面','「设置」直达设置页','「退出」关闭快应用'],
+    tag:'入口' },
+
+  { id:'index', name:'首页', group:'main', route:'pages/index', file:'index.png',
+    usage:'主界面：顶部时钟与日期，中部常用工具宫格（可钉页面），底部「工具」「设置」两个总入口。',
+    entry:'欢迎页 →「进入首页」',
+    points:['宫格显示已钉到首页的页面','底部两个按钮分别进工具页与设置页','时钟区展示当前时间与日期'],
+    tag:'主界面' },
+
+  { id:'tools', name:'工具页', group:'tools', route:'pages/tools', file:'tools.png',
+    usage:'工具合集页，支持「图标 / 列表 / 图文」三种视图切换；上半部是工具宫格，下半部是设置与诊断区。',
+    entry:'首页 → 底部「工具」',
+    points:['工具：倒数日、农历、计算器、一言、答案、二维码、震动','诊断区：设备信息、设备ID诊断、已钉页面开关、黑屏检测','三种视图可按个人习惯切换'],
+    tag:'合集' },
+
+  { id:'countdown', name:'倒数日', group:'tools', route:'pages/countdown-manage', file:'countdown.png',
+    usage:'管理倒数日，如「距离期末还有 N 天」；支持新增、编辑、删除，天数可显示在首页。',
+    entry:'工具页 →「倒数日」',
+    points:['右上「添加」新建，名称走 T9 中文输入','点条目可编辑名称','首页宫格同步显示天数'],
+    tag:'工具' },
+
+  { id:'lunar', name:'农历日历', group:'tools', route:'pages/lunar-calendar', file:'lunar.png',
+    usage:'显示农历日期：干支纪年、生肖、星期、时辰与日期对照。',
+    entry:'工具页 →「农历」',
+    points:['大字号农历日与公历对照','显示「丙午年·属马」等纪年信息','时辰进度条随当前时间推进','「今天」可快速回到当日'],
+    tag:'工具' },
+
+  { id:'calculator', name:'计算器', group:'tools', route:'pages/calculator', file:'calculator.png',
+    usage:'四则运算计算器，带历史记录。',
+    entry:'工具页 →「计算器」',
+    points:['数字 / 四则 / 小数点 / 正负号','结果栏显示历史，顶部可切换查看','等号键长按不清空'],
+    tag:'工具' },
+
+  { id:'quote', name:'每日一言', group:'tools', route:'pages/daily-quote', file:'quote.png',
+    usage:'每天一句格言 / 励志话，可换一句或收藏。',
+    entry:'工具页 →「一言」',
+    points:['显示今日日期与一句话','「换一句」随机换','「收藏」保存喜欢的句子'],
+    tag:'工具' },
+
+  { id:'answer', name:'答案之书', group:'tools', route:'pages/answer-book', file:'answer.png',
+    usage:'心里想一个问题，翻开答案之书，给出一个答案。',
+    entry:'工具页 →「答案」',
+    points:['心中默想问题后翻开','给出随机答案','可反复重开'],
+    tag:'工具' },
+
+  { id:'qrcode', name:'二维码生成', group:'tools', route:'pages/qrcode-generator', file:'qrcode.png',
+    usage:'把任意文本生成二维码并保存管理，方便展示或扫码。',
+    entry:'工具页 →「二维码」',
+    points:['「+ 添加二维码」新建，内容走中文输入','可切换多个已存二维码','空态有引导提示'],
+    tag:'工具' },
+
+  { id:'vibration', name:'震动自定义', group:'tools', route:'pages/vibration-lab', file:'vibration.png',
+    usage:'震动提醒的开关、提前量与震动样式设置。',
+    entry:'工具页 →「震动」',
+    points:['上课提醒等场景开关','提前提醒时长可调（分钟）','震动样式多档可选（长持 / 双轻等）','息屏后系统无法触发震动，仅亮屏有效'],
+    tag:'工具' },
+
+  { id:'chinese-input', name:'中文输入（T9）', group:'tools', route:'pages/chinese-input', file:'chinese-input.png',
+    usage:'手环端 T9 中文输入法：拼音 26 键 + 候选词，供倒数日命名、二维码内容等场景调用。',
+    entry:'倒数日 →「添加」/ 二维码 →「添加」时自动进入',
+    points:['标题与占位符由调用方传入（如「添加倒数日」）','候选词条随输入更新','中 / 123 切换中文与数字','完成后回填并返回来源页'],
+    tag:'基础组件' },
+
+  { id:'device-info', name:'设备信息', group:'diag', route:'pages/device-info', file:'device-info.png',
+    usage:'显示设备型号、品牌、制造商、代号、类型、版本号等——排障第一站。',
+    entry:'工具页 → 诊断区「设备信息」',
+    points:['设备型号 / 品牌 / 制造商 / 代号','设备类型（手环等）与系统版本','反馈问题时报这几项最有用'],
+    tag:'诊断' },
+
+  { id:'diagnosis', name:'设备 ID 诊断', group:'diag', route:'pages/device-id-diagnosis', file:'device-id-diagnosis.png',
+    usage:'逐项测试设备标识相关接口，排查激活绑定、设备识别异常。',
+    entry:'工具页 → 诊断区「设备ID诊断」',
+    points:['逐条列出：本地 UUID、getInfo、getUA、getSerial、getMac、getId 等','每项点击可单独发起测试','返回结果用于比对是否识别为同一设备'],
+    tag:'诊断' },
+
+  { id:'blackcheck', name:'黑屏检测', group:'diag', route:'pages/black-screen-check', file:'black-screen-check.png',
+    usage:'逐项排查渲染 / 显示异常：布局高度、shape 适配、层级定位、强制刷新等。',
+    entry:'工具页 → 诊断区「黑屏检测」',
+    points:['逐个测试：minHeight、shape 适配、激活页回款、right/bottom 层定位、forceUpdate','测过的项目会变灰标记','底部「重置标记」可重新测一遍'],
+    tag:'诊断' },
+
+  { id:'settings', name:'设置', group:'set', route:'pages/settings', file:'settings.png',
+    usage:'总设置页：昵称、主题配色、字号、首页设置、同步、数据备份、高级版、打赏与版本信息。',
+    entry:'欢迎页「设置」/ 首页底部「设置」',
+    points:['昵称、主题配色、字号','首页设置、工具、同步器留言、同步通道','数据备份、高级版、打赏支持','底部显示版本号与欢迎页入口'],
+    tag:'设置' },
+
+  { id:'homepageset', name:'首页设置', group:'set', route:'pages/homepage-settings', file:'homepage-settings.png',
+    usage:'首页各模块的开关与样式：时钟、倒数日、钉首页、工具显示方式、正文字号。',
+    entry:'设置页 →「首页设置」',
+    points:['时钟、倒数日等模块独立开关','工具显示样式：图标 / 列表等','字号可 48px 上下微调，实时预览','部分开关属高级版，未解锁时进页会弹解锁提示'],
+    tag:'设置' },
+
+  { id:'pinned', name:'已钉页面管理', group:'set', route:'pages/pinned-pages', file:'pinned-pages.png',
+    usage:'勾选哪些页面钉到首页宫格，方便一键直达。',
+    entry:'首页设置 →「管理钉首页」',
+    points:['勾选要钉的页面，首页宫格同步出现','打开任意页面也可就地钉住','工具页的「已钉页面」开关控制该功能总开关','属高级版功能，未解锁时进入会弹解锁提示'],
+    tag:'高级版' },
+
+  { id:'syncchat', name:'同步器留言', group:'set', route:'pages/sync-chat', file:'sync-chat.png',
+    usage:'与手机端同步器互留留言（手机不在手边时也能传话）。',
+    entry:'设置页 →「同步器留言」',
+    points:['同步通道未开启时提示去设置页开启','「写留言」编辑并同步到手机','下方列出历史留言'],
+    tag:'同步' },
+
+  { id:'backup', name:'数据备份', group:'set', route:'pages/backup-restore', file:'backup-restore.png',
+    usage:'本地 / 云端备份与恢复数据，换机或重装不丢。',
+    entry:'设置页 →「数据备份」',
+    points:['支持备份与恢复两类操作','云备份属高级版功能','未解锁时进入会弹解锁提示'],
+    tag:'高级版' },
+
+  { id:'activation', name:'高级版（激活）', group:'set', route:'pages/activation', file:'activation.png',
+    usage:'版本与授权信息页：当前版本、高级版权益、激活与购买入口。',
+    entry:'设置页 →「高级版」',
+    points:['显示当前版本（本次采集为 v1.0.22）','列出高级版权益：全部工具、数据备份、首页自定义、多套主题','提供激活码输入与购买入口'],
+    tag:'授权' },
+
+  { id:'donate', name:'打赏支持', group:'set', route:'pages/donate', file:'donate.png',
+    usage:'自愿支持开发者，微信 / 支付宝扫码。',
+    entry:'设置页 →「打赏支持」',
+    points:['微信收款码','支付宝收款码','完全自愿，不影响任何功能'],
+    tag:'支持' }
+];
+
+/* ---------- 渲染 ---------- */
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function pageCard(p) {
+  var html = '<div class="card">';
+  html += '<div class="device"><img loading="lazy" src="' + IMG + p.file + '" alt="' + esc(p.name) + '" onerror="imgError(this)"></div>';
+  html += '<div class="info">';
+  html += '<div class="p-name">' + esc(p.name);
+  if (p.tag === '高级版') html += '<span class="badge badge-premium">高级版</span>';
+  if (p.tag === '基础组件') html += '<span class="badge badge-new">基础组件</span>';
+  html += '<span class="route">' + esc(p.route) + '</span></div>';
+  html += '<div class="row"><span class="k">功能</span>' + esc(p.usage) + '</div>';
+  html += '<div class="row"><span class="k">入口</span>' + esc(p.entry) + '</div>';
+  if (p.points && p.points.length) {
+    html += '<ul class="pts">';
+    for (var i = 0; i < p.points.length; i++) html += '<li>' + esc(p.points[i]) + '</li>';
+    html += '</ul>';
+  }
+  html += '<div class="meta">截图：' + IMG + esc(p.file) + ' · 192×490 · 采集于 ' + '2026-10-02' + '</div>';
+  html += '</div></div>';
+  return html;
+}
+
+function render(filterId) {
+  var app = document.getElementById('app');
+  var html = '';
+  for (var g = 0; g < GROUPS.length; g++) {
+    var gid = GROUPS[g].id;
+    if (filterId && filterId !== 'all' && filterId !== gid) continue;
+    var list = [];
+    for (var i = 0; i < PAGES.length; i++) if (PAGES[i].group === gid) list.push(PAGES[i]);
+    if (!list.length) continue;
+    html += '<div class="group" id="g-' + gid + '">';
+    html += '<div class="group-head" onclick="toggleGroup(\'' + gid + '\')"><h2>' + esc(GROUPS[g].name) + '</h2><span class="count">' + list.length + ' 个页面</span></div>';
+    html += '<div class="group-body">';
+    for (var j = 0; j < list.length; j++) html += pageCard(list[j]);
+    html += '</div></div>';
+  }
+  app.innerHTML = html;
+  document.getElementById('pageCount').textContent = PAGES.length + ' 个页面';
+}
+
+function renderFilters() {
+  var bar = document.getElementById('filterbar');
+  var html = '<button class="fbtn active" onclick="pickFilter(\'all\', this)">全部 ' + PAGES.length + '</button>';
+  for (var i = 0; i < GROUPS.length; i++) {
+    var n = 0;
+    for (var j = 0; j < PAGES.length; j++) if (PAGES[j].group === GROUPS[i].id) n++;
+    html += '<button class="fbtn" onclick="pickFilter(\'' + GROUPS[i].id + '\', this)">' + esc(GROUPS[i].name) + ' ' + n + '</button>';
+  }
+  bar.innerHTML = html;
+}
+
+function pickFilter(id, btn) {
+  var btns = document.getElementById('filterbar').getElementsByTagName('button');
+  for (var i = 0; i < btns.length; i++) btns[i].className = 'fbtn';
+  btn.className = 'fbtn active';
+  render(id);
+  window.scrollTo(0, 0);
+}
+
+function toggleGroup(gid) {
+  var el = document.getElementById('g-' + gid);
+  el.className = (el.className === 'group closed') ? 'group' : 'group closed';
+}
+
+function openLightbox(el) {
+  document.getElementById('lightboxImg').src = el.src;
+  document.getElementById('lightbox').className = 'lightbox show';
+}
+function hideLightbox() {
+  document.getElementById('lightbox').className = 'lightbox';
+}
+function imgError(el) {
+  el.style.opacity = 0.25;
+  el.parentNode.style.background = '#3a3a44';
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  renderFilters();
+  render('all');
+});
+</script>
+
+<script src="/js/site-nav.js"></script>
+<script>
+  if (window.SiteNav && SiteNav.mountNav) {
+    SiteNav.mountNav('siteNavAnchor', 'evbox');
+  }
+</script>
+</body>
+</html>
