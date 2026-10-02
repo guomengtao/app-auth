@@ -14,7 +14,7 @@ body {
   font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
   background:var(--bg); color:var(--ink); line-height:1.6; padding-bottom:40px;
 }
-/* 画框用写死高度而非 aspect-ratio：老 WebView/旧内核不支持 aspect-ratio 会塌成 0 高致图片不可见（192:490 定比） */
+/* 画框用写死高度而非 aspect-ratio：老 WebView/旧内核不支持 aspect-ratio 会塌成 0 高致图片不可见（336:480 定比，方屏圆角矩形，非 9 系胶囊） */
 .topbar { position:sticky; top:0; z-index:20; background:rgba(255,255,255,0.92); border-bottom:1px solid var(--line); }
 .topbar-inner { max-width:1100px; margin:0 auto; padding:14px 20px 8px; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; }
 .t-title { font-size:1.25rem; font-weight:800; }
@@ -33,13 +33,13 @@ body {
 .group-body { padding:0 18px 18px; }
 .card { display:flex; gap:18px; padding:18px 0; border-top:1px solid var(--line); flex-wrap:wrap; }
 .card:first-child { border-top:none; }
-.device { width:200px; flex:0 0 auto; height:510px; border-radius:100px; background:#0b0b0f; padding:8px; overflow:hidden; }
-.device img { width:100%; height:100%; object-fit:cover; border-radius:92px; display:block; cursor:zoom-in; }
+.device { width:200px; flex:0 0 auto; height:286px; border-radius:48px; background:#0b0b0f; padding:8px; overflow:hidden; }
+.device img { width:100%; height:100%; object-fit:cover; border-radius:40px; display:block; cursor:zoom-in; }
 .device.empty { display:flex; align-items:center; justify-content:center; text-align:center; color:#9aa; font-size:.8rem; }
 .device.empty .ph { padding:10px; }
 .shots { display:flex; gap:10px; flex-wrap:wrap; }
-.shots .device { width:150px; height:383px; border-radius:78px; padding:6px; }
-.shots .device img { border-radius:70px; }
+.shots .device { width:150px; height:214px; border-radius:36px; padding:6px; }
+.shots .device img { border-radius:29px; }
 .info { flex:1; min-width:260px; }
 .p-name { font-size:1.05rem; font-weight:700; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .badge-premium { background:#b8860b; color:#fff; font-size:.7rem; padding:2px 8px; border-radius:12px; font-weight:700; }
@@ -59,7 +59,17 @@ body {
 .lightbox { position:fixed; inset:0; background:rgba(0,0,0,0.85); display:none; align-items:center; justify-content:center; z-index:50; cursor:zoom-out; }
 .lightbox.show { display:flex; }
 .lightbox img { max-width:90vw; max-height:90vh; border-radius:24px; }
-@media (max-width:600px){ .device{width:160px;height:408px;} .shots .device{width:120px;height:306px;} }
+/* 批次色带（方案A）：每 10 页为一批，每批一套配色 —— 左缘色带 + 批次标签 + 轻底色 */
+.legend { max-width:1100px; margin:0 auto; padding:2px 20px 10px; display:flex; flex-wrap:wrap; gap:10px; align-items:center; font-size:.76rem; color:var(--muted); }
+.legend .lg { display:inline-flex; align-items:center; gap:6px; background:var(--surface); border:1px solid var(--line); border-radius:20px; padding:3px 10px; }
+.legend .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+.card { border-left:6px solid transparent; padding-left:14px; border-radius:2px; }
+.card[data-batch="1"] { border-left-color:#6c63ff; background:linear-gradient(90deg,rgba(108,99,255,.07),transparent 42%); }
+.card[data-batch="2"] { border-left-color:#0ea5a4; background:linear-gradient(90deg,rgba(14,165,164,.07),transparent 42%); }
+.card[data-batch="3"] { border-left-color:#d97706; background:linear-gradient(90deg,rgba(217,119,6,.07),transparent 42%); }
+.batch-chip { font-size:.68rem; font-weight:700; padding:2px 8px; border-radius:10px; color:#fff; }
+.batch-chip.b1 { background:#6c63ff; } .batch-chip.b2 { background:#0ea5a4; } .batch-chip.b3 { background:#d97706; }
+@media (max-width:600px){ .device{width:160px;height:229px;} .shots .device{width:120px;height:171px;} }
 </style>
 </head>
 <body>
@@ -74,10 +84,11 @@ body {
   </div>
   <div class="filterbar" id="filterbar"></div>
   <div class="filterbar" id="siteNav"></div>
+  <div class="legend" id="batchLegend"></div>
 </div>
 <div class="wrap" id="app"></div>
 <div class="footer">
-  Ev课程表 · UI 截图档案（手环 9 · 胶囊屏 192×490）<br>
+  Ev课程表 · UI 截图档案（手环 10 Pro · 方屏 336×480）<br>
   应用版本随每页档案标注；高级版页面以「未解锁」演示态采集，仅供对照参考<br>
   遇到问题？<a href="/feedback.html" style="color:var(--accent)">前往 帮助与反馈</a>
 </div>
@@ -138,12 +149,14 @@ function renderCard(p){
   var card = document.createElement('div');
   card.className = 'card';
   card.setAttribute('data-group', p.group);
+  var bi = Math.floor((p.__idx || 0) / 10) + 1; if(bi > 3) bi = 3;
+  card.setAttribute('data-batch', bi);
   if(hasIssuePage(p)) card.setAttribute('data-issue', '1');
   var left = document.createElement('div');
   left.innerHTML = renderShots(p);
   var info = document.createElement('div');
   info.className = 'info';
-  var badges = '';
+  var badges = '<span class="batch-chip b'+bi+'">第'+bi+'批</span>';
   if(p.premium) badges += '<span class="badge-premium">高级版</span>';
   if(hasIssuePage(p)) badges += '<span class="badge-issue">已知问题</span>';
   var html = '<div class="p-name">'+p.name+badges+'</div>';
@@ -225,10 +238,20 @@ function openLightbox(el){
   document.getElementById('lightbox').className = 'lightbox show';
 }
 function hideLightbox(){ document.getElementById('lightbox').className = 'lightbox'; }
+function buildLegend(){
+  var el = document.getElementById('batchLegend'); if(!el) return;
+  var cols = {1:'#6c63ff',2:'#0ea5a4',3:'#d97706'};
+  var ranges = {1:'第 1–10 页',2:'第 11–20 页',3:'第 21–27 页'};
+  var h = '<span>批次色带（每 10 页换一套配色）</span>';
+  for(var b=1;b<=3;b++){ h += '<span class="lg"><span class="dot" style="background:'+cols[b]+'"></span>第'+b+'批 · '+ranges[b]+'</span>'; }
+  el.innerHTML = h;
+}
 function render(){
+  for(var x=0;x<DATA.pages.length;x++){ DATA.pages[x].__idx = x; }
   document.getElementById('verChip').textContent = 'v'+DATA.watchApp.version+' ('+DATA.watchApp.versionCode+')';
   document.getElementById('capTime').textContent = DATA.capturedAt || DATA.pageUpdatedAt;
   document.getElementById('pageTime').textContent = DATA.pageUpdatedAt;
+  buildLegend();
   buildFilter();
   var groups = uniqueGroups();
   var app = document.getElementById('app');
