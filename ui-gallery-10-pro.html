@@ -6,24 +6,26 @@
 <title>Ev课程表 · 页面总览（手环 10 Pro 截图档案）</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
+/* 默认 = App 模板「深空蓝」（与 class-schedule/src/data/store.js 的 THEMES 对齐）；
+   切到「晨光白 / 暖阳米」等浅色模板时由 JS 整体改写下面这些变量 */
 :root {
-  --bg:#f3f4f8; --surface:#ffffff; --card-bg:#ffffff; --ink:#1a1a2e;
-  --muted:#6b7280; --line:#e7e9f0; --accent:#6c63ff;
+  --bg:#1a1a2e; --surface:#16213e; --card-bg:#16213e; --ink:#ffffff;
+  --muted:#888899; --line:#2a2a5a; --accent:#7ec8e3; --on-accent:#10202e;
 }
 body {
   font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
   background:var(--bg); color:var(--ink); line-height:1.6; padding-bottom:40px;
 }
 /* 画框用写死高度而非 aspect-ratio：老 WebView/旧内核不支持 aspect-ratio 会塌成 0 高致图片不可见（336:480 定比，方屏圆角矩形，非 9 系胶囊） */
-.topbar { position:sticky; top:0; z-index:20; background:rgba(255,255,255,0.92); border-bottom:1px solid var(--line); }
+.topbar { position:sticky; top:0; z-index:20; background:var(--surface); border-bottom:1px solid var(--line); }
 .topbar-inner { max-width:1100px; margin:0 auto; padding:14px 20px 8px; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; }
 .t-title { font-size:1.25rem; font-weight:800; }
 .t-title small { font-weight:500; color:var(--muted); font-size:.78rem; margin-left:8px; }
 .t-meta { display:flex; flex-wrap:wrap; gap:12px; align-items:center; font-size:.78rem; color:var(--muted); }
-.chip { background:var(--accent); color:#fff; padding:3px 10px; border-radius:20px; font-weight:700; }
+.chip { background:var(--accent); color:var(--on-accent); padding:3px 10px; border-radius:20px; font-weight:700; }
 .filterbar { max-width:1100px; margin:0 auto; padding:0 20px 12px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
 .fbtn { border:1px solid var(--line); background:var(--surface); color:var(--ink); padding:6px 14px; border-radius:20px; font-size:.82rem; cursor:pointer; }
-.fbtn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.fbtn.active { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
 .fcheck { display:flex; align-items:center; gap:6px; font-size:.82rem; color:var(--muted); margin-left:auto; cursor:pointer; }
 .wrap { max-width:1100px; margin:0 auto; padding:18px 20px; }
 .group { background:var(--surface); border:1px solid var(--line); border-radius:16px; margin-bottom:16px; overflow:hidden; }
@@ -50,7 +52,7 @@ body {
 .pts { margin-top:6px; padding-left:18px; font-size:.86rem; color:#444; }
 .pts li { margin-bottom:2px; }
 .fb-link { color:var(--accent); font-size:.78rem; text-decoration:none; border:1px solid var(--line); border-radius:12px; padding:2px 10px; }
-.fb-link:hover { background:var(--accent); color:#fff; border-color:var(--accent); }
+.fb-link:hover { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
 .checklist { margin-top:8px; font-size:.82rem; }
 .checklist div { margin-bottom:2px; }
 .ok { color:#2e7d32; } .err { color:#e53935; font-weight:600; } .pend { color:#f0a000; }
@@ -59,14 +61,19 @@ body {
 .lightbox { position:fixed; inset:0; background:rgba(0,0,0,0.85); display:none; align-items:center; justify-content:center; z-index:50; cursor:zoom-out; }
 .lightbox.show { display:flex; }
 .lightbox img { max-width:90vw; max-height:90vh; border-radius:24px; }
-/* 批次色带（方案A）：每 10 页为一批，每批一套配色 —— 左缘色带 + 批次标签 + 轻底色 */
+/* 批次色带：每 10 页一批，三批配色 = 当前模板主色 ±38° 色相旋转（换模板时自动跟着变） */
 .legend { max-width:1100px; margin:0 auto; padding:2px 20px 10px; display:flex; flex-wrap:wrap; gap:10px; align-items:center; font-size:.76rem; color:var(--muted); }
 .legend .lg { display:inline-flex; align-items:center; gap:6px; background:var(--surface); border:1px solid var(--line); border-radius:20px; padding:3px 10px; }
 .legend .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
 .card { border-left:6px solid transparent; padding-left:14px; border-radius:2px; }
-.card[data-batch="1"] { border-left-color:#6c63ff; background:linear-gradient(90deg,rgba(108,99,255,.07),transparent 42%); }
-.card[data-batch="2"] { border-left-color:#0ea5a4; background:linear-gradient(90deg,rgba(14,165,164,.07),transparent 42%); }
-.card[data-batch="3"] { border-left-color:#d97706; background:linear-gradient(90deg,rgba(217,119,6,.07),transparent 42%); }
+.card[data-batch="1"] { border-left-color:var(--b1); background:linear-gradient(90deg,var(--b1bg),transparent 42%); }
+.card[data-batch="2"] { border-left-color:var(--b2); background:linear-gradient(90deg,var(--b2bg),transparent 42%); }
+.card[data-batch="3"] { border-left-color:var(--b3); background:linear-gradient(90deg,var(--b3bg),transparent 42%); }
+/* 模板切换器：10 个色板，点与点之间用「页面底 + 主色」双色区分 */
+.themebar { max-width:1100px; margin:0 auto; padding:0 20px 10px; display:flex; flex-wrap:wrap; gap:7px; align-items:center; font-size:.76rem; color:var(--muted); }
+.tsw { width:24px; height:24px; border-radius:50%; border:2px solid var(--line); background:#000; padding:0; cursor:pointer; overflow:hidden; display:inline-flex; }
+.tsw i { width:11px; height:11px; margin:1px 0 0 1px; display:block; border-radius:50%; }
+.tsw[data-on="1"] { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent); }
 .batch-chip { font-size:.68rem; font-weight:700; padding:2px 8px; border-radius:10px; color:#fff; }
 .batch-chip.b1 { background:#6c63ff; } .batch-chip.b2 { background:#0ea5a4; } .batch-chip.b3 { background:#d97706; }
 @media (max-width:600px){ .device{width:160px;height:229px;} .shots .device{width:120px;height:171px;} }
@@ -84,6 +91,7 @@ body {
   </div>
   <div class="filterbar" id="filterbar"></div>
   <div class="filterbar" id="siteNav"></div>
+  <div class="themebar" id="themeBar"></div>
   <div class="legend" id="batchLegend"></div>
 </div>
 <div class="wrap" id="app"></div>
@@ -238,6 +246,74 @@ function openLightbox(el){
   document.getElementById('lightbox').className = 'lightbox show';
 }
 function hideLightbox(){ document.getElementById('lightbox').className = 'lightbox'; }
+/* ---------- 10 套 App 模板（配色原样取自 class-schedule/src/data/store.js 的 THEMES）---------- */
+var THEME_SET = [
+  {k:'blue',   n:'深空蓝',  bg:'#1a1a2e', card:'#16213e', ink:'#ffffff', mut:'#888899', line:'#2a2a5a', acc:'#7ec8e3', on:'#10202e'},
+  {k:'green',  n:'翡翠绿',  bg:'#1a2e1a', card:'#1a3a1a', ink:'#ffffff', mut:'#889988', line:'#2a4a2a', acc:'#7ec8a0', on:'#0f2a1a'},
+  {k:'red',    n:'珊瑚红',  bg:'#2e1a1a', card:'#3a1a1a', ink:'#ffffff', mut:'#998888', line:'#5a2a2a', acc:'#e37e7e', on:'#2e1010'},
+  {k:'dark',   n:'暗夜黑',  bg:'#000000', card:'#0a0a0a', ink:'#cccccc', mut:'#666666', line:'#1a1a1a', acc:'#666666', on:'#000000'},
+  {k:'gray',   n:'深空灰',  bg:'#1a1a1a', card:'#242424', ink:'#e0e0e0', mut:'#888899', line:'#2a2a2a', acc:'#888899', on:'#111111'},
+  {k:'purple', n:'暗紫魅影', bg:'#1a0a2e', card:'#2a1a3a', ink:'#e0d0e8', mut:'#b090c0', line:'#3a204a', acc:'#b07ec8', on:'#1a0a2e'},
+  {k:'light',  n:'晨光白',  bg:'#f0f0f0', card:'#ffffff', ink:'#222222', mut:'#666666', line:'#d0d0d0', acc:'#4a90d9', on:'#ffffff'},
+  {k:'warm',   n:'暖阳米',  bg:'#f5f0e8', card:'#ffffff', ink:'#332211', mut:'#887766', line:'#e0d8cc', acc:'#c4a882', on:'#3a2a10'},
+  {k:'forest', n:'墨绿护眼', bg:'#1a2a1a', card:'#0a1a0a', ink:'#c0d0c0', mut:'#6a8a6a', line:'#0a2a0a', acc:'#6a9a6a', on:'#0a1a0a'},
+  {k:'amber',  n:'琥珀金',  bg:'#2a1a0a', card:'#3a2a1a', ink:'#f0e0c0', mut:'#b09070', line:'#4a3a2a', acc:'#d4a060', on:'#1a1000'}
+];
+function hex2rgb(h){ h = h.replace('#',''); return [parseInt(h.substr(0,2),16), parseInt(h.substr(2,2),16), parseInt(h.substr(4,2),16)]; }
+function rgb2hsl(r,g,b){
+  r/=255; g/=255; b/=255;
+  var mx=Math.max(r,g,b), mn=Math.min(r,g,b), d=mx-mn, l=(mx+mn)/2, h=0, s=0;
+  if(d){ s = (l>0.5) ? d/(2-mx-mn) : d/(mx+mn);
+    if(mx===r) h=((g-b)/d+(g<b?6:0)); else if(mx===g) h=(b-r)/d+2; else h=(r-g)/d+4; h*=60; }
+  return [h,s,l];
+}
+function hsl2rgb(h,s,l){
+  h=((h%360)+360)%360; s=Math.max(0,Math.min(1,s)); l=Math.max(0,Math.min(1,l));
+  var c=(1-Math.abs(2*l-1))*s, x=c*(1-Math.abs((h/60)%2-1)), m=l-c/2, o;
+  if(h<60) o=[c,x,0]; else if(h<120) o=[x,c,0]; else if(h<180) o=[0,c,x]; else if(h<240) o=[0,x,c]; else if(h<300) o=[x,0,c]; else o=[c,0,x];
+  return [Math.round((o[0]+m)*255), Math.round((o[1]+m)*255), Math.round((o[2]+m)*255)];
+}
+function applyTheme(k){
+  var t = THEME_SET[0], i;
+  for(i=0;i<THEME_SET.length;i++){ if(THEME_SET[i].k === k) t = THEME_SET[i]; }
+  var s = document.documentElement.style;
+  s.setProperty('--bg', t.bg);
+  s.setProperty('--surface', t.card);
+  s.setProperty('--card-bg', t.card);
+  s.setProperty('--ink', t.ink);
+  s.setProperty('--muted', t.mut);
+  s.setProperty('--line', t.line);
+  s.setProperty('--accent', t.acc);
+  s.setProperty('--on-accent', t.on);
+  var acc = hex2rgb(t.acc), h = rgb2hsl(acc[0], acc[1], acc[2]), c1 = acc, c2, c3;
+  if(h[1] < 0.15){
+    // 主色接近灰（暗夜黑/深空灰）时色相旋转无效（三批会撞成同色），兜底用固定三色
+    c2 = [94,200,216]; c3 = [224,160,94];
+  } else {
+    c2 = hsl2rgb(h[0]+38, h[1], h[2]);
+    c3 = hsl2rgb(h[0]-38, h[1], h[2]);
+  }
+  s.setProperty('--b1', 'rgb('+c1.join(',')+')');
+  s.setProperty('--b2', 'rgb('+c2.join(',')+')');
+  s.setProperty('--b3', 'rgb('+c3.join(',')+')');
+  s.setProperty('--b1bg', 'rgba('+c1.join(',')+',0.07)');
+  s.setProperty('--b2bg', 'rgba('+c2.join(',')+',0.07)');
+  s.setProperty('--b3bg', 'rgba('+c3.join(',')+',0.07)');
+  var sw = document.getElementsByClassName('tsw');
+  for(i=0;i<sw.length;i++){ sw[i].setAttribute('data-on', sw[i].getAttribute('data-k') === k ? '1' : '0'); }
+  var lbl = document.getElementById('themeName'); if(lbl) lbl.textContent = t.n;
+  try { localStorage.setItem('g10p-theme', k); } catch(_) {}
+}
+function buildThemeBar(){
+  var bar = document.getElementById('themeBar'); if(!bar) return;
+  var h = '<span>模板（10 套 · 点击换肤）</span>', i;
+  for(i=0;i<THEME_SET.length;i++){
+    var t = THEME_SET[i];
+    h += '<button class="tsw" data-k="'+t.k+'" title="'+t.n+'" onclick="applyTheme(\''+t.k+'\')" style="background:'+t.bg+'"><i style="background:'+t.acc+'"></i></button>';
+  }
+  h += '<span id="themeName"></span>';
+  bar.innerHTML = h;
+}
 function buildLegend(){
   var el = document.getElementById('batchLegend'); if(!el) return;
   var cols = {1:'#6c63ff',2:'#0ea5a4',3:'#d97706'};
@@ -248,6 +324,9 @@ function buildLegend(){
 }
 function render(){
   for(var x=0;x<DATA.pages.length;x++){ DATA.pages[x].__idx = x; }
+  buildThemeBar();
+  var tk = 'blue'; try { tk = localStorage.getItem('g10p-theme') || 'blue'; } catch(_) {}
+  applyTheme(tk);
   document.getElementById('verChip').textContent = 'v'+DATA.watchApp.version+' ('+DATA.watchApp.versionCode+')';
   document.getElementById('capTime').textContent = DATA.capturedAt || DATA.pageUpdatedAt;
   document.getElementById('pageTime').textContent = DATA.pageUpdatedAt;
