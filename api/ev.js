@@ -616,6 +616,8 @@ async function handleEvCommandWrite(req, res) {
   var payload = String(body.payload || "").trim().slice(0, 500);
   var reason = String(body.reason || "").trim().slice(0, 200);
   var device = String(body.device || "unknown").trim().slice(0, 80);
+  // 定向：指定会话 sid 则只有该会话会消费该指令；留空 = 任意会话先到先得
+  var targetSession = String(body.target_session || "").trim().slice(0, 120);
   if (["escalate", "cancel", "expedite", "custom"].indexOf(type) < 0) {
     return json(res, 400, { success: false, error: "bad_type", detail: "type 只接受 escalate/cancel/expedite/custom" });
   }
@@ -652,7 +654,7 @@ async function handleEvCommandWrite(req, res) {
       body: JSON.stringify({
         id: id, task_ref: taskRef || null, type: type,
         payload: payload || null, reason: reason || null,
-        device: device, status: "pending",
+        device: device, target_session: targetSession || null, status: "pending",
         created_at: new Date().toISOString()
       })
     });
