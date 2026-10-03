@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "generated_at": "2026-10-03T01:31:06+08:00",
+  "generated_at": "2026-10-03T10:37:11+08:00",
   "generator": "scripts/collect-status.js",
   "note": "会话进度（动态层）。projects[] 沿用 projects.json 原字段 + plan/sessions 统计。",
   "count": 20,
@@ -9,6 +9,10 @@
     "done": 10,
     "in_progress": 0,
     "blocked": 0,
+    "cancelled": 0,
+    "superseded": 0,
+    "abandoned": 0,
+    "needs_attention": 0,
     "planned": 10,
     "active_sessions": 2
   },
@@ -24,7 +28,15 @@
       "evidence": [
         "651d309"
       ],
-      "source": "session"
+      "source": "session",
+      "note": "P1 验收全过：双实例各截真图+零GUI登记，三种退出零qemu残留；修3个坑，子仓d47501a/父仓651d309已推",
+      "actor": "workbuddy",
+      "tool": "workbuddy",
+      "session": "65482-20261002225100",
+      "type": "feature",
+      "priority": "P2",
+      "reason": null,
+      "superseded_by": null
     },
     {
       "id": "C1-QA",
@@ -35,7 +47,17 @@
       "blocked_by": null,
       "updated_at": null,
       "evidence": [],
-      "source": "plan"
+      "source": "plan",
+      "note": null,
+      "type": null,
+      "size": null,
+      "priority": "P2",
+      "actor": null,
+      "tool": null,
+      "session": null,
+      "reason": null,
+      "superseded_by": null,
+      "abandoned_at": null
     },
     {
       "id": "A1-SessionStatus",
@@ -46,7 +68,17 @@
       "blocked_by": null,
       "updated_at": null,
       "evidence": [],
-      "source": "plan"
+      "source": "plan",
+      "note": null,
+      "type": null,
+      "size": null,
+      "priority": "P2",
+      "actor": null,
+      "tool": null,
+      "session": null,
+      "reason": null,
+      "superseded_by": null,
+      "abandoned_at": null
     },
     {
       "id": "A2-Verify",
@@ -57,7 +89,17 @@
       "blocked_by": null,
       "updated_at": null,
       "evidence": [],
-      "source": "plan"
+      "source": "plan",
+      "note": null,
+      "type": null,
+      "size": null,
+      "priority": "P2",
+      "actor": null,
+      "tool": null,
+      "session": null,
+      "reason": null,
+      "superseded_by": null,
+      "abandoned_at": null
     },
     {
       "id": "R1-Scan",
@@ -68,7 +110,17 @@
       "blocked_by": null,
       "updated_at": null,
       "evidence": [],
-      "source": "plan"
+      "source": "plan",
+      "note": null,
+      "type": null,
+      "size": null,
+      "priority": "P2",
+      "actor": null,
+      "tool": null,
+      "session": null,
+      "reason": null,
+      "superseded_by": null,
+      "abandoned_at": null
     },
     {
       "id": "冒烟-成功路径",
@@ -81,7 +133,15 @@
       "evidence": [
         "217d100"
       ],
-      "source": "session"
+      "source": "session",
+      "note": "ok",
+      "actor": "workbuddy",
+      "tool": "workbuddy",
+      "session": "32826-20261002212918",
+      "type": "feature",
+      "priority": "P2",
+      "reason": null,
+      "superseded_by": null
     },
     {
       "id": "T1-SessionReport",
@@ -92,7 +152,17 @@
       "blocked_by": null,
       "updated_at": null,
       "evidence": [],
-      "source": "plan"
+      "source": "plan",
+      "note": null,
+      "type": null,
+      "size": null,
+      "priority": "P2",
+      "actor": null,
+      "tool": null,
+      "session": null,
+      "reason": null,
+      "superseded_by": null,
+      "abandoned_at": null
     },
     {
       "id": "T10-RequirementsFix",
@@ -103,7 +173,17 @@
       "blocked_by": null,
       "updated_at": null,
       "evidence": [],
-      "source": "plan"
+      "source": "plan",
+      "note": null,
+      "type": null,
+      "size": null,
+      "priority": "P2",
+      "actor": null,
+      "tool": null,
+      "session": null,
+      "reason": null,
+      "superseded_by": null,
+      "abandoned_at": null
     },
     {
       "id": "T11-PROJECTMAP",
@@ -114,7 +194,17 @@
       "blocked_by": null,
       "updated_at": null,
       "evidence": [],
-      "source": "plan"
+      "source": "plan",
+      "note": null,
+      "type": null,
+      "size": null,
+      "priority": "P2",
+      "actor": null,
+      "tool": null,
+      "session": null,
+      "reason": null,
+      "superseded_by": null,
+      "abandoned_at": null
     },
     {
       "id": "T12-Archive",
@@ -125,7 +215,17 @@
       "blocked_by": null,
       "updated_at": null,
       "evidence": [],
-      "source": "plan"
+      "source": "plan",
+      "note": null,
+      "type": null,
+      "size": null,
+      "priority": "P2",
+      "actor": null,
+      "tool": null,
+      "session": null,
+      "reason": null,
+      "superseded_by": null,
+      "abandoned_at": null
     },
     {
       "id": "T13-SessionRules",
@@ -136,7 +236,17 @@
       "blocked_by": null,
       "updated_at": null,
       "evidence": [],
-      "source": "plan"
+      "source": "plan",
+      "note": null,
+      "type": null,
+      "size": null,
+      "priority": "P2",
+      "actor": null,
+      "tool": null,
+      "session": null,
+      "reason": null,
+      "superseded_by": null,
+      "abandoned_at": null
     },
     {
       "id": "T14-NoteFix",
@@ -147,7 +257,17 @@
       "blocked_by": null,
       "updated_at": null,
       "evidence": [],
-      "source": "plan"
+      "source": "plan",
+      "note": null,
+      "type": null,
+      "size": null,
+      "priority": "P2",
+      "actor": null,
+      "tool": null,
+      "session": null,
+      "reason": null,
+      "superseded_by": null,
+      "abandoned_at": null
     },
     {
       "id": "T2-Collector",
@@ -158,7 +278,17 @@
       "blocked_by": null,
       "updated_at": null,
       "evidence": [],
-      "source": "plan"
+      "source": "plan",
+      "note": null,
+      "type": null,
+      "size": null,
+      "priority": "P2",
+      "actor": null,
+      "tool": null,
+      "session": null,
+      "reason": null,
+      "superseded_by": null,
+      "abandoned_at": null
     },
     {
       "id": "T3-Plan",
@@ -169,7 +299,17 @@
       "blocked_by": null,
       "updated_at": null,
       "evidence": [],
-      "source": "plan"
+      "source": "plan",
+      "note": null,
+      "type": null,
+      "size": null,
+      "priority": "P2",
+      "actor": null,
+      "tool": null,
+      "session": null,
+      "reason": null,
+      "superseded_by": null,
+      "abandoned_at": null
     },
     {
       "id": "T4-Launchd",
@@ -180,7 +320,17 @@
       "blocked_by": null,
       "updated_at": null,
       "evidence": [],
-      "source": "plan"
+      "source": "plan",
+      "note": null,
+      "type": null,
+      "size": null,
+      "priority": "P2",
+      "actor": null,
+      "tool": null,
+      "session": null,
+      "reason": null,
+      "superseded_by": null,
+      "abandoned_at": null
     },
     {
       "id": "T5-DynamicApi",
@@ -191,7 +341,17 @@
       "blocked_by": null,
       "updated_at": null,
       "evidence": [],
-      "source": "plan"
+      "source": "plan",
+      "note": null,
+      "type": null,
+      "size": null,
+      "priority": "P2",
+      "actor": null,
+      "tool": null,
+      "session": null,
+      "reason": null,
+      "superseded_by": null,
+      "abandoned_at": null
     },
     {
       "id": "T6-TasksPage",
@@ -202,7 +362,17 @@
       "blocked_by": null,
       "updated_at": null,
       "evidence": [],
-      "source": "plan"
+      "source": "plan",
+      "note": null,
+      "type": null,
+      "size": null,
+      "priority": "P2",
+      "actor": null,
+      "tool": null,
+      "session": null,
+      "reason": null,
+      "superseded_by": null,
+      "abandoned_at": null
     },
     {
       "id": "T7-Pipeline",
@@ -213,7 +383,17 @@
       "blocked_by": null,
       "updated_at": null,
       "evidence": [],
-      "source": "plan"
+      "source": "plan",
+      "note": null,
+      "type": null,
+      "size": null,
+      "priority": "P2",
+      "actor": null,
+      "tool": null,
+      "session": null,
+      "reason": null,
+      "superseded_by": null,
+      "abandoned_at": null
     },
     {
       "id": "T8-StatusSource",
@@ -224,7 +404,17 @@
       "blocked_by": null,
       "updated_at": null,
       "evidence": [],
-      "source": "plan"
+      "source": "plan",
+      "note": null,
+      "type": null,
+      "size": null,
+      "priority": "P2",
+      "actor": null,
+      "tool": null,
+      "session": null,
+      "reason": null,
+      "superseded_by": null,
+      "abandoned_at": null
     },
     {
       "id": "T9-IconLucide",
@@ -235,7 +425,17 @@
       "blocked_by": null,
       "updated_at": null,
       "evidence": [],
-      "source": "plan"
+      "source": "plan",
+      "note": null,
+      "type": null,
+      "size": null,
+      "priority": "P2",
+      "actor": null,
+      "tool": null,
+      "session": null,
+      "reason": null,
+      "superseded_by": null,
+      "abandoned_at": null
     }
   ],
   "projects": [
