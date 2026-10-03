@@ -602,6 +602,136 @@ async function handleEvStatusWrite(req, res) {
 }
 
 /**
+ * EvOps 双向任务指挥 —— 写：POST ?action=ev-command-write
+ * body = { task_ref?, type: escalate|cancel|expedite|custom, payload?, reason?, device? }
+ * 写入 Supabase 表 evops_commands（status=pending），由 Mac 侧监听器（Realtime 长连接，
+ * 禁轮询）实时取走：写本地指令队列 + macOS 通知，AI 会话下一轮经钩子 stdout 注入执行。
+ * 护栏（沿用 D1）：escalate/cancel 必须带 reason；同 device 60s 内 ≤3 条防误触连点；
+ * payload 自由文本只作为 AI 提示上下文，绝不进入任何 shell/eval（公开端点无鉴权）。
+ */
+async function handleEvCommandWrite(req, res) {
+  var body = (req.body && typeof req.body === "object") ? req.body : {};
+  var type = String(body.type || "").trim();
+  var taskRef = String(body.task_ref || "").trim().slice(0, 300);
+  var payload = String(body.payload || "").trim().slice(0, 500);
+  var reason = String(body.reason || "").trim().slice(0, 200);
+  var device = String(body.device || "unknown").trim().slice(0, 80);
+  if (["escalate", "cancel", "expedite", "custom"].indexOf(type) < 0) {
+    return json(res, 400, { success: false, error: "bad_type", detail: "type 只接受 escalate/cancel/expedite/custom" });
+  }
+  if ((type === "escalate" || type === "cancel") && !reason) {
+    return json(res, 400, { success: false, error: "reason_required", detail: "加急/取消必须给理由（护栏①）" });
+  }
+  if (type === "custom" && !payload) {
+    return json(res, 400, { success: false, error: "payload_required", detail: "自定义指令必须带内容" });
+  }
+  var sbUrl = process.env.NEXT_PUBLIC_Ev_SUPABASE_URL;
+  var sbKey = process.env.Ev_SUPABASE_SERVICE_ROLE_KEY;
+  if (!sbUrl || !sbKey) return json(res, 500, { success: false, error: "no_store_configured" });
+  try {
+    // 限流：同 device 最近 60s 的指令数 ≤3（REST 查询，超了拒绝并提示）
+    var since = new Date(Date.now() - 60000).toISOString();
+    var cnt = await fetch(sbUrl + "/rest/v1/evops_commands?device=eq." + encodeURIComponent(device)
+        + "&created_at=gte." + since + "&select=id", {
+      headers: { apikey: sbKey, Authorization: "Bearer " + sbKey }
+    });
+    if (cnt.ok) {
+      var arr = await cnt.json();
+      if (Array.isArray(arr) && arr.length >= 3) {
+        return json(res, 429, { success: false, error: "rate_limited", detail: "同设备 60 秒内最多 3 条指令" });
+      }
+    }
+    var id = "cmd-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+    var ins = await fetch(sbUrl + "/rest/v1/evops_commands", {
+      method: "POST",
+      headers: {
+        apikey: sbKey, Authorization: "Bearer " + sbKey,
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates"
+      },
+      body: JSON.stringify({
+        id: id, task_ref: taskRef || null, type: type,
+        payload: payload || null, reason: reason || null,
+        device: device, status: "pending",
+        created_at: new Date().toISOString()
+      })
+    });
+    if (!ins.ok && ins.status !== 201) {
+      var txt = await ins.text();
+      return json(res, 502, { success: false, error: "supabase_write_failed", detail: String(txt).slice(0, 200) });
+    }
+    return json(res, 200, { success: true, command_id: id, status: "pending" });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
+/**
+ * EvOps 指令读取 —— GET ?action=ev-command-get[&status=pending|delivered|executed][&limit=20]
+ * 给 Mac 监听器（取走 pending 并标 delivered）与看板回查用。公开端点只读。
+ */
+async function handleEvCommandGet(req, res, query) {
+  var q = query || {};
+  var status = String(q.status || "").trim();
+  var limit = Math.min(parseInt(String(q.limit || "20"), 10) || 20, 100);
+  var sbUrl = process.env.NEXT_PUBLIC_Ev_SUPABASE_URL;
+  var sbKey = process.env.Ev_SUPABASE_SERVICE_ROLE_KEY;
+  if (!sbUrl || !sbKey) return json(res, 500, { success: false, error: "no_store_configured" });
+  try {
+    var url = sbUrl + "/rest/v1/evops_commands?order=created_at.desc&limit=" + limit
+      + (status ? ("&status=eq." + encodeURIComponent(status)) : "");
+    var r = await fetch(url, { headers: { apikey: sbKey, Authorization: "Bearer " + sbKey } });
+    if (!r.ok) {
+      var txt = await r.text();
+      return json(res, 502, { success: false, error: "supabase_read_failed", detail: String(txt).slice(0, 200) });
+    }
+    var arr = await r.json();
+    return json(res, 200, { success: true, commands: Array.isArray(arr) ? arr : [] });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
+/**
+ * EvOps 指令状态回写 —— POST ?action=ev-command-status
+ * body = { command_id, status: delivered|ack|executed|rejected, result_note? }
+ * 由 Mac 监听器（delivered）与 AI 会话收尾（executed，带 commit 证据时写 result_note）调用。
+ */
+async function handleEvCommandStatus(req, res) {
+  var body = (req.body && typeof req.body === "object") ? req.body : {};
+  var id = String(body.command_id || "").trim();
+  var status = String(body.status || "").trim();
+  var note = String(body.result_note || "").trim().slice(0, 300);
+  if (!id) return json(res, 400, { success: false, error: "Missing command_id" });
+  if (["delivered", "ack", "executed", "rejected"].indexOf(status) < 0) {
+    return json(res, 400, { success: false, error: "bad_status", detail: "只接受 delivered/ack/executed/rejected" });
+  }
+  var sbUrl = process.env.NEXT_PUBLIC_Ev_SUPABASE_URL;
+  var sbKey = process.env.Ev_SUPABASE_SERVICE_ROLE_KEY;
+  if (!sbUrl || !sbKey) return json(res, 500, { success: false, error: "no_store_configured" });
+  try {
+    var patch = { status: status };
+    if (note) patch.result_note = note;
+    var r = await fetch(sbUrl + "/rest/v1/evops_commands?id=eq." + encodeURIComponent(id), {
+      method: "PATCH",
+      headers: {
+        apikey: sbKey, Authorization: "Bearer " + sbKey,
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+      },
+      body: JSON.stringify(patch)
+    });
+    if (!r.ok) {
+      var txt = await r.text();
+      return json(res, 502, { success: false, error: "supabase_write_failed", detail: String(txt).slice(0, 200) });
+    }
+    return json(res, 200, { success: true, command_id: id, status: status });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
+/**
  * EvOps 优先级覆盖（护栏③：人可一键降级 AI 的 P0/P1）—— 写：POST ?action=ev-priority-set
  * body = { task_id, priority, reason }。**公开端点**，但只接受 P1/P2（禁止升到 P0），
  * 避免被滥用刷高告警。写入 Supabase 表 evops_priority_override（service_role）。
@@ -668,6 +798,7 @@ async function handleEvPriorityGet(req, res) {
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   var action = (req.query && req.query.action) || "";
+  var query = req.query || {};
 
   try {
     switch (action) {
@@ -719,6 +850,18 @@ module.exports = async (req, res) => {
       case "ev-priority-get":
         if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
         return await handleEvPriorityGet(req, res);
+      case "ev-command-write":
+        // 公开写：手机端任务指令（加急/取消/尽快收尾/自定义），护栏内置（理由必填+限流）
+        if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
+        return await handleEvCommandWrite(req, res);
+      case "ev-command-get":
+        // 公开读：Mac 监听器取指令 / 看板回查指令轨迹
+        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
+        return await handleEvCommandGet(req, res, query);
+      case "ev-command-status":
+        // 公开写：指令状态回写（delivered/ack/executed/rejected），仅供状态机流转
+        if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
+        return await handleEvCommandStatus(req, res);
       default:
         return json(res, 400, { success: false, error: "Unknown action" });
     }
