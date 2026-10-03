@@ -494,6 +494,33 @@ async function handleReportDeploy(req, res) {
 }
 
 /**
+ * 护栏③：把「人手动降级」覆盖合并进动态层 payload（读时生效，不必等 Mac 重采集）。
+ * 覆盖只可能把优先级降到 P1/P2（写入端点已限制），故这里是安全的单向纠错。
+ */
+async function applyPriorityOverrides(payload) {
+  try {
+    var sbUrl = process.env.NEXT_PUBLIC_Ev_SUPABASE_URL;
+    var sbKey = process.env.Ev_SUPABASE_SERVICE_ROLE_KEY;
+    if (!sbUrl || !sbKey || !payload || !Array.isArray(payload.tasks)) return;
+    var r = await fetch(sbUrl + "/rest/v1/evops_priority_override?select=task_id,priority,reason", {
+      headers: { apikey: sbKey, Authorization: "Bearer " + sbKey }
+    });
+    if (!r.ok) return;
+    var rows = await r.json();
+    var m = {};
+    (rows || []).forEach(function (o) { if (o && o.task_id) m[o.task_id] = o; });
+    payload.tasks.forEach(function (t) {
+      var o = m[t && t.id];
+      if (o && (o.priority === "P1" || o.priority === "P2")) {
+        t.priority = o.priority;
+        t.priority_reason = "人手动降级：" + (o.reason || ("→" + o.priority));
+        t.overridden = true;
+      }
+    });
+  } catch (e) { /* 覆盖读取失败不影响主数据 */ }
+}
+
+/**
  * EvOps 项目/任务动态层 —— 读：GET ?action=ev-status
  * 从 Supabase 表 evops_status(id=1) 读 payload（Mac 采集后由 ev-status-write 写入，实时，
  * 零部署延迟，不消耗 Redis 额度）。Supabase 不可用时回退仓库内 ev-status.json 静态文件。
@@ -511,7 +538,9 @@ async function handleEvStatusGet(req, res) {
         var rows = await r.json();
         if (Array.isArray(rows) && rows[0] && rows[0].payload) {
           var p = rows[0].payload;
-          return json(res, 200, typeof p === "string" ? JSON.parse(p) : p);
+          if (typeof p === "string") p = JSON.parse(p);
+          await applyPriorityOverrides(p);   // 护栏③：合并人工降级（人纠错 AI，读时即生效）
+          return json(res, 200, p);
         }
       }
     } catch (e) { /* Supabase 失败回落文件 */ }
@@ -572,6 +601,70 @@ async function handleEvStatusWrite(req, res) {
   return json(res, 500, { success: false, error: "no_store_configured" });
 }
 
+/**
+ * EvOps 优先级覆盖（护栏③：人可一键降级 AI 的 P0/P1）—— 写：POST ?action=ev-priority-set
+ * body = { task_id, priority, reason }。**公开端点**，但只接受 P1/P2（禁止升到 P0），
+ * 避免被滥用刷高告警。写入 Supabase 表 evops_priority_override（service_role）。
+ */
+async function handleEvPrioritySet(req, res) {
+  var body = (req.body && typeof req.body === "object") ? req.body : {};
+  var taskId = String(body.task_id || "").trim();
+  var priority = String(body.priority || "").trim();
+  var reason = String(body.reason || "").trim().slice(0, 120);
+  if (!taskId) return json(res, 400, { success: false, error: "Missing task_id" });
+  if (priority !== "P1" && priority !== "P2") {
+    return json(res, 400, { success: false, error: "only_downgrade_allowed", detail: "priority 只接受 P1/P2（禁止升到 P0）" });
+  }
+  var sbUrl = process.env.NEXT_PUBLIC_Ev_SUPABASE_URL;
+  var sbKey = process.env.Ev_SUPABASE_SERVICE_ROLE_KEY;
+  if (!sbUrl || !sbKey) return json(res, 500, { success: false, error: "no_store_configured" });
+  try {
+    var r = await fetch(sbUrl + "/rest/v1/evops_priority_override", {
+      method: "POST",
+      headers: {
+        apikey: sbKey,
+        Authorization: "Bearer " + sbKey,
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates"
+      },
+      body: JSON.stringify({
+        task_id: taskId, priority: priority,
+        reason: reason || ("人手动降级为 " + priority),
+        updated_at: new Date().toISOString()
+      })
+    });
+    if (r.ok || r.status === 201) {
+      return json(res, 200, { success: true, store: "supabase", task_id: taskId, priority: priority });
+    }
+    var txt = await r.text();
+    return json(res, 502, { success: false, error: "supabase_write_failed", detail: String(txt).slice(0, 200) });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
+/**
+ * EvOps 优先级覆盖 —— 读：GET ?action=ev-priority-get（公开）
+ * 返回 { overrides: [{task_id, priority, reason, updated_at}] }；Mac 采集器据此把人工降级看板化。
+ */
+async function handleEvPriorityGet(req, res) {
+  var sbUrl = process.env.NEXT_PUBLIC_Ev_SUPABASE_URL;
+  var sbKey = process.env.Ev_SUPABASE_SERVICE_ROLE_KEY;
+  if (!sbUrl || !sbKey) return json(res, 200, { overrides: [] });
+  try {
+    var r = await fetch(sbUrl + "/rest/v1/evops_priority_override?select=task_id,priority,reason,updated_at", {
+      headers: { apikey: sbKey, Authorization: "Bearer " + sbKey }
+    });
+    if (r.ok) {
+      var rows = await r.json();
+      return json(res, 200, { overrides: Array.isArray(rows) ? rows : [] });
+    }
+    return json(res, 502, { success: false, error: "supabase_read_failed" });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   var action = (req.query && req.query.action) || "";
@@ -619,6 +712,13 @@ module.exports = async (req, res) => {
       case "ev-status-write":
         if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
         return await handleEvStatusWrite(req, res);
+      case "ev-priority-set":
+        // 公开写：只允许降级（P1/P2），护栏③「人一键降级」
+        if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
+        return await handleEvPrioritySet(req, res);
+      case "ev-priority-get":
+        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
+        return await handleEvPriorityGet(req, res);
       default:
         return json(res, 400, { success: false, error: "Unknown action" });
     }
