@@ -37,6 +37,9 @@ var ONLINE_TS = "ev:online:ts";      // 各项目线上版本部署时间戳（h
 var ONLINE_WINDOW = 10 * 60 * 1000; // 心跳 10 分钟内算「在线」
 var HIST_MAX_WINDOW_H = 24 * 7;      // 历史心跳最多回看 7 天
 
+// EvOps 项目/任务动态层：App 直接 GET 读 Redis（实时，零部署）；Mac 采集后 POST 写 Redis。
+var STATUS_KEY = "ev:status";
+
 /** 读取在线版本：文件 data/online-versions.json 作种子，Redis ev:online 覆盖（部署回写）。 */
 function loadOnlineSync() {
   var online = {};
@@ -493,6 +496,53 @@ async function handleReportDeploy(req, res) {
   return json(res, 200, { success: true, project: project, version: version });
 }
 
+/**
+ * EvOps 项目/任务动态层 —— 读：GET ?action=ev-status
+ * 优先 Redis（Mac 采集后实时写入，零部署延迟），Redis 缺失则回退仓库内 ev-status.json
+ * 静态文件（兼容迁移期）。App 端 StatusSource 直接读这个端点拿最新 projects/tasks。
+ */
+async function handleEvStatusGet(req, res) {
+  var raw = null;
+  try { raw = await redis.get(STATUS_KEY); } catch (e) { raw = null; }
+  if (raw) {
+    try {
+      return json(res, 200, typeof raw === "string" ? JSON.parse(raw) : raw);
+    } catch (e) { /* 解析失败回退文件 */ }
+  }
+  try {
+    var fp = path.join(process.cwd(), "ev-status.json");
+    if (fs.existsSync(fp)) {
+      return json(res, 200, JSON.parse(fs.readFileSync(fp, "utf-8")));
+    }
+  } catch (e) { /* ignore */ }
+  return json(res, 200, { projects: [], tasks: [] });
+}
+
+/**
+ * EvOps 项目/任务动态层 —— 写：POST ?action=ev-status-write（body = 整个 tasks.json 对象）
+ * 鉴权 = EV_SYNC_TOKEN Bearer（与 delivery-* 端点共享，Mac 侧持有）。写入 Redis（实时源）+
+ * 尽力回写 ev-status.json 文件种子（兼容 / 持久化）。不走 git push，因此不触发 Vercel 重部署。
+ */
+async function handleEvStatusWrite(req, res) {
+  var secret = process.env.EV_SYNC_TOKEN;
+  if (secret) {
+    var h = (req.headers && req.headers.authorization) || "";
+    if (h !== "Bearer " + secret) return json(res, 401, { success: false, error: "unauthorized" });
+  }
+  var body = (req.body && typeof req.body === "object") ? req.body : {};
+  if (!body || (!body.projects && !body.tasks)) {
+    return json(res, 400, { success: false, error: "Missing projects/tasks" });
+  }
+  try {
+    await redis.set(STATUS_KEY, JSON.stringify(body), { ex: 60 * 60 * 24 * 30 });
+  } catch (e) { /* redis 失败仍尝试回写文件种子 */ }
+  try {
+    var fp = path.join(process.cwd(), "ev-status.json");
+    fs.writeFileSync(fp, JSON.stringify(body, null, 2));
+  } catch (e) { /* 只读环境忽略 */ }
+  return json(res, 200, { success: true });
+}
+
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   var action = (req.query && req.query.action) || "";
@@ -533,6 +583,13 @@ module.exports = async (req, res) => {
       case "report-deploy":
         if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
         return await handleReportDeploy(req, res);
+      case "ev-status":
+        // 公开读：EvOps 安卓端拉取项目/任务动态层
+        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
+        return await handleEvStatusGet(req, res);
+      case "ev-status-write":
+        if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
+        return await handleEvStatusWrite(req, res);
       default:
         return json(res, 400, { success: false, error: "Unknown action" });
     }
