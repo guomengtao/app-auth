@@ -37,9 +37,6 @@ var ONLINE_TS = "ev:online:ts";      // 各项目线上版本部署时间戳（h
 var ONLINE_WINDOW = 10 * 60 * 1000; // 心跳 10 分钟内算「在线」
 var HIST_MAX_WINDOW_H = 24 * 7;      // 历史心跳最多回看 7 天
 
-// EvOps 项目/任务动态层：App 直接 GET 读 Redis（实时，零部署）；Mac 采集后 POST 写 Redis。
-var STATUS_KEY = "ev:status";
-
 /** 读取在线版本：文件 data/online-versions.json 作种子，Redis ev:online 覆盖（部署回写）。 */
 function loadOnlineSync() {
   var online = {};
@@ -498,16 +495,26 @@ async function handleReportDeploy(req, res) {
 
 /**
  * EvOps 项目/任务动态层 —— 读：GET ?action=ev-status
- * 优先 Redis（Mac 采集后实时写入，零部署延迟），Redis 缺失则回退仓库内 ev-status.json
- * 静态文件（兼容迁移期）。App 端 StatusSource 直接读这个端点拿最新 projects/tasks。
+ * 从 Supabase 表 evops_status(id=1) 读 payload（Mac 采集后由 ev-status-write 写入，实时，
+ * 零部署延迟，不消耗 Redis 额度）。Supabase 不可用时回退仓库内 ev-status.json 静态文件。
+ * App 端 StatusSource 直接读这个端点拿最新 projects/tasks。
  */
 async function handleEvStatusGet(req, res) {
-  var raw = null;
-  try { raw = await redis.get(STATUS_KEY); } catch (e) { raw = null; }
-  if (raw) {
+  var sbUrl = process.env.NEXT_PUBLIC_Ev_SUPABASE_URL;
+  var sbKey = process.env.Ev_SUPABASE_SERVICE_ROLE_KEY;
+  if (sbUrl && sbKey) {
     try {
-      return json(res, 200, typeof raw === "string" ? JSON.parse(raw) : raw);
-    } catch (e) { /* 解析失败回退文件 */ }
+      var r = await fetch(sbUrl + "/rest/v1/evops_status?id=eq.1&select=payload,updated_at", {
+        headers: { apikey: sbKey, Authorization: "Bearer " + sbKey }
+      });
+      if (r.ok) {
+        var rows = await r.json();
+        if (Array.isArray(rows) && rows[0] && rows[0].payload) {
+          var p = rows[0].payload;
+          return json(res, 200, typeof p === "string" ? JSON.parse(p) : p);
+        }
+      }
+    } catch (e) { /* Supabase 失败回落文件 */ }
   }
   try {
     var fp = path.join(process.cwd(), "ev-status.json");
@@ -520,8 +527,8 @@ async function handleEvStatusGet(req, res) {
 
 /**
  * EvOps 项目/任务动态层 —— 写：POST ?action=ev-status-write（body = 整个 tasks.json 对象）
- * 鉴权 = EV_SYNC_TOKEN Bearer（与 delivery-* 端点共享，Mac 侧持有）。写入 Redis（实时源）+
- * 尽力回写 ev-status.json 文件种子（兼容 / 持久化）。不走 git push，因此不触发 Vercel 重部署。
+ * 鉴权 = EV_SYNC_TOKEN Bearer（与 delivery-* 端点共享，Mac 侧持有）。用 service_role 直写
+ * Supabase 表 evops_status(id=1)（upsert）。不走 git push，因此不触发 Vercel 重新部署。
  */
 async function handleEvStatusWrite(req, res) {
   var secret = process.env.EV_SYNC_TOKEN;
@@ -533,14 +540,36 @@ async function handleEvStatusWrite(req, res) {
   if (!body || (!body.projects && !body.tasks)) {
     return json(res, 400, { success: false, error: "Missing projects/tasks" });
   }
-  try {
-    await redis.set(STATUS_KEY, JSON.stringify(body), { ex: 60 * 60 * 24 * 30 });
-  } catch (e) { /* redis 失败仍尝试回写文件种子 */ }
+  var sbUrl = process.env.NEXT_PUBLIC_Ev_SUPABASE_URL;
+  var sbKey = process.env.Ev_SUPABASE_SERVICE_ROLE_KEY;
+  if (sbUrl && sbKey) {
+    try {
+      var r = await fetch(sbUrl + "/rest/v1/evops_status", {
+        method: "POST",
+        headers: {
+          apikey: sbKey,
+          Authorization: "Bearer " + sbKey,
+          "Content-Type": "application/json",
+          "Prefer": "resolution=merge-duplicates"
+        },
+        body: JSON.stringify({ id: 1, payload: body })
+      });
+      if (r.ok || r.status === 201) {
+        return json(res, 200, { success: true, store: "supabase" });
+      }
+      var txt = await r.text();
+      return json(res, 502, { success: false, error: "supabase_write_failed", detail: String(txt).slice(0, 200) });
+    } catch (e) {
+      return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+    }
+  }
+  // Supabase 未配置时回退：尽力写文件种子（兼容期）
   try {
     var fp = path.join(process.cwd(), "ev-status.json");
     fs.writeFileSync(fp, JSON.stringify(body, null, 2));
-  } catch (e) { /* 只读环境忽略 */ }
-  return json(res, 200, { success: true });
+    return json(res, 200, { success: true, store: "file" });
+  } catch (e) {}
+  return json(res, 500, { success: false, error: "no_store_configured" });
 }
 
 module.exports = async (req, res) => {
