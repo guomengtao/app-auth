@@ -35,12 +35,15 @@ body {
 .group-body { padding:0 18px 18px; }
 .card { display:flex; gap:18px; padding:18px 0; border-top:1px solid var(--line); flex-wrap:wrap; }
 .card:first-child { border-top:none; }
-.device { width:168px; flex:0 0 auto; height:412px; border-radius:18px; background:#0b0b0f; padding:8px; overflow:hidden; }
-.device img { width:100%; height:100%; object-fit:contain; border-radius:12px; display:block; cursor:zoom-in; background:#000; }
+/* 手环 10 是胶囊屏（212×520，长条圆角两端近半圆）→ 画框与图片都要做成胶囊形，
+   圆角取「宽度的一半」两端才是半圆（照手环9 胶囊屏的比例缩放，勿用方屏的小圆角） */
+.device { width:208px; flex:0 0 auto; height:510px; border-radius:104px; background:#0b0b0f; padding:8px; overflow:hidden; }
+.device img { width:100%; height:100%; object-fit:cover; border-radius:96px; display:block; cursor:zoom-in; background:#000; }
 .device.empty { display:flex; align-items:center; justify-content:center; text-align:center; color:#9aa; font-size:.8rem; }
 .device.empty .ph { padding:10px; }
 .shots { display:flex; gap:10px; flex-wrap:wrap; }
-.shots .device { width:130px; height:319px; border-radius:14px; padding:6px; }
+.shots .device { width:156px; height:382px; border-radius:81px; padding:6px; }
+.shots .device img { border-radius:72px; }
 .info { flex:1; min-width:260px; }
 .p-name { font-size:1.05rem; font-weight:700; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .badge-multi { background:#0ea5a4; color:#fff; font-size:.7rem; padding:2px 8px; border-radius:12px; font-weight:700; }
@@ -58,7 +61,7 @@ body {
 .rs-title { font-weight:700; color:var(--ink); }
 .rs-chip { color:#fff; padding:2px 10px; border-radius:20px; font-weight:600; }
 .rs-hint { color:var(--muted); }
-@media (max-width:600px){ .device{width:126px;height:309px;} .shots .device{width:97px;height:239px;} }
+@media (max-width:600px){ .device{width:166px;height:407px;} .shots .device{width:124px;height:304px;} }
 </style>
 </head>
 <body>
@@ -232,5 +235,7 @@ render();
 })();
 </script>
 <script src="/js/track.js" data-group="home"></script>
+<script src="/js/site-nav.js"></script>
+<script>if(window.SiteNav)SiteNav.mountNav('siteNav','ui-gallery-10');</script>
 </body>
 </html>

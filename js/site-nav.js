@@ -35,8 +35,11 @@
 
     { id: "course-guide",     name: "使用教程",       url: "/course-guide.html",   group: "guide",    desc: "添加 / 编辑课程教程" },
 
-    { id: "ui-gallery-9",     name: "手环端页面总览",  url: "/ui-gallery-9.html",  group: "archive",  desc: "手环端逐页截图档案（排障索引）" },
-    { id: "ui-gallery-10-pro", name: "手环10Pro页面总览", url: "/ui-gallery-10-pro.html", group: "archive",  desc: "手环 10 Pro 逐页截图档案（与手环9同构，截图采集中）" },
+    { id: "ui-gallery-9",     name: "手环9页面总览",    url: "/ui-gallery-9.html",  group: "archive",  desc: "手环9（192×490 胶囊屏）逐页截图档案（排障索引）" },
+    { id: "ui-gallery-10",    name: "手环10页面总览",   url: "/ui-gallery-10.html", group: "archive",  desc: "手环10（212×520 胶囊屏）逐页截图档案" },
+    { id: "ui-gallery-10-pro", name: "手环10Pro页面总览", url: "/ui-gallery-10-pro.html", group: "archive",  desc: "手环 10 Pro（336×480 方屏）逐页截图档案（与手环9同构，截图采集中）" },
+    { id: "ui-gallery-watch6", name: "REDMI Watch 6 总览", url: "/ui-gallery-watch6.html", group: "archive", desc: "REDMI Watch 6（432×514）逐页截图档案" },
+    { id: "ui-gallery-sound-mini", name: "音箱Mini页面总览", url: "/ui-gallery-sound-mini.html", group: "archive", desc: "小爱音箱 Mini（800×480 横屏）逐页截图档案" },
     { id: "android-apk",      name: "安卓 APK 总览",   url: "/android-apk.html",    group: "archive",  desc: "安卓同步器逐页截图档案" },
     { id: "evbox",            name: "EvBox 工具箱总览", url: "/evbox.html",         group: "archive",  desc: "EvBox 工具箱 21 个页面截图与功能说明" },
 
