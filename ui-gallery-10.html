@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ev课程表 · 页面总览（小米手环 10 212x520 截图档案）</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --bg:#f3f4f8; --surface:#ffffff; --card-bg:#ffffff; --ink:#1a1a2e;
+  --muted:#6b7280; --line:#e7e9f0; --accent:#6c63ff;
+}
+body {
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+  background:var(--bg); color:var(--ink); line-height:1.6; padding-bottom:40px;
+}
+/* 画框写死高度：老 WebView/旧内核不支持 aspect-ratio 会塌成 0 高（800:480 = 5:3，横屏音箱屏，非手表竖屏） */
+.topbar { position:sticky; top:0; z-index:20; background:rgba(255,255,255,0.92); border-bottom:1px solid var(--line); }
+.topbar-inner { max-width:1100px; margin:0 auto; padding:14px 20px 8px; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; }
+.t-title { font-size:1.25rem; font-weight:800; }
+.t-title small { font-weight:500; color:var(--muted); font-size:.78rem; margin-left:8px; }
+.t-meta { display:flex; flex-wrap:wrap; gap:12px; align-items:center; font-size:.78rem; color:var(--muted); }
+.chip { background:var(--accent); color:#fff; padding:3px 10px; border-radius:20px; font-weight:700; }
+.modelbar { max-width:1100px; margin:0 auto; padding:8px 20px 0; font-size:.82rem; color:#0f766e; }
+.modelbar b { color:#0f766e; }
+.filterbar { max-width:1100px; margin:0 auto; padding:10px 20px 12px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.fbtn { border:1px solid var(--line); background:var(--surface); color:var(--ink); padding:6px 14px; border-radius:20px; font-size:.82rem; cursor:pointer; }
+.fbtn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.fcheck { display:flex; align-items:center; gap:6px; font-size:.82rem; color:var(--muted); margin-left:auto; cursor:pointer; }
+.wrap { max-width:1100px; margin:0 auto; padding:18px 20px; }
+.group { background:var(--surface); border:1px solid var(--line); border-radius:16px; margin-bottom:16px; overflow:hidden; }
+.group-head { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; cursor:pointer; user-select:none; }
+.group-head h2 { font-size:1.05rem; font-weight:700; }
+.group-head .count { color:var(--muted); font-size:.8rem; }
+.group-body { padding:0 18px 18px; }
+.card { display:flex; gap:18px; padding:18px 0; border-top:1px solid var(--line); flex-wrap:wrap; }
+.card:first-child { border-top:none; }
+.device { width:168px; flex:0 0 auto; height:412px; border-radius:18px; background:#0b0b0f; padding:8px; overflow:hidden; }
+.device img { width:100%; height:100%; object-fit:contain; border-radius:12px; display:block; cursor:zoom-in; background:#000; }
+.device.empty { display:flex; align-items:center; justify-content:center; text-align:center; color:#9aa; font-size:.8rem; }
+.device.empty .ph { padding:10px; }
+.shots { display:flex; gap:10px; flex-wrap:wrap; }
+.shots .device { width:130px; height:319px; border-radius:14px; padding:6px; }
+.info { flex:1; min-width:260px; }
+.p-name { font-size:1.05rem; font-weight:700; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.badge-multi { background:#0ea5a4; color:#fff; font-size:.7rem; padding:2px 8px; border-radius:12px; font-weight:700; }
+.badge-pending { background:#f0a000; color:#fff; font-size:.7rem; padding:2px 8px; border-radius:12px; font-weight:700; }
+.row { margin-top:8px; font-size:.88rem; }
+.row .k { color:var(--muted); font-weight:600; margin-right:4px; }
+.fb-link { color:var(--accent); font-size:.78rem; text-decoration:none; border:1px solid var(--line); border-radius:12px; padding:2px 10px; }
+.fb-link:hover { background:var(--accent); color:#fff; border-color:var(--accent); }
+.meta { margin-top:8px; font-size:.76rem; color:var(--muted); border-top:1px dashed var(--line); padding-top:6px; }
+.footer { text-align:center; color:var(--muted); font-size:.8rem; padding:24px 20px; line-height:1.8; }
+.lightbox { position:fixed; inset:0; background:rgba(0,0,0,0.85); display:none; align-items:center; justify-content:center; z-index:50; cursor:zoom-out; }
+.lightbox.show { display:flex; }
+.lightbox img { max-width:92vw; max-height:90vh; border-radius:12px; }
+.rs-wrap { max-width:1100px; margin:0 auto; padding:8px 20px 10px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:.78rem; }
+.rs-title { font-weight:700; color:var(--ink); }
+.rs-chip { color:#fff; padding:2px 10px; border-radius:20px; font-weight:600; }
+.rs-hint { color:var(--muted); }
+@media (max-width:600px){ .device{width:126px;height:309px;} .shots .device{width:97px;height:239px;} }
+</style>
+</head>
+<body>
+<!-- 型号声明：本页只服务这一个型号；统计与反馈都按它隔离，禁止出现其他型号内容 -->
+<script>
+window.UI_REVIEW_MODEL = { projectId: "ev-schedule-watch10", model: "小米手环 10", lcd: "212x520" };
+</script>
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="t-title">Ev课程表 · 页面总览<small>小米手环 10（212x520）· 排障索引</small></div>
+    <div class="t-meta">
+      <span class="chip" id="verChip"></span>
+      <span>截图时间 <b id="capTime"></b></span>
+      <span>页面更新 <b id="pageTime"></b></span>
+    </div>
+  </div>
+  <div id="reviewStats"></div>
+  <div class="modelbar">
+    🚫 <b>型号隔离</b>：本页只展示「小米手环 10（212x520）」这一个型号的文字、图片与反馈；
+    其他设备型号一律去它们各自的档案页，文字 / 图片 / 反馈三者都不跨型号混用。
+  </div>
+  <div class="filterbar" id="filterbar"></div>
+</div>
+<div class="wrap" id="app"></div>
+<div class="footer">
+  Ev课程表 · UI 截图档案（小米手环 10 · 212x520）<br>
+  采集：2026-10-05（每页 guest 冷重启 + 按需上滑补多屏；参数依赖页未收录）<br>
+  遇到问题？<a href="/feedback.html" style="color:var(--accent)">前往 帮助与反馈</a>
+</div>
+<div class="lightbox" id="lightbox" onclick="hideLightbox()"><img id="lightboxImg" src=""></div>
+<script>
+var DATA = {"watchApp":{"name":"Ev课程表","repo":"guomengtao/class-schedule","version":"1.7.84","versionCode":980,"channel":"release","updatedAt":"2026-10-05"},"captureEnv":{"device":"小米手环 10（212x520）","vvd":"evc-xiaomi_band_10-1","size":"212x520","adb":"auto","note":"按总纲 §3.8b 最快方案 + SOP：每页 guest 冷重启 → 前台驻留挂 vapp → md5 判重补多屏"},"pageUpdatedAt":"2026-10-05","capturedAt":"2026-10-05（28 页 / 67 张）","pages":[{"id":"welcome","name":"welcome","group":"核心主流程","route":"pages/welcome","usage":"路由 pages/welcome","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/welcome.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"index","name":"index","group":"核心主流程","route":"pages/index","usage":"路由 pages/index","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/index.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/index-s2.png","state":"第2屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/index-s3.png","state":"第3屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"detail","name":"detail","group":"核心主流程","route":"pages/detail","usage":"路由 pages/detail","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/detail.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"add-course","name":"add-course","group":"核心主流程","route":"pages/add-course","usage":"路由 pages/add-course","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/add-course.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/add-course-s2.png","state":"第2屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/add-course-s3.png","state":"第3屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"course-manager","name":"course-manager","group":"课程管理","route":"pages/course-manager","usage":"路由 pages/course-manager","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/course-manager.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"custom-content-edit","name":"custom-content-edit","group":"课程管理","route":"pages/custom-content-edit","usage":"路由 pages/custom-content-edit","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/custom-content-edit.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/custom-content-edit-s2.png","state":"第2屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/custom-content-edit-s3.png","state":"第3屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"schedule-manager","name":"schedule-manager","group":"课表视图","route":"pages/schedule-manager","usage":"路由 pages/schedule-manager","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/schedule-manager.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/schedule-manager-s2.png","state":"第2屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/schedule-manager-s3.png","state":"第3屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"week-view","name":"week-view","group":"课表视图","route":"pages/week-view","usage":"路由 pages/week-view","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/week-view.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"schedule-qrcode","name":"schedule-qrcode","group":"课表视图","route":"pages/schedule-qrcode","usage":"路由 pages/schedule-qrcode","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/schedule-qrcode.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/schedule-qrcode-s2.png","state":"第2屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/schedule-qrcode-s3.png","state":"第3屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"workday-info","name":"workday-info","group":"课表视图","route":"pages/workday-info","usage":"路由 pages/workday-info","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/workday-info.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/workday-info-s2.png","state":"第2屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/workday-info-s3.png","state":"第3屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"settings","name":"settings","group":"设置与系统","route":"pages/settings","usage":"路由 pages/settings","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/settings.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/settings-s2.png","state":"第2屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/settings-s3.png","state":"第3屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"tools","name":"tools","group":"设置与系统","route":"pages/tools","usage":"路由 pages/tools","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/tools.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/tools-s2.png","state":"第2屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/tools-s3.png","state":"第3屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"homepage-settings","name":"homepage-settings","group":"设置与系统","route":"pages/homepage-settings","usage":"路由 pages/homepage-settings","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/homepage-settings.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/homepage-settings-s2.png","state":"第2屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"reset-data","name":"reset-data","group":"设置与系统","route":"pages/reset-data","usage":"路由 pages/reset-data","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/reset-data.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/reset-data-s2.png","state":"第2屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/reset-data-s3.png","state":"第3屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"backup-restore","name":"backup-restore","group":"设置与系统","route":"pages/backup-restore","usage":"路由 pages/backup-restore","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/backup-restore.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/backup-restore-s2.png","state":"第2屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"activation","name":"activation","group":"设置与系统","route":"pages/activation","usage":"路由 pages/activation","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/activation.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/activation-s2.png","state":"第2屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/activation-s3.png","state":"第3屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"device-info","name":"device-info","group":"设置与系统","route":"pages/device-info","usage":"路由 pages/device-info","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/device-info.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/device-info-s2.png","state":"第2屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/device-info-s3.png","state":"第3屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"pinned-pages","name":"pinned-pages","group":"设置与系统","route":"pages/pinned-pages","usage":"路由 pages/pinned-pages","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/pinned-pages.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"vibration-lab","name":"vibration-lab","group":"实验室工具","route":"pages/vibration-lab","usage":"路由 pages/vibration-lab","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/vibration-lab.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/vibration-lab-s2.png","state":"第2屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/vibration-lab-s3.png","state":"第3屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"qrcode-generator","name":"qrcode-generator","group":"实验室工具","route":"pages/qrcode-generator","usage":"路由 pages/qrcode-generator","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/qrcode-generator.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"chinese-input","name":"chinese-input","group":"实验室工具","route":"pages/chinese-input","usage":"路由 pages/chinese-input","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/chinese-input.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/chinese-input-s2.png","state":"第2屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/chinese-input-s3.png","state":"第3屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"anim-test","name":"anim-test","group":"实验室工具","route":"pages/anim-test","usage":"路由 pages/anim-test","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/anim-test.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/anim-test-s2.png","state":"第2屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/anim-test-s3.png","state":"第3屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"time-picker-demo","name":"time-picker-demo","group":"实验室工具","route":"pages/time-picker-demo","usage":"路由 pages/time-picker-demo","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/time-picker-demo.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/time-picker-demo-s2.png","state":"第2屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"width-detect","name":"width-detect","group":"实验室工具","route":"pages/width-detect","usage":"路由 pages/width-detect","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/width-detect.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/width-detect-s2.png","state":"第2屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/width-detect-s3.png","state":"第3屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"rect-diag","name":"rect-diag","group":"实验室工具","route":"pages/rect-diag","usage":"路由 pages/rect-diag","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/rect-diag.png","state":"第2屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"statistics","name":"statistics","group":"其他","route":"pages/statistics","usage":"路由 pages/statistics","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/statistics.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/statistics-s2.png","state":"第2屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/statistics-s3.png","state":"第3屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"donate","name":"donate","group":"其他","route":"pages/donate","usage":"路由 pages/donate","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/donate.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/donate-s2.png","state":"第2屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/donate-s3.png","state":"第3屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]},{"id":"message-inbox","name":"message-inbox","group":"其他","route":"pages/message-inbox","usage":"路由 pages/message-inbox","entry":"","points":[],"check":{},"enabled":true,"auto":false,"why":"","shots":[{"file":"pages/message-inbox.png","state":"默认","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/message-inbox-s2.png","state":"第2屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"},{"file":"pages/message-inbox-s3.png","state":"第3屏","version":"1.7.84","at":"2026-10-05","dev":"evc-xiaomi_band_10-1"}]}]};
+var IMG_BASE = "/images/ev-schedule-watch10/";
+var MODEL = window.UI_REVIEW_MODEL || { projectId: "ev-schedule-watch10" };
+var currentGroup = '';
+var onlyMulti = false;
+
+function renderShots(p){
+  var shots = p.shots || [];
+  if(!shots.length){
+    return '<div class="shots"><div class="device empty"><div class="ph">待采集<br><span style="font-size:.72rem">尚无截图</span></div></div></div>';
+  }
+  var html = '<div class="shots">';
+  for(var i=0;i<shots.length;i++){
+    var s = shots[i];
+    html += '<div class="shot-unit" data-project="'+MODEL.projectId+'" data-page="'+p.id+'" data-file="'+s.file+'">'
+         +  '<div class="device" onclick="openLightbox(this)"><img loading="lazy" src="'+IMG_BASE+s.file+'" alt="'+s.state+'" onerror="imgError(this)"></div>'
+         +  '</div>';
+  }
+  return html + '</div>';
+}
+function renderMeta(shots){
+  if(!shots || !shots.length) return '<div class="meta">未采集</div>';
+  var html = '<div class="meta">截图记录：<br>';
+  for(var i=0;i<shots.length;i++){
+    var s = shots[i];
+    html += '· '+s.state+' <b>v'+s.version+'</b> · '+s.at+'<br>';
+  }
+  return html + '</div>';
+}
+function renderCard(p){
+  var card = document.createElement('div');
+  card.className = 'card';
+  card.setAttribute('data-group', p.group);
+  if((p.shots||[]).length > 1) card.setAttribute('data-multi', '1');
+  var left = document.createElement('div');
+  left.innerHTML = renderShots(p);
+  var info = document.createElement('div');
+  info.className = 'info';
+  var badges = '';
+  if((p.shots||[]).length > 1) badges += '<span class="badge-multi">'+p.shots.length+' 屏</span>';
+  var html = '<div class="p-name">'+p.name+badges+'</div>';
+  html += '<div class="row"><a class="fb-link" href="/feedback.html?type=ui&page='+encodeURIComponent(p.name)+'">反馈此页</a></div>';
+  if(p.usage) html += '<div class="row"><span class="k">用途</span>'+p.usage+'</div>';
+  html += renderMeta(p.shots);
+  info.innerHTML = html;
+  card.appendChild(left); card.appendChild(info);
+  return card;
+}
+function renderGroup(name, pages){
+  var g = document.createElement('div');
+  g.className = 'group'; g.setAttribute('data-group', name);
+  var head = document.createElement('div');
+  head.className = 'group-head';
+  head.innerHTML = '<h2>'+name+'</h2><span class="count">'+pages.length+' 页</span>';
+  head.setAttribute('onclick', "toggleGroup('"+name+"')");
+  var body = document.createElement('div');
+  body.className = 'group-body'; body.id = 'gb-'+name;
+  for(var i=0;i<pages.length;i++){ body.appendChild(renderCard(pages[i])); }
+  g.appendChild(head); g.appendChild(body);
+  return g;
+}
+function uniqueGroups(){
+  var seen = {}; var arr = [];
+  for(var i=0;i<DATA.pages.length;i++){ var g = DATA.pages[i].group; if(!seen[g]){ seen[g]=1; arr.push(g); } }
+  return arr;
+}
+function toggleGroup(name){
+  var b = document.getElementById('gb-'+name);
+  b.style.display = (b.style.display === 'none') ? 'block' : 'none';
+}
+function setGroup(name){ currentGroup = name; applyFilter(); }
+function applyFilter(){
+  var groups = document.getElementsByClassName('group');
+  for(var i=0;i<groups.length;i++){
+    var g = groups[i]; var cards = g.getElementsByClassName('card'); var anyVisible = false;
+    for(var j=0;j<cards.length;j++){
+      var c = cards[j]; var show = true;
+      if(currentGroup && c.getAttribute('data-group') !== currentGroup) show = false;
+      if(onlyMulti && c.getAttribute('data-multi') !== '1') show = false;
+      c.style.display = show ? 'flex' : 'none';
+      if(show) anyVisible = true;
+    }
+    g.style.display = anyVisible ? 'block' : 'none';
+  }
+  var btns = document.getElementsByClassName('fbtn');
+  for(var k=0;k<btns.length;k++){ btns[k].className = 'fbtn' + (btns[k].getAttribute('data-g') === currentGroup ? ' active' : ''); }
+}
+function buildFilter(){
+  var bar = document.getElementById('filterbar');
+  var all = document.createElement('button');
+  all.className = 'fbtn active'; all.setAttribute('data-g', ''); all.textContent = '全部';
+  all.setAttribute('onclick', "setGroup('')");
+  bar.appendChild(all);
+  var groups = uniqueGroups();
+  for(var i=0;i<groups.length;i++){
+    var b = document.createElement('button');
+    b.className = 'fbtn'; b.setAttribute('data-g', groups[i]); b.textContent = groups[i];
+    b.setAttribute('onclick', "setGroup('"+groups[i]+"')");
+    bar.appendChild(b);
+  }
+  var lbl = document.createElement('label');
+  lbl.className = 'fcheck';
+  lbl.innerHTML = '<input type="checkbox" id="onlyMulti" onchange="onlyMulti=this.checked;applyFilter();"> 只看多屏页';
+  bar.appendChild(lbl);
+}
+function imgError(img){
+  var d = img.parentNode;
+  if(d){ d.className = 'device empty'; d.innerHTML = '<div class="ph">截图缺失</div>'; }
+}
+function openLightbox(el){
+  var img = el.getElementsByTagName('img')[0];
+  document.getElementById('lightboxImg').src = img ? img.src : '';
+  document.getElementById('lightbox').className = 'lightbox show';
+}
+function hideLightbox(){ document.getElementById('lightbox').className = 'lightbox'; }
+function render(){
+  document.getElementById('verChip').textContent = 'v'+(DATA.watchApp && DATA.watchApp.version || '?');
+  document.getElementById('capTime').textContent = DATA.capturedAt || DATA.pageUpdatedAt;
+  document.getElementById('pageTime').textContent = DATA.pageUpdatedAt;
+  buildFilter();
+  var groups = uniqueGroups();
+  var app = document.getElementById('app');
+  var byGroup = {};
+  for(var i=0;i<DATA.pages.length;i++){ var g = DATA.pages[i].group; (byGroup[g] = byGroup[g] || []).push(DATA.pages[i]); }
+  for(var j=0;j<groups.length;j++){ app.appendChild(renderGroup(groups[j], byGroup[groups[j]])); }
+}
+render();
+</script>
+<script src="/js/review-widget.js"></script>
+<script>ReviewWidget.mountAll({ projectId: "ev-schedule-watch10" });</script>
+<script src="/js/ui-review-stats.js"></script>
+<script>
+(function(){
+  try {
+    var r = new XMLHttpRequest();
+    r.open('POST', '/api/admin/health?section=visit', true);
+    r.setRequestHeader('Content-Type', 'application/json');
+    r.send(JSON.stringify({page:location.pathname, referrer:document.referrer||'', title:document.title||''}));
+  } catch(_) {}
+})();
+</script>
+<script src="/js/track.js" data-group="home"></script>
+</body>
+</html>
