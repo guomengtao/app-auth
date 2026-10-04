@@ -39,7 +39,7 @@ body{font-family:-apple-system,'PingFang SC',sans-serif;background:var(--bg);col
 <div class="topbar"><div class="topbar-inner">
 <div class="t-title">Ev课程表 · 安卓 APK 页面总览<small>逐页截图档案 · 排障索引</small>　<a href="/apk-download.html" style="background:var(--accent);color:#fff;padding:4px 14px;border-radius:20px;font-size:.8rem;text-decoration:none;margin-left:8px">⬇ 下载 APK</a></div>
 <div class="t-meta"><span class="chip" id="verChip"></span><span>截图时间 <b id="capTime"></b></span><span>页面更新 <b id="pageTime"></b></span></div>
-</div><div class="filterbar" id="filterbar"></div></div>
+</div><div class="filterbar" id="filterbar"></div><div class="filterbar" id="siteNav"></div></div>
 <div class="note" id="stateNote"></div>
 <div class="wrap" id="app"></div>
 <div class="footer">Ev课程表 · 安卓 APK 页面总览<br>截图环境：华为荣耀畅玩7X（BLN-AL20）· EMUI 8 / Android 8.0 · 1080x2160<br>
@@ -100,4 +100,6 @@ render();
 </script>
 <!-- 全站统一访客埋点（P2/D2）：本页此前漏埋，纳入「下载」分组 -->
 <script src="/js/track.js" data-group="download"></script>
+<script src="/js/site-nav.js"></script>
+<script>if(window.SiteNav)SiteNav.mountNav('siteNav','android-apk');</script>
 </body></html>
