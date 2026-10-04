@@ -1,9 +1,3 @@
-{
- "versionCode": 104,
- "versionName": "0.5.103",
- "sha256": "7bc43ed766480c325da5d6e80603cb2945d9297ddd8e0a815e7470b7c25ce533",
- "downloadUrlMirror": "https://app-auth.gudq.com/dl/EVSyncProbe-v0.5.103.apk",
- "downloadUrlOrigin": "https://app-auth.gudq.com/dl/EVSyncProbe-v0.5.103.apk",
- "isForce": false,
- "updateLog": "多手环支持补齐：自动记录最近用过的手环（最多10只），连接结束后自动补齐手环身份，长时间挂后台也能自动修复手环绑定，多只手环换着用不会丢数据。界面与使用方式完全不变，无任何新权限"
-}
+{"versionCode":158,"versionName":"0.5.157","sha256":"87bb96d7f756e09835ad275fc50d504a237987e2235b0b5bddbcf141b778ef1f",
+ "downloadUrlMirror":"https://ghproxy.net/https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.157/EVSyncProbe-v0.5.157.apk","downloadUrlOrigin":"https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.157/EVSyncProbe-v0.5.157.apk",
+ "isForce":false,"updateLog":"全站界面焕新：首页/课表库/手环页/设置页/高级版/导入导出六大页面全新设计；新增手环状态直读（电量/充电/佩戴/睡眠）；多项体验修复。界面变化较大，功能与数据不受影响"}
