@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ev课程表 · 固定头部导航条 Demo（导航内容取自站点目录）</title>
+<!--
+  ⚠️ 这是【演示页 / 原型】，不进入公开目录（site-nav.js 的 PAGES 未收录）。
+     用途：给全站做「头部固定导航条」的形态与内容提案，内容直接读 site-nav.js 的项目目录，
+     目录一改这里自动跟着变，不会出现两份清单漂移。
+     兼容约束与站内一致：只用 var + 普通函数 + 字符串拼接，不用 const/let/箭头函数/模板字符串/fetch。
+-->
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --bg:#f3f4f8; --surface:#ffffff; --ink:#1a1a2e; --muted:#6b7280;
+  --line:#e7e9f0; --accent:#6c63ff; --accent-d:#5a52d5; --navbar-h:60px;
+}
+html { scroll-behavior:smooth; }
+body {
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+  background:var(--bg); color:var(--ink); line-height:1.6;
+}
+a { color:inherit; text-decoration:none; }
+
+/* ───────────────── 头部固定导航条 ───────────────── */
+.hnav {
+  position:fixed; left:0; right:0; top:0; z-index:60;
+  background:rgba(255,255,255,0.94); border-bottom:1px solid var(--line);
+  -webkit-backdrop-filter:saturate(180%) blur(12px); backdrop-filter:saturate(180%) blur(12px);
+  box-shadow:0 1px 0 rgba(26,26,46,0.04);
+}
+.hnav.static { position:static; }
+.hnav-inner {
+  max-width:1100px; margin:0 auto; padding:0 20px; height:var(--navbar-h);
+  display:flex; align-items:center; gap:18px;
+}
+.brand { display:flex; align-items:center; gap:9px; font-weight:800; font-size:1rem; flex:0 0 auto; }
+.brand img { height:26px; width:auto; display:block; }
+.brand .dot { width:8px; height:8px; border-radius:50%; background:#22c55e; }
+
+/* 一级：五个分类（桌面横向） */
+.hnav-links { display:flex; align-items:center; gap:4px; flex:1 1 auto; min-width:0; }
+.hnav-item { position:relative; }
+.hnav-item > a {
+  display:block; padding:8px 12px; border-radius:10px; font-size:.88rem; font-weight:600;
+  color:var(--ink); white-space:nowrap; transition:background .15s,color .15s;
+}
+.hnav-item > a:hover { background:#f1f0ff; color:var(--accent); }
+.hnav-item.cur > a { color:var(--accent); background:#f1f0ff; }
+.hnav-item .caret { font-size:.62rem; color:var(--muted); margin-left:4px; }
+
+/* 二级：下拉面板（桌面 hover + 触屏点击） */
+.hnav-drop {
+  position:absolute; left:0; top:calc(100% + 8px); min-width:250px; z-index:70;
+  background:var(--surface); border:1px solid var(--line); border-radius:14px;
+  box-shadow:0 16px 40px rgba(26,26,46,0.14); padding:8px;
+  opacity:0; visibility:hidden; transform:translateY(-6px); transition:all .16s ease;
+}
+.hnav-item.open .hnav-drop, .hnav-item:hover .hnav-drop { opacity:1; visibility:visible; transform:translateY(0); }
+.hnav-drop a { display:block; padding:9px 11px; border-radius:10px; }
+.hnav-drop a:hover { background:#f6f5ff; }
+.hnav-drop .d-name { font-size:.85rem; font-weight:600; }
+.hnav-drop .d-desc { font-size:.72rem; color:var(--muted); margin-top:1px; }
+.hnav-drop .d-cta { font-size:.72rem; color:var(--accent); font-weight:700; padding:6px 11px 4px; display:block; }
+
+.hnav-right { display:flex; align-items:center; gap:10px; flex:0 0 auto; }
+.cta {
+  background:var(--accent); color:#fff; font-size:.82rem; font-weight:700;
+  padding:8px 15px; border-radius:20px; white-space:nowrap;
+}
+.cta:hover { background:var(--accent-d); }
+.burger {
+  display:none; border:1px solid var(--line); background:var(--surface); border-radius:10px;
+  width:38px; height:34px; font-size:1.05rem; line-height:1; cursor:pointer; color:var(--ink);
+}
+
+/* 移动端抽屉（一级 + 二级全展开） */
+.hnav-panel {
+  display:none; max-width:1100px; margin:0 auto; padding:8px 20px 16px;
+  border-top:1px solid var(--line); background:rgba(255,255,255,0.98);
+  max-height:calc(100vh - var(--navbar-h)); overflow-y:auto;
+}
+.hnav-panel.open { display:block; }
+.hnav-panel .p-group { padding:10px 0 4px; font-size:.74rem; font-weight:800; color:var(--muted); letter-spacing:.04em; }
+.hnav-panel .p-link { display:block; padding:9px 2px; border-bottom:1px dashed var(--line); font-size:.9rem; font-weight:600; }
+.hnav-panel .p-link small { display:block; color:var(--muted); font-weight:500; font-size:.74rem; }
+
+/* ───────────────── 演示控制条 ───────────────── */
+.demo-ctl {
+  max-width:1100px; margin:0 auto; padding:18px 20px 0;
+  display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+}
+.fbtn {
+  border:1px solid var(--line); background:var(--surface); color:var(--ink);
+  padding:6px 14px; border-radius:20px; font-size:.82rem; cursor:pointer;
+}
+.fbtn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.ctl-note { font-size:.76rem; color:var(--muted); }
+
+/* ───────────────── 内容区 ───────────────── */
+.wrap { max-width:1100px; margin:0 auto; padding:18px 20px 60px; }
+.hero { background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:22px 22px 18px; margin-bottom:18px; }
+.hero h1 { font-size:1.3rem; font-weight:800; margin-bottom:6px; }
+.hero p { color:var(--muted); font-size:.86rem; }
+.hero .kv { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+.hero .kv span { background:#f6f5ff; border:1px solid var(--line); border-radius:20px; padding:4px 12px; font-size:.76rem; color:var(--ink); }
+
+.sec { background:var(--surface); border:1px solid var(--line); border-radius:16px; margin-bottom:16px; overflow:hidden; scroll-margin-top:calc(var(--navbar-h) + 14px); }
+.sec-head { padding:15px 20px 12px; border-bottom:1px solid var(--line); display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+.sec-head h2 { font-size:1.05rem; font-weight:800; }
+.sec-head .cnt { font-size:.78rem; color:var(--muted); }
+.sec-head .plan { font-size:.76rem; color:var(--accent); font-weight:700; margin-left:auto; }
+.sec-body { padding:14px 20px 18px; display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:12px; }
+.pcard { display:block; border:1px solid var(--line); border-radius:12px; padding:14px 16px; background:#fbfbfe; transition:all .18s; }
+.pcard:hover { transform:translateY(-2px); box-shadow:0 8px 20px rgba(108,99,255,0.13); border-color:#dcd9ff; }
+.pcard .pc-name { font-size:.92rem; font-weight:700; }
+.pcard .pc-desc { font-size:.76rem; color:var(--muted); margin-top:3px; }
+.pcard .pc-url { font-size:.7rem; color:#a5a3b8; margin-top:6px; font-family:ui-monospace,Menlo,monospace; }
+.pcard.primary { background:var(--accent); border-color:var(--accent); }
+.pcard.primary .pc-name, .pcard.primary .pc-desc, .pcard.primary .pc-url { color:#fff; }
+.pcard.primary .pc-desc { opacity:.85; }
+
+.totop {
+  position:fixed; right:18px; bottom:18px; z-index:50; border:1px solid var(--line);
+  background:var(--surface); color:var(--ink); width:44px; height:44px; border-radius:50%;
+  font-size:1rem; cursor:pointer; box-shadow:0 8px 22px rgba(26,26,46,0.16);
+  opacity:0; visibility:hidden; transition:all .2s;
+}
+.totop.show { opacity:1; visibility:visible; }
+
+.footer { max-width:1100px; margin:0 auto; padding:0 20px 60px; color:var(--muted); font-size:.78rem; }
+.footer a { color:var(--accent); font-weight:700; }
+
+@media (max-width:860px){
+  .hnav-links { display:none; }
+  .burger { display:block; }
+  .hnav-inner { gap:10px; }
+}
+@media (max-width:520px){
+  .cta { padding:7px 11px; font-size:.76rem; }
+  .brand span.bt { display:none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============ 头部固定导航条（本 Demo 的主角） ============ -->
+<header class="hnav" id="hnav">
+  <div class="hnav-inner">
+    <a class="brand" href="/" title="返回首页">
+      <img src="images/ev-schedule/logo-beige-light.png" alt="Ev课程表">
+      <span class="bt">Ev课程表</span>
+      <i class="dot"></i>
+    </a>
+    <nav class="hnav-links" id="hnavLinks"></nav>
+    <div class="hnav-right">
+      <a class="cta" href="/activate.html">① 设备激活</a>
+      <button class="burger" id="burger" type="button" aria-label="打开菜单" aria-expanded="false">≡</button>
+    </div>
+  </div>
+  <div class="hnav-panel" id="hnavPanel"></div>
+</header>
+
+<!-- 演示控制：固定 / 随页滚动，对比用 -->
+<div class="demo-ctl">
+  <button class="fbtn active" id="modeFixed" type="button">固定顶栏（推荐）</button>
+  <button class="fbtn" id="modeStatic" type="button">随页滚动</button>
+  <span class="ctl-note">切到「随页滚动」可对比：固定顶栏随时可见，长页面不用滚回顶部才能换分类。</span>
+</div>
+
+<div class="wrap" id="main">
+  <div class="hero">
+    <h1>Ev课程表 · 头部固定导航条 Demo</h1>
+    <p>导航条内容不是手写死的，而是<strong>直接读全站目录 <code>js/site-nav.js</code></strong>（GROUPS + PAGES）生成 —— 目录改了这里自动跟着变，不会出现两份清单漂移。</p>
+    <div class="kv">
+      <span>形态：顶部固定 + 毛玻璃底衬</span>
+      <span>一级：5 个分类（悬停/点击展开二级）</span>
+      <span>二级：分类下的真实页面</span>
+      <span>窄屏：汉堡菜单抽屉</span>
+      <span>当前分类随滚动高亮</span>
+      <span>右侧常驻主 CTA：① 设备激活</span>
+    </div>
+  </div>
+  <!-- 各分类内容块由 JS 生成（每块 = 导航二级的落点，供滚动高亮） -->
+</div>
+
+<div class="footer">
+  演示页 · 不进入公开目录。导航数据源：<code>/js/site-nav.js</code>　·　<a href="/">← 返回首页</a>
+</div>
+
+<button class="totop" id="toTop" type="button" aria-label="回到顶部">↑</button>
+
+<script src="/js/site-nav.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  // ── 兜底目录（site-nav.js 加载失败时也能看形态；正常情况一律用 SiteNav 的数据）──
+  var FB_GROUPS = [
+    { id:"activate", name:"激活 · 兑换" }, { id:"guide", name:"教程 · 指南" },
+    { id:"archive",  name:"档案 · 截图" }, { id:"product", name:"下载 · 产品" },
+    { id:"tool",     name:"工具 · 服务" }
+  ];
+  var FB_PAGES = [
+    { id:"activate", name:"设备激活", url:"/activate.html", group:"activate", desc:"输入兑换码获取激活码", primary:true },
+    { id:"user-guide", name:"用户手册", url:"/user-guide.html", group:"activate", desc:"购买兑换码 → 激活流程指引" },
+    { id:"activation-guide", name:"高级版激活流程", url:"/activation-guide.html", group:"activate", desc:"图文 / 动画教学" },
+    { id:"redeem-counts", name:"兑换码数量", url:"/redeem-counts.html", group:"activate", desc:"剩余可用兑换码统计" },
+    { id:"course-guide", name:"使用教程", url:"/course-guide.html", group:"guide", desc:"添加 / 编辑课程教程" },
+    { id:"ui-gallery-9", name:"手环9页面总览", url:"/ui-gallery-9.html", group:"archive", desc:"192×490 胶囊屏" },
+    { id:"ui-gallery-10", name:"手环10页面总览", url:"/ui-gallery-10.html", group:"archive", desc:"212×520 胶囊屏" },
+    { id:"ui-gallery-10-pro", name:"手环10Pro页面总览", url:"/ui-gallery-10-pro.html", group:"archive", desc:"336×480 方屏" },
+    { id:"ui-gallery-watch6", name:"REDMI Watch 6 总览", url:"/ui-gallery-watch6.html", group:"archive", desc:"432×514" },
+    { id:"ui-gallery-sound-mini", name:"音箱Mini页面总览", url:"/ui-gallery-sound-mini.html", group:"archive", desc:"800×480 横屏" },
+    { id:"android-apk", name:"安卓 APK 总览", url:"/android-apk.html", group:"archive", desc:"同步器逐页截图档案" },
+    { id:"evbox", name:"EvBox 工具箱总览", url:"/evbox.html", group:"archive", desc:"21 个页面截图与说明" },
+    { id:"apk-download", name:"安卓版下载", url:"/apk-download.html", group:"product", desc:"下载 Ev课程表同步器 APK" },
+    { id:"ev-schedule", name:"产品介绍", url:"/ev-schedule.html", group:"product", desc:"小米手环课程管理" },
+    { id:"ev-timetable", name:"课程表介绍", url:"/ev-timetable.html", group:"product", desc:"手环智能课程管理" },
+    { id:"my-ip", name:"我的 IP 信息", url:"/my-ip.html", group:"tool", desc:"查看公网 IP 与归属地" },
+    { id:"feedback", name:"帮助与反馈", url:"/feedback.html", group:"tool", desc:"问题反馈与帮助" }
+  ];
+  var GROUPS = (window.SiteNav && SiteNav.GROUPS && SiteNav.GROUPS.length) ? SiteNav.GROUPS : FB_GROUPS;
+  var PAGES  = (window.SiteNav && SiteNav.PAGES  && SiteNav.PAGES.length)  ? SiteNav.PAGES  : FB_PAGES;
+
+  function pagesOf(gid) {
+    var out = [], i;
+    for (i = 0; i < PAGES.length; i++) if (PAGES[i].group === gid) out.push(PAGES[i]);
+    return out;
+  }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  // ── ① 一级导航 + 二级下拉（桌面）──
+  function buildTopNav() {
+    var host = document.getElementById("hnavLinks");
+    if (!host) return;
+    var html = "", i, j, ps;
+    for (i = 0; i < GROUPS.length; i++) {
+      ps = pagesOf(GROUPS[i].id);
+      if (!ps.length) continue;
+      html += '<div class="hnav-item" data-group="' + GROUPS[i].id + '">'
+           +  '<a href="#sec-' + GROUPS[i].id + '">' + esc(GROUPS[i].name)
+           +  '<span class="caret">▾</span></a>'
+           +  '<div class="hnav-drop">';
+      for (j = 0; j < ps.length; j++) {
+        html += '<a href="' + esc(ps[j].url) + '">'
+             +  '<div class="d-name">' + esc(ps[j].name) + '</div>'
+             +  '<div class="d-desc">' + esc(ps[j].desc) + '</div>'
+             +  '</a>';
+      }
+      html += '<a class="d-cta" href="/?cat=' + GROUPS[i].id + '">查看该分类全部 ›</a>';
+      html += '</div></div>';
+    }
+    host.innerHTML = html;
+
+    // 触屏/点击也能展开（hover 由 CSS 负责）
+    var items = host.getElementsByClassName("hnav-item");
+    for (i = 0; i < items.length; i++) {
+      (function (it) {
+        var trigger = it.getElementsByTagName("a")[0];
+        trigger.onclick = function (e) {
+          if (window.matchMedia && window.matchMedia("(hover:none)").matches) {
+            e.preventDefault();
+            it.className = (it.className.indexOf("open") >= 0) ? "hnav-item" : "hnav-item open";
+          }
+        };
+      })(items[i]);
+    }
+  }
+
+  // ── ② 移动端抽屉（一级 + 二级全展开）──
+  function buildPanel() {
+    var host = document.getElementById("hnavPanel");
+    if (!host) return;
+    var html = "", i, j, ps;
+    for (i = 0; i < GROUPS.length; i++) {
+      ps = pagesOf(GROUPS[i].id);
+      if (!ps.length) continue;
+      html += '<div class="p-group">' + esc(GROUPS[i].name) + '</div>';
+      for (j = 0; j < ps.length; j++) {
+        html += '<a class="p-link" href="' + esc(ps[j].url) + '">' + esc(ps[j].name)
+             +  '<small>' + esc(ps[j].desc) + '</small></a>';
+      }
+    }
+    html += '<a class="p-link" href="/">← 返回首页</a>';
+    host.innerHTML = html;
+  }
+
+  // ── ③ 内容区：每个分类一块（导航二级的落点）──
+  function buildSections() {
+    var host = document.getElementById("main");
+    if (!host) return;
+    var html = "", i, j, ps;
+    for (i = 0; i < GROUPS.length; i++) {
+      ps = pagesOf(GROUPS[i].id);
+      if (!ps.length) continue;
+      html += '<section class="sec" id="sec-' + GROUPS[i].id + '" data-group="' + GROUPS[i].id + '">'
+           +  '<div class="sec-head"><h2>' + esc(GROUPS[i].name) + '</h2>'
+           +  '<span class="cnt">' + ps.length + ' 个页面</span>'
+           +  '<span class="plan">导航二级 = 本组页面</span></div>'
+           +  '<div class="sec-body">';
+      for (j = 0; j < ps.length; j++) {
+        html += '<a class="pcard' + (ps[j].primary ? " primary" : "") + '" href="' + esc(ps[j].url) + '">'
+             +  '<div class="pc-name">' + esc(ps[j].name) + '</div>'
+             +  '<div class="pc-desc">' + esc(ps[j].desc) + '</div>'
+             +  '<div class="pc-url">' + esc(ps[j].url) + '</div></a>';
+      }
+      html += '</div></section>';
+    }
+    host.innerHTML = host.innerHTML + html;
+  }
+
+  // ── ④ 固定顶栏占位（固定时补 padding，避免遮住首屏）──
+  var nav = document.getElementById("hnav");
+  function applyOffset() {
+    var fixed = nav.className.indexOf("static") < 0;
+    document.body.style.paddingTop = fixed ? (nav.offsetHeight + "px") : "0px";
+  }
+
+  // ── ⑤ 当前分类随滚动高亮（scrollspy）──
+  function spy() {
+    var secs = document.getElementsByClassName("sec");
+    var items = document.getElementsByClassName("hnav-item");
+    if (!secs.length) return;
+    var navBottom = nav.getBoundingClientRect().bottom + 20;
+    var cur = secs[0].getAttribute("data-group"), i, k;
+    for (i = 0; i < secs.length; i++) {
+      if (secs[i].getBoundingClientRect().top <= navBottom) cur = secs[i].getAttribute("data-group");
+    }
+    for (k = 0; k < items.length; k++) {
+      var on = items[k].getAttribute("data-group") === cur;
+      items[k].className = (items[k].className.indexOf("open") >= 0 ? "hnav-item open" : "hnav-item") + (on ? " cur" : "");
+    }
+    document.getElementById("toTop").className = (window.pageYOffset > 400) ? "totop show" : "totop";
+  }
+
+  // ── ⑥ 移动端汉堡菜单 ──
+  var burger = document.getElementById("burger"), panel = document.getElementById("hnavPanel");
+  burger.onclick = function () {
+    var open = panel.className.indexOf("open") >= 0;
+    panel.className = open ? "hnav-panel" : "hnav-panel open";
+    burger.setAttribute("aria-expanded", open ? "false" : "true");
+    applyOffset();
+  };
+
+  // ── ⑦ 固定 / 随页滚动 切换（演示对比）──
+  document.getElementById("modeFixed").onclick = function () {
+    nav.className = "hnav";
+    this.className = "fbtn active";
+    document.getElementById("modeStatic").className = "fbtn";
+    applyOffset(); spy();
+  };
+  document.getElementById("modeStatic").onclick = function () {
+    nav.className = "hnav static";
+    this.className = "fbtn active";
+    document.getElementById("modeFixed").className = "fbtn";
+    applyOffset(); spy();
+  };
+
+  document.getElementById("toTop").onclick = function () {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // ── 启动 ──
+  buildTopNav();
+  buildPanel();
+  buildSections();
+  applyOffset();
+  spy();
+
+  window.onscroll = spy;
+  window.onresize = function () { applyOffset(); spy(); };
+})();
+</script>
+</body>
+</html>
