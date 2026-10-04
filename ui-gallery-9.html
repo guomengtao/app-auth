@@ -239,8 +239,13 @@ function render(){
 render();
 
 </script>
+<!-- 型号声明：本页只服务手环 9 标准版这一个型号；统计与反馈都按它隔离 -->
+<script>
+window.UI_REVIEW_MODEL = { projectId: "ev-schedule-watch9", model: "小米手环 9 标准版", lcd: "192x490" };
+</script>
 <script src="/js/review-widget.js"></script>
 <script>ReviewWidget.mountAll({ projectId: "ev-schedule-watch9" });</script>
+<script src="/js/ui-review-stats.js"></script>
 <script src="/js/site-nav.js"></script>
 <script>if(window.SiteNav)SiteNav.mountNav('siteNav','ui-gallery-9');</script>
 <script>
