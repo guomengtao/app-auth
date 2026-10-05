@@ -1211,6 +1211,35 @@ async function handleTaskClose(req, res) {
   }
 }
 
+/**
+ * 任务列表公开读 —— 手机端「任务」栏目直接从 evops_tasks 表拉取（不经过聚合）。
+ * 支持 ?status=in_progress 过滤（可选）；返回按 updated_at 降序，limit 200。
+ */
+async function handleTaskList(req, res) {
+  var db = evTaskDb(req, res);
+  if (!db) return json(res, 502, { success: false, error: "supabase_unavailable" });
+  var status = (req.query && req.query.status) || "";
+  var url = db.sbUrl + "/rest/v1/" + TASKS_TABLE + "?select=*&order=updated_at.desc&limit=200";
+  if (status) url += "&status=eq." + encodeURIComponent(status);
+  try {
+    var r = await fetch(url, { headers: db.headers() });
+    if (!r.ok) { var txt = await r.text(); return json(res, 502, { success: false, error: "supabase_fetch_failed", detail: txt.slice(0, 200) }); }
+    var rows = await r.json();
+    if (!Array.isArray(rows)) rows = [];
+    var list = rows.map(function (t) { return {
+      id: t.id, project: t.project || "", title: t.title || "", type: t.type || "feature",
+      status: t.status || "in_progress", priority: t.priority || "P2",
+      assignee: t.assignee || "", eta_min: t.eta_min || 0, description: t.description || "",
+      owner: t.owner || "", replies: Array.isArray(t.replies) ? t.replies : [],
+      close_reason: t.close_reason || "", closed_note: t.closed_note || "",
+      created_at: t.created_at, updated_at: t.updated_at
+    }; });
+    return json(res, 200, { success: true, tasks: list, total: list.length });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   var action = (req.query && req.query.action) || "";
@@ -1282,6 +1311,10 @@ module.exports = async (req, res) => {
         // 任务登记（P1）：Bearer EV_SYNC_TOKEN，写 evops_tasks 表 + 9 上限拦截
         if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
         return await handleTaskRegister(req, res);
+      case "task-list":
+        // 公开读：手机端任务栏目直接拉 evops_tasks（过滤/分页由后端管）
+        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
+        return await handleTaskList(req, res);
       case "task-update":
         if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
         return await handleTaskUpdate(req, res);
