@@ -1,3 +1,3 @@
-{"versionCode":160,"versionName":"0.5.159","sha256":"987710a3d31293c8a637a4ca26ae9e41784321a041417b290b1a3a2daa08abd9",
- "downloadUrlMirror":"https://ghproxy.net/https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.159/EVSyncProbe-v0.5.159.apk","downloadUrlOrigin":"https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.159/EVSyncProbe-v0.5.159.apk",
- "isForce":false,"updateLog":"发布链路验证版本：与 0.5.157 同源码，用于验证应用内自动更新与升级后激活状态保持。无任何功能变化"}
+{"versionCode":161,"versionName":"0.5.160","sha256":"2db3cd94d75e4f7323979e087f5b838fe0735c9ce412d82b72cc6470dca7a7fb",
+ "downloadUrlMirror":"https://ghproxy.net/https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.160/EVSyncProbe-v0.5.160.apk","downloadUrlOrigin":"https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.160/EVSyncProbe-v0.5.160.apk",
+ "isForce":false,"updateLog":"修复应用内升级：下载完成后改用系统安装器（此前部分机型会被 WPS 等文件应用抢开导致无法安装）。其余与 0.5.157 一致"}
