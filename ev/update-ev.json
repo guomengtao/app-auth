@@ -1,3 +1,3 @@
-{"versionCode":164,"versionName":"0.5.163","sha256":"6d094b480e53112937a3fa10a8f2d14c075867305ecfb8744eacc6c3afa88f78",
- "downloadUrlMirror":"https://ghproxy.net/https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.163/EVSyncProbe-v0.5.163.apk","downloadUrlOrigin":"https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.163/EVSyncProbe-v0.5.163.apk",
- "isForce":false,"updateLog":"升级弹窗全新设计：版本章 + 更新说明分区展示，按钮更清晰。安装链路沿用已修复的系统安装器直达路径"}
+{"versionCode":165,"versionName":"0.5.164","sha256":"6927e22447ef9dc04f60adf0744ffb961e758e6da35993b929c586c792d5099a",
+ "downloadUrlMirror":"https://ghproxy.net/https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.164/EVSyncProbe-v0.5.164.apk","downloadUrlOrigin":"https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.164/EVSyncProbe-v0.5.164.apk",
+ "isForce":false,"updateLog":"首页「快速留言」弹窗全新设计：图标章+输入卡+字数统计，空输入时发送置灰；新增「打开留言页」入口。其余不变"}
