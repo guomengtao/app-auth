@@ -807,6 +807,38 @@ async function handleEvPriorityGet(req, res) {
 
 var TASKS_TABLE = "evops_tasks";
 
+/* ───── 任务单号生成（evtask-{type}-{project}-{YYMMDD}-{6chars}）─── */
+
+var BASE30 = "abcdefghjkmnpqrstuvwxyz23456789"; // 排除 0/O/I/l/1
+var BASE30_MAP = [];
+(function () { for (var i = 0; i < BASE30.length; i++) BASE30_MAP[BASE30.charCodeAt(i)] = i; })();
+
+var TASK_TYPE_CODES = {
+  feature: "F", develop: "D", bug: "B", git: "G",
+  docs: "X", infra: "I", refactor: "R", research: "S"
+};
+
+function encodeBase30(buf) {
+  var s = ""; for (var i = 0; i < (buf && buf.length || 0); i++) s += BASE30[buf[i] % 30]; return s;
+}
+
+function generateTaskId(type, project) {
+  var t = TASK_TYPE_CODES[type] || String(type || "F").slice(0, 1).toUpperCase();
+  var p = String(project || "none").replace(/[^a-z0-9-]/g, "").slice(0, 12) || "none";
+  var now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Shanghai" }));
+  var y = String(now.getFullYear()).slice(-2);
+  var m = ("0" + (now.getMonth() + 1)).slice(-2);
+  var d = ("0" + now.getDate()).slice(-2);
+  var date = y + m + d;
+  var ts = Date.now().toString(36);
+  var rnd = require("crypto").randomBytes(2).toString("hex");
+  var hash = require("crypto").createHash("sha256").update(ts + rnd).digest();
+  var short = encodeBase30(hash.slice(0, 9)).slice(0, 6);
+  return "evtask-" + t + "-" + p + "-" + date + "-" + short;
+}
+
+/* ───────────────────── */
+
 /**
  * 把 evops_tasks 登记的真人任务即时合并进 ev-status 的 tasks(Dyn层)。
  * —— 手机端直接读 ev-status，只有把登记任务并进来，列表/详情才能看到
@@ -1002,7 +1034,7 @@ async function handleTaskRegister(req, res) {
     }
   }
 
-  var id = "reg-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
+  var id = generateTaskId(type, body.project);
   var now = new Date().toISOString();
   var row = {
     id: id, project: String(body.project || "").trim().slice(0, 120),
