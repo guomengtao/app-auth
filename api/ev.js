@@ -540,6 +540,7 @@ async function handleEvStatusGet(req, res) {
           var p = rows[0].payload;
           if (typeof p === "string") p = JSON.parse(p);
           await applyPriorityOverrides(p);   // 护栏③：合并人工降级（人纠错 AI，读时即生效）
+          await mergeRegisteredTasks(p, evTaskDb(req, res));  // 合并真人登记任务（eta/assignee/replies…）
           return json(res, 200, p);
         }
       }
@@ -805,6 +806,53 @@ async function handleEvPriorityGet(req, res) {
  * ================================================================== */
 
 var TASKS_TABLE = "evops_tasks";
+
+/**
+ * 把 evops_tasks 登记的真人任务即时合并进 ev-status 的 tasks(Dyn层)。
+ * —— 手机端直接读 ev-status，只有把登记任务并进来，列表/详情才能看到
+ *    eta_min/assignee/description/replies/close_reason 等新字段（seen §方案）。
+ * 规则：按 id 合并；聚合看板已有该 id → 用登记数据覆盖新字段（状态/原因/回复/耗时/描述）；
+ *       聚合看板没有 → 追加为来源=register 的一行。空 DB / 失败静默放行（不影响主链路）。
+ */
+async function mergeRegisteredTasks(payload, db) {
+  if (!db || !payload || !payload.tasks) return payload;
+  try {
+    var r = await fetch(db.sbUrl + "/rest/v1/" + TASKS_TABLE + "?select=*&order=updated_at.desc&limit=300", { headers: db.headers() });
+    if (!r.ok) return payload;
+    var rows = await r.json();
+    if (!Array.isArray(rows) || !rows.length) return payload;
+    var byId = {};
+    rows.forEach(function (t) {
+      if (!t || !t.id) return;
+      var desc = t.description ? String(t.description) : "";
+      var note = (t.extra && t.extra.note) ? String(t.extra.note) : "";
+      byId[t.id] = {
+        id: t.id, project: t.project || "", title: t.title || "", type: t.type || "feature",
+        status: t.status || "in_progress", priority: t.priority || "P2",
+        assignee: t.assignee || "", eta_min: t.eta_min || 0, description: desc,
+        owner: t.owner || "", source: "register", note: note,
+        close_reason: t.close_reason || "", closed_note: t.closed_note || "",
+        replies: Array.isArray(t.replies) ? t.replies : [],
+        created_at: t.created_at, updated_at: t.updated_at
+      };
+    });
+    var list = payload.tasks;
+    for (var i = 0; i < list.length; i++) {
+      var v = byId[list[i] && list[i].id];
+      if (v) { list[i] = v; delete byId[v.id]; }
+    }
+    Object.keys(byId).forEach(function (id) { list.push(byId[id]); });
+    var sm = payload.summary || (payload.summary = {});
+    sm.registered_total = Object.keys(byId).length + countIn(list) || sm.registered_total;
+  } catch (e) { /* 合并失败不阻断读 */ }
+  return payload;
+}
+
+function countIn(list) {
+  var n = 0;
+  if (list) for (var i = 0; i < list.length; i++) if (list[i] && list[i].source === "register") n++;
+  return n;
+}
 
 var TASK_TYPES = ["feature", "develop", "bug", "git", "docs", "infra", "refactor", "research"];
 var TASK_STATUSES = ["in_progress", "planned", "done", "cancelled", "blocked"];
