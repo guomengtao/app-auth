@@ -1,3 +1,3 @@
-{"versionCode":163,"versionName":"0.5.162","sha256":"47a37c6517b47618718b22b35e2772db88c4b921c70de654479dfb99737c9c89",
- "downloadUrlMirror":"https://ghproxy.net/https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.162/EVSyncProbe-v0.5.162.apk","downloadUrlOrigin":"https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.162/EVSyncProbe-v0.5.162.apk",
- "isForce":false,"updateLog":"新增版本身份与高级版门禁：设置页显示标准版/高级版；标准版的导入课程与首页设置改为升级后可用。连接手环（≥1.7.96）自动识别身份，识别不到不拦截"}
+{"versionCode":164,"versionName":"0.5.163","sha256":"6d094b480e53112937a3fa10a8f2d14c075867305ecfb8744eacc6c3afa88f78",
+ "downloadUrlMirror":"https://ghproxy.net/https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.163/EVSyncProbe-v0.5.163.apk","downloadUrlOrigin":"https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.163/EVSyncProbe-v0.5.163.apk",
+ "isForce":false,"updateLog":"升级弹窗全新设计：版本章 + 更新说明分区展示，按钮更清晰。安装链路沿用已修复的系统安装器直达路径"}
