@@ -44,6 +44,7 @@
     { id: "evbox",            name: "EvBox 工具箱总览", url: "/evbox.html",         group: "archive",  desc: "EvBox 工具箱 21 个页面截图与功能说明" },
 
     { id: "apk-download",     name: "安卓版下载",      url: "/apk-download.html",  group: "product",  desc: "下载 Ev课程表同步器 APK" },
+    { id: "ev-apk-promo",     name: "同步器宣传页",    url: "/ev-apk-promo.html",  group: "product",  desc: "Ev课程表安装同步器 · 功能亮点与真机截图" },
     { id: "ev-schedule",      name: "产品介绍",        url: "/ev-schedule.html",   group: "product",  desc: "小米手环课程管理产品介绍" },
     { id: "ev-timetable",     name: "课程表介绍",      url: "/ev-timetable.html",  group: "product",  desc: "手环智能课程管理介绍" },
 

@@ -1,0 +1,152 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Ev课程表安装同步器 · 手机端 APK</title><style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--ink:#1a1a2e;--muted:#6b7280;--line:#e7e9f0;--surface:#fff;--accent:#6c63ff;--accent-deep:#5a52d5}
+body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:var(--surface);color:var(--ink);line-height:1.6}
+
+/* ── Hero：沿用全站深紫渐变 ── */
+.hero{background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);color:#fff;padding:64px 20px 56px;text-align:center}
+.hero .logo{font-size:56px;margin-bottom:10px}
+.hero h1{font-size:2rem;font-weight:800;letter-spacing:1px}
+.hero .tagline{margin-top:10px;font-size:1rem;color:rgba(255,255,255,.85)}
+.hero .ver{display:inline-block;margin-top:14px;background:rgba(108,99,255,.9);padding:4px 14px;border-radius:20px;font-size:.8rem;font-weight:700}
+.hero .cta{margin-top:26px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn{display:inline-block;padding:12px 30px;border-radius:28px;font-size:.95rem;font-weight:700;text-decoration:none;transition:all .2s}
+.btn-primary{background:#fff;color:#302b63}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.btn-ghost{border:1.5px solid rgba(255,255,255,.55);color:#fff}
+.btn-ghost:hover{background:rgba(255,255,255,.12)}
+.hero .hint{margin-top:14px;font-size:.76rem;color:rgba(255,255,255,.55)}
+
+/* ── 通用容器 ── */
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+.section{padding:52px 0 8px}
+.sec-title{text-align:center;font-size:1.4rem;font-weight:800}
+.sec-sub{text-align:center;color:var(--muted);font-size:.88rem;margin-top:6px}
+
+/* ── 特性网格 ── */
+.features{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:28px}
+.feat{background:#f8f8ff;border:1px solid #e8e6ff;border-radius:16px;padding:20px 18px;transition:all .2s}
+.feat:hover{transform:translateY(-3px);box-shadow:0 8px 20px rgba(108,99,255,.14)}
+.feat .ic{font-size:28px}
+.feat h3{font-size:.98rem;margin:8px 0 4px}
+.feat p{font-size:.82rem;color:var(--muted)}
+
+/* ── 截图画廊 ── */
+.gallery{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:28px}
+.shot{background:#f8f8ff;border:1px solid var(--line);border-radius:14px;overflow:hidden;cursor:zoom-in;transition:all .2s}
+.shot:hover{transform:translateY(-3px);box-shadow:0 8px 20px rgba(0,0,0,.12)}
+.shot img{width:100%;display:block}
+.shot .cap{padding:8px 12px;font-size:.78rem;color:var(--muted);border-top:1px solid var(--line)}
+.shot .cap b{color:var(--ink)}
+
+/* ── 亮点条 ── */
+.strip{margin:44px auto 0;max-width:1080px;background:linear-gradient(135deg,#6c63ff,#8b7bff);border-radius:20px;color:#fff;padding:26px 30px;display:flex;flex-wrap:wrap;gap:18px;justify-content:space-between}
+.strip .cell{text-align:center;flex:1;min-width:120px}
+.strip .num{font-size:1.5rem;font-weight:800}
+.strip .lbl{font-size:.78rem;opacity:.9}
+
+/* ── 底部 CTA ── */
+.end-cta{text-align:center;padding:52px 20px 30px}
+.end-cta .big{font-size:1.3rem;font-weight:800}
+.end-cta p{color:var(--muted);font-size:.88rem;margin:8px 0 20px}
+.footer{text-align:center;color:var(--muted);font-size:.78rem;padding:20px;border-top:1px solid var(--line);line-height:1.8}
+
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:50;cursor:zoom-out}
+.lightbox.show{display:flex}
+.lightbox img{max-width:88vw;max-height:88vh;border-radius:14px}
+
+@media(max-width:760px){.features{grid-template-columns:1fr 1fr}.gallery{grid-template-columns:1fr 1fr}.hero h1{font-size:1.5rem}}
+@media(max-width:440px){.features{grid-template-columns:1fr}}
+
+/* ── 全站导航条（site-nav.js 复用） ── */
+.filterbar{max-width:1080px;margin:0 auto;padding:12px 20px 0;display:flex;flex-wrap:wrap;gap:8px}
+.fbtn{border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:6px 14px;border-radius:20px;font-size:.82rem;cursor:pointer;text-decoration:none}
+.fbtn:hover{background:#e8e6ff}
+.fbtn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+</style></head><body>
+
+<div class="filterbar" id="siteNav"></div>
+
+<div class="hero">
+  <div class="logo">📱⌚</div>
+  <h1>Ev课程表 · 安装同步器</h1>
+  <p class="tagline">手机上的课程表中枢 —— 导入课表、同步手环、双向留言，一个 App 全搞定</p>
+  <div class="ver" id="verChip">v0.5.166</div>
+  <div class="cta">
+    <a class="btn btn-primary" href="/apk-download.html">⬇ 下载 APK</a>
+    <a class="btn btn-ghost" href="/android-apk.html">逐页截图档案</a>
+  </div>
+  <p class="hint">免费安装 · 激活码解锁高级版 · 适配小米手环 9 / 10 / 10 Pro / REDMI Watch 6</p>
+</div>
+
+<div class="wrap">
+  <div class="section">
+    <div class="sec-title">它能做什么</div>
+    <div class="sec-sub">从「导课表」到「手腕上看课表」，只需 4 步自动连接</div>
+    <div class="features">
+      <div class="feat"><div class="ic">📅</div><h3>多课表管理</h3><p>课表库随意切换，在线绿点实时显示连接状态，同步徽标一眼看清哪套没同步</p></div>
+      <div class="feat"><div class="ic">⌚</div><h3>一键同步手环</h3><p>课程表、主题、字号模板统统推到手环；手环换主题手机自动跟随</p></div>
+      <div class="feat"><div class="ic">💬</div><h3>双向留言</h3><p>微信式会话流，快捷短语长按可编辑；手环不在场也能留言，回头自动补发</p></div>
+      <div class="feat"><div class="ic">🧰</div><h3>手环工具箱</h3><p>找手机（静音也能响 30 秒）、倒计时提醒、问单词 —— 手环上点，手机上执行</p></div>
+      <div class="feat"><div class="ic">🎨</div><h3>10 套主题</h3><p>手机端即点即生效，与手环端同一套配色体系，表盘界面不再单调</p></div>
+      <div class="feat"><div class="ic">🔔</div><h3>上课提醒 + 后台常驻</h3><p>省电白名单分步引导，同步稳定挂后台；到点提醒不缺课</p></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">界面实拍</div>
+    <div class="sec-sub">华为荣耀畅玩7X · Android 8.0 真机截图 · v0.5.166</div>
+    <div class="gallery" id="gallery"></div>
+  </div>
+
+  <div class="strip">
+    <div class="cell"><div class="num">4 步</div><div class="lbl">自动连接手环</div></div>
+    <div class="cell"><div class="num">10 套</div><div class="lbl">即点即换主题</div></div>
+    <div class="cell"><div class="num">60 字</div><div class="lbl">快速留言上限</div></div>
+    <div class="cell"><div class="num">4 款</div><div class="lbl">手环机型适配</div></div>
+  </div>
+
+  <div class="end-cta">
+    <div class="big">现在就把课表戴在手腕上</div>
+    <p>下载 APK → 导入课程表 → 连接手环 → 自动同步，四步完成</p>
+    <a class="btn btn-primary" style="background:var(--accent);color:#fff" href="/apk-download.html">⬇ 免费下载 APK</a>
+  </div>
+</div>
+
+<div class="footer">
+  Ev课程表 · 安装同步器（安卓端）<br>
+  更多资料：<a href="/android-apk.html">逐页截图档案</a> · <a href="/apk-download.html">下载页</a> · <a href="/ev-schedule.html">产品介绍</a> · <a href="/feedback.html">帮助与反馈</a>
+</div>
+
+<div class="lightbox" id="lightbox" onclick="this.className='lightbox'"><img id="lightboxImg" src=""></div>
+
+<script>
+/* var-only，与全站兼容约束一致 */
+var SHOTS=[
+  {f:"apk/01-home-top.jpg",n:"首页",d:"本周课表 + 设备卡 + 自动连接"},
+  {f:"apk/04-schedules-top.jpg",n:"课表库",d:"多课表切换 · 在线绿点"},
+  {f:"apk/06-band-top.jpg",n:"手环",d:"设备主卡 · 电量 · 快捷操作"},
+  {f:"apk/15-message-top.jpg",n:"留言",d:"微信式会话 · 快捷短语"},
+  {f:"apk/17-theme-picker.jpg",n:"主题外观",d:"10 套主题即点即生效"},
+  {f:"apk/18-homepage-settings.jpg",n:"首页设置",d:"字号/模板与手环一致"},
+  {f:"apk/20-fast-activate.jpg",n:"快速激活",d:"激活码解锁高级版"},
+  {f:"apk/19-donate.jpg",n:"打赏支持",d:"请作者喝杯咖啡"}
+];
+(function(){
+  var g=document.getElementById('gallery');
+  var h='';
+  for(var i=0;i<SHOTS.length;i++){var s=SHOTS[i];
+    h+='<div class="shot" onclick="document.getElementById(\'lightboxImg\').src=\'/images/ev-schedule/'+s.f+'\';document.getElementById(\'lightbox\').className=\'lightbox show\'">'
+     +'<img loading="lazy" src="/images/ev-schedule/'+s.f+'" alt="'+s.n+'">'
+     +'<div class="cap"><b>'+s.n+'</b> · '+s.d+'</div></div>';
+  }
+  g.innerHTML=h;
+})();
+</script>
+<script src="/js/site-nav.js"></script>
+<script>if(window.SiteNav)SiteNav.mountNav('siteNav','ev-apk-promo');</script>
+<script src="/js/track.js" data-group="product"></script>
+<script>
+(function(){try{var r=new XMLHttpRequest();r.open('POST','/api/admin/health?section=visit',true);r.setRequestHeader('Content-Type','application/json');r.send(JSON.stringify({page:location.pathname,referrer:document.referrer||'',title:document.title||''}))}catch(_){}})
+</script>
+</body></html>
