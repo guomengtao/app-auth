@@ -1033,8 +1033,11 @@ async function handleTaskUpdate(req, res) {
   }
   if (body.type != null && TASK_TYPES.indexOf(patch.type) < 0) return json(res, 400, { success: false, error: "bad_type" });
   if (!has) return json(res, 400, { success: false, error: "Nothing to update" });
+  var existing = await db.readRow(id);
+  if (!existing) return json(res, 404, { success: false, error: "not_found", detail: "任务 " + id + " 不存在" });
   patch.updated_at = new Date().toISOString();
   try {
+    // 预检查：PATCH 对不存在的行静默返回成功（Supabase 行为），故先用 readRow 确认存在，避免「改了不存在的任务还报成功」。
     var r = await fetch(db.sbUrl + "/rest/v1/" + TASKS_TABLE + "?id=eq." + encodeURIComponent(id), {
       method: "PATCH", headers: db.headers({ Prefer: "return=minimal" }), body: JSON.stringify(patch)
     });
