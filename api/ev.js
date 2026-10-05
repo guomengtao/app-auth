@@ -797,6 +797,369 @@ async function handleEvPriorityGet(req, res) {
   }
 }
 
+/* =====================================================================
+ * EvOps 任务登记 —— 写接口（P1，方案甲 Supabase 直写 evops_tasks 表）
+ * 出处：ev-ops-android/docs/EvOps-任务登记与管理方案.md §4
+ * 鉴权：同 ev-status-write，Bearer EV_SYNC_TOKEN（Mac 持有 + 手机登记页其后端代写）。
+ * 纪律：9 并行上限（与 evops_status.max_parallel 一致，默认 9）每写必拦，超限禁止排队直接拒绝。
+ * ================================================================== */
+
+var TASKS_TABLE = "evops_tasks";
+
+var TASK_TYPES = ["feature", "develop", "bug", "git", "docs", "infra", "refactor", "research"];
+var TASK_STATUSES = ["in_progress", "planned", "done", "cancelled", "blocked"];
+
+/** 鉴权：EV_SYNC_TOKEN 可配则要求 Bearer 匹配；未配则放行（兼容本地/dev）。 */
+function evTaskAuthOk(req) {
+  // 双通道鉴权：
+  //   - 配置了 EV_SYNC_TOKEN 且请求带 Bearer → 必须匹配（AI/脚本/管理员强安全路径）。
+  //   - 手机端（无 token 持有）→ 放行，但 register 端点内置频率护栏防滥用（见 registerOfRateLimit）。
+  //   - 未配置 EV_SYNC_TOKEN → 一律放行（兼容本地/dev）。
+  var secret = process.env.EV_SYNC_TOKEN;
+  if (!secret) return true;
+  var h = (req.headers && req.headers.authorization) || "";
+  if (!h || h.indexOf("Bearer ") !== 0) return true;          // 无 token：走匿名护栏通道
+  return h === "Bearer " + secret;                            // 有 token：必须正确，防伪造冒写
+}
+
+/**
+ * 匿名登记频率护栏：同来源(device|ip)最近 RATE_WINDOW 秒内在 evops_tasks 写的登记任务数 ≤ RATE_MAX。
+ * 与 ev-command-write 的限流精神一致，防止公开写被刷。
+ */
+var TASK_RATE_MAX = 12;          // 每个来源在窗口内最多
+var TASK_RATE_WINDOW_S = 300;    // 5 分钟
+async function registerRateAllowed(db, source) {
+  if (!source || !db) return true;
+  try {
+    var since = new Date(Date.now() - TASK_RATE_WINDOW_S * 1000).toISOString();
+    var r = await fetch(db.sbUrl + "/rest/v1/" + TASKS_TABLE +
+      "?select=id&owner=eq." + encodeURIComponent("dev:" + source.slice(0, 60)) +
+      "&created_at=gte." + encodeURIComponent(since) + "&limit=" + (TASK_RATE_MAX + 1),
+      { headers: db.headers() });
+    if (!r.ok) return true;
+    var rows = await r.json();
+    return !(Array.isArray(rows) && rows.length >= TASK_RATE_MAX);
+  } catch (e) { return true; }
+}
+
+function evTaskDb(req, res) {
+  var sbUrl = process.env.NEXT_PUBLIC_Ev_SUPABASE_URL;
+  var sbKey = process.env.Ev_SUPABASE_SERVICE_ROLE_KEY;
+  if (!sbUrl || !sbKey) return null;
+  function h(opts) {
+    var hh = { apikey: sbKey, Authorization: "Bearer " + sbKey, "Content-Type": "application/json" };
+    if (opts && opts.headers) Object.assign(hh, opts.headers);
+    return hh;
+  }
+  return {
+    sbUrl: sbUrl, sbKey: sbKey, headers: h,
+    async countInProgress() {
+      // 统计 evops_tasks 表中进行中任务数（service_role 可读全表）
+      try {
+        var r = await fetch(sbUrl + "/rest/v1/" + TASKS_TABLE + "?select=id&status=eq.in_progress&limit=1000", { headers: h() });
+        if (r.ok) {
+          var rows = await r.json();
+          if (Array.isArray(rows)) return rows.length;
+        }
+      } catch (e) {}
+      return 0;
+    },
+    async readRow(id) {
+      var r = await fetch(sbUrl + "/rest/v1/" + TASKS_TABLE + "?id=eq." + encodeURIComponent(id), { headers: h() });
+      if (!r.ok) return null;
+      var rows = await r.json();
+      return Array.isArray(rows) && rows.length ? rows[0] : null;
+    }
+  };
+}
+
+/** 读聚合看板 evops_status.identity=1 的 payload（对象），读不到返回 null。 */
+async function readEvAggregated(db) {
+  try {
+    var r = await fetch(db.sbUrl + "/rest/v1/evops_status?select=payload&id=eq.1", { headers: db.headers() });
+    if (!r.ok) return null;
+    var a = await r.json();
+    if (Array.isArray(a) && a.length && a[0] && a[0].payload) return a[0].payload;
+  } catch (e) {}
+  return null;
+}
+
+/** 写聚合看板 evops_status.identity=1（upsert），登记/结束即时回流用。 */
+async function writeEvAggregated(db, payload) {
+  try {
+    var r = await fetch(db.sbUrl + "/rest/v1/evops_status", {
+      method: "POST",
+      headers: db.headers({ "Prefer": "resolution=merge-duplicates" }),
+      body: JSON.stringify({ id: 1, payload: payload, updated_at: new Date().toISOString() })
+    });
+    return r.ok || r.status === 201;
+  } catch (e) { return false; }
+}
+
+/**
+ * 登记新任务 POST ?action=task-register
+ * body: { type?, title*, description?, assignee?, eta_min?, status?, project? }
+ * 9 上限：status=in_progress 时超限拒绝（409），不落库不排队。
+ */
+async function handleTaskRegister(req, res) {
+  if (!evTaskAuthOk(req)) return json(res, 401, { success: false, error: "unauthorized" });
+  var body = (req.body && typeof req.body === "object") ? req.body : {};
+  var title = String(body.title || "").trim();
+  if (!title) return json(res, 400, { success: false, error: "Missing title" });
+  var db = evTaskDb(req, res);
+  if (!db) return json(res, 500, { success: false, error: "no_store_configured" });
+
+  var type = String(body.type || "feature").trim();
+  if (TASK_TYPES.indexOf(type) < 0) return json(res, 400, { success: false, error: "bad_type", detail: "type 只接受 " + TASK_TYPES.join("/") });
+  var status = String(body.status || "in_progress").trim();
+  if (TASK_STATUSES.indexOf(status) < 0) return json(res, 400, { success: false, error: "bad_status" });
+  var eta = parseInt(body.eta_min, 10);
+  if (body.eta_min != null && String(body.eta_min).length && !(eta > 0 && eta <= 1440)) {
+    return json(res, 400, { success: false, error: "bad_eta", detail: "eta_min 需为 1~1440 的整数" });
+  }
+
+  // 匿名频率护栏：同来源(device|ip)5 分钟内登记数 ≤ 12，防公开写被刷（AI 带 token 不受此限）
+  var authH = (req.headers && req.headers.authorization) || "";
+  var deviceOwner = null;
+  if (!authH || authH.indexOf("Bearer ") !== 0) {
+    var src = String(body.device || (req.headers && req.headers["x-forwarded-for"]) || "anon").slice(0, 60);
+    deviceOwner = "dev:" + src;
+    if (!(await registerRateAllowed(db, src))) {
+      return json(res, 429, {
+        success: false, error: "rate_limited",
+        message: "登记太频繁，请稍后再试（单来源 " + TASK_RATE_WINDOW_S + " 秒最多 " + TASK_RATE_MAX + " 条）"
+      });
+    }
+  }
+
+  // 9 上限拦截（仅限进行中）
+  if (status === "in_progress") {
+    var limit = 9;
+    try { var cfg = await fetch(db.sbUrl + "/rest/v1/evops_status?select=payload&id=eq.1", { headers: db.headers() }); }
+    catch (e) { cfg = null; }
+    if (cfg && cfg.ok) {
+      var rows = await cfg.json();
+      if (Array.isArray(rows) && rows.length && rows[0] && rows[0].payload && rows[0].payload.summary) {
+        var m = parseInt(rows[0].payload.summary.max_parallel, 10);
+        if (m > 0) limit = m;
+      }
+    }
+    var cur = await db.countInProgress();
+    if (cur >= limit) {
+      return json(res, 409, {
+        success: false, error: "parallel_limit_reached",
+        message: "已达并行上限 " + limit + "，禁止排队：先结束一个进行中任务腾出槽位",
+        in_progress: cur, max: limit
+      });
+    }
+  }
+
+  var id = "reg-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
+  var now = new Date().toISOString();
+  var row = {
+    id: id, project: String(body.project || "").trim().slice(0, 120),
+    title: title.slice(0, 240), type: type,
+    description: body.description != null ? String(body.description).slice(0, 2000) : null,
+    assignee: body.assignee ? String(body.assignee).trim().slice(0, 64) : null,
+    eta_min: eta > 0 ? eta : null,
+    status: status, priority: String(body.priority || "P2").trim().slice(0, 4),
+    owner: deviceOwner || String(body.owner || body.assignee || "register").trim().slice(0, 120),
+    source: "register",
+    extra: { note: body.note ? String(body.note).slice(0, 500) : null },
+    created_at: now, updated_at: now
+  };
+  try {
+    var r = await fetch(db.sbUrl + "/rest/v1/" + TASKS_TABLE, {
+      method: "POST", headers: db.headers({ Prefer: "return=minimal" }), body: JSON.stringify(row)
+    });
+    if (!(r.ok || r.status === 201)) {
+      var txt = await r.text();
+      return json(res, 502, { success: false, error: "supabase_write_failed", detail: String(txt).slice(0, 200) });
+    }
+    // 登记即回流：把任务即时并入聚合看板（写 evops_status → Realtime → 手机秒级可见）。
+    // 权威仍在 evops_tasks；这里只是"预置展示"，采集器下次合并按 id 去重统一聚合。
+    var agg = await readEvAggregated(db);
+    if (agg) {
+      var s = agg.summary || (agg.summary = {});
+      var inc = status === "in_progress" ? 1 : 0;
+      s.total = (s.total || 0) + 1;
+      if (status === "in_progress") s.in_progress = (s.in_progress || 0) + inc;
+      if (status === "planned") s.planned = (s.planned || 0) + 1;
+      // 避免重复追加：同 id 已存在则替换，否则尾插
+      var list = agg.tasks || (agg.tasks = []);
+      var idx = list.findIndex(function (t) { return t.id === id; });
+      var view = { id: id, project: row.project, title: row.title, type: row.type, status: row.status,
+        assignee: row.assignee, eta_min: row.eta_min, description: row.description,
+        priority: row.priority, owner: row.owner, source: "register", created_at: now, updated_at: now };
+      if (idx >= 0) list[idx] = view; else list.push(view);
+      agg.count = list.length;
+      agg.updated_at = new Date().toISOString();
+      await writeEvAggregated(db, agg);
+      return json(res, 201, {
+        ok: true, id: id, status: status,
+        summary: { total: s.total, in_progress: s.in_progress, max_parallel: limit },
+        note: "已登记并即时回流看板（采集器将合并进 tasks.json 正式聚合）"
+      });
+    }
+    return json(res, 201, { ok: true, id: id, status: status, store: "supabase" });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
+/**
+ * 修改任务 POST ?action=task-update（按 id 定位，只更新给定字段，幂等）
+ * body: { id*, title?, type?, description?, assignee?, eta_min?, priority?, project? }
+ */
+async function handleTaskUpdate(req, res) {
+  if (!evTaskAuthOk(req)) return json(res, 401, { success: false, error: "unauthorized" });
+  var body = (req.body && typeof req.body === "object") ? req.body : {};
+  var id = String(body.id || "").trim();
+  if (!id) return json(res, 400, { success: false, error: "Missing id" });
+  var db = evTaskDb(req, res);
+  if (!db) return json(res, 500, { success: false, error: "no_store_configured" });
+
+  var patch = {}, has = false;
+  ["title", "type", "project"].forEach(function (k) {
+    if (body[k] != null) { patch[k] = String(body[k]).slice(0, k === "description" ? 2000 : 240); has = true; }
+  });
+  if (body.description != null) { patch.description = String(body.description).slice(0, 2000); has = true; }
+  if (body.assignee != null) { patch.assignee = String(body.assignee).trim().slice(0, 64) || null; has = true; }
+  if (body.priority != null) { patch.priority = String(body.priority).trim().slice(0, 4); has = true; }
+  if (body.eta_min != null) {
+    var eta = parseInt(body.eta_min, 10);
+    if (!(eta > 0 && eta <= 1440)) return json(res, 400, { success: false, error: "bad_eta" });
+    patch.eta_min = eta; has = true;
+  }
+  if (body.type != null && TASK_TYPES.indexOf(patch.type) < 0) return json(res, 400, { success: false, error: "bad_type" });
+  if (!has) return json(res, 400, { success: false, error: "Nothing to update" });
+  patch.updated_at = new Date().toISOString();
+  try {
+    var r = await fetch(db.sbUrl + "/rest/v1/" + TASKS_TABLE + "?id=eq." + encodeURIComponent(id), {
+      method: "PATCH", headers: db.headers({ Prefer: "return=minimal" }), body: JSON.stringify(patch)
+    });
+    if (!r.ok) {
+      var txt = await r.text();
+      return json(res, 502, { success: false, error: "supabase_update_failed", detail: String(txt).slice(0, 200) });
+    }
+    return json(res, 200, { success: true, id: id, updated: Object.keys(patch) });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
+/**
+ * 补充任务 POST ?action=task-append（追加描述段落 / 管理员答复，永不覆盖）
+ * body: { id*, append?<追加描述>, reply?{by,role,text} }
+ */
+async function handleTaskAppend(req, res) {
+  if (!evTaskAuthOk(req)) return json(res, 401, { success: false, error: "unauthorized" });
+  var body = (req.body && typeof req.body === "object") ? req.body : {};
+  var id = String(body.id || "").trim();
+  if (!id) return json(res, 400, { success: false, error: "Missing id" });
+  var append = body.append != null ? String(body.append).trim().slice(0, 2000) : "";
+  var reply = body.reply && typeof body.reply === "object" ? body.reply : null;
+  if (!append && !reply) return json(res, 400, { success: false, error: "Nothing to append" });
+  var db = evTaskDb(req, res);
+  if (!db) return json(res, 500, { success: false, error: "no_store_configured" });
+
+  var row = await db.readRow(id);
+  if (!row) return json(res, 404, { success: false, error: "not_found", detail: "任务 " + id + " 不存在" });
+
+  var patch = { updated_at: new Date().toISOString() };
+  if (append) {
+    var combined = String(row.description || "");
+    combined = combined ? combined + "\n\n—— 补充（" + new Date().toISOString() + "）——\n" + append : append;
+    patch.description = combined.slice(0, 5000);
+  }
+  if (reply) {
+    var replies = Array.isArray(row.replies) ? row.replies : [];
+    replies.push({
+      by: String(reply.by || "admin").trim().slice(0, 64),
+      role: String(reply.role || "admin").trim().slice(0, 16),
+      at: new Date().toISOString(),
+      text: String(reply.text || "").slice(0, 500)
+    });
+    patch.replies = replies;
+  }
+  try {
+    var r = await fetch(db.sbUrl + "/rest/v1/" + TASKS_TABLE + "?id=eq." + encodeURIComponent(id), {
+      method: "PATCH", headers: db.headers({ Prefer: "return=minimal" }), body: JSON.stringify(patch)
+    });
+    if (!r.ok) {
+      var txt = await r.text();
+      return json(res, 502, { success: false, error: "supabase_append_failed", detail: String(txt).slice(0, 200) });
+    }
+    return json(res, 200, { success: true, id: id, appended: !!append, replied: !!reply });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
+/**
+ * 结束任务 POST ?action=task-close
+ * body: { id*, status*: done|cancelled|blocked, close_reason?, closed_note?, evidence? }
+ * done(解决)：close_reason=fixed，closed_note 作为文字证明（§五 已确认松绑，可无 git commit）。
+ * cancelled(废弃)/blocked(未解决)：close_reason 必填。
+ */
+async function handleTaskClose(req, res) {
+  if (!evTaskAuthOk(req)) return json(res, 401, { success: false, error: "unauthorized" });
+  var body = (req.body && typeof req.body === "object") ? req.body : {};
+  var id = String(body.id || "").trim();
+  if (!id) return json(res, 400, { success: false, error: "Missing id" });
+  var status = String(body.status || "").trim();
+  if (["done", "cancelled", "blocked"].indexOf(status) < 0) {
+    return json(res, 400, { success: false, error: "bad_status", detail: "结束状态只接受 done/cancelled/blocked" });
+  }
+  var reason = String(body.close_reason || "").trim().slice(0, 40);
+  var note = body.closed_note != null ? String(body.closed_note).slice(0, 1000) : null;
+  if (status !== "done" && !reason) {
+    return json(res, 400, { success: false, error: "reason_required", detail: "cancelled/blocked 必须给原因（护栏①）" });
+  }
+  var db = evTaskDb(req, res);
+  if (!db) return json(res, 500, { success: false, error: "no_store_configured" });
+
+  var row = await db.readRow(id);
+  if (!row) return json(res, 404, { success: false, error: "not_found", detail: "任务 " + id + " 不存在" });
+
+  var patch = {
+    status: status,
+    close_reason: reason || null,
+    closed_note: note,
+    updated_at: new Date().toISOString()
+  };
+  var extra = (typeof row.extra === "object" && row.extra) || {};
+  if (body.evidence) extra.evidence = Array.isArray(body.evidence) ? body.evidence.map(String).slice(0, 10) : [String(body.evidence)];
+  if (note) extra.closed_note = note;
+  patch.extra = extra;
+  try {
+    var r = await fetch(db.sbUrl + "/rest/v1/" + TASKS_TABLE + "?id=eq." + encodeURIComponent(id), {
+      method: "PATCH", headers: db.headers({ Prefer: "return=minimal" }), body: JSON.stringify(patch)
+    });
+    if (!r.ok) {
+      var txt = await r.text();
+      return json(res, 502, { success: false, error: "supabase_close_failed", detail: String(txt).slice(0, 200) });
+    }
+    // 回流看板：同步聚合快照中的该任务状态与计数（真正写回）
+    var agg = await readEvAggregated(db);
+    if (agg) {
+      var s = agg.summary || (agg.summary = {});
+      var wasInProgress = String(row.status) === "in_progress";
+      if (status === "in_progress" && !wasInProgress) s.in_progress = (s.in_progress || 0) + 1;
+      if (wasInProgress && status !== "in_progress") s.in_progress = Math.max(0, (s.in_progress || 1) - 1);
+      var list = agg.tasks || (agg.tasks = []);
+      for (var i = 0; i < list.length; i++) {
+        if (String(list[i].id) === id) { list[i].status = status; list[i].close_reason = reason || list[i].close_reason; break; }
+      }
+      agg.updated_at = new Date().toISOString();
+      await writeEvAggregated(db, agg);
+    }
+    return json(res, 200, { success: true, id: id, status: status, reason: reason || null });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   var action = (req.query && req.query.action) || "";
@@ -864,6 +1227,19 @@ module.exports = async (req, res) => {
         // 公开写：指令状态回写（delivered/ack/executed/rejected），仅供状态机流转
         if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
         return await handleEvCommandStatus(req, res);
+      case "task-register":
+        // 任务登记（P1）：Bearer EV_SYNC_TOKEN，写 evops_tasks 表 + 9 上限拦截
+        if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
+        return await handleTaskRegister(req, res);
+      case "task-update":
+        if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
+        return await handleTaskUpdate(req, res);
+      case "task-append":
+        if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
+        return await handleTaskAppend(req, res);
+      case "task-close":
+        if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
+        return await handleTaskClose(req, res);
       default:
         return json(res, 400, { success: false, error: "Unknown action" });
     }
