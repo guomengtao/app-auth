@@ -93,6 +93,14 @@ async function handleBandBBS(req, res) {
       case "reward-pool-stats":
         result = await bandbbs.getRewardPoolStats(require("../../lib/redis"));
         return res.json(result);
+      case "reward-pool-list":
+        result = await bandbbs.rewardPoolList(require("../../lib/redis"), {
+          status: query.status || "all",
+          batch: query.batch || "",
+          limit: query.limit,
+          offset: query.offset
+        });
+        return res.json(result);
       case "reward-log":
         var logResourceId = query.resourceId || "";
         var logStatus = query.status || "";
