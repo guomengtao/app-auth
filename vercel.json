@@ -1,29 +1,106 @@
 {
   "rewrites": [
-    { "source": "/", "destination": "/index.html" },
-    { "source": "/go/:slug", "destination": "/api/go?slug=:slug" },
-    { "source": "/go/:slug/", "destination": "/api/go?slug=:slug" },
-    { "source": "/dl/:file", "destination": "/api/go?dl=:file" },
-    { "source": "/my-ip", "destination": "/my-ip.html" },
-    { "source": "/ip", "destination": "/my-ip.html" },
-    { "source": "/ev-login", "destination": "/ev-login.html" },
-    { "source": "/feedback", "destination": "/feedback.html" },
-    { "source": "/feedback/", "destination": "/feedback.html" },
-    { "source": "/evbox", "destination": "/evbox.html" },
-    { "source": "/evbox/", "destination": "/evbox.html" }
+    {
+      "source": "/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/go/:slug",
+      "destination": "/api/go?slug=:slug"
+    },
+    {
+      "source": "/go/:slug/",
+      "destination": "/api/go?slug=:slug"
+    },
+    {
+      "source": "/dl/:file",
+      "destination": "/api/go?dl=:file"
+    },
+    {
+      "source": "/my-ip",
+      "destination": "/my-ip.html"
+    },
+    {
+      "source": "/ip",
+      "destination": "/my-ip.html"
+    },
+    {
+      "source": "/ev-login",
+      "destination": "/ev-login.html"
+    },
+    {
+      "source": "/feedback",
+      "destination": "/feedback.html"
+    },
+    {
+      "source": "/feedback/",
+      "destination": "/feedback.html"
+    },
+    {
+      "source": "/evbox",
+      "destination": "/evbox.html"
+    },
+    {
+      "source": "/evbox/",
+      "destination": "/evbox.html"
+    }
   ],
   "redirects": [
-    { "source": "/api/notify/ack", "destination": "/api/feedback?kind=ack", "permanent": false },
-    { "source": "/api/admin/go-links", "destination": "/api/admin/catalog?kind=go", "permanent": false },
-    { "source": "/api/admin/products", "destination": "/api/admin/catalog?kind=products", "permanent": false },
-    { "source": "/api/admin/health", "destination": "/api/admin/catalog?kind=health", "permanent": false },
-    { "source": "/api/afdian/webhook", "destination": "/api/afdian?kind=webhook", "permanent": false },
-    { "source": "/api/afdian/query-orders", "destination": "/api/afdian?kind=query", "permanent": false },
-    { "source": "/pages.html", "destination": "/ui-gallery-9.html", "permanent": true },
-    { "source": "/pages", "destination": "/ui-gallery-9.html", "permanent": true },
-    { "source": "/pages/", "destination": "/ui-gallery-9.html", "permanent": true },
-    { "source": "/api/oauth/login", "destination": "/api/oauth", "permanent": false },
-    { "source": "/api/oauth/callback", "destination": "/api/oauth", "permanent": false }
+    {
+      "source": "/api/notify/ack",
+      "destination": "/api/feedback?kind=ack",
+      "permanent": false
+    },
+    {
+      "source": "/api/admin/go-links",
+      "destination": "/api/admin/catalog?kind=go",
+      "permanent": false
+    },
+    {
+      "source": "/api/admin/products",
+      "destination": "/api/admin/catalog?kind=products",
+      "permanent": false
+    },
+    {
+      "source": "/api/admin/health",
+      "destination": "/api/admin/catalog?kind=health",
+      "permanent": false
+    },
+    {
+      "source": "/api/afdian/webhook",
+      "destination": "/api/afdian?kind=webhook",
+      "permanent": false
+    },
+    {
+      "source": "/api/afdian/query-orders",
+      "destination": "/api/afdian?kind=query",
+      "permanent": false
+    },
+    {
+      "source": "/pages.html",
+      "destination": "/ui-gallery-9.html",
+      "permanent": true
+    },
+    {
+      "source": "/pages",
+      "destination": "/ui-gallery-9.html",
+      "permanent": true
+    },
+    {
+      "source": "/pages/",
+      "destination": "/ui-gallery-9.html",
+      "permanent": true
+    },
+    {
+      "source": "/api/oauth/login",
+      "destination": "/api/oauth",
+      "permanent": false
+    },
+    {
+      "source": "/api/oauth/callback",
+      "destination": "/api/oauth",
+      "permanent": false
+    }
   ],
   "crons": [
     {
@@ -35,8 +112,12 @@
       "schedule": "0 4 * * *"
     },
     {
-    "path": "/api/admin/catalog?kind=health&section=sync&cron=1",
-    "schedule": "0 5 * * *"
-  }
+      "path": "/api/admin/catalog?kind=health&section=sync&cron=1",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/admin/catalog?kind=bandbbs&op=poll&cron=1",
+      "schedule": "0 0 * * *"
+    }
   ]
 }

@@ -3395,6 +3395,8 @@
         <li><a href="javascript:void(0)" onclick="switchTab('logs')" data-tab="logs"><i data-lucide="scroll-text" class="menu-icon"></i><span class="menu-text">日志</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('devices')" data-tab="devices"><i data-lucide="shield-check" class="menu-icon"></i><span class="menu-text">已授权设备</span></a></li>
         <li class="menu-separator"><hr></li>
+        <li class="menu-separator"><hr></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('bandbbs')" data-tab="bandbbs"><i data-lucide="message-square" class="menu-icon"></i><span class="menu-text">BandBBS</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('settings')" data-tab="settings"><i data-lucide="settings" class="menu-icon"></i><span class="menu-text">设置</span></a></li>
       </ul>
       <div class="sidebar-user" id="sidebarUser">
@@ -4826,6 +4828,89 @@
             </table>
           </div>
         </div>
+
+        <div class="panel" id="panel-bandbbs">
+          <div class="toolbar">
+            <div>
+              <h2 style="margin:0;display:flex;align-items:center;gap:8px">📡 BandBBS 社区运营</h2>
+              <span class="muted" style="font-size:0.8125rem">抓取BandBBS资源帖评论，自动发送奖励私信</span>
+            </div>
+            <span class="spacer"></span>
+            <div style="display:flex;align-items:center;gap:12px">
+              <button class="btn btn-outline" onclick="loadBandBBS()">🔄 刷新</button>
+              <button class="btn btn-primary" onclick="triggerBandBBSPoll()" id="btnPoll" style="background:var(--accent-bg);color:var(--accent-text)">▶️ 手动抓取</button>
+            </div>
+          </div>
+
+          <!-- Stats Cards -->
+          <div class="stats-bar" id="bandbbsStats" style="margin-bottom:20px">
+            <div class="stat-card">
+              <div class="number" id="bbStatResources">-</div>
+              <div class="label">监控资源帖</div>
+            </div>
+            <div class="stat-card">
+              <div class="number" id="bbStatReviews">-</div>
+              <div class="label">已抓评论</div>
+            </div>
+            <div class="stat-card">
+              <div class="number" id="bbStatRewards">-</div>
+              <div class="label">已发奖励</div>
+            </div>
+            <div class="stat-card">
+              <div class="number" id="bbStatLastPoll">-</div>
+              <div class="label">上次抓取</div>
+            </div>
+          </div>
+
+          <!-- Resource Config Section -->
+          <div class="setting-block" style="margin-bottom:20px">
+            <h3 style="margin:0 0 12px">📋 资源帖配置</h3>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+              <input type="text" id="bbResourceId" placeholder="Resource ID (e.g. 7828)" style="width:180px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
+              <input type="text" id="bbResourceTitle" placeholder="Title (optional)" style="width:200px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
+              <button class="btn btn-sm" onclick="addBandBBSResource()">➕ 添加</button>
+            </div>
+            <div style="overflow-x:auto">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:120px">Resource ID</th>
+                    <th>标题</th>
+                    <th style="width:80px">状态</th>
+                    <th style="width:120px">评论数</th>
+                    <th style="width:150px">上次抓取</th>
+                    <th style="width:140px">新增评论</th>
+                    <th style="width:80px">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="bbResourcesTable">
+                  <tr><td colspan="7" class="empty">加载中...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Poll Results -->
+          <div class="setting-block" style="margin-bottom:20px">
+            <h3 style="margin:0 0 12px">📊 最近抓取结果</h3>
+            <div id="bbPollResult" style="padding:16px;background:var(--card);border-radius:8px;min-height:60px">
+              <span class="muted">尚未执行抓取，点击"手动抓取"按钮开始</span>
+            </div>
+          </div>
+
+          <!-- Send Test DM -->
+          <div class="setting-block">
+            <h3 style="margin:0 0 12px">✉️ 发送测试私信</h3>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <input type="text" id="bbDmRecipient" placeholder="收信人用户名" value="peipeijin" style="width:160px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
+              <input type="text" id="bbDmTitle" placeholder="标题" value="Reward Test" style="width:160px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
+              <input type="text" id="bbDmMessage" placeholder="内容" value="This is a test reward message from BandBBS integration." style="width:300px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
+              <button class="btn btn-sm" onclick="sendBandBBSDM()" id="btnSendDm">📨 发送</button>
+            </div>
+            <div id="bbDmResult" style="margin-top:10px;font-size:0.8125rem"></div>
+          </div>
+        </div>
+
         </div>
 
       </main>
@@ -5172,6 +5257,7 @@
       'logs': { title: '系统日志', sub: 'Vercel部署事件 · 邮件发送记录 · 爱发电私信日志' },
       delivery: { title: '快捷激活', sub: '直接生成激活码 · 解密验证 · 用户画像 · 消息投递' },
       devices: { title: '已授权设备', sub: '查看并撤销桌面客户端（EvNotifier）的长期访问令牌' },
+      bandbbs: { title: 'BandBBS 社区运营', sub: '评论抓取 · 奖励私信 · 资源配置' },
       settings: { title: '设置', sub: '外观 · 数据 · 安全 · 邮件 · 备份恢复' },
       health: { title: '服务器状态', sub: '检测 Postgres / 鉴权 / 激活链路是否正常' },
       'vercel-logs': { title: 'Vercel日志', sub: '部署事件与函数运行日志（Vercel API）' },
@@ -5239,6 +5325,7 @@
         }
       }
       if (tab === 'devices') loadDevices();
+      if (tab === 'bandbbs') loadBandBBS();
       
       try {
         if (typeof lucide !== 'undefined' && lucide.createIcons) {
@@ -12229,5 +12316,6 @@ function loadAppStats() {
 })();
 </script>
 
+<script src="admin-bandbbs.js"></script>
 </body>
 </html>
