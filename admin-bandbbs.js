@@ -13,7 +13,7 @@ async function loadBandBBS() {
         var configs = configData.data;
         var tbody = document.getElementById('bbResourcesTable');
         if (!configs || !configs.length) {
-          tbody.innerHTML = '<tr><td colspan="7" class="empty">No resources configured</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="7" class="empty">暂无已配置的资源</td></tr>';
         } else {
           var rows = '';
           for (var i = 0; i < configs.length; i++) {
@@ -59,17 +59,17 @@ async function triggerBandBBSPoll() {
         for (var i = 0; i < resourceKeys.length; i++) {
           var rid = resourceKeys[i];
           var v = r.resources[rid];
-          resourcesHtml += '<div style="margin:4px 0">#' + rid + ': ' + (v.error ? '<span style="color:#dc2626">错误: ' + v.error + '</span>' : v.count + ' reviews (' + (v.title || '') + ')') + '</div>';
+          resourcesHtml += '<div style="margin:4px 0">#' + rid + ': ' + (v.error ? '<span style="color:#dc2626">错误：' + v.error + '</span>' : v.count + ' 条评论（' + (v.title || '') + '）') + '</div>';
         }
         box.innerHTML = '<div style="color:#16a34a;font-weight:600;margin-bottom:8px">抓取完成</div>' +
-          '<div>新增评论: <b>' + r.newReviews + '</b> | Rewards Sent: <b>' + r.rewards.sent + '</b> | 跳过: <b>' + r.rewards.skipped + '</b> | 错误: <b>' + r.rewards.errors + '</b></div>' +
-          '<div style="margin-top:4px">耗时: ' + r.duration + 'ms</div>' +
+          '<div>新增评论：<b>' + r.newReviews + '</b> | 已发奖励：<b>' + r.rewards.sent + '</b> | 跳过：<b>' + r.rewards.skipped + '</b> | 错误：<b>' + r.rewards.errors + '</b></div>' +
+          '<div style="margin-top:4px">耗时：' + r.duration + 'ms</div>' +
           '<div style="margin-top:8px">' + resourcesHtml + '</div>';
       } else {
-        box.innerHTML = '<span style="color:#dc2626">抓取失败: ' + ((result && result.error) || '未知错误') + '</span>';
+        box.innerHTML = '<span style="color:#dc2626">抓取失败：' + ((result && result.error) || '未知错误') + '</span>';
       }
     } catch (e) {
-      document.getElementById('bbPollResult').innerHTML = '<span style="color:#dc2626">请求失败: ' + (e.message || e) + '</span>';
+      document.getElementById('bbPollResult').innerHTML = '<span style="color:#dc2626">请求失败：' + (e.message || e) + '</span>';
     }
     btn.disabled = false;
     btn.textContent = '▶️ 手动抓取';
@@ -105,7 +105,7 @@ async function triggerBandBBSPoll() {
       if (result && result.success) {
         loadBandBBS();
       } else {
-        alert('Failed: ' + ((result && result.error) || 'Unknown'));
+        alert('失败：' + ((result && result.error) || 'Unknown'));
       }
     } catch (e) {
       alert('Error: ' + (e.message || e));
@@ -128,12 +128,12 @@ async function triggerBandBBSPoll() {
       });
       var resultBox = document.getElementById('bbDmResult');
       if (result && result.success) {
-        resultBox.innerHTML = '<span style="color:#16a34a">已发送给 ' + recipient + ' (会话ID: ' + (result.conversationId || '-') + ')</span>';
+        resultBox.innerHTML = '<span style="color:#16a34a">已发送给 ' + recipient + ' （会话ID：' + (result.conversationId || '-') + ')</span>';
       } else {
         resultBox.innerHTML = '<span style="color:#dc2626">发送失败: ' + ((result && result.error) || '未知错误') + '</span>';
       }
     } catch (e) {
-      document.getElementById('bbDmResult').innerHTML = '<span style="color:#dc2626">Request failed: ' + (e.message || e) + '</span>';
+      document.getElementById('bbDmResult').innerHTML = '<span style="color:#dc2626">请求失败：' + (e.message || e) + '</span>';
     }
     btn.disabled = false;
     btn.textContent = '📨 发送';
@@ -150,16 +150,16 @@ async function triggerBandBBSPoll() {
         var h = '';
         for (var i = 0; i < keys.length; i++) {
           var k = keys[i], v = r.resources[k];
-          h += '<div style="margin:4px 0">#' + k + ': ' + (v.error ? '<span style="color:#dc2626">Error: ' + v.error + '</span>' : v.count + ' reviews') + '</div>';
+          h += '<div style="margin:4px 0">#' + k + ': ' + (v.error ? '<span style="color:#dc2626">错误：' + v.error + '</span>' : v.count + ' 条评论') + '</div>';
         }
         box.innerHTML = '<div style="color:#16a34a;font-weight:600;margin-bottom:8px">抓取完成</div>' +
-          '<div>资源 <b>' + rid + '</b> | 新增: <b>' + r.newReviews + '</b> | 已发: <b>' + r.rewards.sent + '</b> | 跳过: <b>' + r.rewards.skipped + '</b> | 错误: <b>' + r.rewards.errors + '</b></div>' +
+          '<div>资源 <b>' + rid + '</b> | 新增: <b>' + r.newReviews + '</b> | 已发: <b>' + r.rewards.sent + '</b> | 跳过：<b>' + r.rewards.skipped + '</b> | 错误：<b>' + r.rewards.errors + '</b></div>' +
           '<div style="margin-top:4px">' + r.duration + 'ms</div><div style="margin-top:8px">' + h + '</div>';
       } else {
-        box.innerHTML = '<span style="color:#dc2626">抓取失败: ' + ((result && result.error) || '未知') + '</span>';
+        box.innerHTML = '<span style="color:#dc2626">抓取失败：' + ((result && result.error) || '未知') + '</span>';
       }
     } catch (e) {
-      document.getElementById('bbPollResult').innerHTML = '<span style="color:#dc2626">Request failed: ' + (e.message || e) + '</span>';
+      document.getElementById('bbPollResult').innerHTML = '<span style="color:#dc2626">请求失败：' + (e.message || e) + '</span>';
     }
     if (btnEl) { btnEl.disabled = false; btnEl.textContent = '抓取'; }
     loadBandBBS();
@@ -198,7 +198,7 @@ async function loadBandBBSPollLogs() {
         var rows = '';
         for (var i = 0; i < logs.length; i++) {
           var l = logs[i];
-          var sum = (l.resources || []).map(function(x){ return '#'+x.resourceId+' ('+(x.count||0)+' reviews, new '+(x.newCount||0)+', sent '+(x.sent||0)+')'; }).join(', ');
+          var sum = (l.resources || []).map(function(x){ return '#'+x.resourceId+'（共 '+(x.count||0)+' 条，新增 '+(x.newCount||0)+'，已发 '+(x.sent||0)+'）'; }).join(', ');
           rows += '<tr><td style="font-size:0.75rem">'+(l.at||'-')+'</td><td>'+(l.mode==='cron'?'<span style="color:#f59e0b">定时</span>':'<span style="color:#16a34a">手动</span>')+'</td><td style="max-width:400px">'+(sum||'-')+'</td><td>'+(l.newReviews||0)+'</td><td>'+(l.rewardsSent||0)+'</td></tr>';
         }
         box.innerHTML = '<div style="overflow-x:auto"><table><thead><tr><th>时间</th><th>模式</th><th>资源</th><th>新增</th><th>已发</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
@@ -229,7 +229,7 @@ async function loadBandBBSPollLogs() {
         box.innerHTML = '<span style="color:#dc2626">加载资源列表失败</span>';
       }
     } catch (e) {
-      if (box) box.innerHTML = '<span style="color:#dc2626">请求失败: ' + (e.message || e) + '</span>';
+      if (box) box.innerHTML = '<span style="color:#dc2626">请求失败：' + (e.message || e) + '</span>';
     }
   }
 async function loadBandBBSReviewsByResource(rid, box) {
@@ -238,7 +238,7 @@ async function loadBandBBSReviewsByResource(rid, box) {
     try {
       var result = await api('/api/admin/catalog?kind=bandbbs&op=resource-detail&resourceId=' + encodeURIComponent(rid));
       if (!result || !result.success) {
-        box.innerHTML = '<span style="color:#dc2626">失败: ' + ((result && result.error) || '未知') + '</span>';
+        box.innerHTML = '<span style="color:#dc2626">失败：' + ((result && result.error) || '未知') + '</span>';
         return [];
       }
       var d = result.data;
@@ -247,7 +247,7 @@ async function loadBandBBSReviewsByResource(rid, box) {
       for (var i = 0; i < reviews.length; i++) reviews[i]._resourceId = rid;
       return reviews;
     } catch (e) {
-      box.innerHTML = '<span style="color:#dc2626">请求失败: ' + (e.message || e) + '</span>';
+      box.innerHTML = '<span style="color:#dc2626">请求失败：' + (e.message || e) + '</span>';
       return [];
     }
   
@@ -324,7 +324,7 @@ async function loadBandBBSReviewsByResource(rid, box) {
       var box = document.getElementById('bbPollResult');
       if (result && result.success) {
         box.innerHTML = '<div style="color:#16a34a;font-weight:600;margin-bottom:8px">奖励发送完成</div>' +
-          '<div>资源 <b>#' + rid + '</b> | 已发送: <b>' + (result.sent || 0) + '</b> | 跳过: <b>' + (result.skipped || 0) + '</b> | 错误: <b>' + (result.errors || 0) + '</b></div>';
+          '<div>资源 <b>#' + rid + '</b> | 已发送: <b>' + (result.sent || 0) + '</b> | 跳过：<b>' + (result.skipped || 0) + '</b> | 错误：<b>' + (result.errors || 0) + '</b></div>';
         if (result.notEnough) {
           box.innerHTML += '<div style="color:#f59e0b;margin-top:4px">⚠️ 奖励池链接不足，还有 ' + result.notEnough + ' 条评论未发送</div>';
         }
@@ -332,7 +332,7 @@ async function loadBandBBSReviewsByResource(rid, box) {
         box.innerHTML = '<span style="color:#dc2626">发送失败: ' + ((result && result.error) || '未知错误') + '</span>';
       }
     } catch (e) {
-      document.getElementById('bbPollResult').innerHTML = '<span style="color:#dc2626">请求失败: ' + (e.message || e) + '</span>';
+      document.getElementById('bbPollResult').innerHTML = '<span style="color:#dc2626">请求失败：' + (e.message || e) + '</span>';
     }
     if (btnEl) { btnEl.disabled = false; btnEl.textContent = '发送奖励'; }
     loadBandBBS();
@@ -349,7 +349,7 @@ async function loadBandBBSReviewsByResource(rid, box) {
   async function saveRewardTemplate() {
     var template = document.getElementById('bbRewardTemplate').value.trim();
     var statusEl = document.getElementById('bbTemplateStatus');
-    if (!template) { statusEl.textContent = 'Template cannot be empty'; return; }
+    if (!template) { statusEl.textContent = '模板内容不能为空'; return; }
     try {
       var result = await api('/api/admin/catalog?kind=bandbbs&op=reward-pool-save-template', {
         method: 'POST',
@@ -357,13 +357,13 @@ async function loadBandBBSReviewsByResource(rid, box) {
         body: JSON.stringify({ template: template })
       });
       if (result && result.success) {
-        statusEl.textContent = 'Saved';
+        statusEl.textContent = '已保存';
         setTimeout(function() { statusEl.textContent = ''; }, 2000);
       } else {
-        statusEl.textContent = 'Failed: ' + ((result && result.error) || 'unknown');
+        statusEl.textContent = '操作失败：' + ((result && result.error) || '未知错误');
       }
     } catch (e) {
-      statusEl.textContent = 'Error: ' + (e.message || e);
+      statusEl.textContent = '错误：' + (e.message || e);
     }
   }
 
@@ -371,8 +371,8 @@ async function loadBandBBSReviewsByResource(rid, box) {
   async function importRewardLinks() {
     var linksText = document.getElementById('bbRewardImportArea').value.trim();
     var statusEl = document.getElementById('bbImportStatus');
-    if (!linksText) { statusEl.textContent = 'Please paste redeem links first'; return; }
-    statusEl.textContent = 'Importing...';
+    if (!linksText) { statusEl.textContent = '请先粘贴兑换链接'; return; }
+    statusEl.textContent = '导入中...';
     try {
       var result = await api('/api/admin/catalog?kind=bandbbs&op=reward-pool-import', {
         method: 'POST',
@@ -380,18 +380,18 @@ async function loadBandBBSReviewsByResource(rid, box) {
         body: JSON.stringify({ links: linksText })
       });
       if (result && result.success) {
-        var msg = 'Imported ' + result.imported + ' new links';
-        if (result.skipped) msg += ', skipped ' + result.skipped + ' duplicates';
-        if (result.errors && result.errors.length) msg += ', ' + result.errors.length + ' errors';
+        var msg = '成功导入 ' + result.imported + ' 条';
+        if (result.skipped) msg += '，跳过 ' + result.skipped + ' 条重复';
+        if (result.errors && result.errors.length) msg += '，' + result.errors.length + ' 条错误';
         statusEl.textContent = msg;
         document.getElementById('bbRewardImportArea').value = '';
         loadPoolStats();
         loadRewardLog();
       } else {
-        statusEl.textContent = 'Failed: ' + ((result && result.error) || 'unknown');
+        statusEl.textContent = '操作失败：' + ((result && result.error) || '未知错误');
       }
     } catch (e) {
-      statusEl.textContent = 'Error: ' + (e.message || e);
+      statusEl.textContent = '错误：' + (e.message || e);
     }
   }
 
@@ -416,7 +416,7 @@ async function loadBandBBSReviewsByResource(rid, box) {
     var statusFilter = document.getElementById('bbRewardLogStatusFilter');
     var table = document.getElementById('bbRewardLogTable');
     if (!table) return;
-    table.innerHTML = '<span class="muted">Loading...</span>';
+    table.innerHTML = '<span class="muted">加载中...</span>';
 
     var resourceId = resourceFilter ? resourceFilter.value : '';
     var status = statusFilter ? statusFilter.value : '';
@@ -429,7 +429,7 @@ async function loadBandBBSReviewsByResource(rid, box) {
         if (resourceFilter) {
           var configResult = await api('/api/admin/catalog?kind=bandbbs&op=config');
           var configs = (configResult && configResult.success && configResult.data) ? configResult.data : [];
-          var opts = '<option value="">All Resources</option>';
+          var opts = '<option value="">全部资源</option>';
           for (var i = 0; i < configs.length; i++) {
             var c = configs[i];
             opts += '<option value="' + c.resourceId + '">#' + c.resourceId + ' - ' + (c.title || '') + '</option>';
@@ -439,13 +439,13 @@ async function loadBandBBSReviewsByResource(rid, box) {
         }
 
         if (!logs.length) {
-          table.innerHTML = '<span class="muted">No reward records</span>';
+          table.innerHTML = '<span class="muted">暂无发放记录</span>';
           return;
         }
         var rows = '';
         for (var j = 0; j < logs.length; j++) {
           var l = logs[j];
-          var badge = l.claimed ? '<span style="color:#16a34a;font-weight:600">Claimed</span>' : '<span style="color:#f59e0b">Unclaimed</span>';
+          var badge = l.claimed ? '<span style="color:#16a34a;font-weight:600">已领取</span>' : '<span style="color:#f59e0b">未领取</span>';
           rows += '<tr>' +
             '<td style="font-size:0.75rem">' + (l.couponCode ? l.couponCode.substring(0, 8) + '...' : '-') + '</td>' +
             '<td>' + (l.assignedTo || '-') + '</td>' +
@@ -456,12 +456,12 @@ async function loadBandBBSReviewsByResource(rid, box) {
             '<td style="font-size:0.75rem"><a href="' + (l.goUrl || '#') + '" target="_blank" style="color:var(--accent)">' + (l.goSlug || '-') + '</a></td>' +
             '</tr>';
         }
-        table.innerHTML = '<div style="overflow-x:auto"><table><thead><tr><th>Code</th><th>User</th><th>Resource</th><th>Stars</th><th>Status</th><th>Assigned At</th><th>Go Link</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+        table.innerHTML = '<div style="overflow-x:auto"><table><thead><tr><th>兑换码</th><th>用户</th><th>资源</th><th>星级</th><th>状态</th><th>发放时间</th><th>跳转链接</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
       } else {
-        table.innerHTML = '<span style="color:#dc2626">Failed to load</span>';
+        table.innerHTML = '<span style="color:#dc2626">加载失败</span>';
       }
     } catch (e) {
-      table.innerHTML = '<span style="color:#dc2626">Error: ' + (e.message || e) + '</span>';
+      table.innerHTML = '<span style="color:#dc2626">错误：' + (e.message || e) + '</span>';
     }
   }
 

@@ -4936,8 +4936,8 @@
             <summary>🧪 测试工具 · 发送测试私信</summary>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <input type="text" id="bbDmRecipient" placeholder="收信人用户名" value="peipeijin" style="width:160px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
-              <input type="text" id="bbDmTitle" placeholder="标题" value="Reward Test" style="width:160px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
-              <input type="text" id="bbDmMessage" placeholder="内容" value="This is a test reward message from BandBBS integration." style="width:300px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
+              <input type="text" id="bbDmTitle" placeholder="标题" value="奖励测试" style="width:160px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
+              <input type="text" id="bbDmMessage" placeholder="内容" value="这是一条来自米坛集成的测试奖励私信。" style="width:300px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
               <button class="btn btn-sm" onclick="sendBandBBSDM()" id="btnSendDm">📨 发送</button>
             </div>
             <div id="bbDmResult" style="margin-top:10px;font-size:0.8125rem"></div>
@@ -4988,52 +4988,61 @@
         
           <!-- Star Review Reward Pool -->
           <div class="setting-block" id="bbRewardPoolSection" style="margin-bottom:20px">
-            <h3 style="margin:0 0 12px">Star Review Reward Pool</h3>
+            <h3 style="margin:0 0 12px">🌟 奖励池</h3>
             
             <div style="padding:12px;background:var(--card);border-radius:8px;margin-bottom:12px">
               <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
-                <span style="font-weight:600">Reward Product:</span>
-                <span>EV Schedule Pro (0 yuan purchase)</span>
+                <span style="font-weight:600">奖励产品：</span>
+                <span>EV 课程表 Pro（0 元兑换）</span>
               </div>
             </div>
 
             <div style="padding:12px;background:var(--card);border-radius:8px;margin-bottom:12px">
-              <label style="font-weight:600;display:block;margin-bottom:6px">Reward Message Template</label>
-              <textarea id="bbRewardTemplate" style="width:100%;height:60px;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);resize:vertical">Thank you for your 5-star review! Here is a free EV Schedule Pro as a gift. Click the link to claim on Aifadian:</textarea>
+              <label style="font-weight:600;display:block;margin-bottom:6px">奖励私信模板</label>
+              <textarea id="bbRewardTemplate" style="width:100%;height:60px;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);resize:vertical">感谢你的五星好评！送你一份 EV 课程表 Pro 作为回馈，点击下面的链接即可领取：</textarea>
               <div style="margin-top:6px;display:flex;gap:8px">
-                <button class="btn btn-sm" onclick="saveRewardTemplate()">Save Template</button>
+                <button class="btn btn-sm" onclick="saveRewardTemplate()">保存模板</button>
                 <span id="bbTemplateStatus" style="font-size:0.75rem;color:var(--muted)"></span>
               </div>
             </div>
 
             <div style="padding:12px;background:var(--card);border-radius:8px;margin-bottom:12px">
-              <label style="font-weight:600;display:block;margin-bottom:6px">Batch Import Reward Links</label>
-              <textarea id="bbRewardImportArea" placeholder="One Aifadian redeem link per line&#10;Example:&#10;https://afdian.com/redeem/c6f06ac8a8e711f191c420&#10;https://afdian.com/redeem/c6f0174ea8e711f18c5210" style="width:100%;height:120px;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);resize:vertical;font-family:monospace;font-size:0.75rem"></textarea>
+              <label style="font-weight:600;display:block;margin-bottom:6px">批量导入兑换链接</label>
+              <textarea id="bbRewardImportArea" placeholder="每行一条爱发电兑换链接&#10;例如：&#10;https://afdian.com/redeem/c6f06ac8a8e711f191c420&#10;https://afdian.com/redeem/c6f0174ea8e711f18c5210" style="width:100%;height:120px;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);resize:vertical;font-family:monospace;font-size:0.75rem"></textarea>
               <div style="margin-top:6px;display:flex;gap:8px;align-items:center">
-                <button class="btn btn-sm btn-primary" onclick="importRewardLinks()">Batch Import</button>
+                <button class="btn btn-sm btn-primary" onclick="importRewardLinks()">批量导入</button>
                 <span id="bbImportStatus" style="font-size:0.75rem;color:var(--muted)"></span>
               </div>
             </div>
 
-            <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;padding:10px;background:var(--surface);border-radius:8px" id="bbPoolStats">
-              <span>Pool Stock: <b id="bbPoolTotal">-</b></span>
-              <span>Used: <b id="bbPoolUsed">-</b></span>
-              <span>Remaining: <b id="bbPoolRemaining">-</b></span>
+            <div class="stats-bar" id="bbPoolStats" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">
+              <div class="stat-card">
+                <div class="number" id="bbPoolTotal">-</div>
+                <div class="label">库存总量</div>
+              </div>
+              <div class="stat-card">
+                <div class="number" id="bbPoolUsed">-</div>
+                <div class="label">已发放</div>
+              </div>
+              <div class="stat-card">
+                <div class="number" id="bbPoolRemaining">-</div>
+                <div class="label">剩余可用</div>
+              </div>
             </div>
 
             <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px;background:var(--surface);border-radius:8px">
-              <label style="font-weight:600;white-space:nowrap">Filter:</label>
+              <label style="font-weight:600;white-space:nowrap">筛选：</label>
               <select id="bbRewardLogResourceFilter" onchange="loadRewardLog()" style="min-width:160px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
-                <option value="">All Resources</option>
+                <option value="">全部资源</option>
               </select>
               <select id="bbRewardLogStatusFilter" onchange="loadRewardLog()" style="min-width:140px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
-                <option value="">All Status</option>
-                <option value="claimed">Claimed</option>
-                <option value="unclaimed">Unclaimed</option>
+                <option value="">全部状态</option>
+                <option value="claimed">已领取</option>
+                <option value="unclaimed">未领取</option>
               </select>
             </div>
             <div id="bbRewardLogTable" style="padding:16px;background:var(--card);border-radius:8px;min-height:80px">
-              <span class="muted">Loading...</span>
+              <span class="muted">加载中...</span>
             </div>
           </div>
 
