@@ -1300,16 +1300,40 @@ async function mergeRegisteredTasks(payload, db) {
     if (!r.ok) return payload;
     var rows = await r.json();
     if (!Array.isArray(rows) || !rows.length) return payload;
+    // 会话身份（2026-10-07）：一次拉全 evops_sessions，给每条任务带上 session_title / idle_min，
+    // 手机端即可直观看出「这条任务属于哪个会话、那个会话还活着吗」（总纲 §3.16 判据）。
+    var sessMap = {};
+    try {
+      var rs = await fetch(db.sbUrl + "/rest/v1/" + SESSIONS_TABLE +
+        "?select=sid,tool,title,heartbeat_at,status&limit=500", { headers: db.headers() });
+      if (rs.ok) {
+        var srows = await rs.json();
+        if (Array.isArray(srows)) {
+          srows.forEach(function (s) {
+            if (!s || !s.sid) return;
+            var idle = null;
+            try { idle = Math.max(0, Math.round((Date.now() - new Date(s.heartbeat_at).getTime()) / 60000)); } catch (e) {}
+            sessMap[s.sid] = { tool: s.tool || "", title: s.title || "", heartbeat_at: s.heartbeat_at || null, idle_min: idle, session_status: s.status || "" };
+          });
+        }
+      }
+    } catch (e) { /* 会话表读不到不影响任务合并 */ }
     var byId = {};
     rows.forEach(function (t) {
       if (!t || !t.id) return;
       var desc = t.description ? String(t.description) : "";
       var note = (t.extra && t.extra.note) ? String(t.extra.note) : "";
+      var sess = t.session_sid ? sessMap[t.session_sid] : null;
       byId[t.id] = {
         id: t.id, project: t.project || "", title: t.title || "", type: t.type || "feature",
         status: t.status || "in_progress", priority: t.priority || "P2",
         assignee: t.assignee || "", eta_min: t.eta_min || 0, description: desc,
         owner: t.owner || "", source: "register", note: note,
+        session_sid: t.session_sid || null,
+        session_tool: sess ? sess.tool : null,
+        session_title: sess ? sess.title : null,
+        session_heartbeat_at: sess ? sess.heartbeat_at : null,
+        session_idle_min: sess ? sess.idle_min : null,
         close_reason: t.close_reason || "", closed_note: t.closed_note || "",
         replies: Array.isArray(t.replies) ? t.replies : [],
         created_at: t.created_at, updated_at: t.updated_at
