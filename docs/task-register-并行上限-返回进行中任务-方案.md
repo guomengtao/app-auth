@@ -110,3 +110,27 @@
   ④ 探针任务 `qnxxde` / `5yhhnw` 均 task-close=done，无残留 ✓
 - **验收 checklist**：八项全过（fail-closed 503 分支为防御性代码，线上未强行断库实测，逻辑经 code review 与单测覆盖）。
 - **P2 未做**：App 端 TaskRegisterActivity 409 清单渲染，待另起任务。
+
+---
+
+## 九、代码 QA 审查员联动：409 之后怎么收尾（2026-10-07 新增，正文见总纲 §3.16）
+
+> 本节是「api 申请任务名单」侧的口径。**凡是被 `409 parallel_limit_reached` 拦下的人 / AI，一律按总纲 §3.16 处理——不要硬等，也不要绕过。**
+
+**你已拿到输入**：409 响应里的 `tasks[]`（进行中清单，含 `age_min`）与 `suggested`（= 无人处理且最老的那条）。**照 §3.16 分级收尾，而不是随手指一条**：
+
+| 级别 | 判据（用 `age_min`） | 动作 |
+| --- | --- | --- |
+| 一 | `age_min > 60` | 可**直接 `task-close`**（有产出 → `status=done` + 真实 commit；无产出 → `cancelled` + `close_reason`） |
+| 二 | `30 < age_min ≤ 60` | **先检查文件**（该任务认领的文件是否真改、有无未提交产出）→ **仍可关闭**；已改未提交先提交 / 交接 |
+| 三 | 全部 `age_min ≤ 30` | 关**最久**的一条（即后端 `suggested` 指向的那条，直接采纳） |
+
+**关闭后必做（缺一不算收尾，总纲 §3.16 ④）**：① 核实真没在做（心跳 / 认领行）；② 按 §3.15 ⑨ 定级跑 **L0–L3**；③ `done` 必须挂**真实 commit**；④ `task-close` 带 `close_reason` + PROJECT-MAP 认领行改 ✅/⊘。
+
+**护栏**：只关僵尸；有近期活动的不关（只提示）；涉 `auth/pay/activate/release/schema/sign` 或发版类**先问人**（§4.3）；关闭**留痕可审计**。
+
+**闭环**：腾出槽位（`in_progress < max_parallel`）后**立即重试 `task-register`** 领新单号；没有单号禁止开发（§3.11）。
+
+> **实测样例（2026-10-07）**：一次领号即被 `5/5` 拒，`tasks[]` 里 3 条是发起方自己未收尾的任务（`age_min` 19/41/47，均 >30 属第二级）→ 核查文件确认已提交后按 `done`+`close_reason=fixed` 关闭 → 槽位恢复，重试领号成功（`evtask-X-guomengtao-261007-muws7m`）。
+
+**待办（P3）**：把上述分级口径浓缩进 409 的 `message` 正文（后端 `api/ev.js` 代码改动，需另领 `evtask-` 单号，见总纲 §3.16 的 P2）。
