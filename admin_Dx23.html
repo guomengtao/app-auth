@@ -5662,7 +5662,7 @@
         }
       }
       if (tab === 'devices') loadDevices();
-      if (tab === 'bandbbs') { console.log('[bandbbs] switchTab: tab=bandbbs, _bbLastTab=' + (window._bbLastTab || 'ops') + ', loadBandBBS typeof=' + typeof loadBandBBS); switchBandBBSTab(window._bbLastTab || 'ops'); if (typeof loadBandBBS === 'function') { console.log('[bandbbs] switchTab: loadBandBBS is function, calling'); loadBandBBS(); } else { console.log('[bandbbs] switchTab: loadBandBBS not yet defined, will be called by auto-init in admin-bandbbs.js'); } }
+      if (tab === 'bandbbs') { console.log('[bandbbs] switchTab: tab=bandbbs, _bbLastTab=' + (window._bbLastTab || 'ops') + ', loadBandBBS typeof=' + typeof loadBandBBS); switchBandBBSTab(bbSubFromUrl() || window._bbLastTab || 'ops'); if (typeof loadBandBBS === 'function') { console.log('[bandbbs] switchTab: loadBandBBS is function, calling'); loadBandBBS(); } else { console.log('[bandbbs] switchTab: loadBandBBS not yet defined, will be called by auto-init in admin-bandbbs.js'); } }
       
       try {
         if (typeof lucide !== 'undefined' && lucide.createIcons) {
@@ -8297,6 +8297,16 @@
       wrap.innerHTML = h;
     }
 
+    /** 子 Tab 深链（方案 D6）：支持 ?tab=bandbbs&sub=flow 或 #flow，便于把某一页直接分享/截图。 */
+    function bbSubFromUrl() {
+      try {
+        var s = '';
+        if (window.URLSearchParams) s = new URLSearchParams(location.search).get('sub') || '';
+        if (!s) s = (location.hash || '').replace(/^#/, '');
+        return ['ops', 'detail', 'prize', 'flow'].indexOf(s) >= 0 ? s : '';
+      } catch (e) { return ''; }
+    }
+
     function switchBandBBSTab(tab) {
       window._bbLastTab = tab;
       var btns = document.querySelectorAll('#bbTabs .bbx-seg-btn');
@@ -8308,6 +8318,7 @@
         var el = document.getElementById('bb-sub-' + keys[j]);
         if (el) el.classList.toggle('active', keys[j] === tab);
       }
+      try { var _u = new URL(location.href); _u.searchParams.set('sub', tab); history.replaceState(null, '', _u.toString()); } catch (_e) {}
       if (tab === 'detail' && typeof loadBandBBSReviews === 'function' && (!window._bbReviews || !window._bbReviews.length)) loadBandBBSReviews();
       if (tab === 'prize' && typeof loadRewardPool === 'function' && !window._bbPoolLoaded) loadRewardPool();
       // 流程图是纯前端静态图，首次进入画一次即可
