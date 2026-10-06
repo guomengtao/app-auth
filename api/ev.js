@@ -23,6 +23,7 @@ var messageDelivery = require("../lib/message-delivery");
 var { requireAuth } = require("../lib/auth");
 var fs = require("fs");
 var path = require("path");
+var https = require("https");   // GitHub Release 查询（线上版本事实源，见 PROJECT_REPOS）
 
 var CHALLENGE_TTL = 600;            // 10 分钟
 var POLL_INTERVAL = 2;              // 建议客户端轮询间隔（秒）
@@ -36,6 +37,111 @@ var ONLINE_HASH = "ev:online";       // 部署流程回写的线上版本（Redi
 var ONLINE_TS = "ev:online:ts";      // 各项目线上版本部署时间戳（hash project→ms）
 var ONLINE_WINDOW = 10 * 60 * 1000; // 心跳 10 分钟内算「在线」
 var HIST_MAX_WINDOW_H = 24 * 7;      // 历史心跳最多回看 7 天
+
+var RELEASE_CACHE = "ev:online:release"; // GitHub 最新 Release 缓存（hash: project → JSON）
+var RELEASE_TTL   = 10 * 60 * 1000;      // 缓存 10 分钟：够省 GitHub 配额，滞后也可接受
+
+/**
+ * 项目 id → GitHub 仓库。只登记「会发 release」的仓。
+ *
+ * app-auth 是网站（Vercel 自动部署 main，没有「发布」这个动作），故意不在此表
+ * → 由 selfReportedVersion() 自报兜底。
+ * 2026-10-06 用户裁决：线上版本以「发布 release」为准，故这张表是事实源；
+ * 未登记的仓一律显示「未发布」，不伪造（用户明确不开展「发版必打 release」纪律，
+ * 因为正式版要反复验证后才发 → 长期没有 release 是常态，如实留空即可）。
+ */
+var PROJECT_REPOS = {
+  "class-schedule": "guomengtao/class-schedule",
+  "ev-schedule-android": "guomengtao/ev-schedule-android",
+  "ev-android": "guomengtao/ev-notifier-android",
+  "ev-notifier": "guomengtao/ev-notifier",
+  "ev-schedule-sync": "guomengtao/ev-schedule-sync",
+  "evbox": "guomengtao/evbox",
+  "ev-face": "guomengtao/ev-face",
+  "ev-emubuddy": "guomengtao/ev-emubuddy",
+  "region-manager": "guomengtao/region-manager",
+  "ev-ops-android": "guomengtao/ev-ops-android",
+  "ev-tank-battle": "guomengtao/ev-tank-battle"
+};
+
+/** 极简 GitHub GET（零依赖原生 https）；4s 超时、任何异常一律 resolve(null)，绝不抛。 */
+function githubGet(pathname) {
+  return new Promise(function (resolve) {
+    var token = process.env.GITHUB_TOKEN;
+    var headers = { "User-Agent": "ev-ops-status", "Accept": "application/vnd.github+json" };
+    if (token) headers.Authorization = "Bearer " + token;
+    var req = https.get(
+      { hostname: "api.github.com", path: pathname, headers: headers, timeout: 4000 },
+      function (r) {
+        var buf = "";
+        r.on("data", function (d) { buf += d; });
+        r.on("end", function () {
+          if (r.statusCode !== 200) return resolve(null);
+          try { resolve(JSON.parse(buf)); } catch (e) { resolve(null); }
+        });
+      });
+    req.on("error", function () { resolve(null); });
+    req.on("timeout", function () { try { req.destroy(); } catch (e) { } resolve(null); });
+  });
+}
+
+/** 拉单个项目的最新 Release → { v, at, ts }；无 release / 无权限 / 失败 → v 为 null。 */
+async function fetchGithubRelease(project) {
+  var rec = { v: null, at: 0, ts: Date.now() };
+  var repo = PROJECT_REPOS[project];
+  if (!repo) return rec;
+  var got = await githubGet("/repos/" + repo + "/releases/latest");
+  if (got && got.tag_name) {
+    rec.v = String(got.tag_name).replace(/^v/i, "");      // v1.7.90 → 1.7.90
+    rec.at = Date.parse(got.published_at || "") || 0;      // release 发布时间
+  }
+  return rec;
+}
+
+/** 只读 Release 缓存（不打 GitHub）。 */
+async function readReleaseCache() {
+  var out = {};
+  try {
+    var all = await redis.hgetall(RELEASE_CACHE);
+    if (all && typeof all === "object") {
+      Object.keys(all).forEach(function (k) {
+        try { out[k] = JSON.parse(all[k]); } catch (e) { }
+      });
+    }
+  } catch (e) { /* redis 不可用 → 空表 */ }
+  return out;
+}
+
+/** 读缓存；对缺失/过期的项目并发补拉一次（缓存热时零网络请求）。 */
+async function refreshReleases() {
+  var cached = await readReleaseCache();
+  var now = Date.now();
+  var todo = Object.keys(PROJECT_REPOS).filter(function (p) {
+    var c = cached[p];
+    return !c || !c.ts || (now - c.ts) > RELEASE_TTL;
+  });
+  if (!todo.length) return cached;
+  var got = await Promise.all(todo.map(function (p) { return fetchGithubRelease(p); }));
+  var patch = {};
+  todo.forEach(function (p, i) {
+    cached[p] = got[i];
+    patch[p] = JSON.stringify(got[i]);
+  });
+  try { await redis.hset(RELEASE_CACHE, patch); } catch (e) { /* 缓存写失败不影响本次结果 */ }
+  return cached;
+}
+
+/**
+ * 自报版本：后端自己就是 app-auth，Vercel 部署的那份代码 = 线上代码，
+ * 读自身 version.json（每次 commit 由 bump-version.sh 自动 +1 patch）即线上版本。
+ * 本地读、无网络、无误判；本机领先远端未 push 时会正确表现为「待发版」。
+ */
+function selfReportedVersion() {
+  try {
+    var j = JSON.parse(fs.readFileSync(path.join(process.cwd(), "version.json"), "utf-8"));
+    return (j && j.version) ? String(j.version) : null;
+  } catch (e) { return null; }
+}
 
 /** 读取在线版本：文件 data/online-versions.json 作种子，Redis ev:online 覆盖（部署回写）。 */
 function loadOnlineSync() {
@@ -52,14 +158,34 @@ function loadOnlineSync() {
   return online;
 }
 
+/**
+ * 汇总「线上版本」—— 四源合并，优先级从低到高：
+ *   ① 文件种子 data/online-versions.json（人工维护的历史值）
+ *   ② Redis ev:online（report-deploy 回写值，定位＝纠错兜底）
+ *   ③ GitHub 最新 Release（2026-10-06 用户裁决：**以发布 release 为准**）
+ *   ④ 自报（app-auth 读自身 version.json）
+ * 高优先级覆盖低优先级；某源缺该项目的值则不参与覆盖（不会把已有值抹成空）。
+ */
 async function loadOnline() {
   var online = loadOnlineSync();
+
   try {
     var ov = await redis.hgetall(ONLINE_HASH);
     if (ov && typeof ov === "object") {
       Object.keys(ov).forEach(function (k) { if (ov[k] != null && ov[k] !== "") online[k] = ov[k]; });
     }
   } catch (e) { /* redis 不可用退回文件 */ }
+
+  try {
+    var rel = await refreshReleases();
+    Object.keys(rel).forEach(function (k) {
+      if (rel[k] && rel[k].v) online[k] = rel[k].v;
+    });
+  } catch (e) { /* GitHub 不可用 → 保留手写/种子值，页面不报错 */ }
+
+  var self = selfReportedVersion();
+  if (self) online["app-auth"] = self;
+
   return online;
 }
 
@@ -416,6 +542,13 @@ async function handleProjectStatus(req, res) {
       });
     }
   } catch (e) { onlineTs = {}; }
+  // 「线上部署于」改以 Release 发布时间为准（新口径；无 release 的项目保留手写时间戳）
+  try {
+    var relMeta = await readReleaseCache();
+    Object.keys(relMeta).forEach(function (k) {
+      if (relMeta[k] && relMeta[k].at > 0) onlineTs[k] = relMeta[k].at;
+    });
+  } catch (e) { /* 可选信息，失败不影响页面 */ }
   var devices = [];
   var now = Date.now();
   try {
@@ -449,6 +582,7 @@ async function handleProjectStatus(req, res) {
     server_time: now,
     online: online,
     online_ts: onlineTs,
+    self_commit: (process.env.VERCEL_GIT_COMMIT_SHA || "").slice(0, 7),
     devices: devices,
     total: devices.length,
     online_count: onlineCount,
