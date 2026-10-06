@@ -1,6 +1,6 @@
 # task-register 并行上限改造方案：超限时返回进行中任务清单，先清老任务才发新单号
 
-> 状态：**待用户确认（未开工）** · 落点 `ev/app-auth`（连带 `ev/ev-ops-android`） · 2026-10-06
+> 状态：**✅ 已实施（P1，P2 未做）** · evtask-B-app-auth-261006-uvbn4x · 2026-10-06 · 落点 `ev/app-auth`（连带 `ev/ev-ops-android`）
 > 依据：总纲 §3.13（多步骤任务先写方案）· 用户原话「进行中超过了应返回进行中的任务，提示选择一条无人处理的比较老的任务先处理掉，才能获得新的任务单号；没有单号禁止开发」
 
 ---
@@ -94,3 +94,19 @@
 
 ---
 **预估总量**：P0+P1 ≈ 9-12 次工具调用（一段会话内可完成）；P2 另起会话。
+
+---
+
+## 八、实施记录（2026-10-06 17:0x）
+
+- **commit**：`609e878`（api/ev.js + 本方案文档），已 push、Vercel 部署生效。
+- **P0 实测**：当时进行中 5/9 未超限；超发根因依据 = `countInProgress` 静默吞错返回 0（代码事实）+ 历史 e2e 记录 `in_progress=10 > max_parallel=9` 仍发号。
+- **P1 改码**：`listInProgress()`（读失败返回 null）+ fail-closed 503 `store_unavailable` + 409 增强（tasks/suggested/message）；原字段全保留。
+- **单测**：排序逻辑 node 内联验证 PASS——无人处理组优先（assignee 空 / owner ∈ {register, anon, aitest, dev:*}）、组内 created_at 升序（实测输出 C(无人最老)→B(无人)→D(有人最老)→A）。
+- **线上验证**：
+  ① 未超限（9）→ 匿名登记正常发号 ✓（回归 PASS）
+  ② `max_parallel` 临时 9→1（Supabase 读-改-写，http 204）→ 409 `parallel_limit_reached`：6 条清单全带 age_min、`suggested` = 无人处理的 aitest 演示任务、有人任务按最老在前、message 含「没有任务单号禁止开发」✓
+  ③ 恢复 `max_parallel=9`（复核读回 = 9）→ 再次发号正常 ✓
+  ④ 探针任务 `qnxxde` / `5yhhnw` 均 task-close=done，无残留 ✓
+- **验收 checklist**：八项全过（fail-closed 503 分支为防御性代码，线上未强行断库实测，逻辑经 code review 与单测覆盖）。
+- **P2 未做**：App 端 TaskRegisterActivity 409 清单渲染，待另起任务。
