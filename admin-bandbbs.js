@@ -484,7 +484,10 @@ async function loadBandBBSPollLogs() {
         statusEl.textContent = msg;
         document.getElementById('bbRewardImportArea').value = '';
         loadPoolStats();
-        loadRewardLog();
+        // 修复「批量导入后奖品丢失」：原调 loadRewardLog 走 op=reward-log，
+        // 该接口只回「已发放」（见 lib/bandbbs.js getRewardLog），刚导入的奖品全是未发放
+        // → 当场从列表消失，看起来像丢了（数据实际仍在 reward:pool）。
+        loadRewardPool();
       } else {
         statusEl.textContent = '操作失败：' + ((result && result.error) || '未知错误');
       }
@@ -508,62 +511,7 @@ async function loadBandBBSPollLogs() {
     }
   }
 
-  // Load reward distribution log
-  async function loadRewardLog() {
-    var resourceFilter = document.getElementById('bbRewardLogResourceFilter');
-    var statusFilter = document.getElementById('bbRewardLogStatusFilter');
-    var table = document.getElementById('bbRewardLogTable');
-    if (!table) return;
-    table.innerHTML = '<span class="muted">加载中...</span>';
-
-    var resourceId = resourceFilter ? resourceFilter.value : '';
-    var status = statusFilter ? statusFilter.value : '';
-
-    try {
-      var result = await api('/api/admin/catalog?kind=bandbbs&op=reward-log&resourceId=' + encodeURIComponent(resourceId) + '&status=' + encodeURIComponent(status));
-      if (result && result.success && result.data) {
-        var logs = result.data;
-        // Populate resource filter
-        if (resourceFilter) {
-          var configResult = await api('/api/admin/catalog?kind=bandbbs&op=config');
-          var configs = (configResult && configResult.success && configResult.data) ? configResult.data : [];
-          var opts = '<option value="">全部资源</option>';
-          for (var i = 0; i < configs.length; i++) {
-            var c = configs[i];
-            opts += '<option value="' + c.resourceId + '">#' + c.resourceId + ' - ' + (c.title || '') + '</option>';
-          }
-          resourceFilter.innerHTML = opts;
-          if (resourceId) resourceFilter.value = resourceId;
-        }
-
-        if (!logs.length) {
-          table.innerHTML = '<span class="muted">暂无发放记录</span>';
-          return;
-        }
-        var rows = '';
-        for (var j = 0; j < logs.length; j++) {
-          var l = logs[j];
-          var badge = l.claimed ? '<span style="color:#16a34a;font-weight:600">已领取</span>' : '<span style="color:#f59e0b">未领取</span>';
-          rows += '<tr>' +
-            '<td style="font-size:0.75rem">' + (l.couponCode ? l.couponCode.substring(0, 8) + '...' : '-') + '</td>' +
-            '<td>' + (l.assignedTo || '-') + '</td>' +
-            '<td>#' + (l.resourceId || '-') + '</td>' +
-            '<td>' + (l.reviewStars || '-') + '</td>' +
-            '<td>' + badge + '</td>' +
-            '<td style="font-size:0.75rem">' + (l.assignedAt || '-') + '</td>' +
-            '<td style="font-size:0.75rem"><a href="' + (l.goUrl || '#') + '" target="_blank" style="color:var(--accent)">' + (l.goSlug || '-') + '</a></td>' +
-            '</tr>';
-        }
-        table.innerHTML = '<div style="overflow-x:auto"><table><thead><tr><th>兑换码</th><th>用户</th><th>资源</th><th>星级</th><th>状态</th><th>发放时间</th><th>跳转链接</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
-      } else {
-        table.innerHTML = '<span style="color:#dc2626">加载失败</span>';
-      }
-    } catch (e) {
-      table.innerHTML = '<span style="color:#dc2626">错误：' + (e.message || e) + '</span>';
-    }
-  }
-
-  /* ============ 奖品池（批次3）：全量列表 + 芯片筛选 + 警示条 ============ */
+/* ============ 奖品池（批次3）：全量列表 + 芯片筛选 + 警示条 ============ */
   var _bbPool = [];
   var _bbPoolFilter = { status: '', batch: '', q: '' };
   var BB_ALERT_SVG = '<svg class="bbx-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
@@ -618,6 +566,7 @@ async function loadBandBBSPollLogs() {
         rf.innerHTML = opts;
       }
       var items = null;
+      var degraded = false;
       try {
         var rp = await api('/api/admin/catalog?kind=bandbbs&op=reward-pool-list&status=all');
         if (rp && rp.success && rp.data) {
@@ -627,6 +576,13 @@ async function loadBandBBSPollLogs() {
         }
       } catch (_) { items = null; }
       if (items === null) {
+        // 降级兜底：后端不支持 reward-pool-list（如批次4 未部署）时退回 reward-log，
+        // ⚠ 该接口只回「已发放」→ 未发放奖品不显示。必须显式告警，否则会被误读为「奖品丢失」。
+        degraded = true;
+        try {
+          var st0 = await api('/api/admin/catalog?kind=bandbbs&op=reward-pool-stats');
+          if (st0 && st0.success && st0.data) window._bbPoolDegradedTotal = st0.data.total;
+        } catch (_d) {}
         var rl = await api('/api/admin/catalog?kind=bandbbs&op=reward-log&resourceId=&status=');
         var logs = (rl && rl.success && rl.data) ? rl.data : [];
         items = [];
@@ -634,6 +590,7 @@ async function loadBandBBSPollLogs() {
       }
       _bbPool = items;
       window._bbPoolLoaded = true;
+      window._bbPoolDegraded = degraded;
       _bbPool.sort(function (a, b) {
         var oa = bbPoolState(a) === 'unassigned' ? 0 : 1;
         var ob = bbPoolState(b) === 'unassigned' ? 0 : 1;
@@ -760,6 +717,18 @@ async function loadBandBBSPollLogs() {
     var pending = 0;
     if (typeof _bbReviews !== 'undefined' && _bbReviews && _bbReviews.length) {
       for (var i = 0; i < _bbReviews.length; i++) { if (bbEligible(_bbReviews[i]) && !_bbReviews[i].rewarded) pending++; }
+    }
+    if (window._bbPoolDegraded) {
+      var tot = window._bbPoolDegradedTotal;
+      if (tot) {
+        var te = document.getElementById('bbPoolTotal'); if (te) te.textContent = tot;
+        var re = document.getElementById('bbPoolRemaining'); if (re) re.textContent = Math.max(0, tot - c.assigned);
+      }
+      el.innerHTML = BB_ALERT_SVG + '<span>后端暂未支持「全量奖品列表」接口，下方<b>仅显示已发放</b>奖品' +
+        (tot ? '；奖品池实际共 <b>' + tot + '</b> 条，未发放的暂不显示' : '') +
+        '。<b>数据仍在库中，未丢失</b></span>';
+      el.classList.add('on');
+      return;
     }
     var parts = [];
     if (c.unassigned > 0) parts.push('<b>' + c.unassigned + '</b> 份奖品未发放');
