@@ -3396,8 +3396,7 @@
         <li><a href="javascript:void(0)" onclick="switchTab('devices')" data-tab="devices"><i data-lucide="shield-check" class="menu-icon"></i><span class="menu-text">已授权设备</span></a></li>
         <li class="menu-separator"><hr></li>
         <li class="menu-separator"><hr></li>
-        <li><a href="javascript:void(0)" onclick="switchTab('bandbbs')" data-tab="bandbbs"><i data-lucide="message-square" class="menu-icon"></i><span class="menu-text">BandBBS</span></a></li>
-        <li><a href="javascript:void(0)" onclick="switchTab('bandbbs-detail')" data-tab="bandbbs-detail"><i data-lucide="messages-square" class="menu-icon"></i><span class="menu-text">BandBBS 资源详情</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('bandbbs')" data-tab="bandbbs"><i data-lucide="message-square" class="menu-icon"></i><span class="menu-text">米坛运营</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('settings')" data-tab="settings"><i data-lucide="settings" class="menu-icon"></i><span class="menu-text">设置</span></a></li>
       </ul>
       <div class="sidebar-user" id="sidebarUser">
@@ -4833,8 +4832,8 @@
         <div class="panel" id="panel-bandbbs">
           <div class="toolbar">
             <div>
-              <h2 style="margin:0;display:flex;align-items:center;gap:8px">📡 BandBBS 社区运营</h2>
-              <span class="muted" style="font-size:0.8125rem">抓取BandBBS资源帖评论，自动发送奖励私信</span>
+              <h2 style="margin:0;display:flex;align-items:center;gap:8px">📡 米坛运营</h2>
+              <span class="muted" style="font-size:0.8125rem">资源帖评论抓取 · 星级奖励发放</span>
             </div>
             <span class="spacer"></span>
             <div style="display:flex;align-items:center;gap:12px">
@@ -4843,23 +4842,24 @@
             </div>
           </div>
 
+
           <!-- Stats Cards -->
           <div class="stats-bar" id="bandbbsStats" style="margin-bottom:20px">
             <div class="stat-card">
               <div class="number" id="bbStatResources">-</div>
-              <div class="label">监控资源帖</div>
+              <div class="label">监控资源数</div>
             </div>
             <div class="stat-card">
               <div class="number" id="bbStatReviews">-</div>
-              <div class="label">已抓评论</div>
+              <div class="label">已抓取评论</div>
             </div>
             <div class="stat-card">
               <div class="number" id="bbStatRewards">-</div>
-              <div class="label">已发奖励</div>
+              <div class="label">已发放奖励</div>
             </div>
             <div class="stat-card">
               <div class="number" id="bbStatLastPoll">-</div>
-              <div class="label">上次抓取</div>
+              <div class="label">上次抓取时间</div>
             </div>
           </div>
 
@@ -4867,15 +4867,15 @@
           <div class="setting-block" style="margin-bottom:20px">
             <h3 style="margin:0 0 12px">📋 资源帖配置</h3>
             <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
-              <input type="text" id="bbResourceId" placeholder="Resource ID (e.g. 7828)" style="width:180px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
-              <input type="text" id="bbResourceTitle" placeholder="Title (optional)" style="width:200px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
+              <input type="text" id="bbResourceId" placeholder="资源ID (例如 7828)" style="width:180px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
+              <input type="text" id="bbResourceTitle" placeholder="标题 (选填)" style="width:200px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
               <button class="btn btn-sm" onclick="addBandBBSResource()">➕ 添加</button>
             </div>
             <div style="overflow-x:auto">
               <table>
                 <thead>
                   <tr>
-                    <th style="width:120px">Resource ID</th>
+                    <th style="width:120px">资源ID</th>
                     <th>标题</th>
                     <th style="width:80px">状态</th>
                     <th style="width:120px">评论数</th>
@@ -4900,12 +4900,6 @@
           </div>
 
           
-          <!-- Resource Detail View -->
-          <div class="setting-block" style="margin-bottom:20px;display:none" id="bbDetailBlock">
-            <h3 style="margin:0 0 12px">Resource Detail</h3>
-            <div id="bbDetailResult" style="padding:16px;background:var(--card);border-radius:8px;min-height:60px">
-            </div>
-          </div>
 <!-- Send Test DM -->
           <div class="setting-block">
             <h3 style="margin:0 0 12px">✉️ 发送测试私信</h3>
@@ -4920,39 +4914,91 @@
 
           <!-- Poll Records -->
           <div class="setting-block" style="margin-bottom:20px">
-            <h3 style="margin:0 0 12px">Scrape Records (last 30)</h3>
+            <h3 style="margin:0 0 12px">📜 抓取记录 (最近30条)</h3>
             <div id="bbPollLogResult" style="padding:16px;background:var(--card);border-radius:8px;min-height:60px">
+              <span class="muted">加载中...</span>
+            </div>
+          </div>
+
+          <!-- Review Detail Section -->
+          <div class="setting-block" id="bbReviewSection" style="margin-bottom:20px">
+            <h3 style="margin:0 0 12px">🖥️ 评论详情</h3>
+            
+          <!-- Filter Bar -->
+            <div id="bbFilterBar" style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;padding:10px;background:var(--surface);border-radius:8px;border:1px solid var(--line)">
+              <label style="font-weight:600;white-space:nowrap">筛选:</label>
+                <select id="bbDetailResourceSelect" onchange="filterBandBBSReviews()" style="min-width:180px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
+              <option value="">全部资源</option>
+            </select>
+            <select id="bbRewardFilter" onchange="filterBandBBSReviews()" style="min-width:140px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
+              <option value="">全部状态</option>
+              <option value="rewarded">已发放</option>
+              <option value="not_rewarded">未发放</option>
+            </select>
+              </div>
+              <div id="bbReviewTable" style="padding:16px;background:var(--card);border-radius:8px;min-height:120px">
+                <span class="muted">加载评论数据...</span>
+            </div>
+          </div>
+
+        </div>
+
+
+
+
+        
+          <!-- Star Review Reward Pool -->
+          <div class="setting-block" id="bbRewardPoolSection" style="margin-bottom:20px">
+            <h3 style="margin:0 0 12px">Star Review Reward Pool</h3>
+            
+            <div style="padding:12px;background:var(--card);border-radius:8px;margin-bottom:12px">
+              <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+                <span style="font-weight:600">Reward Product:</span>
+                <span>EV Schedule Pro (0 yuan purchase)</span>
+              </div>
+            </div>
+
+            <div style="padding:12px;background:var(--card);border-radius:8px;margin-bottom:12px">
+              <label style="font-weight:600;display:block;margin-bottom:6px">Reward Message Template</label>
+              <textarea id="bbRewardTemplate" style="width:100%;height:60px;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);resize:vertical">Thank you for your 5-star review! Here is a free EV Schedule Pro as a gift. Click the link to claim on Aifadian:</textarea>
+              <div style="margin-top:6px;display:flex;gap:8px">
+                <button class="btn btn-sm" onclick="saveRewardTemplate()">Save Template</button>
+                <span id="bbTemplateStatus" style="font-size:0.75rem;color:var(--muted)"></span>
+              </div>
+            </div>
+
+            <div style="padding:12px;background:var(--card);border-radius:8px;margin-bottom:12px">
+              <label style="font-weight:600;display:block;margin-bottom:6px">Batch Import Reward Links</label>
+              <textarea id="bbRewardImportArea" placeholder="One Aifadian redeem link per line&#10;Example:&#10;https://afdian.com/redeem/c6f06ac8a8e711f191c420&#10;https://afdian.com/redeem/c6f0174ea8e711f18c5210" style="width:100%;height:120px;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);resize:vertical;font-family:monospace;font-size:0.75rem"></textarea>
+              <div style="margin-top:6px;display:flex;gap:8px;align-items:center">
+                <button class="btn btn-sm btn-primary" onclick="importRewardLinks()">Batch Import</button>
+                <span id="bbImportStatus" style="font-size:0.75rem;color:var(--muted)"></span>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;padding:10px;background:var(--surface);border-radius:8px" id="bbPoolStats">
+              <span>Pool Stock: <b id="bbPoolTotal">-</b></span>
+              <span>Used: <b id="bbPoolUsed">-</b></span>
+              <span>Remaining: <b id="bbPoolRemaining">-</b></span>
+            </div>
+
+            <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px;background:var(--surface);border-radius:8px">
+              <label style="font-weight:600;white-space:nowrap">Filter:</label>
+              <select id="bbRewardLogResourceFilter" onchange="loadRewardLog()" style="min-width:160px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
+                <option value="">All Resources</option>
+              </select>
+              <select id="bbRewardLogStatusFilter" onchange="loadRewardLog()" style="min-width:140px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
+                <option value="">All Status</option>
+                <option value="claimed">Claimed</option>
+                <option value="unclaimed">Unclaimed</option>
+              </select>
+            </div>
+            <div id="bbRewardLogTable" style="padding:16px;background:var(--card);border-radius:8px;min-height:80px">
               <span class="muted">Loading...</span>
             </div>
           </div>
-        </div>
 
-        <div class="panel" id="panel-bandbbs-detail">
-          <div class="toolbar">
-            <div>
-              <h2 style="margin:0;display:flex;align-items:center;gap:8px">🗑️ BandBBS 资源详情</h2>
-              <span class="muted" style="font-size:0.8125rem">查看单个资源的评论、星级与奖励发放状态</span>
-            </div>
-            <span class="spacer"></span>
-            <button class="btn btn-outline" onclick="loadBandBBSDetailTab()">🔄 刷新</button>
-          </div>
-
-          <div class="setting-block" style="margin-bottom:20px">
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
-              <label style="font-weight:600">选择资源:</label>
-              <select id="bbDetailResourceSelect" onchange="loadBandBBSDetail()" style="min-width:220px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
-                <option value="">加载中...</option>
-              </select>
-              <button class="btn btn-sm" onclick="loadBandBBSDetail()">📊 查看详情</button>
-            </div>
-            <div id="bbDetailResult2" style="padding:16px;background:var(--card);border-radius:8px;min-height:120px">
-              <span class="muted">请上方选择一个资源查看详情</span>
-            </div>
-          </div>
-        </div>
-
-
-        </div>
+</div>
 
       </main>
     </div>
@@ -5298,8 +5344,7 @@
       'logs': { title: '系统日志', sub: 'Vercel部署事件 · 邮件发送记录 · 爱发电私信日志' },
       delivery: { title: '快捷激活', sub: '直接生成激活码 · 解密验证 · 用户画像 · 消息投递' },
       devices: { title: '已授权设备', sub: '查看并撤销桌面客户端（EvNotifier）的长期访问令牌' },
-      bandbbs: { title: 'BandBBS 社区运营', sub: '评论抓取 · 奖励私信 · 资源配置' },
-      'bandbbs-detail': { title: 'BandBBS 资源详情', sub: '\u67e5\u770b\u5355\u4e2a\u8d44\u6e90\u7684\u8bc4\u8bba \u00b7 \u661f\u7ea7 \u00b7 \u5956\u52b1\u53d1\u653e\u72b6\u6001' },
+      bandbbs: { title: '米坛运营', sub: '资源帖 · 星级评论 · 奖励发放' },
       settings: { title: '设置', sub: '外观 · 数据 · 安全 · 邮件 · 备份恢复' },
       health: { title: '服务器状态', sub: '检测 Postgres / 鉴权 / 激活链路是否正常' },
       'vercel-logs': { title: 'Vercel日志', sub: '部署事件与函数运行日志（Vercel API）' },
@@ -5368,7 +5413,6 @@
       }
       if (tab === 'devices') loadDevices();
       if (tab === 'bandbbs') loadBandBBS();
-      if (tab === 'bandbbs-detail') loadBandBBSDetailTab();
       
       try {
         if (typeof lucide !== 'undefined' && lucide.createIcons) {

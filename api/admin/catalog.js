@@ -21,7 +21,7 @@ async function handleBandBBS(req, res) {
   var isCronCall = (query.cron === "1" || query.cron === "true");
   var cronSecret = process.env.CRON_SECRET || "";
 
-  if (op === "send-dm" || op === "config-save" || op === "config-delete" || op === "poll" || op === "single-poll") {
+  if (op === "send-dm" || op === "config-save" || op === "config-delete" || op === "poll" || op === "single-poll" || op === "send-rewards" || op === "reward-pool-import" || op === "reward-pool-save-template") {
     // Allow cron calls with valid CRON_SECRET
     if (isCronCall && cronSecret) {
       var cronAuth = req.headers.authorization || req.headers.Authorization || "";
@@ -81,6 +81,30 @@ async function handleBandBBS(req, res) {
         if (!rid) return res.status(400).json({ success: false, error: "missing resourceId" });
         await bandbbs.deleteConfig(require("../../lib/redis"), rid);
         return res.json({ success: true });
+      case "send-rewards":
+        rid = query.resourceId || body.resourceId || "";
+        if (!rid) return res.status(400).json({ success: false, error: "missing resourceId" });
+        result = await bandbbs.sendRewards(require("../../lib/redis"), rid, true);
+        return res.json(result);
+      case "reward-pool-import":
+        var linksText = body.links || "";
+        result = await bandbbs.importRewardLinks(require("../../lib/redis"), linksText);
+        return res.json(result);
+      case "reward-pool-stats":
+        result = await bandbbs.getRewardPoolStats(require("../../lib/redis"));
+        return res.json(result);
+      case "reward-log":
+        var logResourceId = query.resourceId || "";
+        var logStatus = query.status || "";
+        result = await bandbbs.getRewardLog(require("../../lib/redis"), logResourceId, logStatus);
+        return res.json(result);
+      case "reward-pool-save-template":
+        var tpl = body.template || "";
+        result = await bandbbs.saveRewardTemplate(require("../../lib/redis"), tpl);
+        return res.json(result);
+      case "reward-pool-get-template":
+        result = await bandbbs.getRewardTemplate(require("../../lib/redis"));
+        return res.json({ success: true, template: result });
       default:
         return res.status(400).json({ success: false, error: "unknown op: " + op });
     }
