@@ -11,6 +11,7 @@ var visitorLog = require("../lib/visitor-log");
 var background = require("../lib/background");
 var ipWarmup = require("../lib/ip-warmup");
 var tracking = require("../lib/tracking");
+var bruteGuard = require("../lib/brute-guard");
 
 // Vercel 免费头部 + 腾讯位置服务区县 → geo 字段（中文由 lib/geo-zh.js 统一产出）
 async function getGeoFields(req) {
@@ -669,6 +670,11 @@ function normalizeMonths(months) {
 
 function saveFailureRecord(reason, deviceId, redeemCode, productId, months, visitorInfo, deviceInfo) {
   var now = Date.now();
+  // 每次失败都给来源 IP 累计一次；达到阈值时该 IP 会在后续请求被 lib/brute-guard 拦下。
+  // 用 background 之外的最简 fire-and-forget：不 await，避免给失败路径增加等待。
+  bruteGuard.noteFailure((visitorInfo && visitorInfo.ip) || "").catch(function (e) {
+    console.error("[activate] brute-guard count failed:", e && e.message);
+  });
   var rnd = Math.random().toString(36).slice(2, 6);
   var key = "auth:activation_failure:" + now + ":" + rnd;
   // 统一事件流：所有激活失败（含限流 / 校验失败 / 码不存在）都记一条，漏斗里能看到卡在哪一步
@@ -775,6 +781,17 @@ module.exports = async (req, res) => {
 
   var ipCheck = await rateLimit.checkIpRateLimit(req);
   var geo = await geoPromise;
+  // 撞库防护（第二层，与分钟级限流互补，见 lib/brute-guard.js）：
+  // 同一 IP 当日激活失败累计超过阈值 → 后续请求直接 429，不再消耗后端查询。
+  var guardCheck = await bruteGuard.isBlocked(rateLimit.getClientIp(req));
+  if (guardCheck.blocked) {
+    res.setHeader("Retry-After", Math.ceil(guardCheck.retryAfterMs / 1000));
+    return res.status(429).json({
+      success: false,
+      error: "尝试失败次数过多，请稍后再试",
+      debug: { visitor: visitorInfo, reason: "brute_force_guard" },
+    });
+  }
   if (ipCheck.blocked) {
     saveFailureRecord(ipCheck.reason, rawDeviceId, rawRedeemCode, "", "", visitorInfo, deviceInfo);
     var ipNotifyResult = await notify.sendActivationFailure(req, {
