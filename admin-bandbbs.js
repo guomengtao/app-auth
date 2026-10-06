@@ -196,7 +196,7 @@ async function triggerBandBBSPoll() {
 
   async function sendBandBBSDM() {
     if (!window._bbLoginReady && !window._bbLoginHintDismissed) {
-      if (!confirm('Session may not be ready. Click "Login Prepare" button first to avoid "not authenticated" error.\n\nSend anyway?')) return;
+      if (!confirm('会话可能未就绪：先点「登录准备」可避免「not authenticated」报错。\n\n仍要发送吗？')) return;
     }
     var recipient = document.getElementById('bbDmRecipient').value.trim();
     var title = document.getElementById('bbDmTitle').value.trim();
@@ -600,11 +600,11 @@ async function loadBandBBSPollLogs() {
     overlay.style.cssText = 'display:flex;animation:fadeIn 0.15s ease';
     overlay.innerHTML =
       '<div class="modal" style="max-width:380px;text-align:center;padding:28px 24px 20px">' +
-      '<div style="font-size:1.125rem;font-weight:700;color:var(--ink);margin-bottom:12px">' + (title || 'Confirm') + '</div>' +
+      '<div style="font-size:1.125rem;font-weight:700;color:var(--ink);margin-bottom:12px">' + (title || '确认操作') + '</div>' +
       '<p style="color:var(--muted);margin:0 0 20px;font-size:0.875rem;line-height:1.5">' + (message || '') + '</p>' +
       '<div style="display:flex;gap:10px;justify-content:center">' +
-      '<button class="btn btn-outline" id="_bbCancelBtn" style="min-width:90px">Cancel</button>' +
-      '<button class="btn btn-primary" id="_bbOkBtn" style="min-width:90px;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 20px;font-weight:600;cursor:pointer">Confirm</button>' +
+      '<button class="btn btn-outline" id="_bbCancelBtn" style="min-width:90px">取消</button>' +
+      '<button class="btn btn-primary" id="_bbOkBtn" style="min-width:90px;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 20px;font-weight:600;cursor:pointer">确认</button>' +
       '</div></div>';
     document.body.appendChild(overlay);
     var done = false;
@@ -621,11 +621,11 @@ async function loadBandBBSPollLogs() {
   async function sendRewardForResource(rid, btnEl) {
     var loginWarning = '';
     if (!window._bbLoginReady && !window._bbLoginHintDismissed) {
-      loginWarning = '<br><br><span style="color:#f59e0b;font-size:0.8125rem">&#9888;&#65039; Session may not be ready. Click <b>Login Prepare</b> button first if you see "redirected to login" errors.</span>';
+      loginWarning = '<br><br><span style="color:#f59e0b;font-size:0.8125rem">会话可能未就绪：若看到「redirected to login」报错，请先点 <b>登录准备</b> 再发。</span>';
     }
     bbConfirm(
-      'Send Rewards',
-      'Send reward private messages to all <b>unrewarded 5-star reviews</b> for resource post <b>#' + rid + '</b>?' + loginWarning,
+      '发送奖励',
+      '给资源帖 <b>#' + rid + '</b> 的所有<b>未获奖五星评论</b>发送奖励私信？' + loginWarning,
       async function() {
         if (btnEl) { btnEl.disabled = true; btnEl.textContent = '\u53D1\u9001\u4E2D...'; }
         try {
@@ -640,38 +640,38 @@ async function loadBandBBSPollLogs() {
             box.innerHTML =
               '<div style="background:var(--elevated);border-radius:12px;padding:16px 20px;border:1px solid var(--line)">' +
               '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' +
-              '<span style="font-size:1.25rem">' + (allZero ? '\u{1F4AD}' : '\u2705') + '</span>' +
-              '<span style="font-weight:700;color:' + (allZero ? 'var(--muted)' : 'var(--ok)') + ';font-size:0.9375rem">' + (allZero ? 'Nothing to send' : 'Rewards sent') + '</span>' +
+              '<span style="color:' + (allZero ? 'var(--muted)' : 'var(--ok)') + ';display:inline-flex">' + (allZero ? BB_MSG_SVG : BB_OK_SVG) + '</span>' +
+              '<span style="font-weight:700;color:' + (allZero ? 'var(--muted)' : 'var(--ok)') + ';font-size:0.9375rem">' + (allZero ? '没有可发送的奖励' : '奖励已发送') + '</span>' +
               '</div>' +
               '<div style="display:flex;gap:16px;font-size:0.8125rem;color:var(--muted);margin-bottom:6px">' +
-              '<span>Resource <b style="color:var(--ink)">#' + rid + '</b></span>' +
-              '<span>Sent <b style="color:var(--ok)">' + (result.sent || 0) + '</b></span>' +
-              '<span>Skipped <b style="color:var(--muted)">' + (result.skipped || 0) + '</b></span>' +
-              '<span>Errors <b style="color:' + (result.errors ? 'var(--err)' : 'var(--muted)') + '">' + (result.errors || 0) + '</b></span>' +
+              '<span>资源 <b style="color:var(--ink)">#' + rid + '</b></span>' +
+              '<span>已发送 <b style="color:var(--ok)">' + (result.sent || 0) + '</b></span>' +
+              '<span>已跳过 <b style="color:var(--muted)">' + (result.skipped || 0) + '</b></span>' +
+              '<span>出错 <b style="color:' + (result.errors ? 'var(--err)' : 'var(--muted)') + '">' + (result.errors || 0) + '</b></span>' +
               '</div>';
             if (result.message) {
               box.innerHTML += '<div style="font-size:0.8125rem;color:var(--muted);padding-top:6px;border-top:1px solid var(--line);margin-top:6px">' + result.message + '</div>';
             }
             if (result.notEnough) {
-              box.innerHTML += '<div style="color:#f59e0b;font-size:0.8125rem;margin-top:4px">\u26A0\uFE0F Not enough reward links in pool, ' + result.notEnough + ' reviews left unsent</div>';
+              box.innerHTML += '<div style="display:flex;align-items:center;gap:6px;color:#f59e0b;font-size:0.8125rem;margin-top:4px">' + BB_ALERT_SVG + '<span>奖品池可用链接不足，还有 ' + result.notEnough + ' 条评论未发送</span></div>';
             }
             box.innerHTML += '</div>';
           } else {
             box.innerHTML =
               '<div style="background:var(--elevated);border-radius:12px;padding:16px 20px;border:1px solid var(--line)">' +
               '<div style="display:flex;align-items:center;gap:8px">' +
-              '<span style="font-size:1.25rem">\u274C</span>' +
-              '<span style="font-weight:700;color:var(--err);font-size:0.9375rem">Send failed</span>' +
+              '<span style="color:var(--err);display:inline-flex">' + BB_FAIL_SVG + '</span>' +
+              '<span style="font-weight:700;color:var(--err);font-size:0.9375rem">发送失败</span>' +
               '</div>' +
-              '<div style="font-size:0.8125rem;color:var(--err);margin-top:4px">' + ((result && result.error) || 'Unknown error') + '</div>' +
+              '<div style="font-size:0.8125rem;color:var(--err);margin-top:4px">' + ((result && result.error) || '未知错误') + '</div>' +
               '</div>';
           }
         } catch (e) {
           document.getElementById('bbPollResult').innerHTML =
             '<div style="background:var(--elevated);border-radius:12px;padding:16px 20px;border:1px solid var(--line)">' +
             '<div style="display:flex;align-items:center;gap:8px">' +
-            '<span style="font-size:1.25rem">\u274C</span>' +
-            '<span style="font-weight:700;color:var(--err);font-size:0.9375rem">Request failed</span>' +
+            '<span style="color:var(--err);display:inline-flex">' + BB_FAIL_SVG + '</span>' +
+            '<span style="font-weight:700;color:var(--err);font-size:0.9375rem">请求失败</span>' +
             '</div>' +
             '<div style="font-size:0.8125rem;color:var(--err);margin-top:4px">' + (e.message || e) + '</div>' +
             '</div>';
@@ -762,6 +762,9 @@ async function loadBandBBSPollLogs() {
   var _bbPoolFilter = { status: '', batch: '', q: '' };
   var BB_ALERT_SVG = '<svg class="bbx-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
   var BB_SEARCH_SVG = '<svg class="bbx-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>';
+  var BB_OK_SVG = '<svg class="bbx-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>';
+  var BB_FAIL_SVG = '<svg class="bbx-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>';
+  var BB_MSG_SVG = '<svg class="bbx-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>';
 
   function bbPoolState(it) {
     if (!it.assigned) return 'unassigned';
