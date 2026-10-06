@@ -1321,6 +1321,45 @@
         box-shadow: 0 12px 32px rgba(0, 0, 0, .28); opacity: 0; transition: opacity .18s ease, transform .18s ease; }
     #panel-bandbbs .bbx-toast.on { opacity: 1; transform: translate(-50%, 0); }
 
+    /* ── 批次7 · 「流程图」子 tab：流程即规格（发丝连线 + 语义节点 + 分支标签） ── */
+    #panel-bandbbs .bbf-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-bottom: 14px;
+        padding: 11px 14px; background: var(--bbx-sunken); border-radius: 10px; font-size: 12px; color: var(--bbx-ink-3); }
+    #panel-bandbbs .bbf-legend b { color: var(--bbx-ink); font-weight: 620; }
+    #panel-bandbbs .bbf-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+    @media (max-width: 1180px) { #panel-bandbbs .bbf-grid { grid-template-columns: 1fr; } }
+    #panel-bandbbs .bbf-card { background: var(--bbx-card); border: 1px solid var(--bbx-line); border-radius: 14px; padding: 16px 18px 16px; }
+    #panel-bandbbs .bbf-hd { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    #panel-bandbbs .bbf-hd h3 { margin: 0; font-size: 14.5px; font-weight: 650; color: var(--bbx-ink); }
+    #panel-bandbbs .bbf-no { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 6px;
+        background: var(--bbx-ops-soft); color: var(--bbx-ops); }
+    #panel-bandbbs .bbf-hint { margin: 0 0 13px; font-size: 12px; line-height: 1.5; color: var(--bbx-ink-3); }
+    /* 竖向轨道：一条发丝线 + 每节点一个圆点，箭头感由圆点与间距承担（不画斜线，读起来更干净） */
+    #panel-bandbbs .bbf-flow { position: relative; padding-left: 18px; }
+    #panel-bandbbs .bbf-flow::before { content: ''; position: absolute; left: 6px; top: 7px; bottom: 10px; width: 1px; background: var(--bbx-line); }
+    #panel-bandbbs .bbf-n { position: relative; margin-bottom: 9px; padding: 9px 12px; border: 1px solid var(--bbx-line);
+        border-radius: 10px; background: var(--bbx-sunken); }
+    #panel-bandbbs .bbf-n:last-child { margin-bottom: 0; }
+    #panel-bandbbs .bbf-n::after { content: ''; position: absolute; left: -16px; top: 14px; width: 8px; height: 8px;
+        border-radius: 50%; background: var(--bbx-card); border: 1px solid var(--bbx-ink-3); }
+    #panel-bandbbs .bbf-n .bbf-t { font-size: 12.5px; font-weight: 560; color: var(--bbx-ink); }
+    #panel-bandbbs .bbf-n .bbf-d { margin-top: 3px; font-size: 11.5px; line-height: 1.5; color: var(--bbx-ink-3); }
+    #panel-bandbbs .bbf-n .bbf-meta { margin-top: 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+    /* 节点语义：起止 / 判断 / 副作用（写库、发信） */
+    #panel-bandbbs .bbf-n.start { border-color: var(--bbx-ops); background: var(--bbx-ops-soft); }
+    #panel-bandbbs .bbf-n.start::after { border-color: var(--bbx-ops); background: var(--bbx-ops); }
+    #panel-bandbbs .bbf-n.end { background: transparent; border-style: dashed; }
+    #panel-bandbbs .bbf-n.decide { border-color: var(--bbx-warn); border-left-width: 3px; }
+    #panel-bandbbs .bbf-n.decide::after { border-color: var(--bbx-warn); }
+    #panel-bandbbs .bbf-n.side { border-style: dashed; background: transparent; }
+    #panel-bandbbs .bbf-kind { font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 5px;
+        background: var(--bbx-card); border: 1px solid var(--bbx-line); color: var(--bbx-ink-3); }
+    #panel-bandbbs .bbf-tag { font-size: 11px; padding: 1px 7px; border-radius: 6px; background: var(--bbx-sunken); color: var(--bbx-ink-2); }
+    #panel-bandbbs .bbf-tag.yes { background: var(--bbx-ok-bg); color: var(--bbx-ok); }
+    #panel-bandbbs .bbf-tag.no { background: rgba(220, 38, 38, .10); color: #dc2626; }
+    #panel-bandbbs .bbf-tag.busy { background: var(--bbx-prize-soft); color: var(--bbx-prize); }
+    #panel-bandbbs .bbf-guard { margin-top: 11px; padding: 8px 11px; border-left: 2px solid var(--bbx-ops);
+        border-radius: 0 8px 8px 0; background: var(--bbx-ops-soft); font-size: 11.5px; line-height: 1.5; color: var(--bbx-ink-2); }
+
     /* 米坛运营 · 测试工具折叠区 */
     details.bb-adv {
       border: 1px dashed var(--line);
@@ -5006,6 +5045,7 @@
             <button class="bbx-seg-btn active" data-btab="ops" onclick="switchBandBBSTab('ops')"><svg class="bbx-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09"/><path d="M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05"/></svg><!-- lucide:rocket (ISC) -->运营 <span class="bbx-badge"></span></button>
             <button class="bbx-seg-btn" data-btab="detail" onclick="switchBandBBSTab('detail')"><svg class="bbx-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg><!-- lucide:users (ISC) -->获奖名单 <span class="bbx-badge"></span></button>
             <button class="bbx-seg-btn" data-btab="prize" onclick="switchBandBBSTab('prize')"><svg class="bbx-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="4" rx="1"/><path d="M12 7v14"/><path d="M20 11v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8"/><path d="M7.5 7a1 1 0 0 1 0-5A4.8 8 0 0 1 12 7a4.8 8 0 0 1 4.5-5 1 1 0 0 1 0 5"/></svg><!-- lucide:gift (ISC) -->奖品池 <span class="bbx-badge"></span></button>
+            <button class="bbx-seg-btn" data-btab="flow" onclick="switchBandBBSTab('flow')"><svg class="bbx-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg><!-- lucide:git-branch (ISC) -->流程图 <span class="bbx-badge"></span></button>
           </div>
 
           <!-- ===== Tab 1 · 运营 ===== -->
@@ -5185,6 +5225,26 @@
             </div>
           </details>
 
+          </section>
+
+          <!-- ===== Tab 4 · 流程图（批次7） ===== -->
+          <section class="settings-sub-panel" id="bb-sub-flow">
+            <div class="setting-block bbx-card">
+              <div class="bbx-card-hd">
+                <svg class="bbx-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg><!-- lucide:git-branch (ISC) -->
+                <h3>流程总览</h3>
+                <span class="bbx-hint">与代码一一对应 · 键名可在对应 Tab 里查到</span>
+              </div>
+              <div class="bbx-card-bd">
+                <div class="bbf-legend">
+                  <span><b>实线方块</b> 确定性步骤</span>
+                  <span><b>橙色左边框</b> 分支判断</span>
+                  <span><b>虚线方块</b> 异常 / 旁路</span>
+                  <span><b>绿标签</b> 走通 · <b>红标签</b> 拦截 · <b>紫标签</b> 重试</span>
+                </div>
+                <div class="bbf-grid" id="bbFlowWrap"><span class="muted">正在绘制流程图…</span></div>
+              </div>
+            </div>
           </section>
 
         </div>
@@ -8129,19 +8189,131 @@
       showToast('💾 邮件通知设置已保存', 'success');
     }
 
+    /* ===== 流程图（批次7）：流程即规格 —— 改流程时同步改这里 =====
+       k: start 起止 / decide 判断 / side 异常旁路；kind: 入口·读·写·取用·外部·鉴权·UI
+       tags: [文案, yes 走通 | no 拦截 | busy 重试] */
+    var BB_FLOWS = [
+      {
+        no: '①',
+        title: '奖励发放 · 自动',
+        hint: 'cron 定时或点「手动抓取」触发：只给 <b>5 星</b>且<b>没发过</b>的评论发奖，每份奖品只发一个人。',
+        nodes: [
+          { k: 'start', t: '触发：cron 定时 / 「手动抓取」', kind: '入口' },
+          { t: '读取资源帖配置', d: '取出 enabled 的资源帖，逐个独立处理', c: 'op=config', kind: '读' },
+          { t: '抓取评论 → 去重 → 存档', c: 'reviews:<resourceId>', kind: '写' },
+          { k: 'decide', t: '判定：5 星 且 该用户未发过？', d: '两个条件任一不满足都不发', c: 'rewarded:<rid>', tags: [['是 → 进待发队列', 'yes'], ['否 → 记「不符 / 已发过」跳过', 'no']] },
+          { t: '从奖品池取链接', d: '先按 key 排序再 Fisher-Yates 洗牌：同一批不重复抽到同一条', c: 'reward:pool', kind: '取用' },
+          { k: 'decide', t: '乐观锁：写入前回读该条是否仍未被占用？', tags: [['未被占用 → 发信', 'yes'], ['已被占用 → 顺延下一条', 'busy']] },
+          { t: '发送奖励私信', d: '模板正文 + 该奖品唯一兑换链接，整批可核算', kind: '外部' },
+          { k: 'side', t: '私信失败 / 异常', d: '只累加 errors，不写库、奖品不消耗，留待下一轮', tags: [['下一轮重试', 'busy']] },
+          { t: '记账写库', d: '奖品条目绑定获奖人，同时写该用户的发奖记录', c: 'pool.assigned / rewarded:<rid>', kind: '写' },
+          { t: '写抓取日志', c: 'poll-logs · 新增 N / 已发 M', kind: '写' },
+          { k: 'end', t: '结果在「获奖名单」可见（芯片筛「待发奖 / 已获奖」）' }
+        ],
+        guard: '<b>并发护栏</b>：cron 与手动同时跑时，靠「写入前回读 assigned」的乐观锁防止同一份奖品发给两个人（撞车计入 conflicts）。'
+      },
+      {
+        no: '②',
+        title: '奖励发放 · 手动（本轮新增）',
+        hint: '「获奖名单」每一行的按钮：用于<b>补发</b>与<b>破例发放</b>（不受「五星才发」限制）。已获奖的行按钮变「重发」。',
+        nodes: [
+          { k: 'start', t: '点该行「手动发奖」/「重发」', kind: '入口' },
+          { t: '二次确认弹窗', d: '写明：不受五星限制、会从奖品池取一份可用链接', kind: 'UI' },
+          { t: '后端接口 op=reward-one', d: '登录令牌或 cron 凭据；缺 resourceId / username → 400', kind: '鉴权' },
+          { k: 'decide', t: '该用户在这条资源帖上是否已发过？', tags: [['未发过 → 继续', 'yes'], ['已发过且未点「重发」→ 拦截 alreadyRewarded', 'no']] },
+          { k: 'decide', t: '是否「重发」（force）？', tags: [['是 → 复用 TA 原来那条链接', 'yes'], ['否 → 从池里随机取一条未分配的', 'busy']] },
+          { k: 'decide', t: '池里还有可用链接吗？', tags: [['有 → 继续', 'yes'], ['没有 → 报「奖品池没有可用链接」', 'no']] },
+          { k: 'decide', t: '乐观锁：回读校验是否刚被他人占用？', tags: [['通过 → 发信', 'yes'], ['被占用 → 提示重试', 'no']] },
+          { t: '发送奖励私信', d: '与自动发奖同一套模板；记录标记 manual:true 便于对账', kind: '外部' },
+          { t: '记账写库', c: 'pool.assigned / rewarded:<rid>', kind: '写' },
+          { t: '前端就地更新该行', d: '状态→已获奖、奖品与时间补齐、按钮→重发、芯片计数刷新（整表不重绘）', kind: 'UI' },
+          { k: 'end', t: '右下角轻提示「已发给谁 · 奖品 ID」' }
+        ],
+        guard: '<b>与自动发奖共用同一把乐观锁</b>；<b>dryRun</b> 只校验不写库（联调用），<b>force</b> 复用原链接，绝不二次消耗奖品池。'
+      },
+      {
+        no: '③',
+        title: '奖品池 · 导入与状态流转',
+        hint: '奖品本体是爱发电兑换链接；一个链接只能发一个人，状态三态分明。',
+        nodes: [
+          { k: 'start', t: '批量导入兑换链接（「奖品池」页折叠区）', kind: '入口' },
+          { t: '解析 · 去重 · 入库', d: '每条含 couponCode / goUrl / batch（批次）', c: 'reward:pool', kind: '写' },
+          { k: 'decide', t: '是否被发奖流程选中？', tags: [['选中 → 绑定获奖人', 'yes'], ['未选中 → 继续留在池里', 'busy']] },
+          { t: '状态：已发放（未领取）', d: '写入 assignedTo / assignedFor / assignedAt / resourceId', kind: '写' },
+          { k: 'decide', t: '用户点开链接领取了吗？', tags: [['已领取 → claimed', 'yes'], ['未领取 → 仍是「已发未领」', 'busy']] },
+          { t: '状态可见性', d: '四张度量卡（总数 / 未发放 / 已发放 / 已领取）+ 状态芯片筛选 + 「复制 ID」', kind: 'UI' },
+          { k: 'end', t: '对账：奖品池列表 / 发奖记录（reward-log）' }
+        ],
+        guard: '<b>安全</b>：列表接口只回<b>掩码链接</b>（不泄露兑换码本体），完整链接只在单条详情返回。'
+      },
+      {
+        no: '④',
+        title: '抓取与监控 · 轮询',
+        hint: '每轮都写日志；失败或限流只影响当轮，不会阻塞其它资源帖。',
+        nodes: [
+          { k: 'start', t: 'cron 定时 / 「手动抓取」/ 单帖「抓取」', kind: '入口' },
+          { k: 'decide', t: '该资源帖是否 enabled？', tags: [['是 → 抓取', 'yes'], ['否 → 跳过', 'no']] },
+          { t: '抓取评论页', d: '带模拟登录会话（登录 + 提取令牌后取页）', kind: '外部' },
+          { k: 'decide', t: '抓取成功？', tags: [['成功 → 存档并进入发奖分支', 'yes'], ['失败 / 限流 → 记日志并标状态', 'no']] },
+          { k: 'side', t: '失败 / 限流处理', d: '资源表状态列标红，下一轮自动重试，不中断其它资源帖', tags: [['下一轮重试', 'busy']] },
+          { t: '存档评论', d: '按资源帖分桶，供「获奖名单」查询与筛星', c: 'reviews:<rid>', kind: '写' },
+          { t: '进入奖励分支', d: '同轮内继续发奖 —— 见流程图 ①' },
+          { t: '写抓取日志', c: 'poll-logs', d: '时间 / 模式（定时 · 手动）/ 新增评论 / 已发奖励', kind: '写' },
+          { k: 'end', t: '「运营」页折叠区可见最近 30 条抓取记录' }
+        ],
+        guard: '<b>可观测</b>：抓取结果与日志分离——首屏看「最近抓取结果」，历史进折叠区，避免长页拥挤。'
+      }
+    ];
+
+    function bbfEsc(v) {
+      return String(v === null || v === undefined ? '' : v)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    /** 渲染流程图（幂等，切换 Tab 时调用一次即可）。 */
+    function renderBandBBSFlows() {
+      var wrap = document.getElementById('bbFlowWrap');
+      if (!wrap) return;
+      var h = '';
+      for (var i = 0; i < BB_FLOWS.length; i++) {
+        var f = BB_FLOWS[i];
+        h += '<div class="bbf-card">' +
+          '<div class="bbf-hd"><span class="bbf-no">' + f.no + '</span><h3>' + f.title + '</h3></div>' +
+          '<p class="bbf-hint">' + f.hint + '</p><div class="bbf-flow">';
+        for (var j = 0; j < f.nodes.length; j++) {
+          var n = f.nodes[j], meta = '';
+          if (n.kind) meta += '<span class="bbf-kind">' + bbfEsc(n.kind) + '</span>';
+          if (n.c) meta += '<code class="bbx-code">' + bbfEsc(n.c) + '</code>';
+          if (n.tags) for (var k2 = 0; k2 < n.tags.length; k2++) {
+            meta += '<span class="bbf-tag ' + bbfEsc(n.tags[k2][1]) + '">' + bbfEsc(n.tags[k2][0]) + '</span>';
+          }
+          h += '<div class="bbf-n' + (n.k ? ' ' + n.k : '') + '">' +
+            '<div class="bbf-t">' + bbfEsc(n.t) + '</div>' +
+            (n.d ? '<div class="bbf-d">' + bbfEsc(n.d) + '</div>' : '') +
+            (meta ? '<div class="bbf-meta">' + meta + '</div>' : '') + '</div>';
+        }
+        h += '</div>' + (f.guard ? '<div class="bbf-guard">' + f.guard + '</div>' : '') + '</div>';
+      }
+      wrap.innerHTML = h;
+    }
+
     function switchBandBBSTab(tab) {
       window._bbLastTab = tab;
       var btns = document.querySelectorAll('#bbTabs .bbx-seg-btn');
       for (var i = 0; i < btns.length; i++) {
         btns[i].classList.toggle('active', btns[i].getAttribute('data-btab') === tab);
       }
-      var keys = ['ops', 'detail', 'prize'];
+      var keys = ['ops', 'detail', 'prize', 'flow'];
       for (var j = 0; j < keys.length; j++) {
         var el = document.getElementById('bb-sub-' + keys[j]);
         if (el) el.classList.toggle('active', keys[j] === tab);
       }
       if (tab === 'detail' && typeof loadBandBBSReviews === 'function' && (!window._bbReviews || !window._bbReviews.length)) loadBandBBSReviews();
       if (tab === 'prize' && typeof loadRewardPool === 'function' && !window._bbPoolLoaded) loadRewardPool();
+      // 流程图是纯前端静态图，首次进入画一次即可
+      if (tab === 'flow' && typeof renderBandBBSFlows === 'function' && !window._bbFlowDrawn) {
+        renderBandBBSFlows(); window._bbFlowDrawn = true;
+      }
       try { if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons(); } catch (_) {}
     }
 
