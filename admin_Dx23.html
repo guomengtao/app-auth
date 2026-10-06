@@ -4898,7 +4898,14 @@
             </div>
           </div>
 
-          <!-- Send Test DM -->
+          
+          <!-- Resource Detail View -->
+          <div class="setting-block" style="margin-bottom:20px;display:none" id="bbDetailBlock">
+            <h3 style="margin:0 0 12px">Resource Detail</h3>
+            <div id="bbDetailResult" style="padding:16px;background:var(--card);border-radius:8px;min-height:60px">
+            </div>
+          </div>
+<!-- Send Test DM -->
           <div class="setting-block">
             <h3 style="margin:0 0 12px">✉️ 发送测试私信</h3>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -4908,6 +4915,14 @@
               <button class="btn btn-sm" onclick="sendBandBBSDM()" id="btnSendDm">📨 发送</button>
             </div>
             <div id="bbDmResult" style="margin-top:10px;font-size:0.8125rem"></div>
+          </div>
+
+          <!-- Poll Records -->
+          <div class="setting-block" style="margin-bottom:20px">
+            <h3 style="margin:0 0 12px">Scrape Records (last 30)</h3>
+            <div id="bbPollLogResult" style="padding:16px;background:var(--card);border-radius:8px;min-height:60px">
+              <span class="muted">Loading...</span>
+            </div>
           </div>
         </div>
 
