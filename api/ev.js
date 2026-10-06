@@ -1252,6 +1252,7 @@ function evConfigRateAllowed(src) {
  * ================================================================== */
 
 var TASKS_TABLE = "evops_tasks";
+var SESSIONS_TABLE = "evops_sessions";   // 会话身份（方案：docs/会话身份字段入库Supabase-方案.md）
 
 /* ───── 任务单号生成（evtask-{type}-{project}-{YYMMDD}-{6chars}）─── */
 
@@ -1394,7 +1395,7 @@ function evTaskDb(req, res) {
       // 拉进行中任务明细（created_at 升序），供并行上限 409 返回清单与「无人处理最老优先」建议。
       // ⚠️ 读失败返回 null（不吞错为 0）：读不到就不能证明有槽位，调用方须 fail-closed 拒发单号。
       try {
-        var r2 = await fetch(sbUrl + "/rest/v1/" + TASKS_TABLE + "?select=id,title,project,assignee,owner,created_at,updated_at&status=eq.in_progress&order=created_at.asc&limit=1000", { headers: h() });
+        var r2 = await fetch(sbUrl + "/rest/v1/" + TASKS_TABLE + "?select=id,title,project,assignee,owner,session_sid,created_at,updated_at&status=eq.in_progress&order=created_at.asc&limit=1000", { headers: h() });
         if (r2.ok) {
           var rows2 = await r2.json();
           if (Array.isArray(rows2)) return rows2;
@@ -1407,6 +1408,30 @@ function evTaskDb(req, res) {
       if (!r.ok) return null;
       var rows = await r.json();
       return Array.isArray(rows) && rows.length ? rows[0] : null;
+    },
+    /** 规则1（每会话唯一单号）：该会话是否已有进行中单号。读失败返回 null（fail-closed 由调用方处理）。 */
+    async listInProgressBySession(sid) {
+      try {
+        var r = await fetch(sbUrl + "/rest/v1/" + TASKS_TABLE +
+          "?select=id,title,status,created_at&status=eq.in_progress&session_sid=eq." +
+          encodeURIComponent(sid) + "&limit=5", { headers: h() });
+        if (r.ok) {
+          var rows = await r.json();
+          if (Array.isArray(rows)) return rows;
+        }
+      } catch (e) {}
+      return null;
+    },
+    /** 会话身份 upsert（on_conflict=sid；失败返回 false，调用方决定是否阻塞）。 */
+    async upsertSession(row) {
+      try {
+        var r = await fetch(sbUrl + "/rest/v1/" + SESSIONS_TABLE + "?on_conflict=sid", {
+          method: "POST",
+          headers: h({ Prefer: "resolution=merge-duplicates,return=minimal" }),
+          body: JSON.stringify(row)
+        });
+        return r.ok || r.status === 201;
+      } catch (e) { return false; }
     }
   };
 }
@@ -1472,6 +1497,43 @@ async function handleTaskRegister(req, res) {
     }
   }
 
+  // —— 会话身份（可选）——  调用方可传 body.session = "<sid>" 或对象 {sid, raw_sid, tool, cwd, repo, title}
+  // 方案：docs/会话身份字段入库Supabase-方案.md（用户 2026-10-07 已批「开始」）
+  var sessIn = body.session;
+  var sess = null;
+  if (sessIn && typeof sessIn === "object") {
+    sess = {
+      sid: String(sessIn.sid || "").trim().slice(0, 120),
+      raw_sid: sessIn.raw_sid ? String(sessIn.raw_sid).slice(0, 120) : null,
+      tool: sessIn.tool ? String(sessIn.tool).slice(0, 32) : null,
+      cwd: sessIn.cwd ? String(sessIn.cwd).slice(0, 240) : null,
+      repo: sessIn.repo ? String(sessIn.repo).slice(0, 240) : null,
+      title: sessIn.title ? String(sessIn.title).slice(0, 240) : null
+    };
+    if (!sess.sid) sess = null;
+  } else if (sessIn) {
+    sess = { sid: String(sessIn).trim().slice(0, 120) };
+    if (!sess.sid) sess = null;
+  }
+  var sessionSid = sess ? sess.sid : null;
+
+  // 规则1（用户 2026-10-07）：每会话唯一单号 —— 同会话已有进行中单 → 409，须先 task-close。
+  if (sessionSid && status === "in_progress") {
+    var openBySess = await db.listInProgressBySession(sessionSid);
+    if (openBySess === null) {
+      return json(res, 503, { success: false, error: "store_unavailable",
+        message: "会话占用检查读取失败，无法确认该会话是否已有进行中单号，暂不发新单号；请稍后重试" });
+    }
+    if (openBySess.length) {
+      return json(res, 409, {
+        success: false, error: "session_has_open_task",
+        session_sid: sessionSid,
+        open_id: openBySess[0].id, open_task: openBySess[0],
+        message: "该会话（" + sessionSid + "）已有进行中单号 " + openBySess[0].id + "，请先 task-close 结束它再开新单（每会话唯一单号，见总纲 §3.11）。"
+      });
+    }
+  }
+
   // 9 上限拦截（仅限进行中）
   if (status === "in_progress") {
     // 上限真值来自云端 evops_config（2026-10-06 云端化：不再读 evops_status 快照，
@@ -1500,6 +1562,7 @@ async function handleTaskRegister(req, res) {
         return {
           id: t.id, title: t.title, project: t.project || "",
           assignee: t.assignee || "", owner: t.owner || "",
+          session_sid: t.session_sid || null,
           created_at: t.created_at, age_min: age
         };
       }
@@ -1529,6 +1592,7 @@ async function handleTaskRegister(req, res) {
     eta_min: eta > 0 ? eta : null,
     status: status, priority: String(body.priority || "P2").trim().slice(0, 4),
     owner: deviceOwner || String(body.owner || assigneeVal || "register").trim().slice(0, 120),
+    session_sid: sessionSid,
     source: "register",
     extra: { note: body.note ? String(body.note).slice(0, 500) : null },
     created_at: now, updated_at: now
@@ -1540,6 +1604,18 @@ async function handleTaskRegister(req, res) {
     if (!(r.ok || r.status === 201)) {
       var txt = await r.text();
       return json(res, 502, { success: false, error: "supabase_write_failed", detail: String(txt).slice(0, 200) });
+    }
+    // 会话身份入库（规则1 / 僵尸判定用）：upsert evops_sessions + 维护 open_task_id。
+    // ⚠️ 失败不阻塞主链路（任务已落库）；会话维度的全量同步走 ?action=session-sync。
+    if (sessionSid) {
+      var srow = { sid: sessionSid, heartbeat_at: now, status: "live", updated_at: now };
+      if (sess.raw_sid) srow.raw_sid = sess.raw_sid;
+      if (sess.tool) srow.tool = sess.tool;
+      if (sess.cwd) srow.cwd = sess.cwd;
+      if (sess.repo) srow.repo = sess.repo;
+      if (sess.title) srow.title = sess.title;
+      if (status === "in_progress") srow.open_task_id = id;
+      await db.upsertSession(srow);
     }
     // 登记即回流：把任务即时并入聚合看板（写 evops_status → Realtime → 手机秒级可见）。
     // 权威仍在 evops_tasks；这里只是"预置展示"，采集器下次合并按 id 去重统一聚合。
@@ -1570,6 +1646,41 @@ async function handleTaskRegister(req, res) {
   } catch (e) {
     return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
   }
+}
+
+/**
+ * 会话身份全量 upsert POST ?action=session-sync
+ * body: { sessions: [ { sid*, raw_sid?, tool?, cwd?, repo?, title?, started_at?, heartbeat_at?, open_task_id?, status?, tasks? } ] }
+ * 由 Mac 采集器（collect-status.js）把黑板 data/active/*.json 推上来；幂等（on_conflict=sid）。
+ * —— 规则2（无名额判僵尸）：审查员读 evops_sessions.heartbeat_at 判断该会话是否还活着。
+ */
+async function handleSessionSync(req, res) {
+  if (!evTaskAuthOk(req)) return json(res, 401, { success: false, error: "unauthorized" });
+  var body = (req.body && typeof req.body === "object") ? req.body : {};
+  var list = Array.isArray(body.sessions) ? body.sessions : null;
+  if (!list || !list.length) return json(res, 400, { success: false, error: "Missing sessions" });
+  var db = evTaskDb(req, res);
+  if (!db) return json(res, 500, { success: false, error: "no_store_configured" });
+  var ok = 0, fail = 0;
+  for (var i = 0; i < list.length && i < 200; i++) {
+    var s = list[i] || {};
+    var sid = String(s.sid || "").trim().slice(0, 120);
+    if (!sid) { fail++; continue; }
+    var row = { sid: sid, updated_at: new Date().toISOString() };
+    if (s.raw_sid) row.raw_sid = String(s.raw_sid).slice(0, 120);
+    if (s.tool) row.tool = String(s.tool).slice(0, 32);
+    if (s.cwd) row.cwd = String(s.cwd).slice(0, 240);
+    if (s.repo) row.repo = String(s.repo).slice(0, 240);
+    if (s.title) row.title = String(s.title).slice(0, 240);
+    if (s.started_at) row.started_at = s.started_at;
+    if (s.heartbeat_at) row.heartbeat_at = s.heartbeat_at;
+    if (s.open_task_id != null) row.open_task_id = String(s.open_task_id).slice(0, 80);
+    if (s.status) row.status = String(s.status).slice(0, 16);
+    if (Array.isArray(s.tasks)) row.tasks = s.tasks;
+    var r = await db.upsertSession(row);
+    if (r) ok++; else fail++;
+  }
+  return json(res, 200, { success: true, upserted: ok, failed: fail, total: list.length });
 }
 
 /**
@@ -1864,6 +1975,10 @@ module.exports = async (req, res) => {
       case "task-close":
         if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
         return await handleTaskClose(req, res);
+      case "session-sync":
+        // 会话身份全量 upsert（采集器把 Mac 黑板 data/active/*.json 推上来；规则2 的判据源）
+        if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
+        return await handleSessionSync(req, res);
       default:
         return json(res, 400, { success: false, error: "Unknown action" });
     }
