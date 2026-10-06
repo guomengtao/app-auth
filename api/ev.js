@@ -541,6 +541,23 @@ async function handleEvStatusGet(req, res) {
           if (typeof p === "string") p = JSON.parse(p);
           await applyPriorityOverrides(p);   // 护栏③：合并人工降级（人纠错 AI，读时即生效）
           await mergeRegisteredTasks(p, evTaskDb(req, res));  // 合并真人登记任务（eta/assignee/replies…）
+          // summary 实时化（用户 2026-10-06 指定「不要读聚合，直接读进行中的任务」）：
+          // 快照由采集器全量校准，长期不跑就漂移（实测 10-03 后漂了 3 天）；这里改为每次读实时 count，
+          // total / in_progress 以 evops_tasks 表为准，max_parallel（设置上限）仍取快照。
+          try {
+            var hr = { apikey: sbKey, Authorization: "Bearer " + sbKey };
+            var c1 = await fetch(sbUrl + "/rest/v1/evops_tasks?select=id&status=eq.in_progress&limit=1000", { headers: hr });
+            var c2 = await fetch(sbUrl + "/rest/v1/evops_tasks?select=id&limit=1000", { headers: hr });
+            if (c1.ok && c2.ok) {
+              var a1 = await c1.json(), a2 = await c2.json();
+              if (Array.isArray(a1) && Array.isArray(a2)) {
+                p.summary = p.summary || {};
+                p.summary.in_progress = a1.length;
+                p.summary.total = a2.length;
+                p.summary.realtime = true;   // 标记：本次 summary 为实时口径（快照回退时无此字段）
+              }
+            }
+          } catch (e) { /* 实时统计失败 → 保留快照值 */ }
           return json(res, 200, p);
         }
       }
