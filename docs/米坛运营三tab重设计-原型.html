@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="deep-blue" data-mode="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>米坛运营 · 三 Tab 重设计（原型 v1）</title>
+<style>
+/* ============================================================
+   设计令牌 —— 逐字取自 admin_Dx23.html（deep-blue / pure-white /
+   night-black + dark-mode 覆盖），保证原型与线上零漂移。
+============================================================ */
+:root {
+  --radius: 12px;
+  --card-bg: var(--surface);
+  --border: var(--line);
+  --muted: var(--ink-2);
+  --on-accent: #ffffff;
+  --accent-bg: #eef2ff;
+  --accent-line: #c7d2fe;
+  --accent-text: var(--accent);
+  --ok: #059669;
+  --warn: #d97706;
+  --err: #dc2626;
+  --shadow-sm: 0 1px 2px rgba(16,24,40,.05);
+}
+[data-theme="deep-blue"] {
+  --bg:#eef1f6; --surface:#ffffff; --elevated:#ffffff; --line:#ced4de;
+  --ink:#0f172a; --ink-2:#475569; --ink-3:#64748b;
+  --row-hover:#f6f8fc; --th-bg:#eef2f8;
+  --accent:#4f46e5; --accent-2:#4338ca; --accent-soft:rgba(79,70,229,.14);
+  --sidebar:#101828;
+}
+[data-theme="night-black"] {
+  --bg:#eff1f4; --surface:#ffffff; --elevated:#ffffff; --line:#d0d4da;
+  --ink:#0b1220; --ink-2:#454f5e; --ink-3:#64707f;
+  --row-hover:#f6f7f9; --th-bg:#edeff2;
+  --accent:#334155; --accent-2:#1f2937; --accent-soft:rgba(51,65,85,.14);
+  --sidebar:#0a0a0a;
+}
+[data-theme="pure-white"] {
+  --bg:#ffffff; --surface:#ffffff; --elevated:#ffffff; --line:#e4e7ec;
+  --ink:#101828; --ink-2:#475569; --ink-3:#667085;
+  --row-hover:#fafbfc; --th-bg:#f7f8fa;
+  --accent:#18181b; --accent-2:#09090b; --accent-soft:rgba(24,24,27,.08);
+  --sidebar:#ffffff;
+}
+[data-mode="dark"] {
+  --bg:#12171f; --surface:#1b2230; --elevated:#202836; --line:#2b3542;
+  --ink:#e6ebf3; --ink-2:#b6c2d2; --ink-3:#98a6ba;
+  --row-hover:#202836; --th-bg:#1f2733;
+  --sidebar:#0b0f16;
+  --accent-bg:rgba(79,70,229,.18); --accent-line:rgba(79,70,229,.4);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+}
+[data-mode="dark"][data-theme="pure-white"] {
+  --accent:#d4d4d8; --accent-2:#a1a1aa; --accent-soft:rgba(255,255,255,.10);
+  --accent-text:#e6ebf3; --on-accent:#18181b;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+  font-size: 14px; line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+
+/* ---------- 原型专用工具条（不属产品 UI） ---------- */
+.proto-bar {
+  position: sticky; top: 0; z-index: 99;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 8px 16px; background: #0f172a; color: #cbd5e1;
+  font-size: 12px; letter-spacing: .02em;
+}
+.proto-bar b { color: #fff; font-weight: 600; margin-right: 4px; }
+.proto-bar .sp { flex: 1; }
+.proto-bar button {
+  padding: 5px 11px; border-radius: 999px; cursor: pointer;
+  border: 1px solid rgba(255,255,255,.22); background: transparent;
+  color: #cbd5e1; font-size: 12px; font-family: inherit;
+}
+.proto-bar button:hover { background: rgba(255,255,255,.1); color: #fff; }
+.proto-bar button.on { background: #fff; color: #0f172a; border-color: #fff; font-weight: 600; }
+
+/* ---------- 骨架：侧栏 + 工作区 ---------- */
+.app { display: flex; min-height: calc(100vh - 37px); }
+.sidebar {
+  width: 232px; flex: 0 0 232px; background: var(--sidebar); color: #cbd5e1;
+  padding: 14px 12px; display: flex; flex-direction: column; gap: 3px;
+}
+[data-theme="pure-white"][data-mode="light"] .sidebar { border-right: 1px solid var(--line); color: #52525b; }
+.brand { display: flex; align-items: center; gap: 9px; padding: 8px 10px 16px; }
+.brand-ic {
+  width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center;
+  background: var(--accent); color: var(--on-accent); font-size: 14px;
+}
+.brand-t { font-size: 14px; font-weight: 600; color: #fff; line-height: 1.2; }
+[data-theme="pure-white"][data-mode="light"] .brand-t { color: #18181b; }
+.brand-t small { display: block; font-size: 11px; font-weight: 400; opacity: .6; }
+.nav-i { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border-radius: 9px; font-size: 13.5px; }
+.nav-i:hover { background: rgba(255,255,255,.07); }
+.nav-i.on { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+[data-theme="pure-white"][data-mode="light"] .nav-i:hover { background: #f4f4f5; }
+[data-theme="pure-white"][data-mode="light"] .nav-i.on { background: #18181b; color: #fff; }
+.nav-sep { height: 1px; background: rgba(255,255,255,.12); margin: 9px 6px; }
+[data-theme="pure-white"][data-mode="light"] .nav-sep { background: var(--line); }
+.nav-ic { width: 16px; text-align: center; font-size: 13px; }
+
+.workspace { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.topbar {
+  height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 20px;
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.topbar h1 { margin: 0; font-size: 15px; font-weight: 600; }
+.topbar .crumb { color: var(--ink-3); font-size: 12.5px; }
+.main { padding: 20px; max-width: 1240px; width: 100%; }
+
+/* ---------- 面板头（标题 + 动作） ---------- */
+.page-head { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.page-head h2 { margin: 0 0 3px; font-size: 19px; font-weight: 650; letter-spacing: -.01em; }
+.page-head .sub { color: var(--ink-3); font-size: 12.5px; }
+.page-head .acts { margin-left: auto; display: flex; gap: 9px; align-items: center; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: 9px; border: 1px solid transparent;
+  font-size: 13px; font-weight: 500; font-family: inherit; cursor: pointer;
+  background: var(--accent); color: var(--on-accent); transition: all .15s;
+}
+.btn:hover { background: var(--accent-2); }
+.btn-ghost { background: var(--surface); border-color: var(--line); color: var(--ink); }
+.btn-ghost:hover { background: var(--row-hover); }
+.btn-sm { padding: 5px 10px; font-size: 12px; border-radius: 7px; }
+
+/* ---------- 三个 Tab 的签条（严格复用设置页 .settings-tabs 规格） ---------- */
+.settings-tabs {
+  display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 16px; padding: 4px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+}
+.settings-tab {
+  flex: 1; min-width: 80px; padding: 12px 16px; border: none; border-radius: 10px;
+  background: transparent; font-family: inherit; font-size: 14px; font-weight: 500;
+  color: var(--ink); cursor: pointer; transition: all .15s; white-space: nowrap;
+}
+.settings-tab:hover { background: var(--row-hover); }
+.settings-tab.active { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+.settings-tab .cnt {
+  display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 600; background: var(--accent-soft); color: var(--accent-text);
+}
+.settings-tab.active .cnt { background: rgba(255,255,255,.22); color: var(--on-accent); }
+[data-mode="dark"] .settings-tab .cnt { color: var(--ink); }
+.settings-sub-panel { display: none; }
+.settings-sub-panel.active { display: block; }
+
+/* ---------- KPI 行 ---------- */
+.stats-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.stat-card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 2px;
+}
+.stat-card .number {
+  font-size: 26px; font-weight: 650; letter-spacing: -.02em; line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.stat-card .label { font-size: 12.5px; color: var(--ink-3); }
+.stat-card .delta { font-size: 11.5px; color: var(--ink-3); margin-top: 3px; }
+.stat-card .delta.up { color: var(--ok); }
+.stat-card.hero { border-color: var(--accent-line); background: var(--accent-bg); }
+.stat-card.hero .number { color: var(--accent-text); }
+[data-mode="dark"] .stat-card.hero { background: rgba(79,70,229,.12); }
+
+/* ---------- 区块卡 ---------- */
+.setting-block {
+  background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px;
+  padding: 16px 20px; margin-bottom: 16px;
+}
+.block-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.block-head h3 { margin: 0; font-size: 15px; font-weight: 620; }
+.block-head .hint { font-size: 12px; color: var(--ink-3); }
+.block-head .sp { flex: 1; }
+
+/* ---------- 表单 ---------- */
+.field-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+input[type=text], select, textarea {
+  padding: 7px 11px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--card-bg); color: var(--ink); font-family: inherit; font-size: 13px;
+}
+input[type=text]:focus, select:focus, textarea:focus {
+  outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
+}
+input::placeholder, textarea::placeholder { color: var(--ink-3); }
+textarea { width: 100%; resize: vertical; line-height: 1.55; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+label.lbl { font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px; }
+
+/* ---------- 表格 ---------- */
+.tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 9px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th {
+  text-align: left; padding: 9px 12px; background: var(--th-bg); color: var(--ink-2);
+  font-weight: 600; font-size: 12.5px; white-space: nowrap; border-bottom: 1px solid var(--line);
+}
+td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--row-hover); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.empty { padding: 26px; text-align: center; color: var(--ink-3); font-size: 13px; }
+
+/* ---------- 徽章 ---------- */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 600; white-space: nowrap;
+  background: var(--row-hover); color: var(--ink-2); border: 1px solid var(--line);
+}
+.badge.ok { background: rgba(5,150,105,.12); color: var(--ok); border-color: rgba(5,150,105,.3); }
+.badge.warn { background: rgba(217,119,6,.12); color: var(--warn); border-color: rgba(217,119,6,.3); }
+.badge.err { background: rgba(220,38,38,.1); color: var(--err); border-color: rgba(220,38,38,.28); }
+.badge.acc { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent-line); }
+[data-mode="dark"] .badge.acc { color: var(--ink); }
+.stars { color: #f59e0b; letter-spacing: 1px; font-size: 12.5px; white-space: nowrap; }
+
+/* ---------- 抓取结果块 ---------- */
+.result-box { padding: 13px 15px; background: var(--surface); border: 1px solid var(--line); border-radius: 9px; }
+.result-line { display: flex; align-items: center; gap: 9px; padding: 5px 0; font-size: 13px; }
+.result-line + .result-line { border-top: 1px dashed var(--line); }
+.dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 7px; background: var(--ink-3); }
+.dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.err { background: var(--err); }
+.muted { color: var(--ink-3); }
+.spacer { flex: 1; }
+
+/* ---------- 可折叠「高级工具」 ---------- */
+details.adv { border: 1px dashed var(--line); border-radius: 10px; padding: 0 20px; margin-bottom: 16px; background: var(--card-bg); }
+details.adv > summary {
+  cursor: pointer; padding: 14px 0; font-size: 14px; font-weight: 600; list-style: none;
+  display: flex; align-items: center; gap: 8px;
+}
+details.adv > summary::-webkit-details-marker { display: none; }
+details.adv > summary::after { content: "▾"; margin-left: auto; color: var(--ink-3); transition: transform .15s; }
+details.adv[open] > summary::after { transform: rotate(180deg); }
+details.adv .adv-body { padding-bottom: 16px; }
+
+/* ---------- 标注层 ---------- */
+.anno {
+  display: none; position: absolute; top: -7px; right: -7px;
+  min-width: 19px; height: 19px; padding: 0 4px; border-radius: 999px;
+  background: #f97316; color: #fff; font-size: 11px; font-weight: 700; line-height: 19px;
+  text-align: center; box-shadow: 0 0 0 2px var(--bg); z-index: 20; pointer-events: none;
+}
+body.anno-on .anno { display: block; }
+.anno-host { position: relative; }
+.legend {
+  position: fixed; right: 18px; bottom: 18px; width: 320px; max-height: 62vh; overflow: auto;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  padding: 14px 16px; box-shadow: 0 12px 32px rgba(16,24,40,.18); z-index: 60; display: none;
+}
+body.anno-on .legend { display: block; }
+.legend h4 { margin: 0 0 10px; font-size: 13px; }
+.legend ol { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--ink-2); }
+.legend li { margin-bottom: 7px; }
+.legend li b { color: var(--ink); }
+
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .stats-bar { grid-template-columns: repeat(2, 1fr); }
+  .settings-tabs { flex-direction: column; }
+  .settings-tab { text-align: left; }
+}
+</style>
+</head>
+<body>
+
+<!-- ================= 原型工具条 ================= -->
+<div class="proto-bar">
+  <b>米坛运营 · 三 Tab 重设计</b>
+  <span>原型 v1 · 1dp=1px · 令牌取自 admin_Dx23.html</span>
+  <span class="sp"></span>
+  <span>主题</span>
+  <button class="on" onclick="setTheme(this,'deep-blue','light')">深空蓝</button>
+  <button onclick="setTheme(this,'pure-white','light')">纯白</button>
+  <button onclick="setTheme(this,'night-black','light')">夜幕黑</button>
+  <button onclick="setTheme(this,'deep-blue','dark')">深色</button>
+  <button onclick="setTheme(this,'pure-white','dark')">纯白·深色</button>
+  <button onclick="document.body.classList.toggle('anno-on')">标注</button>
+</div>
+
+<div class="app">
+  <!-- ================= 侧栏（截取真实菜单） ================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-ic">🛡</div>
+      <div class="brand-t">激活码系统<small>管理后台</small></div>
+    </div>
+    <div class="nav-i"><span class="nav-ic">▦</span>后台首页</div>
+    <div class="nav-i"><span class="nav-ic">▣</span>产品管理</div>
+    <div class="nav-i"><span class="nav-ic">◫</span>兑换码管理</div>
+    <div class="nav-i"><span class="nav-ic">☰</span>激活记录</div>
+    <div class="nav-i"><span class="nav-ic">⚡</span>快捷激活</div>
+    <div class="nav-sep"></div>
+    <div class="nav-i"><span class="nav-ic">♡</span>爱发电订单</div>
+    <div class="nav-i"><span class="nav-ic">◍</span>访客统计</div>
+    <div class="nav-i"><span class="nav-ic">≡</span>日志</div>
+    <div class="nav-i"><span class="nav-ic">✓</span>已授权设备</div>
+    <div class="nav-sep"></div>
+    <div class="nav-i on"><span class="nav-ic">💬</span>米坛运营</div>
+    <div class="nav-i"><span class="nav-ic">⚙</span>设置</div>
+  </aside>
+
+  <div class="workspace">
+    <header class="topbar">
+      <h1>米坛运营</h1>
+      <span class="crumb">资源帖评论抓取 · 星级奖励发放</span>
+      <span class="spacer"></span>
+      <span class="badge ok">● 抓取服务运行中</span>
+    </header>
+
+    <main class="main">
+
+      <!-- ================= 页头 ================= -->
+      <div class="page-head anno-host">
+        <span class="anno">1</span>
+        <div>
+          <h2>📡 米坛运营</h2>
+          <div class="sub">资源帖评论抓取 · 星级奖励发放　·　上次抓取 10-06 22:31（32 分钟前）</div>
+        </div>
+        <div class="acts">
+          <button class="btn btn-ghost" onclick="noop()">🔄 刷新</button>
+          <button class="btn" onclick="noop()">▶️ 手动抓取</button>
+        </div>
+      </div>
+
+      <!-- ================= 三 Tab 签条（复用设置页规格） ================= -->
+      <div class="settings-tabs anno-host">
+        <span class="anno">2</span>
+        <button class="settings-tab active" data-btab="ops" onclick="switchBandBBS('ops')">🛰️ 运营</button>
+        <button class="settings-tab" data-btab="detail" onclick="switchBandBBS('detail')">🖥️ 详情<span class="cnt">348</span></button>
+        <button class="settings-tab" data-btab="prize" onclick="switchBandBBS('prize')">🎁 奖品管理<span class="cnt">96</span></button>
+      </div>
+
+      <!-- ============================================================
+           Tab 1 · 运营页
+      ============================================================ -->
+      <section class="settings-sub-panel active" id="bb-sub-ops">
+
+        <div class="stats-bar anno-host">
+          <span class="anno">3</span>
+          <div class="stat-card">
+            <div class="number">12</div>
+            <div class="label">监控资源数</div>
+            <div class="delta">全部启用中</div>
+          </div>
+          <div class="stat-card">
+            <div class="number">348</div>
+            <div class="label">已抓取评论</div>
+            <div class="delta up">▲ 今日新增 17</div>
+          </div>
+          <div class="stat-card hero">
+            <div class="number">96</div>
+            <div class="label">已发放奖励</div>
+            <div class="delta">剩余库存 24</div>
+          </div>
+          <div class="stat-card">
+            <div class="number" style="font-size:19px;font-weight:600">22:31</div>
+            <div class="label">上次抓取</div>
+            <div class="delta">耗时 8.4s · 成功</div>
+          </div>
+        </div>
+
+        <!-- 资源帖配置 -->
+        <div class="setting-block anno-host">
+          <span class="anno">4</span>
+          <div class="block-head">
+            <h3>📋 资源帖配置</h3>
+            <span class="hint">添加要监控的米坛资源帖，抓取器按此列表轮询评论</span>
+            <span class="sp"></span>
+            <span class="badge">12 个启用</span>
+          </div>
+          <div class="field-row">
+            <input type="text" placeholder="资源 ID（例如 7828）" style="width:180px">
+            <input type="text" placeholder="标题（选填）" style="width:220px">
+            <button class="btn btn-sm">➕ 添加</button>
+          </div>
+          <div class="tbl-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:110px">资源 ID</th>
+                  <th>标题</th>
+                  <th style="width:86px">状态</th>
+                  <th class="num" style="width:90px">评论数</th>
+                  <th style="width:130px">上次抓取</th>
+                  <th class="num" style="width:96px">新增评论</th>
+                  <th style="width:132px">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="mono">7828</td>
+                  <td>EV 课程表 Pro 使用体验分享</td>
+                  <td><span class="badge ok">启用</span></td>
+                  <td class="num">142</td>
+                  <td class="muted">10-06 22:31</td>
+                  <td class="num"><b>+6</b></td>
+                  <td>
+                    <button class="btn btn-sm btn-ghost" onclick="noop()">抓取</button>
+                    <button class="btn btn-sm btn-ghost" onclick="switchBandBBS('detail')">详情</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="mono">7801</td>
+                  <td>手环 9 表盘合集（长期更新）</td>
+                  <td><span class="badge ok">启用</span></td>
+                  <td class="num">96</td>
+                  <td class="muted">10-06 22:31</td>
+                  <td class="num muted">+0</td>
+                  <td>
+                    <button class="btn btn-sm btn-ghost" onclick="noop()">抓取</button>
+                    <button class="btn btn-sm btn-ghost" onclick="switchBandBBS('detail')">详情</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="mono">7756</td>
+                  <td>小米手环 9 Pro 适配进度</td>
+                  <td><span class="badge warn">限流</span></td>
+                  <td class="num">71</td>
+                  <td class="muted">10-06 21:58</td>
+                  <td class="num"><b>+3</b></td>
+                  <td>
+                    <button class="btn btn-sm btn-ghost" onclick="noop()">抓取</button>
+                    <button class="btn btn-sm btn-ghost" onclick="switchBandBBS('detail')">详情</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="mono">7702</td>
+                  <td>同步器安装教程（安卓）</td>
+                  <td><span class="badge err">抓取失败</span></td>
+                  <td class="num">39</td>
+                  <td class="muted">10-06 20:12</td>
+                  <td class="num muted">—</td>
+                  <td>
+                    <button class="btn btn-sm btn-ghost" onclick="noop()">重试</button>
+                    <button class="btn btn-sm btn-ghost" onclick="switchBandBBS('detail')">详情</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 最近抓取结果 -->
+        <div class="setting-block anno-host">
+          <span class="anno">5</span>
+          <div class="block-head">
+            <h3>📊 最近抓取结果</h3>
+            <span class="hint">本轮共发现 9 条新评论，已入队等待奖励判定</span>
+          </div>
+          <div class="result-box">
+            <div class="result-line"><span class="dot ok"></span><b>7828</b><span class="muted">EV 课程表 Pro 使用体验分享</span><span class="spacer"></span><span class="badge ok">+6</span></div>
+            <div class="result-line"><span class="dot ok"></span><b>7756</b><span class="muted">小米手环 9 Pro 适配进度</span><span class="spacer"></span><span class="badge ok">+3</span></div>
+            <div class="result-line"><span class="dot warn"></span><b>7801</b><span class="muted">手环 9 表盘合集（长期更新）</span><span class="spacer"></span><span class="badge warn">限流，下轮重试</span></div>
+            <div class="result-line"><span class="dot err"></span><b>7702</b><span class="muted">同步器安装教程（安卓）</span><span class="spacer"></span><span class="badge err">HTTP 502</span></div>
+          </div>
+        </div>
+
+        <!-- 抓取记录 -->
+        <div class="setting-block">
+          <div class="block-head">
+            <h3>📜 抓取记录</h3>
+            <span class="hint">最近 30 条轮询流水</span>
+            <span class="sp"></span>
+            <button class="btn btn-sm btn-ghost" onclick="noop()">导出 CSV</button>
+          </div>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th style="width:150px">时间</th><th style="width:110px">模式</th><th>资源</th><th class="num" style="width:80px">新增</th><th class="num" style="width:80px">已发</th></tr></thead>
+              <tbody>
+                <tr><td class="muted">10-06 22:31</td><td><span class="badge">自动</span></td><td>4 个资源</td><td class="num">9</td><td class="num">2</td></tr>
+                <tr><td class="muted">10-06 21:31</td><td><span class="badge">自动</span></td><td>4 个资源</td><td class="num">5</td><td class="num">1</td></tr>
+                <tr><td class="muted">10-06 20:31</td><td><span class="badge acc">手动</span></td><td>4 个资源</td><td class="num">12</td><td class="num">4</td></tr>
+                <tr><td class="muted">10-06 19:31</td><td><span class="badge">自动</span></td><td>4 个资源</td><td class="num">0</td><td class="num">0</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 测试工具（折叠） -->
+        <details class="adv anno-host">
+          <span class="anno">6</span>
+          <summary>🧪 测试工具 · 发送测试私信</summary>
+          <div class="adv-body">
+            <div class="field-row">
+              <input type="text" placeholder="收信人用户名" value="peipeijin" style="width:160px">
+              <input type="text" placeholder="标题" value="Reward Test" style="width:170px">
+              <input type="text" placeholder="内容" value="This is a test reward message from BandBBS integration." style="width:320px">
+              <button class="btn btn-sm">📨 发送</button>
+            </div>
+            <div class="muted" style="font-size:12.5px">用于验证私信通道是否可达；不影响真实奖励发放记录。</div>
+          </div>
+        </details>
+
+      </section>
+
+      <!-- ============================================================
+           Tab 2 · 详情页
+      ============================================================ -->
+      <section class="settings-sub-panel" id="bb-sub-detail">
+
+        <div class="setting-block anno-host">
+          <span class="anno">7</span>
+          <div class="block-head">
+            <h3>🖥️ 评论详情</h3>
+            <span class="hint">共 348 条评论 · 当前筛选 96 条</span>
+            <span class="sp"></span>
+            <button class="btn btn-sm btn-ghost" onclick="noop()">导出 CSV</button>
+          </div>
+
+          <!-- 筛选栏 -->
+          <div class="field-row" style="padding:11px 13px;background:var(--surface);border:1px solid var(--line);border-radius:9px">
+            <span style="font-weight:600;white-space:nowrap">筛选</span>
+            <select style="min-width:190px">
+              <option>全部资源</option>
+              <option>7828 · EV 课程表 Pro 使用体验分享</option>
+              <option>7801 · 手环 9 表盘合集（长期更新）</option>
+              <option>7756 · 小米手环 9 Pro 适配进度</option>
+            </select>
+            <select style="min-width:150px">
+              <option>全部状态</option>
+              <option>已发放</option>
+              <option>未发放</option>
+            </select>
+            <select style="min-width:130px">
+              <option>全部星级</option>
+              <option>仅 5 星</option>
+              <option>4 星及以下</option>
+            </select>
+            <input type="text" placeholder="搜用户名 / 评论内容" style="width:200px">
+            <span class="spacer"></span>
+            <button class="btn btn-sm btn-ghost" onclick="noop()">重置</button>
+          </div>
+
+          <div class="tbl-wrap" style="margin-top:12px">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:200px">资源</th>
+                  <th style="width:130px">用户名</th>
+                  <th style="width:86px">星级</th>
+                  <th>评论内容</th>
+                  <th style="width:130px">时间</th>
+                  <th style="width:150px">奖励状态</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>7828 · EV 课程表 Pro</td>
+                  <td class="mono">peipeijin</td>
+                  <td><span class="stars">★★★★★</span></td>
+                  <td>手环端课程表刷新很及时，同步器装完就能用了，感谢作者！</td>
+                  <td class="muted">10-06 22:28</td>
+                  <td><span class="badge ok">已发放</span></td>
+                </tr>
+                <tr>
+                  <td>7828 · EV 课程表 Pro</td>
+                  <td class="mono">mi_band_user</td>
+                  <td><span class="stars">★★★★★</span></td>
+                  <td>9 Pro 屏占比好，课表能显示到下一节，体验不错。</td>
+                  <td class="muted">10-06 22:19</td>
+                  <td><span class="badge acc">待发放</span></td>
+                </tr>
+                <tr>
+                  <td>7756 · 9 Pro 适配进度</td>
+                  <td class="mono">zhou_9pro</td>
+                  <td><span class="stars">★★★★<span class="muted">★</span></span></td>
+                  <td>还是有点掉帧，另外希望能加个倒计时。</td>
+                  <td class="muted">10-06 21:47</td>
+                  <td><span class="badge warn">未达 5 星</span></td>
+                </tr>
+                <tr>
+                  <td>7801 · 表盘合集</td>
+                  <td class="mono">watchfan</td>
+                  <td><span class="stars">★★★★★</span></td>
+                  <td>表盘质量很高，已经换上第三个了。</td>
+                  <td class="muted">10-06 20:33</td>
+                  <td><span class="badge err">发放失败</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:10px;margin-top:12px">
+            <span class="muted" style="font-size:12.5px">显示 1–50 / 96 条</span>
+            <span class="spacer"></span>
+            <button class="btn btn-sm btn-ghost" onclick="noop()">上一页</button>
+            <button class="btn btn-sm btn-ghost" onclick="noop()">下一页</button>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ============================================================
+           Tab 3 · 奖品管理页
+      ============================================================ -->
+      <section class="settings-sub-panel" id="bb-sub-prize">
+
+        <!-- 库存总览 -->
+        <div class="stats-bar anno-host" style="grid-template-columns:repeat(3,1fr)">
+          <span class="anno">8</span>
+          <div class="stat-card"><div class="number">120</div><div class="label">池内库存</div></div>
+          <div class="stat-card"><div class="number">96</div><div class="label">已发放</div><div class="delta">领取率 80%</div></div>
+          <div class="stat-card hero"><div class="number">24</div><div class="label">剩余可用</div><div class="delta">按当前速率约 6 天</div></div>
+        </div>
+
+        <!-- 奖励产品 + 模板 -->
+        <div class="setting-block anno-host">
+          <span class="anno">9</span>
+          <div class="block-head"><h3>🎁 奖励产品</h3><span class="hint">5 星好评自动匹配的商品</span></div>
+          <div style="padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:9px">
+            <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+              <span style="font-weight:600">EV 课程表 Pro</span>
+              <span class="badge">0 元兑换</span>
+              <span class="muted" style="font-size:12.5px">发货方式：爱发电兑换链接</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="setting-block">
+          <div class="block-head"><h3>✉️ 奖励私信模板</h3><span class="hint">发给用户的站内私信正文</span></div>
+          <label class="lbl">消息模板</label>
+          <textarea rows="3">Thank you for your 5-star review! Here is a free EV Schedule Pro as a gift. Click the link to claim on Aifadian:</textarea>
+          <div style="margin-top:8px;display:flex;gap:9px;align-items:center">
+            <button class="btn btn-sm">保存模板</button>
+            <span class="muted" style="font-size:12px">上次保存 10-06 19:02</span>
+          </div>
+        </div>
+
+        <!-- 批量导入 -->
+        <div class="setting-block anno-host">
+          <span class="anno">10</span>
+          <div class="block-head">
+            <h3>📥 批量导入兑换链接</h3>
+            <span class="hint">每行一条爱发电兑换链接，导入后进入库存池</span>
+          </div>
+          <textarea rows="5" class="mono" placeholder="每行一条兑换链接，例如：&#10;https://afdian.com/redeem/c6f06ac8a8e711f191c420&#10;https://afdian.com/redeem/c6f0174ea8e711f18c5210"></textarea>
+          <div style="margin-top:8px;display:flex;gap:9px;align-items:center;flex-wrap:wrap">
+            <button class="btn btn-sm">批量导入</button>
+            <button class="btn btn-sm btn-ghost" onclick="noop()">清空输入</button>
+            <span class="muted" style="font-size:12px">最近一次导入：20 条 · 10-05 18:40</span>
+          </div>
+        </div>
+
+        <!-- 发放日志 -->
+        <div class="setting-block">
+          <div class="block-head">
+            <h3>📜 发放日志</h3>
+            <span class="hint">每条库存的领取去向</span>
+            <span class="sp"></span>
+            <button class="btn btn-sm btn-ghost" onclick="noop()">导出 CSV</button>
+          </div>
+          <div class="field-row" style="padding:10px 12px;background:var(--surface);border:1px solid var(--line);border-radius:9px">
+            <span style="font-weight:600;white-space:nowrap">筛选</span>
+            <select style="min-width:170px"><option>全部资源</option><option>7828 · EV 课程表 Pro</option></select>
+            <select style="min-width:150px"><option>全部状态</option><option>已领取</option><option>未领取</option></select>
+          </div>
+          <div class="tbl-wrap" style="margin-top:12px">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:230px">兑换码</th>
+                  <th style="width:130px">用户</th>
+                  <th style="width:170px">来源资源</th>
+                  <th style="width:80px">星级</th>
+                  <th style="width:110px">状态</th>
+                  <th style="width:130px">发放时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="mono">c6f06ac8a8e711f191c420</td>
+                  <td class="mono">peipeijin</td>
+                  <td>7828 · EV 课程表 Pro</td>
+                  <td><span class="stars">★★★★★</span></td>
+                  <td><span class="badge ok">已领取</span></td>
+                  <td class="muted">10-06 22:29</td>
+                </tr>
+                <tr>
+                  <td class="mono">c6f0174ea8e711f18c5210</td>
+                  <td class="mono">mi_band_user</td>
+                  <td>7828 · EV 课程表 Pro</td>
+                  <td><span class="stars">★★★★★</span></td>
+                  <td><span class="badge acc">未领取</span></td>
+                  <td class="muted">10-06 22:20</td>
+                </tr>
+                <tr>
+                  <td class="mono">c6f0a21ea8e711f191ab77</td>
+                  <td class="muted">—</td>
+                  <td>7801 · 表盘合集</td>
+                  <td><span class="stars">★★★★★</span></td>
+                  <td><span class="badge err">发放失败</span></td>
+                  <td class="muted">10-06 20:34</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- ================= 标注图例 ================= -->
+<div class="legend">
+  <h4>设计标注（点工具条「标注」开关）</h4>
+  <ol>
+    <li><b>页头统一</b>：标题 + 语义副标题（含「上次抓取」相对时间）+ 全局动作（刷新 / 手动抓取）。抓取状态从"无归属"收进顶栏徽章。</li>
+    <li><b>三 Tab 签条</b>：直接复用设置页 <code>.settings-tabs</code> 规格（44px 高、4px 内衬、选中填充主色）。新增右上角计数徽章，把"有多少条待处理"提到第一眼。</li>
+    <li><b>KPI 行</b>：把原 4 张卡重排为「规模 → 产出 → 结果(主色高亮) → 时效」，主色高亮落在真正需要盯的「已发放奖励」。</li>
+    <li><b>资源帖配置</b>：主操作区。表格新增「新增评论」，失败/限流状态直接染色，一眼看出哪个资源卡住了。</li>
+    <li><b>最近抓取结果</b>：由裸 JSON 改为「状态点 + 资源 + 结果徽章」三栏对齐，失败原因文本化（HTTP 502 / 限流）。</li>
+    <li><b>测试工具折叠</b>：测试私信属低频调试能力，收进 <code>&lt;details&gt;</code>，不再占用主视线。</li>
+    <li><b>详情页筛选栏</b>：原 2 个下拉扩为「资源 / 奖励状态 / 星级 / 关键词」四维，并加「重置」，避免筛到一半退不回去。</li>
+    <li><b>奖品库存总览</b>：库存/已发/剩余三卡，剩余量给主色高亮 + 速率预估，回答"还够发几天"。</li>
+    <li><b>模板区降噪</b>：奖励产品、私信模板各自独立成卡，长文本域宽度拉满，不再挤在一列英文标签里。</li>
+    <li><b>批量导入</b>：等宽字体 + 行提示 placeholder + "最近一次导入"回执，导入类操作必须给后置反馈。</li>
+  </ol>
+</div>
+
+<script>
+function noop() { /* 原型占位：真实实现调用 admin-bandbbs.js 现有函数 */ }
+
+function switchBandBBS(tab) {
+  document.querySelectorAll('.settings-tab[data-btab]').forEach(function (t) {
+    t.classList.toggle('active', t.getAttribute('data-btab') === tab);
+  });
+  ['ops', 'detail', 'prize'].forEach(function (k) {
+    var p = document.getElementById('bb-sub-' + k);
+    if (p) p.classList.toggle('active', k === tab);
+  });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function setTheme(btn, theme, mode) {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.documentElement.setAttribute('data-mode', mode);
+  document.querySelectorAll('.proto-bar button').forEach(function (b) { b.classList.remove('on'); });
+  btn.classList.add('on');
+}
+
+/* 支持 ?tab=detail|prize&theme=pure-white&mode=dark&anno=1 —— 便于逐态截图与分享 */
+(function () {
+  var q = new URLSearchParams(location.search);
+  if (q.get('tab')) switchBandBBS(q.get('tab'));
+  if (q.get('theme')) {
+    document.documentElement.setAttribute('data-theme', q.get('theme'));
+    document.documentElement.setAttribute('data-mode', q.get('mode') || 'light');
+  }
+  if (q.get('anno')) document.body.classList.add('anno-on');
+})();
+</script>
+</body>
+</html>

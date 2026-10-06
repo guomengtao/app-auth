@@ -1194,6 +1194,28 @@
     .settings-sub-panel { display: none; }
     .settings-sub-panel.active { display: block; }
 
+    /* 米坛运营 · 测试工具折叠区 */
+    details.bb-adv {
+      border: 1px dashed var(--line);
+      border-radius: 10px;
+      padding: 0 20px;
+      margin-bottom: 20px;
+      background: var(--card);
+    }
+    details.bb-adv > summary {
+      cursor: pointer;
+      padding: 14px 0;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    details.bb-adv > summary::-webkit-details-marker { display: none; }
+    details.bb-adv > summary::after { content: "▾"; margin-left: auto; color: var(--muted); }
+    details.bb-adv[open] > summary::after { transform: rotate(180deg); }
+
     .backup-list {
       display: flex;
       flex-direction: column;
@@ -4843,6 +4865,15 @@
           </div>
 
 
+          <!-- ===== 三 Tab 签条（复用设置页 .settings-tabs 规格） ===== -->
+          <div class="settings-tabs" id="bbTabs">
+            <button class="settings-tab active" data-btab="ops" onclick="switchBandBBSTab('ops')">🛰️ 运营</button>
+            <button class="settings-tab" data-btab="detail" onclick="switchBandBBSTab('detail')">🖥️ 详情</button>
+            <button class="settings-tab" data-btab="prize" onclick="switchBandBBSTab('prize')">🎁 奖品管理</button>
+          </div>
+
+          <!-- ===== Tab 1 · 运营 ===== -->
+          <section class="settings-sub-panel active" id="bb-sub-ops">
           <!-- Stats Cards -->
           <div class="stats-bar" id="bandbbsStats" style="margin-bottom:20px">
             <div class="stat-card">
@@ -4900,9 +4931,9 @@
           </div>
 
           
-<!-- Send Test DM -->
-          <div class="setting-block">
-            <h3 style="margin:0 0 12px">✉️ 发送测试私信</h3>
+          <!-- Send Test DM（低频调试能力，收进折叠区） -->
+          <details class="bb-adv">
+            <summary>🧪 测试工具 · 发送测试私信</summary>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <input type="text" id="bbDmRecipient" placeholder="收信人用户名" value="peipeijin" style="width:160px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
               <input type="text" id="bbDmTitle" placeholder="标题" value="Reward Test" style="width:160px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
@@ -4910,7 +4941,7 @@
               <button class="btn btn-sm" onclick="sendBandBBSDM()" id="btnSendDm">📨 发送</button>
             </div>
             <div id="bbDmResult" style="margin-top:10px;font-size:0.8125rem"></div>
-          </div>
+          </details>
 
           <!-- Poll Records -->
           <div class="setting-block" style="margin-bottom:20px">
@@ -4919,6 +4950,11 @@
               <span class="muted">加载中...</span>
             </div>
           </div>
+
+          </section>
+
+          <!-- ===== Tab 2 · 详情 ===== -->
+          <section class="settings-sub-panel" id="bb-sub-detail">
 
           <!-- Review Detail Section -->
           <div class="setting-block" id="bbReviewSection" style="margin-bottom:20px">
@@ -4941,7 +4977,10 @@
             </div>
           </div>
 
-        </div>
+          </section>
+
+          <!-- ===== Tab 3 · 奖品管理 ===== -->
+          <section class="settings-sub-panel" id="bb-sub-prize">
 
 
 
@@ -4998,7 +5037,10 @@
             </div>
           </div>
 
-</div>
+          </section>
+
+        </div>
+
 
       </main>
     </div>
@@ -5412,7 +5454,7 @@
         }
       }
       if (tab === 'devices') loadDevices();
-      if (tab === 'bandbbs') loadBandBBS();
+      if (tab === 'bandbbs') { switchBandBBSTab(window._bbLastTab || 'ops'); loadBandBBS(); }
       
       try {
         if (typeof lucide !== 'undefined' && lucide.createIcons) {
@@ -7938,6 +7980,35 @@
       }
       showToast('💾 邮件通知设置已保存', 'success');
     }
+
+    function switchBandBBSTab(tab) {
+      window._bbLastTab = tab;
+      var btns = document.querySelectorAll('#bbTabs .settings-tab');
+      for (var i = 0; i < btns.length; i++) {
+        btns[i].classList.toggle('active', btns[i].getAttribute('data-btab') === tab);
+      }
+      var keys = ['ops', 'detail', 'prize'];
+      for (var j = 0; j < keys.length; j++) {
+        var el = document.getElementById('bb-sub-' + keys[j]);
+        if (el) el.classList.toggle('active', keys[j] === tab);
+      }
+      try { if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons(); } catch (_) {}
+    }
+
+    /* 资源行点「详情」时先切到详情 Tab（捕获阶段，先于原 onclick 执行），
+       否则 admin-bandbbs.js 里的 scrollIntoView 会落在隐藏面板上而无效。该 JS 零改动。 */
+    (function () {
+      document.addEventListener('click', function (e) {
+        var t = e.target;
+        if (!t || !t.closest) return;
+        var btn = t.closest('#bbResourcesTable button');
+        if (!btn) return;
+        var oc = btn.getAttribute('onclick') || '';
+        if (oc.indexOf('showBandBBSDetail') >= 0 || (btn.textContent || '').indexOf('详情') >= 0) {
+          switchBandBBSTab('detail');
+        }
+      }, true);
+    })();
 
     function switchSettingsTab(tab) {
       document.querySelectorAll('.settings-tab').forEach(function(t) { t.classList.remove('active'); });
