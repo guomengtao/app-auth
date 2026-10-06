@@ -3,7 +3,7 @@ async function loadBandBBS() {
       var data = await api('/api/admin/catalog?kind=bandbbs&op=stats');
       if (data && data.success && data.data) {
         var s = data.data;
-        document.getElementById('bbStatResources').textContent = s.resources || 0;
+        document.getElementById('bbStatResources').textContent = (s.resources && s.resources.length) || 0;
         document.getElementById('bbStatReviews').textContent = s.totalReviews || 0;
         document.getElementById('bbStatRewards').textContent = s.totalRewarded || 0;
         document.getElementById('bbStatLastPoll').textContent = s.lastPoll || '-';
@@ -753,4 +753,3 @@ async function loadBandBBSPollLogs() {
 
   // Initialize reward pool section（批次3：统一由 loadRewardPool 加载全量奖品）
   loadRewardPool();
-
