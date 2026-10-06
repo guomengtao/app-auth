@@ -1893,6 +1893,7 @@ async function handleTaskList(req, res) {
       status: t.status || "in_progress", priority: t.priority || "P2",
       assignee: t.assignee || "", eta_min: t.eta_min || 0, description: t.description || "",
       owner: t.owner || "", replies: Array.isArray(t.replies) ? t.replies : [],
+      session_sid: t.session_sid || null,
       // note：手机端「台账最近 10 条」要显示「最后一条日志」（2026-10-06）。
       // 表里 note 存在 extra.note（登记时的备注 / 收尾结论），这里提成顶层字段，
       // 免得每个客户端各解析一遍 extra。extra 可能是对象也可能是字符串，两种都吃。
@@ -1901,6 +1902,33 @@ async function handleTaskList(req, res) {
       created_at: t.created_at, updated_at: t.updated_at,
       extra: t.extra ? (typeof t.extra === "string" ? t.extra : JSON.stringify(t.extra)) : ""
     }; });
+    // 会话身份增强（2026-10-07）：一次拉全 evops_sessions，按 session_sid 附上
+    // session_title / session_idle_min —— 手机端任务卡片据此显示「属于哪个会话、还活着吗」。
+    // 会话表读不到时静默放行（不影响任务列表主链路）。
+    try {
+      var rs = await fetch(db.sbUrl + "/rest/v1/" + SESSIONS_TABLE +
+        "?select=sid,tool,title,heartbeat_at,status&limit=500", { headers: db.headers() });
+      if (rs.ok) {
+        var srows = await rs.json();
+        var smap = {};
+        if (Array.isArray(srows)) {
+          srows.forEach(function (s) {
+            if (!s || !s.sid) return;
+            var idle = null;
+            try { idle = Math.max(0, Math.round((Date.now() - new Date(s.heartbeat_at).getTime()) / 60000)); } catch (e) {}
+            smap[s.sid] = { tool: s.tool || "", title: s.title || "", heartbeat_at: s.heartbeat_at || null, idle_min: idle };
+          });
+        }
+        list.forEach(function (t) {
+          var s = t.session_sid ? smap[t.session_sid] : null;
+          if (!s) return;
+          t.session_tool = s.tool;
+          t.session_title = s.title;
+          t.session_heartbeat_at = s.heartbeat_at;
+          t.session_idle_min = s.idle_min;
+        });
+      }
+    } catch (e) { /* ignore */ }
     return json(res, 200, { success: true, tasks: list, total: list.length });
   } catch (e) {
     return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
