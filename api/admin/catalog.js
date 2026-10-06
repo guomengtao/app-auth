@@ -83,6 +83,7 @@ async function handleBandBBS(req, res) {
         return res.json({ success: true });
       case "send-rewards":
         rid = query.resourceId || body.resourceId || "";
+        rid = String(rid);
         if (!rid) return res.status(400).json({ success: false, error: "missing resourceId" });
         result = await bandbbs.sendRewards(require("../../lib/redis"), rid, true);
         return res.json(result);
