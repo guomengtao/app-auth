@@ -37,6 +37,10 @@ async function loadBandBBS() {
     loadBandBBSPollLogs();
     } catch (e) {
       console.error('loadBandBBS failed:', e);
+      var tbody = document.getElementById('bbResourcesTable');
+      if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty" style="color:#dc2626">\u52a0\u8f7d\u5931\u8d25: ' + (e && e.message ? e.message : e) + '</td></tr>';
+      }
     }
   }
 
