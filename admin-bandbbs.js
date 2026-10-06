@@ -315,7 +315,18 @@ async function loadBandBBSPollLogs() {
       return c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&quot;';
     });
   }
-  function bbStars(r) { return Number(r.stars || 0); }
+  // 星数归一：后端 fetchReviews 返回 rating=数字、stars="★★★★☆"（字符串）。
+  // 旧实现 Number(r.stars) 对字符串得 NaN → 所有评论都显示 ☆☆☆☆☆、被判「未获奖」。
+  function bbStars(r) {
+    if (!r) return 0;
+    var v = (r.rating !== undefined && r.rating !== null && r.rating !== '') ? r.rating : r.stars;
+    if (typeof v === 'string') {
+      if (v.indexOf('★') >= 0) return (v.match(/★/g) || []).length;
+      v = parseFloat(v);
+    }
+    var n = Number(v);
+    return isNaN(n) ? 0 : Math.max(0, Math.min(5, Math.round(n)));
+  }
   function bbEligible(r) { return bbStars(r) >= 5; }
   function bbState(r) { return r.rewarded ? 'rewarded' : (bbEligible(r) ? 'pending' : 'none'); }
 
