@@ -161,9 +161,10 @@ async function loadBandBBS() {
   }
 
   async function showBandBBSDetail(rid, btnEl) {
+    var block = document.getElementById('bbDetailBlock');
+    if (block) block.style.display = 'block';
     var box = document.getElementById('bbDetailResult');
     if (!box) return;
-    box.style.display = 'block';
     box.innerHTML = '<span class="muted">Loading detail...</span>';
     try {
       var result = await api('/api/admin/catalog?kind=bandbbs&op=resource-detail&resourceId=' + encodeURIComponent(rid));
