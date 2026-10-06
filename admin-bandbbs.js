@@ -25,7 +25,7 @@ async function loadBandBBS() {
               '<td>' + (typeof c.lastPollCount === 'number' ? c.lastPollCount : '-') + '</td>' +
               '<td style="font-size:0.75rem">' + (c.lastPollAt || '-') + '</td>' +
               '<td>' + (typeof c.lastPollNew === 'number' ? '<span style="color:#16a34a">+' + c.lastPollNew + '</span>' : '-') + '</td>' +
-              <td style="white-space:nowrap">' +
+              '<td style="white-space:nowrap">' +
               '<button class="btn btn-sm" onclick="pollSingleBandBBS(' + c.resourceId + ', this)" style="margin-right:4px">Scrape</button>' +
               '<button class="btn btn-sm" onclick="showBandBBSDetail(' + c.resourceId + ', this)">Detail</button>' +
               '<button class="btn btn-sm" onclick="deleteBandBBSResource(' + c.resourceId + ')" style="color:#dc2626;margin-left:4px">Delete</button></td>
