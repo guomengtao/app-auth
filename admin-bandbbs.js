@@ -410,31 +410,90 @@ async function loadBandBBSPollLogs() {
   })();
 
 
-  async function sendRewardForResource(rid, btnEl) {
-    if (!confirm('确定要给资源帖 #' + rid + ' 的所有未奖励五星评论发送奖励私信吗？')) return;
-    if (btnEl) { btnEl.disabled = true; btnEl.textContent = '发送中...'; }
-    try {
-      var result = await api('/api/admin/catalog?kind=bandbbs&op=send-rewards', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resourceId: rid })
-      });
-      var box = document.getElementById('bbPollResult');
-      if (result && result.success) {
-        box.innerHTML = '<div style="color:#16a34a;font-weight:600;margin-bottom:8px">奖励发送完成</div>' +
-          '<div>资源 <b>#' + rid + '</b> | 已发送: <b>' + (result.sent || 0) + '</b> | 跳过：<b>' + (result.skipped || 0) + '</b> | 错误：<b>' + (result.errors || 0) + '</b></div>';
-        if (result.notEnough) {
-          box.innerHTML += '<div style="color:#f59e0b;margin-top:4px">⚠️ 奖励池链接不足，还有 ' + result.notEnough + ' 条评论未发送</div>';
-        }
-      } else {
-        box.innerHTML = '<span style="color:#dc2626">发送失败: ' + ((result && result.error) || '未知错误') + '</span>';
-      }
-    } catch (e) {
-      document.getElementById('bbPollResult').innerHTML = '<span style="color:#dc2626">请求失败：' + (e.message || e) + '</span>';
+  function bbConfirm(title, message, onOk, onCancel) {
+    var overlay = document.createElement('div');
+    overlay.className = 'modal-overlay show';
+    overlay.id = '_bbConfirmOverlay';
+    overlay.style.cssText = 'display:flex;animation:fadeIn 0.15s ease';
+    overlay.innerHTML =
+      '<div class="modal" style="max-width:380px;text-align:center;padding:28px 24px 20px">' +
+      '<div style="font-size:1.125rem;font-weight:700;color:var(--ink);margin-bottom:12px">' + (title || 'Confirm') + '</div>' +
+      '<p style="color:var(--muted);margin:0 0 20px;font-size:0.875rem;line-height:1.5">' + (message || '') + '</p>' +
+      '<div style="display:flex;gap:10px;justify-content:center">' +
+      '<button class="btn btn-outline" id="_bbCancelBtn" style="min-width:90px">Cancel</button>' +
+      '<button class="btn btn-primary" id="_bbOkBtn" style="min-width:90px;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 20px;font-weight:600;cursor:pointer">Confirm</button>' +
+      '</div></div>';
+    document.body.appendChild(overlay);
+    var done = false;
+    function close(ok) {
+      if (done) return; done = true;
+      if (document.body.contains(overlay)) document.body.removeChild(overlay);
+      if (ok && onOk) onOk(); else if (!ok && onCancel) onCancel();
     }
-    if (btnEl) { btnEl.disabled = false; btnEl.textContent = '发送奖励'; }
-    loadBandBBS();
-    filterBandBBSReviews();
+    overlay.querySelector('#_bbOkBtn').onclick = function() { close(true); };
+    overlay.querySelector('#_bbCancelBtn').onclick = function() { close(false); };
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(false); });
+  }
+
+  async function sendRewardForResource(rid, btnEl) {
+    bbConfirm(
+      'Send Rewards',
+      'Send reward private messages to all <b>unrewarded 5-star reviews</b> for resource post <b>#' + rid + '</b>?',
+      async function() {
+        if (btnEl) { btnEl.disabled = true; btnEl.textContent = '\u53D1\u9001\u4E2D...'; }
+        try {
+          var result = await api('/api/admin/catalog?kind=bandbbs&op=send-rewards', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ resourceId: rid })
+          });
+          var box = document.getElementById('bbPollResult');
+          if (result && result.success) {
+            var allZero = !result.sent && !result.skipped && !result.errors;
+            box.innerHTML =
+              '<div style="background:var(--elevated);border-radius:12px;padding:16px 20px;border:1px solid var(--line)">' +
+              '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' +
+              '<span style="font-size:1.25rem">' + (allZero ? '\u{1F4AD}' : '\u2705') + '</span>' +
+              '<span style="font-weight:700;color:' + (allZero ? 'var(--muted)' : 'var(--ok)') + ';font-size:0.9375rem">' + (allZero ? 'Nothing to send' : 'Rewards sent') + '</span>' +
+              '</div>' +
+              '<div style="display:flex;gap:16px;font-size:0.8125rem;color:var(--muted);margin-bottom:6px">' +
+              '<span>Resource <b style="color:var(--ink)">#' + rid + '</b></span>' +
+              '<span>Sent <b style="color:var(--ok)">' + (result.sent || 0) + '</b></span>' +
+              '<span>Skipped <b style="color:var(--muted)">' + (result.skipped || 0) + '</b></span>' +
+              '<span>Errors <b style="color:' + (result.errors ? 'var(--err)' : 'var(--muted)') + '">' + (result.errors || 0) + '</b></span>' +
+              '</div>';
+            if (result.message) {
+              box.innerHTML += '<div style="font-size:0.8125rem;color:var(--muted);padding-top:6px;border-top:1px solid var(--line);margin-top:6px">' + result.message + '</div>';
+            }
+            if (result.notEnough) {
+              box.innerHTML += '<div style="color:#f59e0b;font-size:0.8125rem;margin-top:4px">\u26A0\uFE0F Not enough reward links in pool, ' + result.notEnough + ' reviews left unsent</div>';
+            }
+            box.innerHTML += '</div>';
+          } else {
+            box.innerHTML =
+              '<div style="background:var(--elevated);border-radius:12px;padding:16px 20px;border:1px solid var(--line)">' +
+              '<div style="display:flex;align-items:center;gap:8px">' +
+              '<span style="font-size:1.25rem">\u274C</span>' +
+              '<span style="font-weight:700;color:var(--err);font-size:0.9375rem">Send failed</span>' +
+              '</div>' +
+              '<div style="font-size:0.8125rem;color:var(--err);margin-top:4px">' + ((result && result.error) || 'Unknown error') + '</div>' +
+              '</div>';
+          }
+        } catch (e) {
+          document.getElementById('bbPollResult').innerHTML =
+            '<div style="background:var(--elevated);border-radius:12px;padding:16px 20px;border:1px solid var(--line)">' +
+            '<div style="display:flex;align-items:center;gap:8px">' +
+            '<span style="font-size:1.25rem">\u274C</span>' +
+            '<span style="font-weight:700;color:var(--err);font-size:0.9375rem">Request failed</span>' +
+            '</div>' +
+            '<div style="font-size:0.8125rem;color:var(--err);margin-top:4px">' + (e.message || e) + '</div>' +
+            '</div>';
+        }
+        if (btnEl) { btnEl.disabled = false; btnEl.textContent = '\u53D1\u9001\u5956\u52B1'; }
+        loadBandBBS();
+        filterBandBBSReviews();
+      }
+    );
   }
 
   // Auto-load reviews when panel opens
