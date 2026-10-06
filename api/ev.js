@@ -1424,6 +1424,16 @@ async function handleTaskClose(req, res) {
   }
 }
 
+/** extra 里的 note（对象或 JSON 字符串都兼容）—— 手机端「最后一条日志」的数据源。 */
+function noteOfExtra(extra) {
+  if (!extra) return "";
+  try {
+    var o = (typeof extra === "string") ? JSON.parse(extra) : extra;
+    var v = o && o.note;
+    return v == null ? "" : String(v);
+  } catch (e) { return ""; }
+}
+
 /**
  * 任务列表公开读 —— 手机端「任务」栏目直接从 evops_tasks 表拉取（不经过聚合）。
  * 支持 ?status=in_progress 过滤（可选）；返回按 updated_at 降序，limit 200。
@@ -1444,6 +1454,10 @@ async function handleTaskList(req, res) {
       status: t.status || "in_progress", priority: t.priority || "P2",
       assignee: t.assignee || "", eta_min: t.eta_min || 0, description: t.description || "",
       owner: t.owner || "", replies: Array.isArray(t.replies) ? t.replies : [],
+      // note：手机端「台账最近 10 条」要显示「最后一条日志」（2026-10-06）。
+      // 表里 note 存在 extra.note（登记时的备注 / 收尾结论），这里提成顶层字段，
+      // 免得每个客户端各解析一遍 extra。extra 可能是对象也可能是字符串，两种都吃。
+      note: noteOfExtra(t.extra),
       close_reason: t.close_reason || "", closed_note: t.closed_note || "",
       created_at: t.created_at, updated_at: t.updated_at,
       extra: t.extra ? (typeof t.extra === "string" ? t.extra : JSON.stringify(t.extra)) : ""
