@@ -5570,7 +5570,7 @@
         }
       }
       if (tab === 'devices') loadDevices();
-      if (tab === 'bandbbs') { switchBandBBSTab(window._bbLastTab || 'ops'); loadBandBBS(); }
+      if (tab === 'bandbbs') { switchBandBBSTab(window._bbLastTab || 'ops'); if (typeof loadBandBBS === 'function') loadBandBBS(); }
       
       try {
         if (typeof lucide !== 'undefined' && lucide.createIcons) {
