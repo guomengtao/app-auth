@@ -39,3 +39,7 @@ drop policy if exists "evops_tasks_anon_read"  on evops_tasks;
 drop policy if exists "evops_tasks_svc_all"   on evops_tasks;
 create policy "evops_tasks_anon_read" on evops_tasks for select using (true);
 create policy "evops_tasks_svc_all"  on evops_tasks for all using (auth.role() = 'service_role') with check (auth.role() = 'service_role');
+
+-- Realtime：把本表加进 supabase_realtime 发布，手机端「任务」页才能经 WebSocket 收到增/改推送并自动刷新。
+-- （幂等：表已在发布中会告警但可重复执行；若首次执行报 WARNING 可忽略。）
+alter publication supabase_realtime add table evops_tasks;
