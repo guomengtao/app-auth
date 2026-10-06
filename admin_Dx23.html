@@ -1298,6 +1298,29 @@
     #panel-bandbbs .bbx-mini:hover { background: var(--bbx-sunken); }
     #panel-bandbbs .bbx-note { margin-bottom: 10px; font-size: 12.5px; color: var(--bbx-ink-2); }
 
+    /* ── 批次6 · 减拥挤 + 行内「手动发奖」（Linear 式：发丝分隔、两层信息、克制强调色） ── */
+    #panel-bandbbs .bbx-table { font-size: 13px; }
+    #panel-bandbbs .bbx-table th { padding: 9px 13px; font-weight: 600; }
+    #panel-bandbbs .bbx-table td { padding: 11px 13px; vertical-align: top; }
+    /* 一列两行：主信息 + 次要信息（时间/说明），不再靠多列横排硬挤 */
+    #panel-bandbbs .bbx-cell2 { display: flex; flex-direction: column; gap: 3px; line-height: 1.35; }
+    #panel-bandbbs .bbx-sub { color: var(--bbx-ink-3); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+    #panel-bandbbs .bbx-user { font-weight: 600; color: var(--bbx-ink); }
+    /* 评论内容最多两行，长评不再把行高撑爆（完整内容在 title 悬浮可见） */
+    #panel-bandbbs .bbx-content { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+        overflow: hidden; white-space: normal; max-width: none; }
+    #panel-bandbbs .bbx-dim td { opacity: .62; }
+    #panel-bandbbs .bb-op-cell { white-space: nowrap; text-align: right; }
+    #panel-bandbbs .bbx-mini.primary { background: var(--bbx-ops); border-color: var(--bbx-ops); color: #fff; font-weight: 600; }
+    #panel-bandbbs .bbx-mini.primary:hover { filter: brightness(1.06); }
+    #panel-bandbbs .bbx-mini:disabled { opacity: .55; cursor: default; }
+    #panel-bandbbs .bbx-mnum.sm { font-size: 15px; padding-top: 6px; }
+    /* 操作反馈：右下角轻提示，不打断连续发奖 */
+    #panel-bandbbs .bbx-toast { position: fixed; left: 50%; bottom: 34px; transform: translate(-50%, 10px); z-index: 9999;
+        padding: 10px 16px; border-radius: 10px; background: rgba(17, 20, 24, .94); color: #fff; font-size: 13px;
+        box-shadow: 0 12px 32px rgba(0, 0, 0, .28); opacity: 0; transition: opacity .18s ease, transform .18s ease; }
+    #panel-bandbbs .bbx-toast.on { opacity: 1; transform: translate(-50%, 0); }
+
     /* 米坛运营 · 测试工具折叠区 */
     details.bb-adv {
       border: 1px dashed var(--line);
@@ -4978,23 +5001,23 @@
 
           <!-- ===== Tab 1 · 运营 ===== -->
           <section class="settings-sub-panel active" id="bb-sub-ops">
-          <!-- Stats Cards -->
-          <div class="stats-bar" id="bandbbsStats" style="margin-bottom:20px">
-            <div class="stat-card">
-              <div class="number" id="bbStatResources">-</div>
-              <div class="label">监控资源数</div>
+          <!-- Stats Cards（批次6：与其它两 Tab 统一为 bbx-metric 规格，减少三套卡片样式混用的拥挤感） -->
+          <div class="bbx-metrics" id="bandbbsStats" style="margin-bottom:16px">
+            <div class="bbx-metric">
+              <div class="bbx-mnum" id="bbStatResources">-</div>
+              <div class="bbx-mlabel">监控资源数</div>
             </div>
-            <div class="stat-card">
-              <div class="number" id="bbStatReviews">-</div>
-              <div class="label">已抓取评论</div>
+            <div class="bbx-metric">
+              <div class="bbx-mnum" id="bbStatReviews">-</div>
+              <div class="bbx-mlabel">已抓取评论</div>
             </div>
-            <div class="stat-card">
-              <div class="number" id="bbStatRewards">-</div>
-              <div class="label">已发放奖励</div>
+            <div class="bbx-metric ok">
+              <div class="bbx-mnum" id="bbStatRewards">-</div>
+              <div class="bbx-mlabel">已发放奖励</div>
             </div>
-            <div class="stat-card">
-              <div class="number" id="bbStatLastPoll">-</div>
-              <div class="label">上次抓取时间</div>
+            <div class="bbx-metric">
+              <div class="bbx-mnum sm" id="bbStatLastPoll">-</div>
+              <div class="bbx-mlabel">上次抓取时间</div>
             </div>
           </div>
 
@@ -5047,13 +5070,13 @@
             <div id="bbDmResult" style="margin-top:10px;font-size:0.8125rem"></div>
           </details>
 
-          <!-- Poll Records -->
-          <div class="setting-block" style="margin-bottom:20px">
-            <h3 style="margin:0 0 12px"><i data-lucide="scroll-text" class="lucide-inline"></i> 抓取记录 (最近30条)</h3>
+          <!-- Poll Records（批次6：低频历史，收进折叠区，把首屏让给「配置 + 最近抓取结果」） -->
+          <details class="bb-adv">
+            <summary><i data-lucide="scroll-text" class="lucide-inline"></i> 抓取记录 · 最近 30 条</summary>
             <div id="bbPollLogResult" style="padding:16px;background:var(--card);border-radius:8px;min-height:60px">
               <span class="muted">加载中...</span>
             </div>
-          </div>
+          </details>
 
           </section>
 
@@ -5570,7 +5593,7 @@
         }
       }
       if (tab === 'devices') loadDevices();
-      if (tab === 'bandbbs') { switchBandBBSTab(window._bbLastTab || 'ops'); if (typeof loadBandBBS === 'function') loadBandBBS(); }
+      if (tab === 'bandbbs') { console.log('[bandbbs] switchTab: tab=bandbbs, _bbLastTab=' + (window._bbLastTab || 'ops') + ', loadBandBBS typeof=' + typeof loadBandBBS); switchBandBBSTab(window._bbLastTab || 'ops'); if (typeof loadBandBBS === 'function') { console.log('[bandbbs] switchTab: loadBandBBS is function, calling'); loadBandBBS(); } else { console.log('[bandbbs] switchTab: loadBandBBS not yet defined, will be called by auto-init in admin-bandbbs.js'); } }
       
       try {
         if (typeof lucide !== 'undefined' && lucide.createIcons) {
@@ -9394,6 +9417,7 @@
     safeInit('trends', initTrends);
     safeInit('tab', function() {
       var pre = new URLSearchParams(window.location.search).get('tab');
+      console.log('[bandbbs] safeInit tab: URL tab param =', pre, ', TAB_META has it:', !!(pre && TAB_META[pre]));
       if (pre && TAB_META[pre]) {
         switchTab(pre);
       } else {

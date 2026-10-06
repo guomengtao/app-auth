@@ -1,17 +1,30 @@
+console.log('[bandbbs] admin-bandbbs.js loaded, loadBandBBS defined:', typeof loadBandBBS);
+
 async function loadBandBBS() {
+    console.log('[bandbbs] loadBandBBS() called');
     try {
+      console.log('[bandbbs] fetching stats...');
       var data = await api('/api/admin/catalog?kind=bandbbs&op=stats');
+      console.log('[bandbbs] stats response:', data && data.success ? 'success, ' + (data.data && data.data.resources ? data.data.resources.length + ' resources' : 'no resources') : 'FAILED', data);
       if (data && data.success && data.data) {
         var s = data.data;
-        document.getElementById('bbStatResources').textContent = (s.resources && s.resources.length) || 0;
-        document.getElementById('bbStatReviews').textContent = s.totalReviews || 0;
-        document.getElementById('bbStatRewards').textContent = s.totalRewarded || 0;
-        document.getElementById('bbStatLastPoll').textContent = s.lastPoll || '-';
+        var elR = document.getElementById('bbStatResources');
+        var elV = document.getElementById('bbStatReviews');
+        var elW = document.getElementById('bbStatRewards');
+        var elL = document.getElementById('bbStatLastPoll');
+        console.log('[bandbbs] stat DOM elements:', { resources: !!elR, reviews: !!elV, rewards: !!elW, lastPoll: !!elL });
+        if (elR) elR.textContent = (s.resources && s.resources.length) || 0;
+        if (elV) elV.textContent = s.totalReviews || 0;
+        if (elW) elW.textContent = s.totalRewarded || 0;
+        if (elL) elL.textContent = s.lastPoll || '-';
       }
+      console.log('[bandbbs] fetching config...');
       var configData = await api('/api/admin/catalog?kind=bandbbs&op=config');
+      console.log('[bandbbs] config response:', configData && configData.success ? 'success, ' + (configData.data ? configData.data.length + ' configs' : 'no data') : 'FAILED', configData);
       if (configData && configData.success && configData.data) {
         var configs = configData.data;
         var tbody = document.getElementById('bbResourcesTable');
+        console.log('[bandbbs] tbody element found:', !!tbody);
         if (!configs || !configs.length) {
           tbody.innerHTML = '<tr><td colspan="7" class="empty">暂无已配置的资源</td></tr>';
         } else {
@@ -317,9 +330,8 @@ async function loadBandBBSPollLogs() {
     applyBandBBSReviewFilter();
   }
 
-  function applyBandBBSReviewFilter() {
-    var box = document.getElementById('bbReviewTable');
-    if (!box) return;
+  /** 当前筛选命中的评论（渲染与计数共用，避免两处判定不一致）。 */
+  function bbFilteredReviews() {
     var f = _bbFilter, q = (f.q || '').toLowerCase(), out = [];
     for (var i = 0; i < _bbReviews.length; i++) {
       var r = _bbReviews[i];
@@ -335,6 +347,13 @@ async function loadBandBBSPollLogs() {
       }
       out.push(r);
     }
+    return out;
+  }
+
+  function applyBandBBSReviewFilter() {
+    var box = document.getElementById('bbReviewTable');
+    if (!box) return;
+    var out = bbFilteredReviews();
     bbRenderReviewTable(out);
     bbUpdateReviewFoot(out);
   }
@@ -352,19 +371,109 @@ async function loadBandBBSPollLogs() {
                : state === 'pending' ? '<span class="bbx-pill prize">待发奖</span>'
                : '<span class="bbx-pill">未获奖</span>';
       var pid = r.couponCode || r.coupon_code || '';
-      var pidCell = pid ? '<code class="bbx-code">' + bbEsc(String(pid).substring(0, 14)) + '</code>' : '<span class="muted">—</span>';
       var at = r.assignedAt || r.rewardedAt || r.assigned_at || '';
-      rows += '<tr' + (state === 'none' ? ' style="opacity:.62"' : '') + '>' +
+      // 奖品列（原「奖品池 ID + 发放时间」两列合并为一列两行）：减一列、信息还更聚拢
+      var prizeCell = '<div class="bbx-cell2">' +
+        (pid ? '<code class="bbx-code">' + bbEsc(String(pid).substring(0, 12)) + '</code>' : '<span class="muted">无奖品</span>') +
+        '<span class="bbx-sub">' + bbEsc(at ? bbShortTime(at) : '——') + '</span></div>';
+      // 手动发奖：已发过 → 重发（复用原链接）；未发/待发 → 手动发奖（不要求 5 星，破例补发）
+      var userName = bbEsc(r.username || '');
+      var awardBtn = state === 'rewarded'
+        ? '<button type="button" class="bbx-mini" data-award="1" data-force="1" data-user="' + userName + '" data-rid="' + bbEsc(r._resourceId || '') + '">重发</button>'
+        : '<button type="button" class="bbx-mini primary" data-award="1" data-user="' + userName + '" data-rid="' + bbEsc(r._resourceId || '') + '">手动发奖</button>';
+      rows += '<tr' + (state === 'none' ? ' class="bbx-dim"' : '') + '>' +
         '<td><span class="muted">#' + bbEsc(r._resourceId || '-') + '</span></td>' +
-        '<td>' + bbEsc(r.username || '-') + '</td>' +
+        '<td class="bbx-user">' + (userName || '-') + '</td>' +
         '<td class="bbx-stars">' + stars + '</td>' +
-        '<td class="bbx-content">' + bbEsc(r.content || '-') + '</td>' +
-        '<td>' + pidCell + '</td>' +
-        '<td>' + pill + '</td>' +
-        '<td><span class="muted">' + bbEsc(at || '—') + '</span></td>' +
+        '<td class="bbx-content" title="' + bbEsc(String(r.content || '').replace(/\s+/g, ' ')) + '">' + bbEsc(r.content || '-') + '</td>' +
+        '<td class="bb-prize-cell">' + prizeCell + '</td>' +
+        '<td class="bb-state-cell">' + pill + '</td>' +
+        '<td class="bb-op-cell">' + awardBtn + '</td>' +
         '</tr>';
     }
-    box.innerHTML = '<div style="overflow-x:auto"><table class="bbx-table"><thead><tr><th>资源</th><th>用户</th><th>评分</th><th>评论内容</th><th>奖品池 ID</th><th>发放状态</th><th>发放时间</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+    box.innerHTML = '<div style="overflow-x:auto"><table class="bbx-table"><thead><tr><th style="width:74px">资源</th><th style="width:120px">用户</th><th style="width:92px">评分</th><th>评论内容</th><th style="width:150px">奖品 / 发放时间</th><th style="width:86px">状态</th><th style="width:96px">操作</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+  }
+
+  /** 时间短格式：2026-10-07T02:31:05.000Z → 10-07 02:31（表格里不需要年份秒与 T/Z）。 */
+  function bbShortTime(s) {
+    var m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+    if (m) return m[2] + '-' + m[3] + ' ' + m[4] + ':' + m[5];
+    return String(s);
+  }
+
+  /**
+   * 手动发奖：给这一行的用户立即发一份奖品（后端 reward-one）。
+   * 已获奖的行走 force=1（复用原链接重发），避免二次占用奖品池。
+   */
+  function bbAwardOne(btn) {
+    var user = btn.getAttribute('data-user') || '';
+    var rid = btn.getAttribute('data-rid') || '';
+    var force = btn.getAttribute('data-force') === '1';
+    if (!user || !rid) return;
+    var row = btn.closest ? btn.closest('tr') : null;
+    bbConfirm(
+      force ? '重发奖励' : '手动发奖',
+      (force ? '给 <b>' + bbEsc(user) + '</b> 重发资源帖 <b>#' + bbEsc(rid) + '</b> 的奖励私信？'
+             : '给 <b>' + bbEsc(user) + '</b> 手动发放资源帖 <b>#' + bbEsc(rid) + '</b> 的奖励？'
+               + '<br><span style="color:var(--muted)">不受「五星才发」限制，会从其奖品池取一份可用链接并发送私信。</span>'),
+      async function () {
+        var old = btn.textContent;
+        btn.disabled = true; btn.textContent = '发送中…';
+        try {
+          var res = await api('/api/admin/catalog?kind=bandbbs&op=reward-one', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ resourceId: rid, username: user, force: force })
+          });
+          if (!res || !res.success) {
+            btn.disabled = false; btn.textContent = old;
+            alert('发奖失败：' + ((res && res.error) || '未知错误'));
+            return;
+          }
+          // 就地更新：同步底册（chip 计数/后续重渲才对）+ 只重画这一行
+          for (var i = 0; i < _bbReviews.length; i++) {
+            if (String(_bbReviews[i].username) === String(user) &&
+                String(_bbReviews[i]._resourceId) === String(rid)) {
+              _bbReviews[i].couponCode = res.couponCode;
+              _bbReviews[i].assignedAt = res.assignedAt;
+              break;
+            }
+          }
+          if (row) {
+            var sc = row.querySelector('.bb-state-cell');
+            if (sc) sc.innerHTML = '<span class="bbx-pill ok">已获奖</span>';
+            var pc = row.querySelector('.bb-prize-cell');
+            if (pc) pc.innerHTML = '<div class="bbx-cell2"><code class="bbx-code">' +
+              bbEsc(String(res.couponCode || '').substring(0, 12)) + '</code><span class="bbx-sub">' +
+              bbEsc(bbShortTime(res.assignedAt || new Date().toISOString())) + '</span></div>';
+            row.classList.remove('bbx-dim');
+            var ob = row.querySelector('.bbx-mini[data-award]');
+            if (ob) { ob.removeAttribute('data-force'); ob.className = 'bbx-mini'; ob.textContent = '重发'; }
+          }
+          renderBandBBSReviewChips();            // 芯片计数（待发奖 / 已获奖）跟着变
+          bbUpdateReviewFoot(bbFilteredReviews());
+          btn.disabled = false;
+          btn.textContent = '重发';
+          bbToast('已发给 ' + user + (res.reusedLink ? '（复用原链接）' : '') + ' · ' + (res.couponCode || ''));
+        } catch (e) {
+          btn.disabled = false; btn.textContent = old;
+          alert('发奖失败：' + ((e && e.message) || e));
+        }
+      }
+    );
+  }
+
+  /** 轻量提示条（不打断操作，2.6s 自动消失）。 */
+  function bbToast(msg) {
+    var el = document.createElement('div');
+    el.className = 'bbx-toast';
+    el.textContent = msg;
+    document.body.appendChild(el);
+    requestAnimationFrame(function () { el.classList.add('on'); });
+    setTimeout(function () {
+      el.classList.remove('on');
+      setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 220);
+    }, 2600);
   }
 
   function bbMetric(label, num, cls) {
@@ -398,6 +507,8 @@ async function loadBandBBSPollLogs() {
       if (chip) { bbSetReviewFilter(chip.getAttribute('data-g'), chip.getAttribute('data-v')); return; }
       var pchip = t.closest('#bbPoolChips .bbx-chip');
       if (pchip) { bbSetPoolFilter(pchip.getAttribute('data-g'), pchip.getAttribute('data-v')); return; }
+      var abtn = t.closest('button[data-award]');
+      if (abtn) { bbAwardOne(abtn); return; }
       var cbtn = t.closest('#bbRewardLogTable .bbx-mini');
       if (cbtn) { bbCopyText(cbtn.getAttribute('data-copy'), cbtn); return; }
     });
@@ -743,19 +854,20 @@ async function loadBandBBSPollLogs() {
       var link = it.goSlug ? '<span class="bbx-code">' + bbEsc(it.goSlug) + '</span>'
                : it.goUrl ? '<span class="bbx-code">' + bbEsc(String(it.goUrl).replace(/^https?:\/\//, '').substring(0, 26)) + '…</span>'
                : '<span class="muted">—</span>';
-      var who = it.assignedTo ? bbEsc(it.assignedTo) : '<span class="muted">—</span>';
-      var at = it.assignedAt ? '<span class="muted">' + bbEsc(it.assignedAt) + '</span>' : '<span class="muted">—</span>';
+      var who = it.assignedTo ? '<span class="bbx-user">' + bbEsc(it.assignedTo) + '</span>' : '<span class="muted">未发放</span>';
+      // 获奖人 + 发放时间合并为一列两行（原两列），配合缩窄的兑换链接列，整表更透气
+      var whoCell = '<div class="bbx-cell2">' + who +
+        (it.assignedAt ? '<span class="bbx-sub">' + bbEsc(bbShortTime(it.assignedAt)) + '</span>' : '') + '</div>';
       var op = it.couponCode ? '<button type="button" class="bbx-mini" data-copy="' + bbEsc(it.couponCode) + '">复制 ID</button>' : '<span class="muted">—</span>';
-      rows += '<tr' + (st === 'unassigned' ? ' style="opacity:.62"' : '') + '>' +
+      rows += '<tr' + (st === 'unassigned' ? ' class="bbx-dim"' : '') + '>' +
         '<td>' + code + '</td>' +
         '<td>' + link + '</td>' +
         '<td>' + pill + '</td>' +
-        '<td>' + who + '</td>' +
-        '<td>' + at + '</td>' +
-        '<td>' + op + '</td>' +
+        '<td>' + whoCell + '</td>' +
+        '<td class="bb-op-cell">' + op + '</td>' +
         '</tr>';
     }
-    table.innerHTML = '<div style="overflow-x:auto"><table class="bbx-table"><thead><tr><th>奖品池 ID</th><th>兑换链接</th><th>状态</th><th>获奖人</th><th>发放时间</th><th>操作</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+    table.innerHTML = '<div style="overflow-x:auto"><table class="bbx-table"><thead><tr><th style="width:132px">奖品池 ID</th><th>兑换链接</th><th style="width:96px">状态</th><th style="width:170px">获奖人 / 发放时间</th><th style="width:96px">操作</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
   }
 
   function bbUpdatePoolFoot(list) {
@@ -812,3 +924,17 @@ async function loadBandBBSPollLogs() {
 
   // Initialize reward pool section（批次3：统一由 loadRewardPool 加载全量奖品）
   loadRewardPool();
+
+  // Auto-init: if bandbbs panel is already active (page loaded with ?tab=bandbbs),
+  // loadBandBBS was skipped by the inline script guard; trigger it now.
+  (function autoInitBandBBS() {
+    console.log('[bandbbs] auto-init: checking panel...');
+    var panel = document.getElementById('panel-bandbbs');
+    console.log('[bandbbs] auto-init: panel found:', !!panel, 'active:', panel ? panel.classList.contains('active') : 'N/A');
+    if (panel && panel.classList.contains('active')) {
+      console.log('[bandbbs] auto-init: panel is active, calling loadBandBBS()');
+      loadBandBBS();
+    } else {
+      console.log('[bandbbs] auto-init: panel not active, skipping');
+    }
+  })();
