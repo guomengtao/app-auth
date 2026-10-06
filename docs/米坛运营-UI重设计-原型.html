@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-mode="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>米坛运营 · UI 重设计原型 v2（获奖名单 / 奖品池）</title>
+<style>
+/* ===========================================================
+   米坛运营 UI 重设计 · 视觉原型 v2（Console 2026）
+   变更要点（2026-10-06 用户新需求）：
+   · 详情页 → 改名「获奖名单」，默认展示全部评论，头部筛选全部展开（chip 组）
+   · 奖品管理 → 改名「奖品池」，管理全部奖品名单，默认突出「大量未发放」
+   · 新增「奖品 ID」双向关联：获奖名单显示所得奖品池 ID
+   · 筛选一律「全部展开 + 一键快捷筛选」，不用下拉
+   1dp = 1px；图标示意用内联 SVG，落地一律取自 Lucide（总纲 §3.14）
+   =========================================================== */
+
+:root{
+  --c-bg:#f5f7fa; --c-card:#ffffff; --c-line:#e6e9ef; --c-line-2:#eef1f5;
+  --c-ink:#0f172a; --c-ink-2:#475569; --c-ink-3:#94a3b8;
+  --c-ops:#4f46e5; --c-ops-soft:#eef2ff;
+  --c-detail:#2563eb; --c-detail-soft:#eff6ff;
+  --c-prize:#d97706; --c-prize-soft:#fffbeb;
+  --c-ok:#059669; --c-ok-bg:#ecfdf5; --c-ok-line:#a7f3d0;
+  --c-warn:#b45309; --c-warn-bg:#fffbeb; --c-warn-line:#fde68a;
+  --c-err:#dc2626; --c-err-bg:#fef2f2; --c-err-line:#fecaca;
+  --r-sm:6px; --r-md:10px; --r-lg:14px; --r-pill:999px;
+  --sh-1:0 1px 2px rgba(15,23,42,.06),0 1px 3px rgba(15,23,42,.04);
+  --sh-seg:0 1px 3px rgba(15,23,42,.10);
+  --sidebar:#131a2a; --sidebar-ink:rgba(255,255,255,.62);
+}
+html[data-mode="dark"]{
+  --c-bg:#0b1220; --c-card:#111a2b; --c-line:#1e293b; --c-line-2:#172033;
+  --c-ink:#e6edf7; --c-ink-2:#9fb0c7; --c-ink-3:#6b7c94;
+  --c-ops:#818cf8; --c-ops-soft:#1c2140;
+  --c-detail:#60a5fa; --c-detail-soft:#12203a;
+  --c-prize:#fbbf24; --c-prize-soft:#2a2110;
+  --c-ok:#34d399; --c-ok-bg:#0d2a22; --c-ok-line:#155e4b;
+  --c-warn:#fbbf24; --c-warn-bg:#2a2110; --c-warn-line:#5c4413;
+  --c-err:#f87171; --c-err-bg:#2c1414; --c-err-line:#6b2020;
+  --sh-1:0 1px 2px rgba(0,0,0,.4); --sh-seg:0 1px 3px rgba(0,0,0,.5);
+  --sidebar:#080d18;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",Arial,sans-serif;
+  background:var(--c-bg);color:var(--c-ink);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+*,*::before,*::after{transition:none!important;animation:none!important}
+
+.app{display:flex;min-height:100vh}
+.sidebar{width:220px;flex:0 0 220px;background:var(--sidebar);padding:16px 0}
+.sb-logo{display:flex;align-items:center;gap:9px;padding:6px 18px 18px;color:#fff;font-size:15px;font-weight:650}
+.sb-dot{width:22px;height:22px;border-radius:7px;background:linear-gradient(135deg,#6366f1,#4f46e5)}
+.sb-i{display:flex;align-items:center;gap:10px;padding:9px 18px;color:var(--sidebar-ink);font-size:13.5px}
+.sb-i.on{background:rgba(99,102,241,.16);color:#fff;box-shadow:inset 3px 0 0 #6366f1}
+.main{flex:1;min-width:0;padding:22px 28px 40px}
+.crumb{font-size:12.5px;color:var(--c-ink-3);margin-bottom:5px}
+.pagehead{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.pagehead h1{font-size:20px;font-weight:680;letter-spacing:-.2px}
+.pagehead .sub{font-size:12.5px;color:var(--c-ink-3);margin-top:3px}
+
+/* ---- 胶囊分段控件（Tab） ---- */
+.seg{display:inline-flex;align-items:center;gap:2px;background:var(--c-line-2);border-radius:var(--r-pill);padding:4px;margin-bottom:18px}
+.seg-btn{display:inline-flex;align-items:center;gap:7px;padding:7px 15px;border:0;background:transparent;cursor:pointer;
+  border-radius:var(--r-pill);color:var(--c-ink-2);font-size:13.5px;font-weight:560;font-family:inherit}
+.seg-btn .ic{width:16px;height:16px;flex:0 0 16px}
+.seg-btn.on{background:var(--c-card);color:var(--c-ink);box-shadow:var(--sh-seg)}
+.seg-btn.on[data-t="detail"]{color:var(--c-detail)}
+.seg-btn.on[data-t="prize"]{color:var(--c-prize)}
+.badge{min-width:19px;height:19px;padding:0 6px;border-radius:var(--r-pill);background:var(--c-line-2);
+  color:var(--c-ink-3);font-size:11.5px;font-weight:650;line-height:19px;text-align:center}
+.seg-btn.on .badge{background:var(--c-ops-soft);color:var(--c-ops)}
+.seg-btn.on[data-t="detail"] .badge{background:var(--c-detail-soft);color:var(--c-detail)}
+.seg-btn.on[data-t="prize"] .badge{background:var(--c-prize-soft);color:var(--c-prize)}
+
+/* ---- 指标卡 ---- */
+.strip{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
+.metric{position:relative;background:var(--c-card);border:1px solid var(--c-line);border-radius:var(--r-lg);
+  padding:15px 17px 14px;box-shadow:var(--sh-1);overflow:hidden}
+.metric::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent,var(--c-ops))}
+.metric .k{font-size:12px;color:var(--c-ink-3);font-weight:560}
+.metric .v{font-size:26px;font-weight:680;letter-spacing:-.6px;margin-top:6px;line-height:1.15}
+.metric .v small{font-size:12px;font-weight:560;color:var(--c-ink-3);margin-left:3px;letter-spacing:0}
+.metric .d{font-size:11.5px;color:var(--c-ink-3);margin-top:5px}
+.metric .d b{font-weight:650}
+
+/* ---- 分区卡 ---- */
+.card{background:var(--c-card);border:1px solid var(--c-line);border-radius:var(--r-lg);box-shadow:var(--sh-1);margin-bottom:16px;overflow:hidden}
+.card-hd{display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid var(--c-line-2)}
+.card-hd .bar{width:3px;height:16px;border-radius:2px;background:var(--accent,var(--c-ops));flex:0 0 3px}
+.card-hd .ic{width:18px;height:18px;color:var(--c-ink-2);flex:0 0 18px}
+.card-hd h3{font-size:15px;font-weight:660;letter-spacing:-.1px}
+.card-hd .tip{font-size:12px;color:var(--c-ink-3);font-weight:500}
+.card-hd .sp{flex:1}
+.card-bd{padding:0}
+.card-ft{padding:11px 18px;border-top:1px solid var(--c-line-2);font-size:12px;color:var(--c-ink-3);background:var(--c-line-2)}
+
+.btn{display:inline-flex;align-items:center;gap:6px;font-family:inherit;font-size:13px;font-weight:580;
+  padding:7px 13px;border-radius:var(--r-md);border:1px solid var(--c-line);background:var(--c-card);color:var(--c-ink-2);cursor:pointer}
+.btn .ic{width:15px;height:15px}
+.btn-p{background:var(--c-ops);border-color:var(--c-ops);color:#fff}
+.btn-sm{padding:4px 10px;font-size:12.5px}
+
+/* ===========================================================
+   筛选区：全部展开 + 一键快捷筛选（替代下拉 select）
+   =========================================================== */
+.filters{padding:13px 18px;border-bottom:1px solid var(--c-line-2);background:var(--c-line-2);
+  position:sticky;top:0;z-index:3;display:flex;flex-direction:column;gap:9px}
+.frow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.flabel{font-size:12px;font-weight:640;color:var(--c-ink-3);flex:0 0 auto;min-width:44px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:var(--r-pill);
+  border:1px solid var(--c-line);background:var(--c-card);color:var(--c-ink-2);cursor:pointer;
+  font-family:inherit;font-size:12.5px;font-weight:560}
+.chip .n{font-size:11.5px;font-weight:650;color:var(--c-ink-3)}
+.chip.on{background:var(--c-ops);border-color:var(--c-ops);color:#fff}
+.chip.on .n{color:rgba(255,255,255,.8)}
+.chip.on[data-c="ok"]{background:var(--c-ok);border-color:var(--c-ok)}
+.chip.on[data-c="warn"]{background:var(--c-warn);border-color:var(--c-warn)}
+.chip.on[data-c="prize"]{background:var(--c-prize);border-color:var(--c-prize)}
+.search{display:flex;align-items:center;gap:7px;background:var(--c-card);border:1px solid var(--c-line);
+  border-radius:var(--r-md);padding:6px 11px;font-size:13px;color:var(--c-ink-3);min-width:220px;margin-left:auto}
+.search .ic{width:15px;height:15px}
+.fhint{font-size:12px;color:var(--c-ink-3)}
+
+/* ---- 紧凑表格 ---- */
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{position:sticky;top:0;z-index:1;background:var(--c-line-2);color:var(--c-ink-3);
+  font-size:11.5px;font-weight:640;letter-spacing:.03em;text-align:left;padding:9px 14px;
+  border-bottom:1px solid var(--c-line);white-space:nowrap}
+tbody td{padding:11px 14px;border-bottom:1px solid var(--c-line-2);color:var(--c-ink-2);vertical-align:middle}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:var(--c-ops-soft);color:var(--c-ink)}
+tbody td.strong{color:var(--c-ink);font-weight:600}
+tbody td.num{font-variant-numeric:tabular-nums}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+.thin{color:var(--c-ink-3)}
+tr.dim td{opacity:.62}
+
+/* ---- 状态胶囊 ---- */
+.pill{display:inline-block;padding:2px 10px;border-radius:var(--r-pill);font-size:12px;font-weight:620;
+  border:1px solid transparent;white-space:nowrap}
+.p-ok{background:var(--c-ok-bg);color:var(--c-ok);border-color:var(--c-ok-line)}
+.p-warn{background:var(--c-warn-bg);color:var(--c-warn);border-color:var(--c-warn-line)}
+.p-err{background:var(--c-err-bg);color:var(--c-err);border-color:var(--c-err-line)}
+.p-mute{background:var(--c-line-2);color:var(--c-ink-3);border-color:var(--c-line)}
+.p-id{background:var(--c-ops-soft);color:var(--c-ops);border-color:transparent;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+
+/* ---- 折叠区 ---- */
+.adv{border:1px dashed var(--c-line);border-radius:var(--r-lg);background:var(--c-card);margin-bottom:16px}
+.adv>summary{display:flex;align-items:center;gap:9px;cursor:pointer;list-style:none;padding:13px 18px;font-size:14px;font-weight:620}
+.adv>summary::-webkit-details-marker{display:none}
+.adv>summary .ic{width:17px;height:17px;color:var(--c-prize)}
+.adv>summary .hint{font-size:12px;font-weight:500;color:var(--c-ink-3)}
+.adv>summary .cv{margin-left:auto;width:15px;height:15px;color:var(--c-ink-3)}
+.adv[open]>summary{border-bottom:1px dashed var(--c-line)}
+.adv-bd{padding:18px}
+
+.form-row{margin-bottom:14px}
+.form-row label{display:block;font-size:12.5px;font-weight:620;color:var(--c-ink-2);margin-bottom:6px}
+.input,textarea.input{width:100%;font-family:inherit;font-size:13.5px;color:var(--c-ink);background:var(--c-card);
+  border:1px solid var(--c-line);border-radius:var(--r-md);padding:9px 12px}
+textarea.input{min-height:74px;resize:vertical;line-height:1.6}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+
+.panel{display:none;margin-bottom:9px}
+.panel.on{display:block}
+
+.note{display:flex;gap:9px;align-items:flex-start;background:var(--c-card);border:1px solid var(--c-line);
+  border-left:3px solid var(--c-ops);border-radius:var(--r-md);padding:11px 14px;margin-bottom:16px;
+  font-size:12.5px;color:var(--c-ink-2)}
+.note b{color:var(--c-ink)}
+.note.prize{border-left-color:var(--c-prize)}
+.note.detail{border-left-color:var(--c-detail)}
+.tag{display:inline-block;padding:1px 7px;border-radius:5px;background:var(--c-ops-soft);color:var(--c-ops);
+  font-size:11.5px;font-weight:640;margin-right:6px}
+.alert{display:flex;align-items:center;gap:10px;padding:11px 15px;border-radius:var(--r-md);
+  background:var(--c-warn-bg);border:1px solid var(--c-warn-line);color:var(--c-warn);
+  font-size:13px;font-weight:560;margin-bottom:16px}
+.alert .ic{width:17px;height:17px;flex:0 0 17px}
+.alert b{font-weight:750}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-logo"><span class="sb-dot"></span>EvOps 控制台</div>
+    <div class="sb-i">仪表盘</div>
+    <div class="sb-i">项目</div>
+    <div class="sb-i">台账</div>
+    <div class="sb-i">开发总纲</div>
+    <div class="sb-i">设置</div>
+    <div class="sb-i on">米坛运营</div>
+  </aside>
+
+  <main class="main">
+    <div class="crumb">控制台 / 米坛运营</div>
+    <div class="pagehead">
+      <div>
+        <h1>米坛运营</h1>
+        <div class="sub">资源帖抓取 · 获奖名单 · 奖品池</div>
+      </div>
+      <button class="btn"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>刷新数据</button>
+    </div>
+
+    <!-- ============ Tab 签条：运营 / 获奖名单 / 奖品池 ============ -->
+    <div class="seg" role="tablist">
+      <button class="seg-btn on" data-t="ops" onclick="go('ops')">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
+        运营 <span class="badge">3</span>
+      </button>
+      <button class="seg-btn" data-t="detail" onclick="go('detail')">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        获奖名单 <span class="badge">348</span>
+      </button>
+      <button class="seg-btn" data-t="prize" onclick="go('prize')">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>
+        奖品池 <span class="badge">150</span>
+      </button>
+    </div>
+
+    <!-- ==================== Tab 1 · 运营 ==================== -->
+    <section class="panel on" id="p-ops">
+      <div class="note">
+        <svg class="ic" style="width:16px;height:16px;flex:0 0 16px;color:var(--c-ops)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <div><span class="tag">重排</span><b>态势一屏看完</b>：资源帖配置升主卡；抓取记录与测试工具下沉折叠区。</div>
+      </div>
+      <div class="strip">
+        <div class="metric" style="--accent:var(--c-ops)"><div class="k">监控资源帖</div><div class="v">3<small>个</small></div><div class="d">全部 <b>启用中</b></div></div>
+        <div class="metric" style="--accent:var(--c-detail)"><div class="k">累计评论</div><div class="v">348<small>条</small></div><div class="d">今日新增 <b>12</b></div></div>
+        <div class="metric" style="--accent:var(--c-prize)"><div class="k">已获奖</div><div class="v">96<small>人</small></div><div class="d">待发奖 <b>34</b> 人</div></div>
+        <div class="metric" style="--accent:var(--c-ok)"><div class="k">最近抓取</div><div class="v" style="font-size:20px">18 分钟前</div><div class="d">抓到 <b>12</b> 条 · 耗时 3.2s</div></div>
+      </div>
+      <div class="card">
+        <div class="card-hd" style="--accent:var(--c-ops)">
+          <span class="bar"></span>
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          <h3>资源帖配置</h3><span class="tip">点「查看名单」跳到该帖获奖名单</span><span class="sp"></span>
+          <button class="btn btn-sm btn-p"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5v14"/></svg>新增资源帖</button>
+        </div>
+        <div class="card-bd">
+          <table>
+            <thead><tr><th style="width:100px">资源 ID</th><th>标题</th><th style="width:100px">评论数</th><th style="width:100px">已获奖</th><th style="width:100px">状态</th><th style="width:110px">操作</th></tr></thead>
+            <tbody>
+              <tr><td class="mono strong">1001</td><td class="strong">EV 课程表 Pro 使用反馈</td><td class="num">186</td><td class="num">62</td><td><span class="pill p-ok">已启用</span></td><td><button class="btn btn-sm">查看名单</button></td></tr>
+              <tr><td class="mono strong">1002</td><td class="strong">手环课程表同步教程</td><td class="num">112</td><td class="num">28</td><td><span class="pill p-ok">已启用</span></td><td><button class="btn btn-sm">查看名单</button></td></tr>
+              <tr><td class="mono strong">1003</td><td class="strong">新版界面意见征集</td><td class="num">50</td><td class="num">6</td><td><span class="pill p-mute">已停用</span></td><td><button class="btn btn-sm">查看名单</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd" style="--accent:var(--c-detail)">
+          <span class="bar"></span>
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+          <h3>最近抓取结果</h3><span class="sp"></span><span class="pill p-ok">成功</span>
+        </div>
+        <div class="card-bd" style="padding:18px">
+          <div style="display:flex;gap:26px;flex-wrap:wrap;font-size:13px">
+            <div><span class="thin">抓取时间</span> <b>2026-10-06 23:05</b></div>
+            <div><span class="thin">抓到评论</span> <b>12 条</b></div>
+            <div><span class="thin">从池中随机发出</span> <b>2 份</b></div>
+            <div><span class="thin">耗时</span> <b>3.2 秒</b></div>
+          </div>
+        </div>
+      </div>
+      <details class="adv">
+        <summary>
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v7.31"/><path d="M14 9.3V1.99"/><path d="M8.5 2h7"/><path d="M14 9.3a6.5 6.5 0 1 1-4 0"/><path d="M5.52 16h12.96"/></svg>
+          测试工具 <span class="hint">低频调试能力，默认收起</span>
+          <svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </summary>
+        <div class="adv-bd">
+          <div class="form-row"><label>私信内容</label><textarea class="input">这是一条来自米坛集成的测试奖励私信。</textarea></div>
+          <button class="btn btn-p">发送测试私信</button>
+        </div>
+      </details>
+    </section>
+
+    <!-- ==================== Tab 2 · 获奖名单（原「详情」） ==================== -->
+    <section class="panel" id="p-detail">
+      <div class="note detail">
+        <svg class="ic" style="width:16px;height:16px;flex:0 0 16px;color:var(--c-detail)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <div><b>由「详情」改名为「获奖名单」</b>：默认展示<b>全部评论</b>（不再要求先选资源帖）；筛选器<b>全部平铺展开</b>，点一下就筛；已获奖的行显示<b>所得奖品池 ID</b>。</div>
+      </div>
+
+      <div class="strip">
+        <div class="metric" style="--accent:var(--c-detail)"><div class="k">全部评论</div><div class="v">348<small>条</small></div><div class="d">覆盖 <b>3</b> 个资源帖</div></div>
+        <div class="metric" style="--accent:var(--c-prize)"><div class="k">已获奖</div><div class="v">96<small>人</small></div><div class="d">已发奖并绑定奖品 ID</div></div>
+        <div class="metric" style="--accent:var(--c-warn)"><div class="k">待发奖</div><div class="v">34<small>人</small></div><div class="d">五星未发（池不足 / 未跑批）</div></div>
+        <div class="metric" style="--accent:var(--c-ok)"><div class="k">获奖率</div><div class="v">28<small>%</small></div><div class="d">96 / 348</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd" style="--accent:var(--c-detail)">
+          <span class="bar"></span>
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <h3>获奖名单</h3><span class="tip">评论 × 奖品 ID × 发放登记</span><span class="sp"></span>
+          <button class="btn btn-sm"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>导出</button>
+        </div>
+
+        <!-- 筛选：全部展开 + 快捷 -->
+        <div class="filters">
+          <div class="frow">
+            <span class="flabel">资源帖</span>
+            <button class="chip on">全部 <span class="n">348</span></button>
+            <button class="chip">1001 · 反馈帖 <span class="n">186</span></button>
+            <button class="chip">1002 · 同步教程 <span class="n">112</span></button>
+            <button class="chip">1003 · 意见征集 <span class="n">50</span></button>
+          </div>
+          <div class="frow">
+            <span class="flabel">评分</span>
+            <button class="chip on">全部</button>
+            <button class="chip">五星 <span class="n">302</span></button>
+            <button class="chip">四星 <span class="n">38</span></button>
+            <button class="chip">三星及以下 <span class="n">8</span></button>
+          </div>
+          <div class="frow">
+            <span class="flabel">发放</span>
+            <button class="chip on">全部</button>
+            <button class="chip" data-c="ok">已获奖 <span class="n">96</span></button>
+            <button class="chip" data-c="warn">待发奖 <span class="n">34</span></button>
+            <button class="chip">未获奖 <span class="n">218</span></button>
+            <span class="search"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>搜索用户 / 评论 / 奖品 ID</span>
+          </div>
+        </div>
+
+        <div class="card-bd">
+          <table>
+            <thead><tr><th style="width:96px">用户</th><th style="width:76px">评分</th><th>评论内容</th><th style="width:150px">奖品池 ID</th><th style="width:110px">发放状态</th><th style="width:126px">发放时间</th></tr></thead>
+            <tbody>
+              <tr><td class="strong">阿远</td><td><span class="pill p-ok">5 星</span></td><td>界面清爽了很多，同步也稳定，好评！</td><td><span class="pill p-id">EV7K-3M9QX</span></td><td><span class="pill p-ok">已发放</span></td><td class="thin num">10-06 22:41</td></tr>
+              <tr><td class="strong">小林</td><td><span class="pill p-ok">5 星</span></td><td>手环端课程表终于能自动更新了，感谢。</td><td><span class="pill p-id">EV7K-8ZT4B</span></td><td><span class="pill p-ok">已发放</span></td><td class="thin num">10-06 21:07</td></tr>
+              <tr><td class="strong">Tao</td><td><span class="pill p-ok">5 星</span></td><td>整体不错，希望课表导入能支持 Excel。</td><td><span class="pill p-id">EV7K-QW2PL</span></td><td><span class="pill p-warn">已发未领</span></td><td class="thin num">10-06 19:33</td></tr>
+              <tr><td class="strong">默默</td><td><span class="pill p-ok">5 星</span></td><td>很好用，已经推荐给同学了。</td><td><span class="pill p-id">EV7K-L06HD</span></td><td><span class="pill p-ok">已发放</span></td><td class="thin num">10-06 18:12</td></tr>
+              <tr class="dim"><td class="strong">小舟</td><td><span class="pill p-ok">5 星</span></td><td>同步很快，就是我手机比较老了也不卡。</td><td><span class="thin">—</span></td><td><span class="pill p-warn">待发奖</span></td><td class="thin">—</td></tr>
+              <tr class="dim"><td class="strong">Niko</td><td><span class="pill p-warn">4 星</span></td><td>还行，希望支持更多课程表格式。</td><td><span class="thin">—</span></td><td><span class="pill p-mute">未获奖</span></td><td class="thin">—</td></tr>
+              <tr class="dim"><td class="strong">阿哲</td><td><span class="pill p-mute">3 星</span></td><td>偶尔会同步失败，需要手动重试。</td><td><span class="thin">—</span></td><td><span class="pill p-mute">未获奖</span></td><td class="thin">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-ft">共 348 条（全部评论默认展示） · 已获奖 96 · 待发奖 34 · 未获奖 218</div>
+      </div>
+    </section>
+
+    <!-- ==================== Tab 3 · 奖品池（原「奖品管理」） ==================== -->
+    <section class="panel" id="p-prize">
+      <div class="note prize">
+        <svg class="ic" style="width:16px;height:16px;flex:0 0 16px;color:var(--c-prize)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <div><b>由「奖品管理」改名为「奖品池」</b>：管理<b>全部奖品名单</b>。默认大量奖品处于<b>未发放</b>状态；发奖时系统从池中<b>随机</b>抽一个未发放的绑定给获奖人。</div>
+      </div>
+
+      <div class="alert">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/></svg>
+        <span>当前有 <b>54 份奖品未发放</b>，另有 <b>34 位五星用户待发奖</b> —— 池容量充足，可随时发起发放。</span>
+      </div>
+
+      <div class="strip">
+        <div class="metric" style="--accent:var(--c-ops)"><div class="k">奖品总数</div><div class="v">150<small>份</small></div><div class="d">已导入批次 <b>3</b></div></div>
+        <div class="metric" style="--accent:var(--c-warn)"><div class="k">未发放</div><div class="v">54<small>份</small></div><div class="d">可被随机抽取</div></div>
+        <div class="metric" style="--accent:var(--c-prize)"><div class="k">已发放</div><div class="v">96<small>份</small></div><div class="d">已绑定获奖人</div></div>
+        <div class="metric" style="--accent:var(--c-ok)"><div class="k">已领取</div><div class="v">62<small>份</small></div><div class="d">未领取 <b>34</b> 份</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd" style="--accent:var(--c-prize)">
+          <span class="bar"></span>
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>
+          <h3>奖品名单</h3><span class="tip">全部 150 条 · 未发放优先</span><span class="sp"></span>
+          <button class="btn btn-sm"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>导出</button>
+        </div>
+
+        <!-- 筛选：全部展开 + 快捷 -->
+        <div class="filters">
+          <div class="frow">
+            <span class="flabel">状态</span>
+            <button class="chip on">全部 <span class="n">150</span></button>
+            <button class="chip" data-c="warn">未发放 <span class="n">54</span></button>
+            <button class="chip" data-c="prize">已发放 <span class="n">96</span></button>
+            <button class="chip" data-c="ok">已领取 <span class="n">62</span></button>
+            <button class="chip">已发未领 <span class="n">34</span></button>
+          </div>
+          <div class="frow">
+            <span class="flabel">批次</span>
+            <button class="chip on">全部</button>
+            <button class="chip">第 1 批 · 50 份</button>
+            <button class="chip">第 2 批 · 50 份</button>
+            <button class="chip">第 3 批 · 50 份</button>
+            <span class="search"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>搜索奖品 ID / 获奖人</span>
+          </div>
+        </div>
+
+        <div class="card-bd">
+          <table>
+            <thead><tr><th style="width:150px">奖品池 ID</th><th>兑换链接</th><th style="width:110px">状态</th><th style="width:96px">获奖人</th><th style="width:126px">发放时间</th><th style="width:96px">操作</th></tr></thead>
+            <tbody>
+              <tr><td><span class="pill p-id">EV7K-3M9QX</span></td><td class="thin mono">afdian.com/item/9f3a…</td><td><span class="pill p-ok">已领取</span></td><td class="strong">阿远</td><td class="thin num">10-06 22:41</td><td><button class="btn btn-sm">查看</button></td></tr>
+              <tr><td><span class="pill p-id">EV7K-8ZT4B</span></td><td class="thin mono">afdian.com/item/2c71…</td><td><span class="pill p-ok">已领取</span></td><td class="strong">小林</td><td class="thin num">10-06 21:07</td><td><button class="btn btn-sm">查看</button></td></tr>
+              <tr><td><span class="pill p-id">EV7K-QW2PL</span></td><td class="thin mono">afdian.com/item/7d05…</td><td><span class="pill p-warn">已发未领</span></td><td class="strong">Tao</td><td class="thin num">10-06 19:33</td><td><button class="btn btn-sm">查看</button></td></tr>
+              <tr><td><span class="pill p-id">EV7K-L06HD</span></td><td class="thin mono">afdian.com/item/41be…</td><td><span class="pill p-ok">已领取</span></td><td class="strong">默默</td><td class="thin num">10-06 18:12</td><td><button class="btn btn-sm">查看</button></td></tr>
+              <tr><td><span class="pill p-id">EV7K-MX8RN</span></td><td class="thin mono">afdian.com/item/5a90…</td><td><span class="pill p-mute">未发放</span></td><td class="thin">—</td><td class="thin">—</td><td><button class="btn btn-sm">查看</button></td></tr>
+              <tr><td><span class="pill p-id">EV7K-T2VK6</span></td><td class="thin mono">afdian.com/item/8e12…</td><td><span class="pill p-mute">未发放</span></td><td class="thin">—</td><td class="thin">—</td><td><button class="btn btn-sm">查看</button></td></tr>
+              <tr><td><span class="pill p-id">EV7K-B9JQ1</span></td><td class="thin mono">afdian.com/item/3f67…</td><td><span class="pill p-mute">未发放</span></td><td class="thin">—</td><td class="thin">—</td><td><button class="btn btn-sm">查看</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-ft">共 150 条 · 未发放 54 · 已发放 96（已领取 62 / 已发未领 34） · 发放失败 0</div>
+      </div>
+
+      <div class="grid2">
+        <div class="card" style="margin:0">
+          <div class="card-hd" style="--accent:var(--c-prize)">
+            <span class="bar"></span>
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+            <h3>奖励私信模板</h3>
+          </div>
+          <div class="card-bd" style="padding:18px">
+            <div class="form-row"><label>产品名称</label>
+              <div style="display:flex;align-items:center;gap:7px;background:var(--c-card);border:1px solid var(--c-line);border-radius:var(--r-md);padding:9px 12px;font-size:13.5px">EV 课程表 Pro（0 元兑换）</div>
+            </div>
+            <div class="form-row" style="margin-bottom:0"><label>私信正文（奖品链接自动追加在末尾）</label>
+              <textarea class="input">感谢你的五星好评！送你一份 EV 课程表 Pro 作为回馈，点击下面的链接即可领取：</textarea>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:12px">
+              <button class="btn btn-p btn-sm">保存模板</button>
+              <span style="font-size:12.5px;color:var(--c-ok)">已保存</span>
+            </div>
+          </div>
+        </div>
+
+        <details class="adv" style="margin:0" open>
+          <summary>
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M8 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-4"/></svg>
+            批量导入奖品 <span class="hint">向池中补充未发放奖品</span>
+            <svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </summary>
+          <div class="adv-bd">
+            <textarea class="input" style="min-height:96px">每行一条爱发电兑换链接
+例如：
+https://afdian.com/item/xxxxxx</textarea>
+            <div style="display:flex;gap:10px;align-items:center;margin-top:12px">
+              <button class="btn btn-p">批量导入</button>
+              <span class="fhint">导入后全部为「未发放」，由系统随机抽取</span>
+            </div>
+          </div>
+        </details>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+function go(t){
+  var btns=document.querySelectorAll('.seg-btn');
+  for(var i=0;i<btns.length;i++) btns[i].classList.toggle('on', btns[i].getAttribute('data-t')===t);
+  var ks=['ops','detail','prize'];
+  for(var j=0;j<ks.length;j++){
+    var el=document.getElementById('p-'+ks[j]);
+    if(el) el.classList.toggle('on', ks[j]===t);
+  }
+}
+(function(){
+  var q=new URLSearchParams(location.search);
+  var m=q.get('mode'); if(m) document.documentElement.setAttribute('data-mode',m);
+  var t=q.get('tab'); if(t) go(t);
+})();
+</script>
+</body>
+</html>
