@@ -535,6 +535,10 @@ async function loadBandBBSPollLogs() {
           }
           renderBandBBSReviewChips();            // 芯片计数（待发奖 / 已获奖）跟着变
           bbUpdateReviewFoot(bbFilteredReviews());
+          // 修复「发了奖统计没变动」：同步刷新奖品池统计卡与列表、发奖记录
+          loadPoolStats();
+          loadRewardPool();
+          if (window._bbHistLoaded) loadRewardHistory();
           btn.disabled = false;
           btn.textContent = '重发';
           bbToast('已发给 ' + user + (res.reusedLink ? '（复用原链接）' : '') + ' · ' + (res.couponCode || ''));
@@ -667,6 +671,10 @@ async function loadBandBBSPollLogs() {
               box.innerHTML += '<div style="display:flex;align-items:center;gap:6px;color:#f59e0b;font-size:0.8125rem;margin-top:4px">' + BB_ALERT_SVG + '<span>奖品池可用链接不足，还有 ' + result.notEnough + ' 条评论未发送</span></div>';
             }
             box.innerHTML += '</div>';
+            // 修复「发了奖统计没变动」：同步刷新奖品池统计卡、列表与发奖记录
+            loadPoolStats();
+            loadRewardPool();
+            if (window._bbHistLoaded) loadRewardHistory();
           } else {
             box.innerHTML =
               '<div style="background:var(--elevated);border-radius:12px;padding:16px 20px;border:1px solid var(--line)">' +
@@ -754,6 +762,47 @@ async function loadBandBBSPollLogs() {
   }
 
   // Load reward pool stats
+  /* ============ 发奖记录（log Tab）：op=reward-log，只含已发放 ============ */
+  async function loadRewardHistory() {
+    var table = document.getElementById('bbRewardHistoryTable');
+    if (!table) return;
+    table.innerHTML = '<span class="muted">加载中...</span>';
+    try {
+      var rl = await api('/api/admin/catalog?kind=bandbbs&op=reward-log&resourceId=&status=');
+      var logs = (rl && rl.success && rl.data) ? rl.data : [];
+      logs = logs.map(bbNormalizePoolItem);
+      logs.sort(function (a, b) { return String(b.assignedAt || '').localeCompare(String(a.assignedAt || '')); });
+      var today = new Date().toISOString().substring(0, 10);
+      var tCnt = 0;
+      for (var t = 0; t < logs.length; t++) {
+        if (String(logs[t].assignedAt || '').substring(0, 10) === today) tCnt++;
+      }
+      var me = document.getElementById('bbHistTotal'); if (me) me.textContent = logs.length;
+      var mt = document.getElementById('bbHistToday'); if (mt) mt.textContent = tCnt;
+      if (!logs.length) {
+        table.innerHTML = '<div class="bbx-note">还没有发放记录 —— 去获奖名单或奖品池发一单吧</div>';
+      } else {
+        var h = '<div class="bbx-table-wrap"><table class="bbx-table"><thead><tr>' +
+          '<th>资源</th><th>获奖人</th><th>奖品池 ID</th><th>发放时间</th></tr></thead><tbody>';
+        for (var i = 0; i < logs.length; i++) {
+          var it = logs[i];
+          h += '<tr>' +
+            '<td>' + (it.resourceId ? '#' + bbEsc(String(it.resourceId)) : '<span class="muted">—</span>') + '</td>' +
+            '<td>' + bbEsc(it.assignedTo || '—') + '</td>' +
+            '<td><code class="bbx-code">' + bbEsc(String(it.couponCode || '').substring(0, 16)) + '</code></td>' +
+            '<td>' + bbEsc(bbShortTime(it.assignedAt || '')) + '</td></tr>';
+        }
+        h += '</tbody></table></div>';
+        table.innerHTML = h;
+      }
+      var ft = document.getElementById('bbHistFoot');
+      if (ft) ft.innerHTML = '<span class="muted">当前 ' + logs.length + ' 条 · 今日 ' + tCnt + '</span>';
+      window._bbHistLoaded = true;
+    } catch (e) {
+      table.innerHTML = '<span style="color:#dc2626">加载失败：' + bbEsc(e.message || String(e)) + '</span>';
+    }
+  }
+
   async function loadPoolStats() {
     try {
       var result = await api('/api/admin/catalog?kind=bandbbs&op=reward-pool-stats');

@@ -1234,11 +1234,11 @@
     #panel-bandbbs .bbx-seg-btn.active[data-btab="prize"] .bbx-badge { background: var(--bbx-prize-soft); color: var(--bbx-prize); }
 
     /* ---- 筛选芯片组：全部平铺展开 + 单击即筛（替代下拉 select） ---- */
-    #panel-bandbbs .bbx-filters { display: flex; flex-direction: column; gap: 9px; padding: 13px 18px;
+    #panel-bandbbs .bbx-filters { display: flex; flex-direction: column; gap: 13px; padding: 15px 18px;
       position: sticky; top: 0; z-index: 3; background: var(--bbx-sunken); border-bottom: 1px solid var(--bbx-line); }
-    #panel-bandbbs .bbx-frow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    #panel-bandbbs .bbx-frow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 34px; }
     #panel-bandbbs .bbx-flabel { flex: 0 0 auto; min-width: 44px; color: var(--bbx-ink-3); font-size: 12px; font-weight: 640; }
-    #panel-bandbbs .bbx-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px;
+    #panel-bandbbs .bbx-chip { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px;
       cursor: pointer; line-height: 1; border: 1px solid var(--bbx-line); border-radius: var(--r-pill, 999px);
       background: var(--bbx-card); color: var(--bbx-ink-2); font-family: inherit; font-size: 12.5px; font-weight: 560; }
     #panel-bandbbs .bbx-chip .bbx-n { color: var(--bbx-ink-3); font-size: 11.5px; font-weight: 650; }
@@ -5045,6 +5045,7 @@
             <button class="bbx-seg-btn active" data-btab="ops" onclick="switchBandBBSTab('ops')"><svg class="bbx-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09"/><path d="M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05"/></svg><!-- lucide:rocket (ISC) -->运营 <span class="bbx-badge"></span></button>
             <button class="bbx-seg-btn" data-btab="detail" onclick="switchBandBBSTab('detail')"><svg class="bbx-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg><!-- lucide:users (ISC) -->获奖名单 <span class="bbx-badge"></span></button>
             <button class="bbx-seg-btn" data-btab="prize" onclick="switchBandBBSTab('prize')"><svg class="bbx-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="4" rx="1"/><path d="M12 7v14"/><path d="M20 11v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8"/><path d="M7.5 7a1 1 0 0 1 0-5A4.8 8 0 0 1 12 7a4.8 8 0 0 1 4.5-5 1 1 0 0 1 0 5"/></svg><!-- lucide:gift (ISC) -->奖品池 <span class="bbx-badge"></span></button>
+            <button class="bbx-seg-btn" data-btab="flow" onclick="switchBandBBSTab('flow')"><svg class="bbx-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg><!-- lucide:scroll-text (ISC) -->发奖记录 <span class="bbx-badge"></span></button>
             <button class="bbx-seg-btn" data-btab="flow" onclick="switchBandBBSTab('flow')"><svg class="bbx-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg><!-- lucide:git-branch (ISC) -->流程图 <span class="bbx-badge"></span></button>
           </div>
 
@@ -5228,6 +5229,27 @@
           </section>
 
           <!-- ===== Tab 4 · 流程图（批次7） ===== -->
+          <section class="settings-sub-panel" id="bb-sub-log">
+
+          <!-- 主卡 · 发奖记录 -->
+          <div class="setting-block bbx-card" id="bbRewardHistorySection">
+            <div class="bbx-card-hd">
+              <svg class="bbx-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg><!-- lucide:scroll-text (ISC) -->
+              <h3>发奖记录</h3>
+              <span class="bbx-hint">所有已发放的奖励 · 最新在前</span>
+            </div>
+            <div class="bbx-card-bd">
+              <div class="bbx-metrics" id="bbHistMetrics">
+                <div class="bbx-metric"><div class="bbx-mnum" id="bbHistTotal">-</div><div class="bbx-mlabel">累计发放</div></div>
+                <div class="bbx-metric ok"><div class="bbx-mnum" id="bbHistToday">-</div><div class="bbx-mlabel">今日发放</div></div>
+              </div>
+              <div id="bbRewardHistoryTable" style="min-height:120px"><span class="muted">加载发奖记录...</span></div>
+            </div>
+            <div class="bbx-card-ft" id="bbHistFoot"><span class="muted">—</span></div>
+          </div>
+
+          </section>
+
           <section class="settings-sub-panel" id="bb-sub-flow">
             <div class="setting-block bbx-card">
               <div class="bbx-card-hd">
@@ -8313,7 +8335,7 @@
       for (var i = 0; i < btns.length; i++) {
         btns[i].classList.toggle('active', btns[i].getAttribute('data-btab') === tab);
       }
-      var keys = ['ops', 'detail', 'prize', 'flow'];
+      var keys = ['ops', 'detail', 'prize', 'log', 'flow'];
       for (var j = 0; j < keys.length; j++) {
         var el = document.getElementById('bb-sub-' + keys[j]);
         if (el) el.classList.toggle('active', keys[j] === tab);
@@ -8321,6 +8343,7 @@
       try { var _u = new URL(location.href); _u.searchParams.set('sub', tab); history.replaceState(null, '', _u.toString()); } catch (_e) {}
       if (tab === 'detail' && typeof loadBandBBSReviews === 'function' && (!window._bbReviews || !window._bbReviews.length)) loadBandBBSReviews();
       if (tab === 'prize' && typeof loadRewardPool === 'function' && !window._bbPoolLoaded) loadRewardPool();
+      if (tab === 'log' && typeof loadRewardHistory === 'function' && !window._bbHistLoaded) loadRewardHistory();
       // 流程图是纯前端静态图，首次进入画一次即可
       if (tab === 'flow' && typeof renderBandBBSFlows === 'function' && !window._bbFlowDrawn) {
         renderBandBBSFlows(); window._bbFlowDrawn = true;
