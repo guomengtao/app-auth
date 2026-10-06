@@ -21,7 +21,7 @@ async function handleBandBBS(req, res) {
   var isCronCall = (query.cron === "1" || query.cron === "true");
   var cronSecret = process.env.CRON_SECRET || "";
 
-  if (op === "send-dm" || op === "config-save" || op === "config-delete" || op === "poll" || op === "single-poll" || op === "send-rewards" || op === "reward-pool-import" || op === "reward-pool-save-template") {
+  if (op === "send-dm" || op === "bandbbs-login" || op === "config-save" || op === "config-delete" || op === "poll" || op === "single-poll" || op === "send-rewards" || op === "reward-one" || op === "reward-pool-import" || op === "reward-pool-save-template") {
     // Allow cron calls with valid CRON_SECRET
     if (isCronCall && cronSecret) {
       var cronAuth = req.headers.authorization || req.headers.Authorization || "";
@@ -67,6 +67,9 @@ async function handleBandBBS(req, res) {
         }
         result = await bandbbs.sendDm(body.recipient, body.title, body.message);
         return res.json(result);
+      case "bandbbs-login":
+        result = await bandbbs.diagnosticLogin();
+        return res.json(result);
       case "config":
         result = await bandbbs.getConfig(require("../../lib/redis"));
         return res.json({ success: true, data: result });
@@ -86,6 +89,18 @@ async function handleBandBBS(req, res) {
         rid = String(rid);
         if (!rid) return res.status(400).json({ success: false, error: "missing resourceId" });
         result = await bandbbs.sendRewards(require("../../lib/redis"), rid, true);
+        return res.json(result);
+      // 手动发奖（运营）：单用户立即发一份奖品，不要求 5 星；force=重发（复用原链接），dryRun=只校验
+      case "reward-one":
+        rid = String(query.resourceId || body.resourceId || "");
+        var oneUser = String(body.username || query.username || "");
+        if (!rid || !oneUser) {
+          return res.status(400).json({ success: false, error: "missing resourceId/username" });
+        }
+        result = await bandbbs.rewardOne(require("../../lib/redis"), rid, oneUser, {
+          force: (body.force === true || body.force === "true" || query.force === "1"),
+          dryRun: (body.dryRun === true || body.dryRun === "true" || query.dryRun === "1")
+        });
         return res.json(result);
       case "reward-pool-import":
         var linksText = body.links || "";

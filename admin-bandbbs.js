@@ -125,7 +125,79 @@ async function triggerBandBBSPoll() {
     }
   }
 
+  async function loginBandBBS() {
+    var btn = document.getElementById('btnBandBBSLogin');
+    var resultBox = document.getElementById('bbLoginResult');
+    var hintBox = document.getElementById('bbLoginHint');
+    btn.disabled = true;
+    btn.textContent = 'Logging in...';
+    resultBox.style.display = 'block';
+    resultBox.innerHTML = '<div style="display:flex;align-items:center;gap:8px"><div class="spinner"></div><span>Logging in to bandbbs.cn, checking each step...</span></div>';
+
+    try {
+      var res = await api('/api/admin/catalog?kind=bandbbs&op=bandbbs-login', { method: 'POST' });
+      var steps = (res && res.steps) || [];
+      var isSuccess = res && res.success;
+
+      var html = '<div style="font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px">';
+      html += (isSuccess
+        ? '<span style="font-size:1.25rem">&#9989;</span><span style="color:var(--ok)">Login Ready</span>'
+        : '<span style="font-size:1.25rem">&#10060;</span><span style="color:var(--err)">Login Failed</span>');
+      html += '</div>';
+
+      html += '<div style="font-size:0.8125rem;color:var(--muted);margin-bottom:12px">' + (res.summary || '') + '</div>';
+
+      html += '<table style="width:100%;font-size:0.75rem;border-collapse:collapse">';
+      html += '<thead><tr style="color:var(--muted);border-bottom:1px solid var(--line)"><th style="text-align:left;padding:4px 6px">Step</th><th style="text-align:center;width:56px;padding:4px 6px">Status</th><th style="text-align:right;width:60px;padding:4px 6px">Time</th><th style="text-align:left;padding:4px 6px">Detail</th></tr></thead><tbody>';
+      for (var i = 0; i < steps.length; i++) {
+        var s = steps[i];
+        var icon = s.ok === true ? '&#9989;' : (s.ok === false ? '&#10060;' : '&#9203;');
+        var errText = s.error ? '<br><span style="color:var(--err)">' + s.error + '</span>' : '';
+        html += '<tr style="border-bottom:1px solid var(--line)">' +
+          '<td style="padding:4px 6px;font-weight:600">' + (s.step || '') + '</td>' +
+          '<td style="text-align:center;padding:4px 6px">' + icon + '</td>' +
+          '<td style="text-align:right;padding:4px 6px;color:var(--muted)">' + (typeof s.time === 'number' ? s.time + 'ms' : '-') + '</td>' +
+          '<td style="padding:4px 6px;color:var(--muted);word-break:break-all">' + (s.detail || '') + errText + '</td>' +
+          '</tr>';
+      }
+      html += '</tbody></table>';
+
+      resultBox.innerHTML = html;
+
+      if (isSuccess) {
+        window._bbLoginReady = true;
+        btn.style.background = '#16a34a';
+        btn.innerHTML = '<i data-lucide="check" class="lucide-inline"></i> Ready';
+        btn.disabled = false;
+        if (hintBox) hintBox.style.display = 'none';
+        window._bbLoginHintDismissed = true;
+      } else {
+        window._bbLoginReady = false;
+        btn.style.background = '#dc2626';
+        btn.innerHTML = '<i data-lucide="alert-triangle" class="lucide-inline"></i> Failed';
+        setTimeout(function() {
+          btn.style.background = '#f59e0b';
+          btn.innerHTML = '<i data-lucide="log-in" class="lucide-inline"></i> Retry';
+          btn.disabled = false;
+        }, 3000);
+      }
+    } catch (e) {
+      resultBox.innerHTML =
+        '<div style="display:flex;align-items:center;gap:8px">' +
+        '<span style="font-size:1.25rem">&#10060;</span>' +
+        '<span style="color:var(--err);font-weight:700">Request Failed</span>' +
+        '</div>' +
+        '<div style="font-size:0.75rem;color:var(--err);margin-top:4px">' + (e.message || e) + '</div>';
+      btn.style.background = '#f59e0b';
+      btn.innerHTML = '<i data-lucide="log-in" class="lucide-inline"></i> Retry';
+      btn.disabled = false;
+    }
+  }
+
   async function sendBandBBSDM() {
+    if (!window._bbLoginReady && !window._bbLoginHintDismissed) {
+      if (!confirm('Session may not be ready. Click "Login Prepare" button first to avoid "not authenticated" error.\n\nSend anyway?')) return;
+    }
     var recipient = document.getElementById('bbDmRecipient').value.trim();
     var title = document.getElementById('bbDmTitle').value.trim();
     var message = document.getElementById('bbDmMessage').value.trim();
@@ -547,9 +619,13 @@ async function loadBandBBSPollLogs() {
   }
 
   async function sendRewardForResource(rid, btnEl) {
+    var loginWarning = '';
+    if (!window._bbLoginReady && !window._bbLoginHintDismissed) {
+      loginWarning = '<br><br><span style="color:#f59e0b;font-size:0.8125rem">&#9888;&#65039; Session may not be ready. Click <b>Login Prepare</b> button first if you see "redirected to login" errors.</span>';
+    }
     bbConfirm(
       'Send Rewards',
-      'Send reward private messages to all <b>unrewarded 5-star reviews</b> for resource post <b>#' + rid + '</b>?',
+      'Send reward private messages to all <b>unrewarded 5-star reviews</b> for resource post <b>#' + rid + '</b>?' + loginWarning,
       async function() {
         if (btnEl) { btnEl.disabled = true; btnEl.textContent = '\u53D1\u9001\u4E2D...'; }
         try {
