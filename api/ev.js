@@ -41,6 +41,10 @@ var HIST_MAX_WINDOW_H = 24 * 7;      // 历史心跳最多回看 7 天
 var RELEASE_CACHE = "ev:online:release"; // GitHub 最新 Release 缓存（hash: project → JSON）
 var RELEASE_TTL   = 10 * 60 * 1000;      // 缓存 10 分钟：够省 GitHub 配额，滞后也可接受
 
+var DEV_CACHE = "ev:dev:github";         // 「开发版本」事实源缓存（hash: project → {v,code,src,ts}）
+                                         // 2026-10-06 用户裁决 B 案：dev 也改从 GitHub main 读，
+                                         // 与 online 同源同新鲜度，不再依赖 Mac 扫描（TTL 复用 RELEASE_TTL）
+
 /**
  * 项目 id → GitHub 仓库。只登记「会发 release」的仓。
  *
@@ -62,6 +66,37 @@ var PROJECT_REPOS = {
   "region-manager": "guomengtao/region-manager",
   "ev-ops-android": "guomengtao/ev-ops-android",
   "ev-tank-battle": "guomengtao/ev-tank-battle"
+};
+
+/**
+ * 项目 id → 远端「开发版本」文件（GitHub main 分支）。**开发版本的事实源**。
+ *
+ * 2026-10-06 用户裁决 B 案：「超前是怎么回事，我们不是获取的最新的版本号，怎么会落后？」
+ * → 查实根因是 dev 侧取的是 Mac 本机 `data/projects.json` 快照，而 `gen-projects.js`
+ *   全仓无人调用、4 天没跑过 → dev 冻结在旧值，与实时的 GitHub Release 相比必然错位，
+ *   于是线上反而显新、误报「运行超前」。B 案：dev 也改从 GitHub 读，两条链路都实时。
+ *
+ * kind / 字段 / 解析规则与 `ev/ev-ops-android/scripts/gen-projects.js::readVersion()`
+ * 严格保持一致 —— 保证「GitHub 读值」与「Mac 扫描值」口径相同（后者自此仅作兜底）。
+ * 仓库映射本可复用 PROJECT_REPOS；但 app-auth 未登记在其中（它不是「会发 release」的仓，
+ * 见上表注释），且 ev-android 的仓名是 ev-notifier-android，故此处独立成表、写全。
+ *
+ * 语义变化（用户已认可）：dev 自此 = **已推送到远端 main 的版本**，而非「本机工作区版本」；
+ * 本机有未 push 的提交时 dev 会低于本机号，这是与 online 同源的修正，不是缺陷。
+ */
+var PROJECT_DEV = {
+  "class-schedule":      { repo: "guomengtao/class-schedule",      path: "src/manifest.json", kind: "manifest" },
+  "ev-schedule-android": { repo: "guomengtao/ev-schedule-android", path: "apk/version.env",   kind: "env", nameKey: "VERSION_NAME", codeKey: "VERSION_CODE" },
+  "app-auth":            { repo: "guomengtao/app-auth",            path: "version.json",      kind: "json", nameKey: "version" },
+  "ev-notifier":         { repo: "guomengtao/ev-notifier",         path: "version.json",      kind: "json", nameKey: "version" },
+  "ev-schedule-sync":    { repo: "guomengtao/ev-schedule-sync",    path: "Cargo.toml",        kind: "toml" },
+  "evbox":               { repo: "guomengtao/evbox",               path: "src/manifest.json", kind: "manifest" },
+  "ev-face":             { repo: "guomengtao/ev-face",             path: "src/manifest.json", kind: "manifest" },
+  "ev-emubuddy":         { repo: "guomengtao/ev-emubuddy",         path: "version.json",      kind: "json", nameKey: "version" },
+  "region-manager":      { repo: "guomengtao/region-manager",      path: "region_manager.py", kind: "regex", pattern: "^VERSION\\s*=\\s*\"([^\"]+)\"" },
+  "ev-android":          { repo: "guomengtao/ev-notifier-android", path: "version.txt",       kind: "txt" },
+  "ev-ops-android":      { repo: "guomengtao/ev-ops-android",      path: "version.txt",       kind: "txt" },
+  "ev-tank-battle":      { repo: "guomengtao/ev-tank-battle",      path: "src/manifest.json", kind: "manifest" }
 };
 
 /** 极简 GitHub GET（零依赖原生 https）；4s 超时、任何异常一律 resolve(null)，绝不抛。 */
@@ -129,6 +164,138 @@ async function refreshReleases() {
   });
   try { await redis.hset(RELEASE_CACHE, patch); } catch (e) { /* 缓存写失败不影响本次结果 */ }
   return cached;
+}
+
+/** 极简 GitHub 原始文件 GET（零依赖原生 https）；非 200 / 任何异常一律 resolve(null)，绝不抛。 */
+function githubGetRaw(repo, filePath, ref) {
+  return new Promise(function (resolve) {
+    var token = process.env.GITHUB_TOKEN;
+    var headers = { "User-Agent": "ev-ops-status", "Accept": "application/vnd.github.raw" };
+    if (token) headers.Authorization = "Bearer " + token;
+    var req = https.get(
+      {
+        hostname: "api.github.com",
+        path: "/repos/" + repo + "/contents/" + filePath + "?ref=" + (ref || "main"),
+        headers: headers,
+        timeout: 4000
+      },
+      function (r) {
+        var buf = "";
+        r.on("data", function (d) { buf += d; });
+        r.on("end", function () {
+          if (r.statusCode !== 200) return resolve(null);   // 404/403（无 token 读私有仓）→ null
+          resolve(buf);
+        });
+      });
+    req.on("error", function () { resolve(null); });
+    req.on("timeout", function () { try { req.destroy(); } catch (e) { } resolve(null); });
+  });
+}
+
+/** 按 kind 解析版本，规则与 gen-projects.js::readVersion() 一致。解析不出 → null。 */
+function parseDevVersion(text, spec) {
+  if (!text || !spec) return null;
+  var v = null, code = null;
+  try {
+    if (spec.kind === "json") {
+      var j = JSON.parse(text);
+      v = j[spec.nameKey || "version"] || null;
+      if (j.patch != null) code = String(j.patch);
+    } else if (spec.kind === "manifest") {
+      var m = JSON.parse(text);
+      v = m.versionName || null;
+      code = (m.versionCode != null) ? String(m.versionCode) : null;
+    } else if (spec.kind === "env") {
+      var pick = function (k) {
+        var r = text.match(new RegExp("^" + k + "\\s*=\\s*(.+)$", "m"));
+        return r ? r[1].trim() : null;
+      };
+      v = pick(spec.nameKey);
+      code = pick(spec.codeKey);
+    } else if (spec.kind === "toml") {
+      var r2 = text.match(/^version\s*=\s*"([^"]+)"/m);
+      v = r2 ? r2[1] : null;
+    } else if (spec.kind === "txt") {
+      v = text.trim() || null;
+    } else if (spec.kind === "regex") {
+      var r3 = text.match(new RegExp(spec.pattern, "m"));
+      v = r3 ? r3[1] : null;
+    }
+  } catch (e) { return null; }
+  if (v == null) return null;
+  v = String(v).trim();
+  return v ? { v: v, code: code } : null;
+}
+
+/** 拉单个项目的远端开发版本 → { v, code, src, ts }；拿不到 → v 为 null。 */
+async function fetchGithubDev(project) {
+  var rec = { v: null, code: null, src: null, ts: Date.now() };
+  var spec = PROJECT_DEV[project];
+  if (!spec) return rec;
+  var text = await githubGetRaw(spec.repo, spec.path, "main");
+  var parsed = parseDevVersion(text, spec);
+  if (parsed) {
+    rec.v = parsed.v;
+    rec.code = parsed.code;
+    rec.src = spec.repo + "@main:" + spec.path;
+  }
+  return rec;
+}
+
+/** 只读 dev 缓存（不打 GitHub）。 */
+async function readDevCache() {
+  var out = {};
+  try {
+    var all = await redis.hgetall(DEV_CACHE);
+    if (all && typeof all === "object") {
+      Object.keys(all).forEach(function (k) {
+        try { out[k] = JSON.parse(all[k]); } catch (e) { }
+      });
+    }
+  } catch (e) { /* redis 不可用 → 空表 */ }
+  return out;
+}
+
+/** 读缓存；对缺失/过期项并发补拉一次（缓存热时零网络请求）。 */
+async function refreshDevVersions() {
+  var cached = await readDevCache();
+  var now = Date.now();
+  var todo = Object.keys(PROJECT_DEV).filter(function (p) {
+    var c = cached[p];
+    return !c || !c.ts || (now - c.ts) > RELEASE_TTL;
+  });
+  if (!todo.length) return cached;
+  var got = await Promise.all(todo.map(function (p) { return fetchGithubDev(p); }));
+  var patch = {};
+  todo.forEach(function (p, i) {
+    cached[p] = got[i];
+    patch[p] = JSON.stringify(got[i]);
+  });
+  try { await redis.hset(DEV_CACHE, patch); } catch (e) { /* 缓存写失败不影响本次结果 */ }
+  return cached;
+}
+
+/**
+ * 用 GitHub main 的版本文件覆盖 payload 里各项目的「开发版本」。
+ *
+ * 拿不到时（未配 GITHUB_TOKEN 的私有仓 / 文件不存在 / 网络失败）**保留 Mac 采集的原值**，
+ * 既不置空也不报错 —— 保证「最坏情况 = 退回改造前的行为」，不会让页面变差。
+ * 只动 version 一个字段；projects[] 里 local_path / git(dirty/ahead) 等仍由 Mac 扫描提供。
+ */
+async function applyDevVersions(payload) {
+  if (!payload || !Array.isArray(payload.projects) || !payload.projects.length) return;
+  var dev;
+  try { dev = await refreshDevVersions(); } catch (e) { return; }
+  payload.projects.forEach(function (pr) {
+    if (!pr || !pr.id) return;
+    var d = dev[pr.id];
+    if (!d || !d.v) return;                    // 拿不到 → 原值不动
+    if (!pr.version || typeof pr.version !== "object") pr.version = {};
+    pr.version.value = d.v;
+    if (d.code != null) pr.version.code = d.code;
+    pr.version.source = d.src || "github:main";
+    pr.version.origin = "github";              // 可观测：标明该值来自 GitHub，非 Mac 扫描
+  });
 }
 
 /**
@@ -675,6 +842,7 @@ async function handleEvStatusGet(req, res) {
           if (typeof p === "string") p = JSON.parse(p);
           await applyPriorityOverrides(p);   // 护栏③：合并人工降级（人纠错 AI，读时即生效）
           await mergeRegisteredTasks(p, evTaskDb(req, res));  // 合并真人登记任务（eta/assignee/replies…）
+          await applyDevVersions(p);         // 「开发版本」改以 GitHub main 为准（B 案，拿不到则保留原值）
           // summary 实时化（用户 2026-10-06 指定「不要读聚合，直接读进行中的任务」）：
           // 快照由采集器全量校准，长期不跑就漂移（实测 10-03 后漂了 3 天）；这里改为每次读实时 count，
           // total / in_progress 以 evops_tasks 表为准；max_parallel 以 evops_config 表为准（同日云端化，
