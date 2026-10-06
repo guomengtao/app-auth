@@ -1264,7 +1264,8 @@ async function handleTaskList(req, res) {
       assignee: t.assignee || "", eta_min: t.eta_min || 0, description: t.description || "",
       owner: t.owner || "", replies: Array.isArray(t.replies) ? t.replies : [],
       close_reason: t.close_reason || "", closed_note: t.closed_note || "",
-      created_at: t.created_at, updated_at: t.updated_at
+      created_at: t.created_at, updated_at: t.updated_at,
+      extra: t.extra ? (typeof t.extra === "string" ? t.extra : JSON.stringify(t.extra)) : ""
     }; });
     return json(res, 200, { success: true, tasks: list, total: list.length });
   } catch (e) {
