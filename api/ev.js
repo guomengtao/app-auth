@@ -543,7 +543,8 @@ async function handleEvStatusGet(req, res) {
           await mergeRegisteredTasks(p, evTaskDb(req, res));  // 合并真人登记任务（eta/assignee/replies…）
           // summary 实时化（用户 2026-10-06 指定「不要读聚合，直接读进行中的任务」）：
           // 快照由采集器全量校准，长期不跑就漂移（实测 10-03 后漂了 3 天）；这里改为每次读实时 count，
-          // total / in_progress 以 evops_tasks 表为准，max_parallel（设置上限）仍取快照。
+          // total / in_progress 以 evops_tasks 表为准；max_parallel 以 evops_config 表为准（同日云端化，
+          // 快照里的同名字段自此只是历史残留）。
           try {
             var hr = { apikey: sbKey, Authorization: "Bearer " + sbKey };
             var c1 = await fetch(sbUrl + "/rest/v1/evops_tasks?select=id&status=eq.in_progress&limit=1000", { headers: hr });
@@ -555,6 +556,17 @@ async function handleEvStatusGet(req, res) {
                 p.summary.in_progress = a1.length;
                 p.summary.total = a2.length;
                 p.summary.realtime = true;   // 标记：本次 summary 为实时口径（快照回退时无此字段）
+                // max_parallel 真值来自云端 evops_config（2026-10-06 云端化）；读不到则保留快照值兜底。
+                try {
+                  var cr = await fetch(sbUrl + "/rest/v1/evops_config?id=eq.1&select=max_parallel", { headers: hr });
+                  if (cr.ok) {
+                    var ca = await cr.json();
+                    if (Array.isArray(ca) && ca.length) {
+                      var cm = parseInt(ca[0].max_parallel, 10);
+                      if (cm >= 1 && cm <= 99) p.summary.max_parallel = cm;
+                    }
+                  }
+                } catch (e2) { /* 保留快照值 */ }
               }
             }
           } catch (e) { /* 实时统计失败 → 保留快照值 */ }
@@ -816,6 +828,121 @@ async function handleEvPriorityGet(req, res) {
 }
 
 /* =====================================================================
+ * EvOps 配置（槽位上限云端化，2026-10-06）
+ *
+ * 真值放 Supabase evops_config(id=1)。手机 App 直接读写本表，云端闸门
+ * （handleTaskRegister）也读本表 —— Mac 侧的 collect-status 上报与
+ * ev-command-listener 常驻**全部退出该链路**（方案：槽位上限云端化-摆脱Mac常驻-方案.md）。
+ * 自此 evops_status.payload.summary.max_parallel 只是本表的「投影」（read 时实时覆盖）。
+ * ===================================================================== */
+var EV_CONFIG_DEFAULT_MAX = 9;
+var EV_CONFIG_MIN = 1;
+var EV_CONFIG_MAX = 99;
+
+/** 读上限真值（供 task-register / ev-status 复用）。读不到 → fail-closed 默认 9。 */
+async function readMaxParallel(db) {
+  try {
+    var r = await fetch(db.sbUrl + "/rest/v1/evops_config?id=eq.1&select=max_parallel", { headers: db.headers() });
+    if (r && r.ok) {
+      var rows = await r.json();
+      if (Array.isArray(rows) && rows.length) {
+        var n = parseInt(rows[0].max_parallel, 10);
+        if (n >= EV_CONFIG_MIN && n <= EV_CONFIG_MAX) return n;
+      }
+    }
+  } catch (e) { /* fall through */ }
+  return EV_CONFIG_DEFAULT_MAX;
+}
+
+/**
+ * EvOps 配置 —— 读：GET ?action=ev-config-read（公开）
+ * 返回 { success, max_parallel, updated_at, updated_by, store }。永不 5xx：任何异常都回退默认值。
+ */
+async function handleEvConfigRead(req, res) {
+  var sbUrl = process.env.NEXT_PUBLIC_Ev_SUPABASE_URL;
+  var sbKey = process.env.Ev_SUPABASE_SERVICE_ROLE_KEY;
+  if (!sbUrl || !sbKey) {
+    return json(res, 200, { success: true, max_parallel: EV_CONFIG_DEFAULT_MAX, store: "default" });
+  }
+  try {
+    var r = await fetch(sbUrl + "/rest/v1/evops_config?id=eq.1&select=max_parallel,updated_at,updated_by", {
+      headers: { apikey: sbKey, Authorization: "Bearer " + sbKey }
+    });
+    if (r.ok) {
+      var rows = await r.json();
+      if (Array.isArray(rows) && rows.length) {
+        var n = parseInt(rows[0].max_parallel, 10);
+        return json(res, 200, {
+          success: true,
+          max_parallel: (n >= EV_CONFIG_MIN && n <= EV_CONFIG_MAX) ? n : EV_CONFIG_DEFAULT_MAX,
+          updated_at: rows[0].updated_at || null,
+          updated_by: rows[0].updated_by || null,
+          store: "supabase"
+        });
+      }
+      return json(res, 200, { success: true, max_parallel: EV_CONFIG_DEFAULT_MAX, store: "empty" });
+    }
+    return json(res, 200, { success: true, max_parallel: EV_CONFIG_DEFAULT_MAX, store: "fallback" });
+  } catch (e) {
+    return json(res, 200, { success: true, max_parallel: EV_CONFIG_DEFAULT_MAX, store: "error" });
+  }
+}
+
+/**
+ * EvOps 配置 —— 写：POST ?action=ev-config-write
+ * body = { max_parallel*, device? }。公开写（与 ev-command-write 同级别安全模型），
+ * 护栏：范围 1..99 + 同来源 60s ≤ 20 次。写成功即刻生效（闸门下次判定就读到新值）。
+ */
+async function handleEvConfigWrite(req, res) {
+  var body = (req.body && typeof req.body === "object") ? req.body : {};
+  var n = parseInt(body.max_parallel, 10);
+  if (!(n >= EV_CONFIG_MIN && n <= EV_CONFIG_MAX)) {
+    return json(res, 400, {
+      success: false, error: "bad_max_parallel",
+      detail: "max_parallel 需为 " + EV_CONFIG_MIN + "~" + EV_CONFIG_MAX + " 的整数"
+    });
+  }
+  var sbUrl = process.env.NEXT_PUBLIC_Ev_SUPABASE_URL;
+  var sbKey = process.env.Ev_SUPABASE_SERVICE_ROLE_KEY;
+  if (!sbUrl || !sbKey) return json(res, 500, { success: false, error: "no_store_configured" });
+
+  var src = String(body.device || (req.headers && req.headers["x-forwarded-for"]) || "anon").slice(0, 60);
+  if (!evConfigRateAllowed(src)) {
+    return json(res, 429, { success: false, error: "rate_limited", message: "改上限太频繁，请稍后再试（单来源 60 秒最多 20 次）" });
+  }
+
+  var by = String(body.device || "app").slice(0, 60);
+  try {
+    var r = await fetch(sbUrl + "/rest/v1/evops_config", {
+      method: "POST",
+      headers: {
+        apikey: sbKey, Authorization: "Bearer " + sbKey,
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates,return=representation"
+      },
+      body: JSON.stringify({ id: 1, max_parallel: n, updated_at: new Date().toISOString(), updated_by: by })
+    });
+    if (r.ok || r.status === 201) {
+      return json(res, 200, { success: true, max_parallel: n, updated_by: by, store: "supabase" });
+    }
+    var txt = await r.text();
+    return json(res, 502, { success: false, error: "supabase_write_failed", detail: String(txt).slice(0, 200) });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
+// 轻量限流（进程内计数；Vercel 多实例下为近似，够用且零依赖）
+var _evCfgHits = {};
+function evConfigRateAllowed(src) {
+  var now = Date.now(), win = 60000, max = 20;
+  var arr = (_evCfgHits[src] || []).filter(function (t) { return now - t < win; });
+  if (arr.length >= max) { _evCfgHits[src] = arr; return false; }
+  arr.push(now); _evCfgHits[src] = arr;
+  return true;
+}
+
+/* =====================================================================
  * EvOps 任务登记 —— 写接口（P1，方案甲 Supabase 直写 evops_tasks 表）
  * 出处：ev-ops-android/docs/EvOps-任务登记与管理方案.md §4
  * 鉴权：同 ev-status-write，Bearer EV_SYNC_TOKEN（Mac 持有 + 手机登记页其后端代写）。
@@ -1043,16 +1170,9 @@ async function handleTaskRegister(req, res) {
 
   // 9 上限拦截（仅限进行中）
   if (status === "in_progress") {
-    var limit = 9;
-    try { var cfg = await fetch(db.sbUrl + "/rest/v1/evops_status?select=payload&id=eq.1", { headers: db.headers() }); }
-    catch (e) { cfg = null; }
-    if (cfg && cfg.ok) {
-      var rows = await cfg.json();
-      if (Array.isArray(rows) && rows.length && rows[0] && rows[0].payload && rows[0].payload.summary) {
-        var m = parseInt(rows[0].payload.summary.max_parallel, 10);
-        if (m > 0) limit = m;
-      }
-    }
+    // 上限真值来自云端 evops_config（2026-10-06 云端化：不再读 evops_status 快照，
+    // 因而彻底不依赖 Mac 的 collect-status 上报与 listener 常驻）；读不到 → fail-closed 默认 9。
+    var limit = await readMaxParallel(db);
     var prog = await db.listInProgress();
     if (prog === null) {
       // fail-closed：读不到进行中清单 = 无法证明有槽位，拒发单号（宁可挡、不可超发）
@@ -1389,6 +1509,14 @@ module.exports = async (req, res) => {
       case "ev-priority-get":
         if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
         return await handleEvPriorityGet(req, res);
+      case "ev-config-read":
+        // 公开读：槽位上限真值（云端 evops_config，Mac 不参与）
+        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
+        return await handleEvConfigRead(req, res);
+      case "ev-config-write":
+        // 公开写：手机设置页改槽位上限 → 云端立即生效（护栏：范围 1..99 + 限流）
+        if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
+        return await handleEvConfigWrite(req, res);
       case "ev-command-write":
         // 公开写：手机端任务指令（加急/取消/尽快收尾/自定义），护栏内置（理由必填+限流）
         if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
