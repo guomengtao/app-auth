@@ -4958,13 +4958,13 @@
         <div class="panel" id="panel-bandbbs">
           <div class="toolbar">
             <div>
-              <h2 style="margin:0;display:flex;align-items:center;gap:8px">📡 米坛运营</h2>
+              <h2 style="margin:0;display:flex;align-items:center;gap:8px"><i data-lucide="radio-tower" class="lucide-inline"></i> 米坛运营</h2>
               <span class="muted" style="font-size:0.8125rem">资源帖评论抓取 · 星级奖励发放</span>
             </div>
             <span class="spacer"></span>
             <div style="display:flex;align-items:center;gap:12px">
-              <button class="btn btn-outline" onclick="loadBandBBS()">🔄 刷新</button>
-              <button class="btn btn-primary" onclick="triggerBandBBSPoll()" id="btnPoll" style="background:var(--accent-bg);color:var(--accent-text)">▶️ 手动抓取</button>
+              <button class="btn btn-outline" onclick="loadBandBBS()"><i data-lucide="refresh-cw" class="lucide-inline"></i> 刷新</button>
+              <button class="btn btn-primary" onclick="triggerBandBBSPoll()" id="btnPoll" style="background:var(--accent-bg);color:var(--accent-text)"><i data-lucide="play" class="lucide-inline"></i> 手动抓取</button>
             </div>
           </div>
 
@@ -5000,11 +5000,11 @@
 
           <!-- Resource Config Section -->
           <div class="setting-block" style="margin-bottom:20px">
-            <h3 style="margin:0 0 12px">📋 资源帖配置</h3>
+            <h3 style="margin:0 0 12px"><i data-lucide="clipboard-list" class="lucide-inline"></i> 资源帖配置</h3>
             <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
               <input type="text" id="bbResourceId" placeholder="资源ID (例如 7828)" style="width:180px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
               <input type="text" id="bbResourceTitle" placeholder="标题 (选填)" style="width:200px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
-              <button class="btn btn-sm" onclick="addBandBBSResource()">➕ 添加</button>
+              <button class="btn btn-sm" onclick="addBandBBSResource()"><i data-lucide="plus" class="lucide-inline"></i> 添加</button>
             </div>
             <div style="overflow-x:auto">
               <table>
@@ -5028,7 +5028,7 @@
 
           <!-- Poll Results -->
           <div class="setting-block" style="margin-bottom:20px">
-            <h3 style="margin:0 0 12px">📊 最近抓取结果</h3>
+            <h3 style="margin:0 0 12px"><i data-lucide="bar-chart-3" class="lucide-inline"></i> 最近抓取结果</h3>
             <div id="bbPollResult" style="padding:16px;background:var(--card);border-radius:8px;min-height:60px">
               <span class="muted">尚未执行抓取，点击"手动抓取"按钮开始</span>
             </div>
@@ -5037,19 +5037,19 @@
           
           <!-- Send Test DM（低频调试能力，收进折叠区） -->
           <details class="bb-adv">
-            <summary>🧪 测试工具 · 发送测试私信</summary>
+            <summary><i data-lucide="flask-conical" class="lucide-inline"></i> 测试工具 · 发送测试私信</summary>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <input type="text" id="bbDmRecipient" placeholder="收信人用户名" value="peipeijin" style="width:160px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
               <input type="text" id="bbDmTitle" placeholder="标题" value="奖励测试" style="width:160px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
               <input type="text" id="bbDmMessage" placeholder="内容" value="这是一条来自米坛集成的测试奖励私信。" style="width:300px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
-              <button class="btn btn-sm" onclick="sendBandBBSDM()" id="btnSendDm">📨 发送</button>
+              <button class="btn btn-sm" onclick="sendBandBBSDM()" id="btnSendDm"><i data-lucide="send" class="lucide-inline"></i> 发送</button>
             </div>
             <div id="bbDmResult" style="margin-top:10px;font-size:0.8125rem"></div>
           </details>
 
           <!-- Poll Records -->
           <div class="setting-block" style="margin-bottom:20px">
-            <h3 style="margin:0 0 12px">📜 抓取记录 (最近30条)</h3>
+            <h3 style="margin:0 0 12px"><i data-lucide="scroll-text" class="lucide-inline"></i> 抓取记录 (最近30条)</h3>
             <div id="bbPollLogResult" style="padding:16px;background:var(--card);border-radius:8px;min-height:60px">
               <span class="muted">加载中...</span>
             </div>
@@ -5278,7 +5278,7 @@
 
   <div class="toast" id="toast"></div>
 
-  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="js/lucide.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
   <script>
