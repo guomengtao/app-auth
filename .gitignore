@@ -27,3 +27,6 @@ Desktop.ini
 .codebuddy/
 # EvNotifier 可分发构建产物（dmg / portable app）
 tools/ev-notifier/dist/
+
+# 数据分析原始底稿（含真实 IP/UA、明文兑换码）—— 仓库公开，禁止入库
+docs/analytics/raw/
