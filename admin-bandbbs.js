@@ -28,7 +28,7 @@ async function loadBandBBS() {
               '<td style="white-space:nowrap">' +
               '<button class="btn btn-sm" onclick="pollSingleBandBBS(' + c.resourceId + ', this)" style="margin-right:4px">Scrape</button>' +
               '<button class="btn btn-sm" onclick="showBandBBSDetail(' + c.resourceId + ', this)">Detail</button>' +
-              '<button class="btn btn-sm" onclick="deleteBandBBSResource(' + c.resourceId + ')" style="color:#dc2626;margin-left:4px">Delete</button></td>
+              '<button class="btn btn-sm" onclick="deleteBandBBSResource(' + c.resourceId + ')" style="color:#dc2626;margin-left:4px">Delete</button></td>' +
               '</tr>';
           }
           tbody.innerHTML = rows;
