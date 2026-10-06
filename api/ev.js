@@ -944,6 +944,18 @@ function evTaskDb(req, res) {
       } catch (e) {}
       return 0;
     },
+    async listInProgress() {
+      // 拉进行中任务明细（created_at 升序），供并行上限 409 返回清单与「无人处理最老优先」建议。
+      // ⚠️ 读失败返回 null（不吞错为 0）：读不到就不能证明有槽位，调用方须 fail-closed 拒发单号。
+      try {
+        var r2 = await fetch(sbUrl + "/rest/v1/" + TASKS_TABLE + "?select=id,title,project,assignee,owner,created_at,updated_at&status=eq.in_progress&order=created_at.asc&limit=1000", { headers: h() });
+        if (r2.ok) {
+          var rows2 = await r2.json();
+          if (Array.isArray(rows2)) return rows2;
+        }
+      } catch (e) {}
+      return null;
+    },
     async readRow(id) {
       var r = await fetch(sbUrl + "/rest/v1/" + TASKS_TABLE + "?id=eq." + encodeURIComponent(id), { headers: h() });
       if (!r.ok) return null;
@@ -1024,12 +1036,44 @@ async function handleTaskRegister(req, res) {
         if (m > 0) limit = m;
       }
     }
-    var cur = await db.countInProgress();
+    var prog = await db.listInProgress();
+    if (prog === null) {
+      // fail-closed：读不到进行中清单 = 无法证明有槽位，拒发单号（宁可挡、不可超发）
+      return json(res, 503, {
+        success: false, error: "store_unavailable",
+        message: "进行中任务清单读取失败，无法确认并行槽位，暂不发新单号；请稍后重试（没有任务单号禁止开发）"
+      });
+    }
+    var cur = prog.length;
     if (cur >= limit) {
+      // 「无人处理」判定：assignee 为空，或 owner 为匿名/登记默认值（非具体认领人）
+      function unclaimed(t) {
+        var a = t && t.assignee ? String(t.assignee).trim() : "";
+        if (a) return false;
+        var o = t && t.owner ? String(t.owner).trim().toLowerCase() : "";
+        return !o || o === "register" || o === "anon" || o === "aitest" || o.indexOf("dev:") === 0;
+      }
+      function withAge(t) {
+        var age = 0;
+        try { age = Math.max(0, Math.round((Date.now() - new Date(t.created_at).getTime()) / 60000)); } catch (e) {}
+        return {
+          id: t.id, title: t.title, project: t.project || "",
+          assignee: t.assignee || "", owner: t.owner || "",
+          created_at: t.created_at, age_min: age
+        };
+      }
+      // 排序：无人处理优先 → created_at 升序（最老在前）
+      var sorted = prog.map(withAge).sort(function (x, y) {
+        var ux = unclaimed(x) ? 0 : 1, uy = unclaimed(y) ? 0 : 1;
+        if (ux !== uy) return ux - uy;
+        return String(x.created_at).localeCompare(String(y.created_at));
+      });
       return json(res, 409, {
         success: false, error: "parallel_limit_reached",
-        message: "已达并行上限 " + limit + "，禁止排队：先结束一个进行中任务腾出槽位",
-        in_progress: cur, max: limit
+        in_progress: cur, max: limit,
+        suggested: sorted.length ? sorted[0] : null,
+        tasks: sorted,
+        message: "已达并行上限 " + limit + "（当前进行中 " + cur + "）。请先选择一条【无人处理的较老任务】处理掉（task-close 或 task-update 改 status），才能获得新任务单号；没有任务单号禁止开发。"
       });
     }
   }
