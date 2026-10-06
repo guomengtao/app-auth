@@ -1252,6 +1252,39 @@
       border-radius: var(--r-md, 10px); color: var(--bbx-ink-3); font-size: 13px; }
     #panel-bandbbs .bbx-search .bbx-ic { width: 15px; height: 15px; flex: 0 0 15px; }
 
+    /* ---- 分区卡 / 指标带 / 状态胶囊 / 表格（批次2） ---- */
+    #panel-bandbbs .bbx-card { padding: 0; overflow: hidden; }
+    #panel-bandbbs .bbx-card-hd { display: flex; align-items: center; gap: 9px; padding: 14px 18px;
+      border-bottom: 1px solid var(--bbx-line); background: var(--bbx-card); }
+    #panel-bandbbs .bbx-card-hd h3 { margin: 0; font-size: 15px; font-weight: 650; color: var(--bbx-ink); }
+    #panel-bandbbs .bbx-card-hd .bbx-hint { margin-left: auto; color: var(--bbx-ink-3); font-size: 12px; }
+    #panel-bandbbs .bbx-card-bd { padding: 16px 18px; }
+    #panel-bandbbs .bbx-card-ft { padding: 11px 18px; border-top: 1px solid var(--bbx-line);
+      background: var(--bbx-sunken); color: var(--bbx-ink-3); font-size: 12px; }
+    #panel-bandbbs .bbx-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 14px; }
+    #panel-bandbbs .bbx-metric { padding: 12px 14px; background: var(--bbx-sunken);
+      border-radius: var(--r-md, 10px); border-left: 3px solid var(--bbx-line); }
+    #panel-bandbbs .bbx-metric.ok { border-left-color: var(--bbx-ok); }
+    #panel-bandbbs .bbx-metric.prize { border-left-color: var(--bbx-prize); }
+    #panel-bandbbs .bbx-mnum { font-size: 26px; font-weight: 700; line-height: 1.1;
+      color: var(--bbx-ink); font-variant-numeric: tabular-nums; }
+    #panel-bandbbs .bbx-mlabel { margin-top: 3px; font-size: 12px; color: var(--bbx-ink-3); }
+    #panel-bandbbs .bbx-pill { display: inline-flex; align-items: center; padding: 2px 9px;
+      border-radius: var(--r-pill, 999px); font-size: 11.5px; font-weight: 620; line-height: 1.7;
+      background: var(--bbx-sunken); color: var(--bbx-ink-3); }
+    #panel-bandbbs .bbx-pill.ok { background: var(--bbx-ok-bg); color: var(--bbx-ok); }
+    #panel-bandbbs .bbx-pill.prize { background: var(--bbx-prize-soft); color: var(--bbx-prize); }
+    #panel-bandbbs .bbx-code { padding: 1px 7px; border-radius: 6px; background: var(--bbx-sunken);
+      color: var(--bbx-ink-2); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; }
+    #panel-bandbbs .bbx-stars { color: #f59e0b; letter-spacing: 1px; white-space: nowrap; }
+    #panel-bandbbs .bbx-content { max-width: 340px; white-space: pre-wrap; font-size: 13px; color: var(--bbx-ink-2); }
+    #panel-bandbbs .bbx-table { width: 100%; border-collapse: collapse; }
+    #panel-bandbbs .bbx-table th { position: sticky; top: 0; background: var(--bbx-card); text-align: left;
+      font-size: 12px; font-weight: 650; color: var(--bbx-ink-3); padding: 9px 10px; border-bottom: 1px solid var(--bbx-line); }
+    #panel-bandbbs .bbx-table td { padding: 10px; border-bottom: 1px solid var(--bbx-line);
+      font-size: 13px; color: var(--bbx-ink); vertical-align: top; }
+    #panel-bandbbs .bbx-table tbody tr:hover { background: var(--bbx-sunken); }
+
     /* 米坛运营 · 测试工具折叠区 */
     details.bb-adv {
       border: 1px dashed var(--line);
@@ -5014,25 +5047,29 @@
           <!-- ===== Tab 2 · 详情 ===== -->
           <section class="settings-sub-panel" id="bb-sub-detail">
 
-          <!-- Review Detail Section -->
-          <div class="setting-block" id="bbReviewSection" style="margin-bottom:20px">
-            <h3 style="margin:0 0 12px">🖥️ 评论详情</h3>
-            
-          <!-- Filter Bar -->
-            <div id="bbFilterBar" style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;padding:10px;background:var(--surface);border-radius:8px;border:1px solid var(--line)">
-              <label style="font-weight:600;white-space:nowrap">筛选:</label>
-                <select id="bbDetailResourceSelect" onchange="filterBandBBSReviews()" style="min-width:180px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
-              <option value="">全部资源</option>
-            </select>
-            <select id="bbRewardFilter" onchange="filterBandBBSReviews()" style="min-width:140px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
-              <option value="">全部状态</option>
-              <option value="rewarded">已发放</option>
-              <option value="not_rewarded">未发放</option>
-            </select>
-              </div>
-              <div id="bbReviewTable" style="padding:16px;background:var(--card);border-radius:8px;min-height:120px">
-                <span class="muted">加载评论数据...</span>
+          <!-- ===== 获奖名单（原「详情」）· 批次2 ===== -->
+          <div class="setting-block bbx-card" id="bbReviewSection">
+            <div class="bbx-card-hd">
+              <svg class="bbx-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg><!-- lucide:users (ISC) -->
+              <h3>获奖名单</h3>
+              <span class="bbx-hint">默认展示全部评论 · 点芯片即筛</span>
             </div>
+            <div class="bbx-card-bd">
+              <div class="bbx-metrics" id="bbDetailMetrics"></div>
+              <div class="bbx-filters" id="bbFilterBar">
+                <div id="bbDetailChips"></div>
+                <div style="display:none" aria-hidden="true">
+                  <select id="bbDetailResourceSelect" onchange="filterBandBBSReviews()"><option value="">全部资源</option></select>
+                  <select id="bbRewardFilter" onchange="filterBandBBSReviews()">
+                    <option value="">全部状态</option>
+                    <option value="rewarded">已获奖</option>
+                    <option value="not_rewarded">待发奖</option>
+                  </select>
+                </div>
+              </div>
+              <div id="bbReviewTable" style="min-height:120px"><span class="muted">加载评论数据...</span></div>
+            </div>
+            <div class="bbx-card-ft" id="bbDetailFoot"><span class="muted">—</span></div>
           </div>
 
           </section>
@@ -8059,6 +8096,7 @@
         var el = document.getElementById('bb-sub-' + keys[j]);
         if (el) el.classList.toggle('active', keys[j] === tab);
       }
+      if (tab === 'detail' && typeof loadBandBBSReviews === 'function' && (!window._bbReviews || !window._bbReviews.length)) loadBandBBSReviews();
       try { if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons(); } catch (_) {}
     }
 

@@ -207,110 +207,204 @@ async function loadBandBBSPollLogs() {
   }
 
 
-  async function loadBandBBSReviews() {
-    // Load resource list into filter dropdown + show all reviews
-    var sel = document.getElementById('bbDetailResourceSelect');
-    var box = document.getElementById('bbReviewTable');
-    if (!box) return;
-    box.innerHTML = '<span class="muted">加载中...</span>';
-    try {
-      var result = await api('/api/admin/catalog?kind=bandbbs&op=config');
-      if (result && result.success) {
-        var configs = result.data || [];
-        var opts = '<option value="">全部资源</option>';
-        for (var i = 0; i < configs.length; i++) {
-          var c = configs[i];
-          opts += '<option value="' + c.resourceId + '">#' + c.resourceId + ' - ' + (c.title || '') + '</option>';
-        }
-        if (sel) { sel.innerHTML = opts; }
-        // Load all reviews by default
-        filterBandBBSReviews();
-      } else if (box) {
-        box.innerHTML = '<span style="color:#dc2626">加载资源列表失败</span>';
-      }
-    } catch (e) {
-      if (box) box.innerHTML = '<span style="color:#dc2626">请求失败：' + (e.message || e) + '</span>';
-    }
-  }
-async function loadBandBBSReviewsByResource(rid, box) {
-    // Load reviews for a specific resource (used by filterBandBBSReviews)
-    box.innerHTML = '<span class="muted">加载中...</span>';
+  async function loadBandBBSReviewsByResource(rid, box) {
     try {
       var result = await api('/api/admin/catalog?kind=bandbbs&op=resource-detail&resourceId=' + encodeURIComponent(rid));
-      if (!result || !result.success) {
-        box.innerHTML = '<span style="color:#dc2626">失败：' + ((result && result.error) || '未知') + '</span>';
-        return [];
-      }
+      if (!result || !result.success) return [];
       var d = result.data;
       var reviews = d.reviews || [];
-      // Attach resourceId to each review for display
       for (var i = 0; i < reviews.length; i++) reviews[i]._resourceId = rid;
       return reviews;
     } catch (e) {
-      box.innerHTML = '<span style="color:#dc2626">请求失败：' + (e.message || e) + '</span>';
       return [];
     }
-  
+  }
 
-  async function filterBandBBSReviews() {
-    var sel = document.getElementById('bbDetailResourceSelect');
-    var statusFilter = document.getElementById('bbRewardFilter');
+  /* ============ 获奖名单（批次2）：本地缓存 + 芯片筛选状态机 ============ */
+  var _bbReviews = [];
+  var _bbConfigs = [];
+  var _bbFilter = { resource: '', stars: '', status: '', q: '' };
+
+  function bbEsc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&quot;';
+    });
+  }
+  function bbStars(r) { return Number(r.stars || 0); }
+  function bbEligible(r) { return bbStars(r) >= 5; }
+  function bbState(r) { return r.rewarded ? 'rewarded' : (bbEligible(r) ? 'pending' : 'none'); }
+
+  function bbReviewCounts() {
+    var c = { all: _bbReviews.length, rewarded: 0, pending: 0, none: 0 };
+    for (var i = 0; i < _bbReviews.length; i++) { var s = bbState(_bbReviews[i]); c[s] = (c[s] || 0) + 1; }
+    return c;
+  }
+
+  async function loadBandBBSReviews() {
     var box = document.getElementById('bbReviewTable');
     if (!box) return;
-    var rid = sel ? sel.value : '';
-    var statusVal = statusFilter ? statusFilter.value : '';
     box.innerHTML = '<span class="muted">加载中...</span>';
-    
+    _bbFilter = { resource: '', stars: '', status: '', q: '' };
     try {
-      var configResult = await api('/api/admin/catalog?kind=bandbbs&op=config');
-      var configs = (configResult && configResult.success && configResult.data) ? configResult.data : [];
-      
-      // If a specific resource selected, load only that one; else load all
-      var allReviews = [];
-      if (rid) {
-        allReviews = await loadBandBBSReviewsByResource(rid, box);
-      } else {
-        // Load all resources' reviews
-        for (var i = 0; i < configs.length; i++) {
-          var c = configs[i];
-          var rvs = await loadBandBBSReviewsByResource(c.resourceId, box);
-          allReviews = allReviews.concat(rvs);
+      var cr = await api('/api/admin/catalog?kind=bandbbs&op=config');
+      _bbConfigs = (cr && cr.success && cr.data) ? cr.data : [];
+      var sel = document.getElementById('bbDetailResourceSelect');
+      if (sel) {
+        var opts = '<option value="">全部资源</option>';
+        for (var i = 0; i < _bbConfigs.length; i++) {
+          opts += '<option value="' + _bbConfigs[i].resourceId + '">#' + _bbConfigs[i].resourceId + ' - ' + (_bbConfigs[i].title || '') + '</option>';
         }
+        sel.innerHTML = opts;
       }
-      
-      // Apply reward status filter
-      if (statusVal === 'rewarded') {
-        allReviews = allReviews.filter(function(r) { return r.rewarded; });
-      } else if (statusVal === 'not_rewarded') {
-        allReviews = allReviews.filter(function(r) { return !r.rewarded; });
+      var all = [];
+      for (var j = 0; j < _bbConfigs.length; j++) {
+        var rvs = await loadBandBBSReviewsByResource(_bbConfigs[j].resourceId, box);
+        all = all.concat(rvs || []);
       }
-      
-      // Render table
-      if (!allReviews.length) {
-        box.innerHTML = '<span class="muted">暂无评论数据</span>';
-        return;
-      }
-      
-      var rows = '';
-      for (var j = 0; j < allReviews.length; j++) {
-        var rv = allReviews[j];
-        var badge = rv.rewarded ? '<span style="color:#16a34a;font-weight:600">已发放</span>' : '<span style="color:#9ca3af">未发放</span>';
-        var starsHtml = '';
-        var starCount = (rv.stars !== undefined && rv.stars !== null) ? Number(rv.stars) : 0;
-        for (var k = 0; k < 5; k++) starsHtml += k < starCount ? '★' : '☆';
-        rows += '<tr>' +
-          '<td style="font-size:0.75rem">#' + (rv._resourceId || '-') + '</td>' +
-          '<td>' + (rv.username || '-') + '</td>' +
-          '<td style="color:#f59e0b">' + starsHtml + '</td>' +
-          '<td style="max-width:300px;white-space:pre-wrap;font-size:0.8125rem">' + (rv.content || '-') + '</td>' +
-          '<td style="font-size:0.75rem">' + (rv.time || '-') + '</td>' +
-          '<td>' + badge + '</td></tr>';
-      }
-      box.innerHTML = '<div style="overflow-x:auto"><table><thead><tr><th>资源</th><th>用户名</th><th>星级</th><th>内容</th><th>时间</th><th>奖励状态</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+      _bbReviews = all;
+      renderBandBBSReviewChips();
+      applyBandBBSReviewFilter();
     } catch (e) {
-      box.innerHTML = '<span style="color:#dc2626">加载失败: ' + (e.message || e) + '</span>';
+      box.innerHTML = '<span style="color:#dc2626">加载失败：' + (e.message || e) + '</span>';
     }
   }
+
+  function bbChip(group, val, label, n, cls) {
+    var on = String(_bbFilter[group]) === String(val);
+    return '<button type="button" class="bbx-chip' + (on ? ' on' : '') + '"' + (cls ? ' data-c="' + cls + '"' : '') +
+      ' data-g="' + group + '" data-v="' + val + '">' + label +
+      (n === null || n === undefined ? '' : ' <span class="bbx-n">' + n + '</span>') + '</button>';
+  }
+
+  function renderBandBBSReviewChips() {
+    var host = document.getElementById('bbDetailChips');
+    if (!host) return;
+    var c = bbReviewCounts();
+    var h = '';
+    h += '<div class="bbx-frow"><span class="bbx-flabel">资源帖</span>' + bbChip('resource', '', '全部', c.all);
+    for (var i = 0; i < _bbConfigs.length; i++) {
+      var cf = _bbConfigs[i], n = 0;
+      for (var k = 0; k < _bbReviews.length; k++) { if (String(_bbReviews[k]._resourceId) === String(cf.resourceId)) n++; }
+      h += bbChip('resource', cf.resourceId, '#' + cf.resourceId + ' ' + (cf.title || ''), n);
+    }
+    h += '</div>';
+    var s5 = 0, s4 = 0, s3 = 0;
+    for (var m = 0; m < _bbReviews.length; m++) { var st = bbStars(_bbReviews[m]); if (st >= 5) s5++; else if (st === 4) s4++; else s3++; }
+    h += '<div class="bbx-frow"><span class="bbx-flabel">评分</span>' + bbChip('stars', '', '全部', c.all) +
+      bbChip('stars', '5', '五星', s5) + bbChip('stars', '4', '四星', s4) + bbChip('stars', '3', '三星及以下', s3) + '</div>';
+    var svg = '<svg class="bbx-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>';
+    h += '<div class="bbx-frow"><span class="bbx-flabel">发放</span>' + bbChip('status', '', '全部', c.all) +
+      bbChip('status', 'rewarded', '已获奖', c.rewarded, 'ok') +
+      bbChip('status', 'pending', '待发奖', c.pending, 'prize') +
+      bbChip('status', 'none', '未获奖', c.none) +
+      '<label class="bbx-search">' + svg + '<input id="bbReviewSearch" type="search" placeholder="搜用户 / 评论 / 奖品 ID" value="' + bbEsc(_bbFilter.q || '') + '" autocomplete="off" style="border:0;background:transparent;outline:none;color:inherit;font:inherit;width:180px"></label>' +
+      '</div>';
+    host.innerHTML = h;
+  }
+
+  function bbSetReviewFilter(group, val) {
+    _bbFilter[group] = val;
+    var sel = document.getElementById('bbDetailResourceSelect');
+    if (sel && group === 'resource') sel.value = String(val);
+    var rf = document.getElementById('bbRewardFilter');
+    if (rf && group === 'status') rf.value = (val === 'rewarded' ? 'rewarded' : (val === 'pending' || val === 'none' ? 'not_rewarded' : ''));
+    var chips = document.querySelectorAll('#bbDetailChips .bbx-chip');
+    for (var i = 0; i < chips.length; i++) {
+      if (chips[i].getAttribute('data-g') !== group) continue;
+      chips[i].classList.toggle('on', String(chips[i].getAttribute('data-v')) === String(val));
+    }
+    applyBandBBSReviewFilter();
+  }
+
+  function applyBandBBSReviewFilter() {
+    var box = document.getElementById('bbReviewTable');
+    if (!box) return;
+    var f = _bbFilter, q = (f.q || '').toLowerCase(), out = [];
+    for (var i = 0; i < _bbReviews.length; i++) {
+      var r = _bbReviews[i];
+      if (f.resource !== '' && String(r._resourceId) !== String(f.resource)) continue;
+      var st = bbStars(r);
+      if (f.stars === '5' && st < 5) continue;
+      if (f.stars === '4' && st !== 4) continue;
+      if (f.stars === '3' && st >= 4) continue;
+      if (f.status !== '' && bbState(r) !== f.status) continue;
+      if (q) {
+        var hay = ((r.username || '') + ' ' + (r.content || '') + ' ' + (r.couponCode || r.coupon_code || '')).toLowerCase();
+        if (hay.indexOf(q) < 0) continue;
+      }
+      out.push(r);
+    }
+    bbRenderReviewTable(out);
+    bbUpdateReviewFoot(out);
+  }
+
+  function bbRenderReviewTable(list) {
+    var box = document.getElementById('bbReviewTable');
+    if (!box) return;
+    if (!list.length) { box.innerHTML = '<span class="muted">当前筛选下没有评论</span>'; return; }
+    var rows = '';
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i], st = bbStars(r), stars = '';
+      for (var k = 0; k < 5; k++) stars += k < st ? '★' : '☆';
+      var state = bbState(r);
+      var pill = state === 'rewarded' ? '<span class="bbx-pill ok">已获奖</span>'
+               : state === 'pending' ? '<span class="bbx-pill prize">待发奖</span>'
+               : '<span class="bbx-pill">未获奖</span>';
+      var pid = r.couponCode || r.coupon_code || '';
+      var pidCell = pid ? '<code class="bbx-code">' + bbEsc(String(pid).substring(0, 14)) + '</code>' : '<span class="muted">—</span>';
+      var at = r.assignedAt || r.rewardedAt || r.assigned_at || '';
+      rows += '<tr' + (state === 'none' ? ' style="opacity:.62"' : '') + '>' +
+        '<td><span class="muted">#' + bbEsc(r._resourceId || '-') + '</span></td>' +
+        '<td>' + bbEsc(r.username || '-') + '</td>' +
+        '<td class="bbx-stars">' + stars + '</td>' +
+        '<td class="bbx-content">' + bbEsc(r.content || '-') + '</td>' +
+        '<td>' + pidCell + '</td>' +
+        '<td>' + pill + '</td>' +
+        '<td><span class="muted">' + bbEsc(at || '—') + '</span></td>' +
+        '</tr>';
+    }
+    box.innerHTML = '<div style="overflow-x:auto"><table class="bbx-table"><thead><tr><th>资源</th><th>用户</th><th>评分</th><th>评论内容</th><th>奖品池 ID</th><th>发放状态</th><th>发放时间</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+  }
+
+  function bbMetric(label, num, cls) {
+    return '<div class="bbx-metric' + (cls ? ' ' + cls : '') + '"><div class="bbx-mnum">' + num + '</div><div class="bbx-mlabel">' + label + '</div></div>';
+  }
+
+  function bbUpdateReviewFoot(list) {
+    var c = bbReviewCounts();
+    var rate = c.all ? Math.round(c.rewarded / c.all * 100) : 0;
+    var f = document.getElementById('bbDetailFoot');
+    if (f) f.textContent = '当前 ' + list.length + ' 条 · 共 ' + c.all + ' 条 · 已获奖 ' + c.rewarded + ' · 待发奖 ' + c.pending + ' · 未获奖 ' + c.none;
+    var m = document.getElementById('bbDetailMetrics');
+    if (m) m.innerHTML = bbMetric('全部评论', c.all) + bbMetric('已获奖', c.rewarded, 'ok') + bbMetric('待发奖', c.pending, 'prize') + bbMetric('获奖率', rate + '%');
+  }
+
+  // 兼容旧调用：从隐藏 select 同步后重新筛选
+  async function filterBandBBSReviews() {
+    var sel = document.getElementById('bbDetailResourceSelect');
+    var rf = document.getElementById('bbRewardFilter');
+    if (sel) _bbFilter.resource = sel.value || '';
+    if (rf) _bbFilter.status = rf.value === 'rewarded' ? 'rewarded' : (rf.value === 'not_rewarded' ? 'pending' : '');
+    applyBandBBSReviewFilter();
+  }
+
+  // 芯片 / 搜索事件委托（免内联 onclick 引号转义）
+  (function () {
+    document.addEventListener('click', function (e) {
+      var t = e.target;
+      if (!t || !t.closest) return;
+      var chip = t.closest('#bbDetailChips .bbx-chip');
+      if (!chip) return;
+      bbSetReviewFilter(chip.getAttribute('data-g'), chip.getAttribute('data-v'));
+    });
+    document.addEventListener('input', function (e) {
+      var t = e.target;
+      if (!t || t.id !== 'bbReviewSearch') return;
+      _bbFilter.q = t.value || '';
+      applyBandBBSReviewFilter();
+    });
+  })();
+
 
   async function sendRewardForResource(rid, btnEl) {
     if (!confirm('确定要给资源帖 #' + rid + ' 的所有未奖励五星评论发送奖励私信吗？')) return;
@@ -469,4 +563,3 @@ async function loadBandBBSReviewsByResource(rid, box) {
   loadPoolStats();
   loadRewardLog();
 
-}
