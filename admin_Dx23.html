@@ -3397,6 +3397,7 @@
         <li class="menu-separator"><hr></li>
         <li class="menu-separator"><hr></li>
         <li><a href="javascript:void(0)" onclick="switchTab('bandbbs')" data-tab="bandbbs"><i data-lucide="message-square" class="menu-icon"></i><span class="menu-text">BandBBS</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('bandbbs-detail')" data-tab="bandbbs-detail"><i data-lucide="messages-square" class="menu-icon"></i><span class="menu-text">BandBBS 资源详情</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('settings')" data-tab="settings"><i data-lucide="settings" class="menu-icon"></i><span class="menu-text">设置</span></a></li>
       </ul>
       <div class="sidebar-user" id="sidebarUser">
@@ -4926,6 +4927,31 @@
           </div>
         </div>
 
+        <div class="panel" id="panel-bandbbs-detail">
+          <div class="toolbar">
+            <div>
+              <h2 style="margin:0;display:flex;align-items:center;gap:8px">🗑️ BandBBS 资源详情</h2>
+              <span class="muted" style="font-size:0.8125rem">查看单个资源的评论、星级与奖励发放状态</span>
+            </div>
+            <span class="spacer"></span>
+            <button class="btn btn-outline" onclick="loadBandBBSDetailTab()">🔄 刷新</button>
+          </div>
+
+          <div class="setting-block" style="margin-bottom:20px">
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+              <label style="font-weight:600">选择资源:</label>
+              <select id="bbDetailResourceSelect" onchange="loadBandBBSDetail()" style="min-width:220px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
+                <option value="">加载中...</option>
+              </select>
+              <button class="btn btn-sm" onclick="loadBandBBSDetail()">📊 查看详情</button>
+            </div>
+            <div id="bbDetailResult2" style="padding:16px;background:var(--card);border-radius:8px;min-height:120px">
+              <span class="muted">请上方选择一个资源查看详情</span>
+            </div>
+          </div>
+        </div>
+
+
         </div>
 
       </main>
@@ -5273,6 +5299,7 @@
       delivery: { title: '快捷激活', sub: '直接生成激活码 · 解密验证 · 用户画像 · 消息投递' },
       devices: { title: '已授权设备', sub: '查看并撤销桌面客户端（EvNotifier）的长期访问令牌' },
       bandbbs: { title: 'BandBBS 社区运营', sub: '评论抓取 · 奖励私信 · 资源配置' },
+      'bandbbs-detail': { title: 'BandBBS 资源详情', sub: '\u67e5\u770b\u5355\u4e2a\u8d44\u6e90\u7684\u8bc4\u8bba \u00b7 \u661f\u7ea7 \u00b7 \u5956\u52b1\u53d1\u653e\u72b6\u6001' },
       settings: { title: '设置', sub: '外观 · 数据 · 安全 · 邮件 · 备份恢复' },
       health: { title: '服务器状态', sub: '检测 Postgres / 鉴权 / 激活链路是否正常' },
       'vercel-logs': { title: 'Vercel日志', sub: '部署事件与函数运行日志（Vercel API）' },
@@ -5341,6 +5368,7 @@
       }
       if (tab === 'devices') loadDevices();
       if (tab === 'bandbbs') loadBandBBS();
+      if (tab === 'bandbbs-detail') loadBandBBSDetailTab();
       
       try {
         if (typeof lucide !== 'undefined' && lucide.createIcons) {

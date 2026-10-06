@@ -221,3 +221,68 @@ async function loadBandBBS() {
       } else { box.innerHTML = '<span class="muted">No records</span>'; }
     } catch (e) { box.innerHTML = '<span class="muted">Failed</span>'; }
   }
+
+
+  async function loadBandBBSDetailTab() {
+    var sel = document.getElementById('bbDetailResourceSelect');
+    var box = document.getElementById('bbDetailResult2');
+    if (box) box.innerHTML = '<span class="muted">加载中...</span>';
+    try {
+      var result = await api('/api/admin/catalog?kind=bandbbs&op=config');
+      if (result && result.success) {
+        var configs = result.data || [];
+        var opts = '<option value="">-- 请选择资源 --</option>';
+        for (var i = 0; i < configs.length; i++) {
+          var c = configs[i];
+          opts += '<option value="' + c.resourceId + '">#' + c.resourceId + ' - ' + (c.title || '') + '</option>';
+        }
+        if (sel) { sel.innerHTML = opts; }
+        if (box) box.innerHTML = '<span class="muted">请上方选择一个资源查看详情</span>';
+        if (sel && sel.value) loadBandBBSDetail();
+      } else if (box) {
+        box.innerHTML = '<span style="color:#dc2626">加载失败: ' + ((result && result.error) || 'Unknown') + '</span>';
+      }
+    } catch (e) {
+      if (box) box.innerHTML = '<span style="color:#dc2626">请求失败: ' + (e.message || e) + '</span>';
+    }
+  }
+
+  async function loadBandBBSDetail() {
+    var sel = document.getElementById('bbDetailResourceSelect');
+    var box = document.getElementById('bbDetailResult2');
+    if (!sel || !box) return;
+    var rid = sel.value;
+    if (!rid) { box.innerHTML = '<span class="muted">请先选择一个资源</span>'; return; }
+    box.innerHTML = '<span class="muted">加载详情...</span>';
+    try {
+      var result = await api('/api/admin/catalog?kind=bandbbs&op=resource-detail&resourceId=' + encodeURIComponent(rid));
+      if (!result || !result.success) {
+        box.innerHTML = '<span style="color:#dc2626">失败: ' + ((result && result.error) || 'Unknown') + '</span>';
+        return;
+      }
+      var d = result.data;
+      var rows = '';
+      var reviews = d.reviews || [];
+      if (!reviews.length) {
+        rows = '<tr><td colspan="5" class="empty">暂无评论</td></tr>';
+      } else {
+        for (var i = 0; i < reviews.length; i++) {
+          var rv = reviews[i];
+          var badge = rv.rewarded ? '<span style="color:#16a34a;font-weight:600">Rewarded</span>' : '<span style="color:#9ca3af">Not rewarded</span>';
+          rows += '<tr>' +
+            '<td>' + (rv.username || '-') + '</td>' +
+            '<td>' + ((rv.stars !== undefined && rv.stars !== null) ? rv.stars : (rv.rating || '-')) + '</td>' +
+            '<td style="max-width:360px;white-space:pre-wrap">' + (rv.content || '-') + '</td>' +
+            '<td style="font-size:0.75rem">' + (rv.time || '-') + '</td>' +
+            '<td>' + badge + '</td></tr>';
+        }
+      }
+      box.innerHTML =
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">' +
+        '<h3 style="margin:0">Resource #' + d.resourceId + ' - ' + (d.title || '') + '</h3>' +
+        '<span class="muted" style="font-size:0.8125rem">已发奖励: ' + (d.rewardedCount || 0) + ' | 上次抓取: ' + (d.lastPollAt || '-') + ' | 新增: ' + (d.lastPollNew || 0) + '</span></div>' +
+        '<div style="overflow-x:auto"><table><thead><tr><th>Username</th><th>Rating</th><th>Content</th><th>Time</th><th>Reward</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+    } catch (e) {
+      box.innerHTML = '<span style="color:#dc2626">请求失败: ' + (e.message || e) + '</span>';
+    }
+  }
