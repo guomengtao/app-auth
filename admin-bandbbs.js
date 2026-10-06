@@ -262,6 +262,7 @@ async function loadBandBBSPollLogs() {
         all = all.concat(rvs || []);
       }
       _bbReviews = all;
+      window._bbReviews = all;
       renderBandBBSReviewChips();
       applyBandBBSReviewFilter();
     } catch (e) {
@@ -394,14 +395,17 @@ async function loadBandBBSPollLogs() {
       var t = e.target;
       if (!t || !t.closest) return;
       var chip = t.closest('#bbDetailChips .bbx-chip');
-      if (!chip) return;
-      bbSetReviewFilter(chip.getAttribute('data-g'), chip.getAttribute('data-v'));
+      if (chip) { bbSetReviewFilter(chip.getAttribute('data-g'), chip.getAttribute('data-v')); return; }
+      var pchip = t.closest('#bbPoolChips .bbx-chip');
+      if (pchip) { bbSetPoolFilter(pchip.getAttribute('data-g'), pchip.getAttribute('data-v')); return; }
+      var cbtn = t.closest('#bbRewardLogTable .bbx-mini');
+      if (cbtn) { bbCopyText(cbtn.getAttribute('data-copy'), cbtn); return; }
     });
     document.addEventListener('input', function (e) {
       var t = e.target;
-      if (!t || t.id !== 'bbReviewSearch') return;
-      _bbFilter.q = t.value || '';
-      applyBandBBSReviewFilter();
+      if (!t) return;
+      if (t.id === 'bbReviewSearch') { _bbFilter.q = t.value || ''; applyBandBBSReviewFilter(); return; }
+      if (t.id === 'bbPoolSearch') { _bbPoolFilter.q = t.value || ''; applyBandBBSPoolFilter(); return; }
     });
   })();
 
@@ -559,7 +563,225 @@ async function loadBandBBSPollLogs() {
     }
   }
 
-  // Initialize reward pool section
-  loadPoolStats();
-  loadRewardLog();
+  /* ============ 奖品池（批次3）：全量列表 + 芯片筛选 + 警示条 ============ */
+  var _bbPool = [];
+  var _bbPoolFilter = { status: '', batch: '', q: '' };
+  var BB_ALERT_SVG = '<svg class="bbx-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
+  var BB_SEARCH_SVG = '<svg class="bbx-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>';
+
+  function bbPoolState(it) {
+    if (!it.assigned) return 'unassigned';
+    if (it.claimed) return 'claimed';
+    return 'unclaimed';
+  }
+
+  function bbNormalizePoolItem(x) {
+    x = x || {};
+    return {
+      couponCode: x.couponCode || x.coupon_code || x.code || '',
+      goUrl: x.goUrl || x.go_url || '',
+      goSlug: x.goSlug || x.go_slug || '',
+      assigned: !!(x.assigned || x.assignedTo || x.assigned_to || x.claimed),
+      claimed: !!x.claimed,
+      assignedTo: x.assignedTo || x.assigned_to || '',
+      resourceId: x.resourceId || x.resource_id || '',
+      stars: x.reviewStars || x.stars || '',
+      assignedAt: x.assignedAt || x.assigned_at || '',
+      batch: x.batch || ''
+    };
+  }
+
+  function bbPoolCountsLocal() {
+    var c = { all: _bbPool.length, unassigned: 0, assigned: 0, claimed: 0, unclaimed: 0 };
+    for (var i = 0; i < _bbPool.length; i++) {
+      var s = bbPoolState(_bbPool[i]);
+      if (s === 'unassigned') c.unassigned++;
+      else { c.assigned++; if (s === 'claimed') c.claimed++; else c.unclaimed++; }
+    }
+    return c;
+  }
+
+  async function loadRewardPool() {
+    var table = document.getElementById('bbRewardLogTable');
+    if (!table) return;
+    table.innerHTML = '<span class="muted">加载中...</span>';
+    _bbPoolFilter = { status: '', batch: '', q: '' };
+    try {
+      var cr = await api('/api/admin/catalog?kind=bandbbs&op=config');
+      var configs = (cr && cr.success && cr.data) ? cr.data : [];
+      var rf = document.getElementById('bbRewardLogResourceFilter');
+      if (rf) {
+        var opts = '<option value="">全部资源</option>';
+        for (var i = 0; i < configs.length; i++) {
+          opts += '<option value="' + configs[i].resourceId + '">#' + configs[i].resourceId + ' - ' + (configs[i].title || '') + '</option>';
+        }
+        rf.innerHTML = opts;
+      }
+      var items = null;
+      try {
+        var rp = await api('/api/admin/catalog?kind=bandbbs&op=reward-pool-list&status=all');
+        if (rp && rp.success && rp.data) {
+          var arr = rp.data.items || rp.data || [];
+          items = [];
+          for (var j = 0; j < arr.length; j++) items.push(bbNormalizePoolItem(arr[j]));
+        }
+      } catch (_) { items = null; }
+      if (items === null) {
+        var rl = await api('/api/admin/catalog?kind=bandbbs&op=reward-log&resourceId=&status=');
+        var logs = (rl && rl.success && rl.data) ? rl.data : [];
+        items = [];
+        for (var k = 0; k < logs.length; k++) items.push(bbNormalizePoolItem(logs[k]));
+      }
+      _bbPool = items;
+      window._bbPoolLoaded = true;
+      _bbPool.sort(function (a, b) {
+        var oa = bbPoolState(a) === 'unassigned' ? 0 : 1;
+        var ob = bbPoolState(b) === 'unassigned' ? 0 : 1;
+        return oa - ob;
+      });
+      renderBandBBSPoolChips();
+      applyBandBBSPoolFilter();
+      updatePoolAlert();
+    } catch (e) {
+      table.innerHTML = '<span style="color:#dc2626">加载失败：' + (e.message || e) + '</span>';
+    }
+  }
+
+  function bbPoolChip(group, val, label, n, cls) {
+    var on = String(_bbPoolFilter[group]) === String(val);
+    return '<button type="button" class="bbx-chip' + (on ? ' on' : '') + '"' + (cls ? ' data-c="' + cls + '"' : '') +
+      ' data-g="' + group + '" data-v="' + val + '">' + label +
+      (n === null || n === undefined ? '' : ' <span class="bbx-n">' + n + '</span>') + '</button>';
+  }
+
+  function renderBandBBSPoolChips() {
+    var host = document.getElementById('bbPoolChips');
+    if (!host) return;
+    var c = bbPoolCountsLocal();
+    var h = '';
+    h += '<div class="bbx-frow"><span class="bbx-flabel">状态</span>' +
+      bbPoolChip('status', '', '全部', c.all) +
+      bbPoolChip('status', 'unassigned', '未发放', c.unassigned, 'prize') +
+      bbPoolChip('status', 'assigned', '已发放', c.assigned) +
+      bbPoolChip('status', 'claimed', '已领取', c.claimed, 'ok') +
+      bbPoolChip('status', 'unclaimed', '已发未领', c.unclaimed) +
+      '<label class="bbx-search">' + BB_SEARCH_SVG +
+      '<input id="bbPoolSearch" type="search" placeholder="搜奖品 ID / 获奖人 / 资源" value="' + bbEsc(_bbPoolFilter.q || '') + '" autocomplete="off" style="border:0;background:transparent;outline:none;color:inherit;font:inherit;width:190px"></label>' +
+      '</div>';
+    var batches = {}; var hasBatch = false;
+    for (var i = 0; i < _bbPool.length; i++) { if (_bbPool[i].batch) { batches[_bbPool[i].batch] = 1; hasBatch = true; } }
+    if (hasBatch) {
+      var bk = Object.keys(batches);
+      h += '<div class="bbx-frow"><span class="bbx-flabel">批次</span>' + bbPoolChip('batch', '', '全部', c.all);
+      for (var j = 0; j < bk.length; j++) {
+        var n = 0;
+        for (var k = 0; k < _bbPool.length; k++) if (String(_bbPool[k].batch) === String(bk[j])) n++;
+        h += bbPoolChip('batch', bk[j], String(bk[j]), n);
+      }
+      h += '</div>';
+    }
+    host.innerHTML = h;
+  }
+
+  function bbSetPoolFilter(group, val) {
+    _bbPoolFilter[group] = val;
+    var chips = document.querySelectorAll('#bbPoolChips .bbx-chip');
+    for (var i = 0; i < chips.length; i++) {
+      if (chips[i].getAttribute('data-g') !== group) continue;
+      chips[i].classList.toggle('on', String(chips[i].getAttribute('data-v')) === String(val));
+    }
+    applyBandBBSPoolFilter();
+  }
+
+  function applyBandBBSPoolFilter() {
+    var table = document.getElementById('bbRewardLogTable');
+    if (!table) return;
+    var f = _bbPoolFilter, q = (f.q || '').toLowerCase(), out = [];
+    for (var i = 0; i < _bbPool.length; i++) {
+      var it = _bbPool[i], st = bbPoolState(it);
+      if (f.status === 'assigned') { if (st === 'unassigned') continue; }
+      else if (f.status && st !== f.status) continue;
+      if (f.batch && String(it.batch) !== String(f.batch)) continue;
+      if (q) {
+        var hay = ((it.couponCode || '') + ' ' + (it.assignedTo || '') + ' ' + (it.resourceId || '')).toLowerCase();
+        if (hay.indexOf(q) < 0) continue;
+      }
+      out.push(it);
+    }
+    bbRenderPoolTable(out);
+    bbUpdatePoolFoot(out);
+  }
+
+  function bbRenderPoolTable(list) {
+    var table = document.getElementById('bbRewardLogTable');
+    if (!table) return;
+    if (!list.length) { table.innerHTML = '<span class="muted">当前筛选下没有奖品</span>'; return; }
+    var rows = '';
+    for (var i = 0; i < list.length; i++) {
+      var it = list[i], st = bbPoolState(it);
+      var pill = st === 'claimed' ? '<span class="bbx-pill ok">已领取</span>'
+               : st === 'unclaimed' ? '<span class="bbx-pill prize">已发未领</span>'
+               : st === 'unassigned' ? '<span class="bbx-pill">未发放</span>'
+               : '<span class="bbx-pill">已发放</span>';
+      var code = it.couponCode ? '<code class="bbx-code">' + bbEsc(String(it.couponCode).substring(0, 14)) + '</code>' : '<span class="muted">—</span>';
+      var link = it.goSlug ? '<span class="bbx-code">' + bbEsc(it.goSlug) + '</span>'
+               : it.goUrl ? '<span class="bbx-code">' + bbEsc(String(it.goUrl).replace(/^https?:\/\//, '').substring(0, 26)) + '…</span>'
+               : '<span class="muted">—</span>';
+      var who = it.assignedTo ? bbEsc(it.assignedTo) : '<span class="muted">—</span>';
+      var at = it.assignedAt ? '<span class="muted">' + bbEsc(it.assignedAt) + '</span>' : '<span class="muted">—</span>';
+      var op = it.couponCode ? '<button type="button" class="bbx-mini" data-copy="' + bbEsc(it.couponCode) + '">复制 ID</button>' : '<span class="muted">—</span>';
+      rows += '<tr' + (st === 'unassigned' ? ' style="opacity:.62"' : '') + '>' +
+        '<td>' + code + '</td>' +
+        '<td>' + link + '</td>' +
+        '<td>' + pill + '</td>' +
+        '<td>' + who + '</td>' +
+        '<td>' + at + '</td>' +
+        '<td>' + op + '</td>' +
+        '</tr>';
+    }
+    table.innerHTML = '<div style="overflow-x:auto"><table class="bbx-table"><thead><tr><th>奖品池 ID</th><th>兑换链接</th><th>状态</th><th>获奖人</th><th>发放时间</th><th>操作</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+  }
+
+  function bbUpdatePoolFoot(list) {
+    var c = bbPoolCountsLocal();
+    var set = function (id, v) { var e = document.getElementById(id); if (e) e.textContent = v; };
+    set('bbPoolTotal', c.all);
+    set('bbPoolRemaining', c.unassigned);
+    set('bbPoolUsed', c.assigned);
+    set('bbPoolClaimed', c.claimed);
+    var f = document.getElementById('bbPoolFoot');
+    if (f) f.textContent = '当前 ' + list.length + ' 条 · 共 ' + c.all + ' 条 · 未发放 ' + c.unassigned + ' · 已发放 ' + c.assigned + '（已领取 ' + c.claimed + ' / 已发未领 ' + c.unclaimed + '）';
+  }
+
+  function updatePoolAlert() {
+    var el = document.getElementById('bbPoolAlert');
+    if (!el) return;
+    var c = bbPoolCountsLocal();
+    var pending = 0;
+    if (typeof _bbReviews !== 'undefined' && _bbReviews && _bbReviews.length) {
+      for (var i = 0; i < _bbReviews.length; i++) { if (bbEligible(_bbReviews[i]) && !_bbReviews[i].rewarded) pending++; }
+    }
+    var parts = [];
+    if (c.unassigned > 0) parts.push('<b>' + c.unassigned + '</b> 份奖品未发放');
+    if (pending > 0) parts.push('另有 <b>' + pending + '</b> 位五星用户待发奖');
+    if (!parts.length) { el.classList.remove('on'); el.innerHTML = ''; return; }
+    el.innerHTML = BB_ALERT_SVG + '<span>当前有 ' + parts.join('，') + '</span>';
+    el.classList.add('on');
+  }
+
+  function bbCopyText(txt, btn) {
+    if (!txt) return;
+    var done = function () {
+      if (!btn) return;
+      var o = btn.textContent; btn.textContent = '已复制';
+      setTimeout(function () { btn.textContent = o; }, 1200);
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(txt).then(done, done); return; }
+    } catch (_) {}
+    done();
+  }
+
+  // Initialize reward pool section（批次3：统一由 loadRewardPool 加载全量奖品）
+  loadRewardPool();
 
