@@ -1134,7 +1134,7 @@ async function writeEvAggregated(db, payload) {
 
 /**
  * 登记新任务 POST ?action=task-register
- * body: { type?, title*, description?, assignee?, eta_min?, status?, project? }
+ * body: { type?, title*, assignee*, description?, eta_min?, status?, project? }
  * 9 上限：status=in_progress 时超限拒绝（409），不落库不排队。
  */
 async function handleTaskRegister(req, res) {
@@ -1142,6 +1142,8 @@ async function handleTaskRegister(req, res) {
   var body = (req.body && typeof req.body === "object") ? req.body : {};
   var title = String(body.title || "").trim();
   if (!title) return json(res, 400, { success: false, error: "Missing title" });
+  var assigneeVal = String(body.assignee || "").trim();
+  if (!assigneeVal) return json(res, 400, { success: false, error: "Missing assignee", message: "负责人（assignee）为必填字段，不能为空" });
   var db = evTaskDb(req, res);
   if (!db) return json(res, 500, { success: false, error: "no_store_configured" });
 
@@ -1221,10 +1223,10 @@ async function handleTaskRegister(req, res) {
     id: id, project: String(body.project || "").trim().slice(0, 120),
     title: title.slice(0, 240), type: type,
     description: body.description != null ? String(body.description).slice(0, 2000) : null,
-    assignee: body.assignee ? String(body.assignee).trim().slice(0, 64) : null,
+    assignee: assigneeVal.slice(0, 64),
     eta_min: eta > 0 ? eta : null,
     status: status, priority: String(body.priority || "P2").trim().slice(0, 4),
-    owner: deviceOwner || String(body.owner || body.assignee || "register").trim().slice(0, 120),
+    owner: deviceOwner || String(body.owner || assigneeVal || "register").trim().slice(0, 120),
     source: "register",
     extra: { note: body.note ? String(body.note).slice(0, 500) : null },
     created_at: now, updated_at: now
