@@ -822,118 +822,6 @@ async function applyPriorityOverrides(payload) {
 }
 
 /**
- * EvOps 项目/任务动态层 —— 读：GET ?action=ev-status
- * 从 Supabase 表 evops_status(id=1) 读 payload（Mac 采集后由 ev-status-write 写入，实时，
- * 零部署延迟，不消耗 Redis 额度）。Supabase 不可用时回退仓库内 ev-status.json 静态文件。
- * App 端 StatusSource 直接读这个端点拿最新 projects/tasks。
- */
-async function handleEvStatusGet(req, res) {
-  var sbUrl = process.env.NEXT_PUBLIC_Ev_SUPABASE_URL;
-  var sbKey = process.env.Ev_SUPABASE_SERVICE_ROLE_KEY;
-  if (sbUrl && sbKey) {
-    try {
-      var r = await fetch(sbUrl + "/rest/v1/evops_status?id=eq.1&select=payload,updated_at", {
-        headers: { apikey: sbKey, Authorization: "Bearer " + sbKey }
-      });
-      if (r.ok) {
-        var rows = await r.json();
-        if (Array.isArray(rows) && rows[0] && rows[0].payload) {
-          var p = rows[0].payload;
-          if (typeof p === "string") p = JSON.parse(p);
-          await applyPriorityOverrides(p);   // 护栏③：合并人工降级（人纠错 AI，读时即生效）
-          await mergeRegisteredTasks(p, evTaskDb(req, res));  // 合并真人登记任务（eta/assignee/replies…）
-          await applyDevVersions(p);         // 「开发版本」改以 GitHub main 为准（B 案，拿不到则保留原值）
-          // summary 实时化（用户 2026-10-06 指定「不要读聚合，直接读进行中的任务」）：
-          // 快照由采集器全量校准，长期不跑就漂移（实测 10-03 后漂了 3 天）；这里改为每次读实时 count，
-          // total / in_progress 以 evops_tasks 表为准；max_parallel 以 evops_config 表为准（同日云端化，
-          // 快照里的同名字段自此只是历史残留）。
-          try {
-            var hr = { apikey: sbKey, Authorization: "Bearer " + sbKey };
-            var c1 = await fetch(sbUrl + "/rest/v1/evops_tasks?select=id&status=eq.in_progress&limit=1000", { headers: hr });
-            var c2 = await fetch(sbUrl + "/rest/v1/evops_tasks?select=id&limit=1000", { headers: hr });
-            if (c1.ok && c2.ok) {
-              var a1 = await c1.json(), a2 = await c2.json();
-              if (Array.isArray(a1) && Array.isArray(a2)) {
-                p.summary = p.summary || {};
-                p.summary.in_progress = a1.length;
-                p.summary.total = a2.length;
-                p.summary.realtime = true;   // 标记：本次 summary 为实时口径（快照回退时无此字段）
-                // max_parallel 真值来自云端 evops_config（2026-10-06 云端化）；读不到则保留快照值兜底。
-                try {
-                  var cr = await fetch(sbUrl + "/rest/v1/evops_config?id=eq.1&select=max_parallel", { headers: hr });
-                  if (cr.ok) {
-                    var ca = await cr.json();
-                    if (Array.isArray(ca) && ca.length) {
-                      var cm = parseInt(ca[0].max_parallel, 10);
-                      if (cm >= 1 && cm <= 99) p.summary.max_parallel = cm;
-                    }
-                  }
-                } catch (e2) { /* 保留快照值 */ }
-              }
-            }
-          } catch (e) { /* 实时统计失败 → 保留快照值 */ }
-          return json(res, 200, p);
-        }
-      }
-    } catch (e) { /* Supabase 失败回落文件 */ }
-  }
-  try {
-    var fp = path.join(process.cwd(), "ev-status.json");
-    if (fs.existsSync(fp)) {
-      return json(res, 200, JSON.parse(fs.readFileSync(fp, "utf-8")));
-    }
-  } catch (e) { /* ignore */ }
-  return json(res, 200, { projects: [], tasks: [] });
-}
-
-/**
- * EvOps 项目/任务动态层 —— 写：POST ?action=ev-status-write（body = 整个 tasks.json 对象）
- * 鉴权 = EV_SYNC_TOKEN Bearer（与 delivery-* 端点共享，Mac 侧持有）。用 service_role 直写
- * Supabase 表 evops_status(id=1)（upsert）。不走 git push，因此不触发 Vercel 重新部署。
- */
-async function handleEvStatusWrite(req, res) {
-  var secret = process.env.EV_SYNC_TOKEN;
-  if (secret) {
-    var h = (req.headers && req.headers.authorization) || "";
-    if (h !== "Bearer " + secret) return json(res, 401, { success: false, error: "unauthorized" });
-  }
-  var body = (req.body && typeof req.body === "object") ? req.body : {};
-  if (!body || (!body.projects && !body.tasks)) {
-    return json(res, 400, { success: false, error: "Missing projects/tasks" });
-  }
-  var sbUrl = process.env.NEXT_PUBLIC_Ev_SUPABASE_URL;
-  var sbKey = process.env.Ev_SUPABASE_SERVICE_ROLE_KEY;
-  if (sbUrl && sbKey) {
-    try {
-      var r = await fetch(sbUrl + "/rest/v1/evops_status", {
-        method: "POST",
-        headers: {
-          apikey: sbKey,
-          Authorization: "Bearer " + sbKey,
-          "Content-Type": "application/json",
-          "Prefer": "resolution=merge-duplicates"
-        },
-        body: JSON.stringify({ id: 1, payload: body })
-      });
-      if (r.ok || r.status === 201) {
-        return json(res, 200, { success: true, store: "supabase" });
-      }
-      var txt = await r.text();
-      return json(res, 502, { success: false, error: "supabase_write_failed", detail: String(txt).slice(0, 200) });
-    } catch (e) {
-      return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
-    }
-  }
-  // Supabase 未配置时回退：尽力写文件种子（兼容期）
-  try {
-    var fp = path.join(process.cwd(), "ev-status.json");
-    fs.writeFileSync(fp, JSON.stringify(body, null, 2));
-    return json(res, 200, { success: true, store: "file" });
-  } catch (e) {}
-  return json(res, 500, { success: false, error: "no_store_configured" });
-}
-
-/**
  * EvOps 双向任务指挥 —— 写：POST ?action=ev-command-write
  * body = { task_ref?, type: escalate|cancel|expedite|custom, payload?, reason?, device? }
  * 写入 Supabase 表 evops_commands（status=pending），由 Mac 侧监听器（Realtime 长连接，
@@ -1474,29 +1362,6 @@ function evTaskDb(req, res) {
   };
 }
 
-/** 读聚合看板 evops_status.identity=1 的 payload（对象），读不到返回 null。 */
-async function readEvAggregated(db) {
-  try {
-    var r = await fetch(db.sbUrl + "/rest/v1/evops_status?select=payload&id=eq.1", { headers: db.headers() });
-    if (!r.ok) return null;
-    var a = await r.json();
-    if (Array.isArray(a) && a.length && a[0] && a[0].payload) return a[0].payload;
-  } catch (e) {}
-  return null;
-}
-
-/** 写聚合看板 evops_status.identity=1（upsert），登记/结束即时回流用。 */
-async function writeEvAggregated(db, payload) {
-  try {
-    var r = await fetch(db.sbUrl + "/rest/v1/evops_status", {
-      method: "POST",
-      headers: db.headers({ "Prefer": "resolution=merge-duplicates" }),
-      body: JSON.stringify({ id: 1, payload: payload, updated_at: new Date().toISOString() })
-    });
-    return r.ok || r.status === 201;
-  } catch (e) { return false; }
-}
-
 /**
  * 登记新任务 POST ?action=task-register
  * body: { type?, title*, assignee*, description?, eta_min?, status?, project? }
@@ -1678,31 +1543,6 @@ async function handleTaskRegister(req, res) {
       if (status === "in_progress") srow.open_task_id = id;
       await db.upsertSession(srow);
     }
-    // 登记即回流：把任务即时并入聚合看板（写 evops_status → Realtime → 手机秒级可见）。
-    // 权威仍在 evops_tasks；这里只是"预置展示"，采集器下次合并按 id 去重统一聚合。
-    var agg = await readEvAggregated(db);
-    if (agg) {
-      var s = agg.summary || (agg.summary = {});
-      var inc = status === "in_progress" ? 1 : 0;
-      s.total = (s.total || 0) + 1;
-      if (status === "in_progress") s.in_progress = (s.in_progress || 0) + inc;
-      if (status === "planned") s.planned = (s.planned || 0) + 1;
-      // 避免重复追加：同 id 已存在则替换，否则尾插
-      var list = agg.tasks || (agg.tasks = []);
-      var idx = list.findIndex(function (t) { return t.id === id; });
-      var view = { id: id, project: row.project, title: row.title, type: row.type, status: row.status,
-        assignee: row.assignee, eta_min: row.eta_min, description: row.description,
-        priority: row.priority, owner: row.owner, source: "register", created_at: now, updated_at: now };
-      if (idx >= 0) list[idx] = view; else list.push(view);
-      agg.count = list.length;
-      agg.updated_at = new Date().toISOString();
-      await writeEvAggregated(db, agg);
-      return json(res, 201, {
-        ok: true, id: id, status: status,
-        summary: { total: s.total, in_progress: s.in_progress, max_parallel: limit },
-        note: "已登记并即时回流看板（采集器将合并进 tasks.json 正式聚合）"
-      });
-    }
     return json(res, 201, { ok: true, id: id, status: status, assignee: sessionSid, store: "supabase" });
   } catch (e) {
     return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
@@ -1881,19 +1721,6 @@ async function handleTaskClose(req, res) {
       return json(res, 502, { success: false, error: "supabase_close_failed", detail: String(txt).slice(0, 200) });
     }
     // 回流看板：同步聚合快照中的该任务状态与计数（真正写回）
-    var agg = await readEvAggregated(db);
-    if (agg) {
-      var s = agg.summary || (agg.summary = {});
-      var wasInProgress = String(row.status) === "in_progress";
-      if (status === "in_progress" && !wasInProgress) s.in_progress = (s.in_progress || 0) + 1;
-      if (wasInProgress && status !== "in_progress") s.in_progress = Math.max(0, (s.in_progress || 1) - 1);
-      var list = agg.tasks || (agg.tasks = []);
-      for (var i = 0; i < list.length; i++) {
-        if (String(list[i].id) === id) { list[i].status = status; list[i].close_reason = reason || list[i].close_reason; break; }
-      }
-      agg.updated_at = new Date().toISOString();
-      await writeEvAggregated(db, agg);
-    }
     return json(res, 200, { success: true, id: id, status: status, reason: reason || null });
   } catch (e) {
     return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
@@ -2013,28 +1840,6 @@ module.exports = async (req, res) => {
       case "report-deploy":
         if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
         return await handleReportDeploy(req, res);
-      case "ev-status":
-        // 公开读：EvOps 安卓端拉取项目/任务动态层
-        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
-        return await handleEvStatusGet(req, res);
-      case "ev-status-write":
-        if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
-        return await handleEvStatusWrite(req, res);
-      case "ev-priority-set":
-        // 公开写：只允许降级（P1/P2），护栏③「人一键降级」
-        if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
-        return await handleEvPrioritySet(req, res);
-      case "ev-priority-get":
-        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
-        return await handleEvPriorityGet(req, res);
-      case "ev-config-read":
-        // 公开读：槽位上限真值（云端 evops_config，Mac 不参与）
-        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
-        return await handleEvConfigRead(req, res);
-      case "ev-config-write":
-        // 公开写：手机设置页改槽位上限 → 云端立即生效（护栏：范围 1..99 + 限流）
-        if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
-        return await handleEvConfigWrite(req, res);
       case "ev-command-write":
         // 公开写：手机端任务指令（加急/取消/尽快收尾/自定义），护栏内置（理由必填+限流）
         if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
