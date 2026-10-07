@@ -1736,7 +1736,14 @@ async function handleTaskClose(req, res) {
       var txt = await r.text();
       return json(res, 502, { success: false, error: "supabase_close_failed", detail: String(txt).slice(0, 200) });
     }
-    // 回流看板：同步聚合快照中的该任务状态与计数（真正写回）
+    // 会话绑定清理（2026-10-07）：把指向本单的 open_task_id 清空。
+    // 之前单关了字段还挂着旧号——用户发现 open_task_id 失真的一环。
+    try {
+      await fetch(db.sbUrl + "/rest/v1/" + SESSIONS_TABLE + "?open_task_id=eq." + encodeURIComponent(id), {
+        method: "PATCH", headers: db.headers({ Prefer: "return=minimal" }),
+        body: JSON.stringify({ open_task_id: null })
+      });
+    } catch (e2) { /* 清理失败不阻塞主链路 */ }
     return json(res, 200, { success: true, id: id, status: status, reason: reason || null });
   } catch (e) {
     return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
