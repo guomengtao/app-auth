@@ -1593,7 +1593,12 @@ async function handleSessionSync(req, res) {
     if (s.heartbeat_at) row.heartbeat_at = s.heartbeat_at;
     if (s.open_task_id != null) row.open_task_id = String(s.open_task_id).slice(0, 80);
     if (s.status) row.status = String(s.status).slice(0, 16);
-    if (Array.isArray(s.tasks)) row.tasks = s.tasks;
+    if (Array.isArray(s.tasks)) {
+      row.tasks = s.tasks.filter(function(t) {
+        return t && t.id && String(t.id).indexOf("evtask-") === 0;
+      });
+    }
+    if (s.extra) row.extra = s.extra;
     var r = await db.upsertSession(row);
     if (r) ok++; else fail++;
   }
@@ -1796,7 +1801,7 @@ async function handleTaskList(req, res) {
     // 会话表读不到时静默放行（不影响任务列表主链路）。
     try {
       var rs = await fetch(db.sbUrl + "/rest/v1/" + SESSIONS_TABLE +
-        "?select=sid,tool,title,heartbeat_at,status,tasks&limit=500", { headers: db.headers() });
+        "?select=sid,raw_sid,tool,cwd,repo,title,started_at,heartbeat_at,status,tasks,extra&limit=500", { headers: db.headers() });
       if (rs.ok) {
         var srows = await rs.json();
         var smap = {};
@@ -1815,26 +1820,35 @@ async function handleTaskList(req, res) {
                   dels: Number(tt.dels) || 0,
                   file_count: Number(tt.file_count) || (tt.files ? Object.keys(tt.files).length : 0),
                   files: tt.files || {},
-                  prompts: Array.isArray(tt.ps) ? tt.ps : []   // 逐条留痕（时间+内容，封顶20条）
+                  prompt_count: Number(tt.prompts) || 0,
+                  last_prompt: tt.last_prompt || "",
+                  prompts: Array.isArray(tt.ps) ? tt.ps : []   // per-prompt trace (time + content, max 20)
                 };
               });
             }
-            smap[s.sid] = { tool: s.tool || "", title: s.title || "", heartbeat_at: s.heartbeat_at || null, idle_min: idle, stats: stMap };
+            smap[s.sid] = { raw_sid: s.raw_sid || "", tool: s.tool || "", cwd: s.cwd || "", repo: s.repo || "", title: s.title || "", started_at: s.started_at || null, heartbeat_at: s.heartbeat_at || null, idle_min: idle, session_status: s.status || "", stats: stMap };
           });
         }
         list.forEach(function (t) {
           var s = t.session_sid ? smap[t.session_sid] : null;
           if (!s) return;
+          t.session_raw_sid = s.raw_sid;
           t.session_tool = s.tool;
+          t.session_cwd = s.cwd;
+          t.session_repo = s.repo;
           t.session_title = s.title;
+          t.session_started_at = s.started_at;
           t.session_heartbeat_at = s.heartbeat_at;
           t.session_idle_min = s.idle_min;
+          t.session_status = s.session_status;
           var st = s.stats ? s.stats[t.id] : null;
           if (st) {
             t.session_adds = st.adds;
             t.session_dels = st.dels;
             t.session_file_count = st.file_count;
             t.session_files = st.files;
+            t.session_prompt_count = st.prompt_count;
+            if (st.last_prompt) t.session_last_prompt = st.last_prompt;
             if (st.prompts.length) t.session_prompts = st.prompts;
           }
         });
@@ -1937,6 +1951,10 @@ module.exports = async (req, res) => {
         // 公开读：按 sid 查会话身份整行（任务详情页「发帖人」卡用；读不到返回 session=null）
         if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
         return await handleSessionGet(req, res);
+      case "session-list":
+        // 公开读：会话清单按心跳倒序（运行态 Tab「AI 会话在线总览」数据源）
+        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
+        return await handleSessionList(req, res);
       default:
         return json(res, 400, { success: false, error: "Unknown action" });
     }
@@ -1973,6 +1991,32 @@ async function handleSessionGet(req, res) {
   }
 }
 
+
+/**
+ * 会话清单公开读 GET ?action=session-list（2026-10-07 运行态改造：AI 会话在线总览）
+ * 返回 { success, sessions: [...] }，按 heartbeat_at 倒序取 100 条。
+ * 字段：sid/raw_sid/tool/title/started_at/heartbeat_at/open_task_id/status（不含 tasks 大字段）。
+ * 在线判定由客户端按 heartbeat_at 算（≤5min 绿 / ≤30min 琥珀 / 更久灰）。
+ */
+async function handleSessionList(req, res) {
+  var db = evTaskDb(req, res);
+  if (!db) return json(res, 502, { success: false, error: "supabase_unavailable" });
+  try {
+    var url = db.sbUrl + "/rest/v1/" + SESSIONS_TABLE +
+      "?select=sid,raw_sid,tool,title,started_at,heartbeat_at,open_task_id,status" +
+      "&order=heartbeat_at.desc&limit=100";
+    var r = await fetch(url, { headers: db.headers() });
+    if (!r.ok) {
+      var txt = await r.text();
+      return json(res, 502, { success: false, error: "supabase_fetch_failed", detail: txt.slice(0, 200) });
+    }
+    var rows = await r.json();
+    if (!Array.isArray(rows)) rows = [];
+    return json(res, 200, { success: true, sessions: rows, total: rows.length });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
 
 /**
  * 项目真源公开读 GET ?action=project-list
