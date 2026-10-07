@@ -1253,6 +1253,7 @@ function evConfigRateAllowed(src) {
 
 var TASKS_TABLE = "evops_tasks";
 var SESSIONS_TABLE = "evops_sessions";   // 会话身份（方案：docs/会话身份字段入库Supabase-方案.md）
+var PROJECTS_TABLE = "evops_projects";   // 项目真源（2026-10-07：取代聚合 evops_status.payload.projects[]，方案 docs/聚合下线-只留Supabase真源-方案.md）
 
 /* ───── 任务单号生成（evtask-{type}-{project}-{YYMMDD}-{6chars}）─── */
 
@@ -1455,6 +1456,17 @@ function evTaskDb(req, res) {
           method: "POST",
           headers: h({ Prefer: "resolution=merge-duplicates,return=minimal" }),
           body: JSON.stringify(row)
+        });
+        return r.ok || r.status === 201;
+      } catch (e) { return false; }
+    },
+    /** 项目真源 upsert（on_conflict=id；失败返回 false）。采集器推 data/projects.json。 */
+    async upsertProjects(rows) {
+      try {
+        var r = await fetch(sbUrl + "/rest/v1/" + PROJECTS_TABLE + "?on_conflict=id", {
+          method: "POST",
+          headers: h({ Prefer: "resolution=merge-duplicates,return=minimal" }),
+          body: JSON.stringify(rows)
         });
         return r.ok || r.status === 201;
       } catch (e) { return false; }
@@ -2057,6 +2069,18 @@ module.exports = async (req, res) => {
         if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
         return await handleSessionSync(req, res);
 
+      case "project-list":
+        // 公开读：项目真源（取代聚合 payload.projects[]）
+        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
+        return await handleProjectList(req, res);
+      case "project-sync":
+        // 采集器 upsert 项目真源（幂等 on_conflict=id）
+        if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
+        return await handleProjectSync(req, res);
+      case "task-summary":
+        // 公开读：任务汇总（取代聚合 payload.summary —— 真源 evops_tasks 现算，不再有漂移）
+        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
+        return await handleTaskSummary(req, res);
       case "session-get":
         // 公开读：按 sid 查会话身份整行（任务详情页「发帖人」卡用；读不到返回 session=null）
         if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
@@ -2092,6 +2116,92 @@ async function handleSessionGet(req, res) {
     var rows = await r.json();
     var row = (Array.isArray(rows) && rows.length) ? rows[0] : null;
     return json(res, 200, { success: true, session: row });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
+
+/**
+ * 项目真源公开读 GET ?action=project-list
+ * 取代聚合 evops_status.payload.projects[] —— 手机项目总览 / 运行态据此取数。
+ */
+async function handleProjectList(req, res) {
+  var db = evTaskDb(req, res);
+  if (!db) return json(res, 502, { success: false, error: "supabase_unavailable" });
+  try {
+    var r = await fetch(db.sbUrl + "/rest/v1/" + PROJECTS_TABLE + "?select=*&order=id.asc&limit=200", { headers: db.headers() });
+    if (!r.ok) {
+      var t = await r.text();
+      return json(res, 502, { success: false, error: "supabase_fetch_failed", detail: String(t).slice(0, 200) });
+    }
+    var rows = await r.json();
+    if (!Array.isArray(rows)) rows = [];
+    return json(res, 200, { success: true, projects: rows, total: rows.length });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
+/**
+ * 项目真源 upsert POST ?action=project-sync
+ * body: { projects: [ {id*, name_cn, name_en, category, local_path, repo, version, runtime, docs, git, stats} ] }
+ * 由 Mac 采集器（collect-status.js）把 data/projects.json 推上来；幂等（on_conflict=id）。
+ */
+async function handleProjectSync(req, res) {
+  if (!evTaskAuthOk(req)) return json(res, 401, { success: false, error: "unauthorized" });
+  var body = (req.body && typeof req.body === "object") ? req.body : {};
+  var list = Array.isArray(body.projects) ? body.projects : null;
+  if (!list || !list.length) return json(res, 400, { success: false, error: "Missing projects" });
+  var db = evTaskDb(req, res);
+  if (!db) return json(res, 500, { success: false, error: "no_store_configured" });
+  var batch = list.slice(0, 200);
+  var ok = await db.upsertProjects(batch);
+  return json(res, 200, { success: ok, upserted: ok ? batch.length : 0, total: list.length });
+}
+
+/**
+ * 任务汇总公开读 GET ?action=task-summary
+ * 取代聚合 evops_status.payload.summary —— 全部由真源 evops_tasks 现算（再无「只加不减」的漂移），
+ * max_parallel 取 evops_config 真值，active_sessions = 24h 内有心跳的会话数（evops_sessions）。
+ */
+async function handleTaskSummary(req, res) {
+  var db = evTaskDb(req, res);
+  if (!db) return json(res, 502, { success: false, error: "supabase_unavailable" });
+  try {
+    var r = await fetch(db.sbUrl + "/rest/v1/" + TASKS_TABLE + "?select=status&limit=1000", { headers: db.headers() });
+    if (!r.ok) {
+      var t = await r.text();
+      return json(res, 502, { success: false, error: "supabase_fetch_failed", detail: String(t).slice(0, 200) });
+    }
+    var rows = await r.json();
+    if (!Array.isArray(rows)) rows = [];
+    var s = { total: rows.length, in_progress: 0, done: 0, blocked: 0, planned: 0, cancelled: 0 };
+    rows.forEach(function (t) {
+      var k = String((t && t.status) || "");
+      if (Object.prototype.hasOwnProperty.call(s, k)) s[k]++;
+    });
+    var limit = await readMaxParallel(db);
+    s.max_parallel = limit;
+    s.needs_attention = s.blocked;
+    var active = null;
+    try {
+      var rs = await fetch(db.sbUrl + "/rest/v1/" + SESSIONS_TABLE + "?select=sid,heartbeat_at&limit=500", { headers: db.headers() });
+      if (rs.ok) {
+        var sr = await rs.json();
+        if (Array.isArray(sr)) {
+          var cut = Date.now() - 24 * 3600 * 1000;
+          active = sr.filter(function (x) {
+            try { return x && x.heartbeat_at && new Date(x.heartbeat_at).getTime() >= cut; } catch (e) { return false; }
+          }).length;
+        }
+      }
+    } catch (e) { /* 会话表读不到不影响主口径 */ }
+    s.active_sessions = active;
+    return json(res, 200, {
+      success: true, summary: s, in_progress: s.in_progress, max_parallel: limit,
+      updated_at: new Date().toISOString()
+    });
   } catch (e) {
     return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
   }
