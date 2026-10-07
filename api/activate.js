@@ -299,7 +299,7 @@ function pageTitleForPath(p) {
     '/ui-gallery-9.html': 'UI 截图档案（手环 9）',
     '/feedback.html': '帮助与反馈',
     '/my-ip.html': 'IP查询',
-    '/redeem-counts.html': '兑换码数量',
+
     '/index.html': '首页',
     '/activate.html': '激活页',
     '/activate': '激活页',

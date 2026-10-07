@@ -31,7 +31,6 @@
     { id: "activate",         name: "设备激活",       url: "/activate.html",       group: "activate", desc: "输入兑换码获取激活码", primary: true },
     { id: "user-guide",       name: "用户手册",       url: "/user-guide.html",     group: "activate", desc: "购买兑换码 → 激活流程指引" },
     { id: "activation-guide", name: "高级版激活流程",  url: "/activation-guide.html", group: "activate", desc: "图文 / 动画教学，如何解锁高级版" },
-    { id: "redeem-counts",    name: "兑换码数量",     url: "/redeem-counts.html",  group: "activate", desc: "剩余可用兑换码统计" },
 
     { id: "course-guide",     name: "使用教程",       url: "/course-guide.html",   group: "guide",    desc: "添加 / 编辑课程教程" },
 
