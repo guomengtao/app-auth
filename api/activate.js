@@ -759,6 +759,11 @@ module.exports = async (req, res) => {
     return handleClientEvent(req, res);
   }
 
+  // 激活统计聚合接口（GET，供安卓/后台读取服务端权威数据）
+  if (req.query && req.query.action === "activation-stats") {
+    return handleActivationStats(req, res);
+  }
+
   try { quota.bumpQuotaTick("/api/activate"); } catch (_) {}
   if (req.method !== "POST") {
     return res.status(405).json({ success: false, error: "Request method not supported" });
@@ -1164,6 +1169,8 @@ module.exports = async (req, res) => {
           location_full_zh: geo.location_full_zh,
         }).catch(function () {});
 
+        notify.logActivation({ ts: Date.now(), code: activationCodeReuse, redeem: code, device: device, source: "user-reuse" }).catch(function () {});
+
         rateLimit.clearDeviceRateLimit(device).catch(function () {});
 
         return res.json({ success: true, activationCode: activationCodeReuse, debug: { visitor: visitorInfo, notification: "success", productId: productId, months: months } });
@@ -1285,6 +1292,8 @@ module.exports = async (req, res) => {
           district_zh: geo.district_zh,
           location_full_zh: geo.location_full_zh,
         }).catch(function () {});
+
+        notify.logActivation({ ts: Date.now(), code: activationCodeNa, redeem: code, device: device, source: "user-na" }).catch(function () {});
 
         rateLimit.clearDeviceRateLimit(device).catch(function () {});
 
@@ -1478,6 +1487,8 @@ module.exports = async (req, res) => {
       console.error("[activate] Push notification failed:", e.message);
     });
 
+    notify.logActivation({ ts: Date.now(), code: activationCode, redeem: code, device: device, source: "user" }).catch(function () {});
+
     // Send response after push completes
     res.json({ success: true, activationCode: activationCode, debug: { visitor: visitorInfo, notification: "success", productId: productId, months: months } });
 
@@ -1537,3 +1548,40 @@ module.exports = async (req, res) => {
     }).catch(function () {});
   }
 };
+
+function bjDayStr(d) {
+  var x = new Date(d.getTime() + 8 * 3600 * 1000);
+  return x.toISOString().slice(0, 10);
+}
+
+// 激活统计聚合：LRANGE 全量后在内存按激活码去重（code→redeem→device→idx 回落）
+async function handleActivationStats(req, res) {
+  try {
+    var list = await redis.lrange("auth:activation_logs", 0, -1);
+    var entries = [];
+    for (var i = 0; i < list.length; i++) {
+      try { entries.push(JSON.parse(list[i])); } catch (e) {}
+    }
+    var now = new Date();
+    var today = bjDayStr(now);
+    var wkStart = bjDayStr(new Date(now.getTime() - 6 * 86400000));
+    var seenAll = {};
+    var seenToday = {};
+    var todayDedup = 0, todayRaw = 0, week7 = 0, total = 0;
+    for (var j = 0; j < entries.length; j++) {
+      var e = entries[j];
+      var eDay = bjDayStr(new Date(e.ts));
+      var key = (e.code && String(e.code)) || (e.redeem && String(e.redeem)) || (e.device && String(e.device)) || ("idx" + j);
+      if (!seenAll[key]) { seenAll[key] = true; total++; }
+      if (eDay === today) {
+        todayRaw++;
+        if (!seenToday[key]) { seenToday[key] = true; todayDedup++; }
+      }
+      if (eDay >= wkStart) week7++;
+    }
+    res.json({ ok: true, today: todayDedup, todayRaw: todayRaw, week7: week7, total: total });
+  } catch (e) {
+    console.error("[activate-stats] failed:", e && e.message);
+    res.json({ ok: false, error: e && e.message, today: 0, todayRaw: 0, week7: 0, total: 0 });
+  }
+}
