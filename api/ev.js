@@ -1791,10 +1791,12 @@ async function handleTaskList(req, res) {
     }; });
     // 会话身份增强（2026-10-07）：一次拉全 evops_sessions，按 session_sid 附上
     // session_title / session_idle_min —— 手机端任务卡片据此显示「属于哪个会话、还活着吗」。
+    // 同时把会话黑板 tasks[] 里 ev-edit-stats 钩子累加的改动统计（adds/dels/file_count/files）
+    // 按 evtask- 单号附到对应任务行（session_adds 等）—— 手机端任务详情/卡片据此显示改动量。
     // 会话表读不到时静默放行（不影响任务列表主链路）。
     try {
       var rs = await fetch(db.sbUrl + "/rest/v1/" + SESSIONS_TABLE +
-        "?select=sid,tool,title,heartbeat_at,status&limit=500", { headers: db.headers() });
+        "?select=sid,tool,title,heartbeat_at,status,tasks&limit=500", { headers: db.headers() });
       if (rs.ok) {
         var srows = await rs.json();
         var smap = {};
@@ -1803,7 +1805,20 @@ async function handleTaskList(req, res) {
             if (!s || !s.sid) return;
             var idle = null;
             try { idle = Math.max(0, Math.round((Date.now() - new Date(s.heartbeat_at).getTime()) / 60000)); } catch (e) {}
-            smap[s.sid] = { tool: s.tool || "", title: s.title || "", heartbeat_at: s.heartbeat_at || null, idle_min: idle };
+            // 单号 → 改动统计（钩子每次编辑累加；无则空）
+            var stMap = {};
+            if (Array.isArray(s.tasks)) {
+              s.tasks.forEach(function (tt) {
+                if (!tt || !tt.id) return;
+                stMap[tt.id] = {
+                  adds: Number(tt.adds) || 0,
+                  dels: Number(tt.dels) || 0,
+                  file_count: Number(tt.file_count) || (tt.files ? Object.keys(tt.files).length : 0),
+                  files: tt.files || {}
+                };
+              });
+            }
+            smap[s.sid] = { tool: s.tool || "", title: s.title || "", heartbeat_at: s.heartbeat_at || null, idle_min: idle, stats: stMap };
           });
         }
         list.forEach(function (t) {
@@ -1813,6 +1828,13 @@ async function handleTaskList(req, res) {
           t.session_title = s.title;
           t.session_heartbeat_at = s.heartbeat_at;
           t.session_idle_min = s.idle_min;
+          var st = s.stats ? s.stats[t.id] : null;
+          if (st) {
+            t.session_adds = st.adds;
+            t.session_dels = st.dels;
+            t.session_file_count = st.file_count;
+            t.session_files = st.files;
+          }
         });
       }
     } catch (e) { /* ignore */ }
