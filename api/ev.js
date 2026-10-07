@@ -1359,6 +1359,8 @@ function countIn(list) {
 
 var TASK_TYPES = ["feature", "develop", "bug", "git", "docs", "infra", "refactor", "research"];
 var TASK_STATUSES = ["in_progress", "planned", "done", "cancelled", "blocked"];
+// 任务详情描述最短字数（用户 2026-10-07 定：必填且 >=50 字，写清开发目标与验收）
+var TASK_DESC_MIN = 50;
 
 /** 鉴权：EV_SYNC_TOKEN 可配则要求 Bearer 匹配；未配则放行（兼容本地/dev）。 */
 function evTaskAuthOk(req) {
@@ -1493,8 +1495,20 @@ async function handleTaskRegister(req, res) {
   var body = (req.body && typeof req.body === "object") ? req.body : {};
   var title = String(body.title || "").trim();
   if (!title) return json(res, 400, { success: false, error: "Missing title" });
-  var assigneeVal = String(body.assignee || "").trim();
-  if (!assigneeVal) return json(res, 400, { success: false, error: "Missing assignee", message: "负责人（assignee）为必填字段，不能为空" });
+  // 任务详情描述必填（用户 2026-10-07 定：>=50 字）——杜绝「一句话空单」：
+  // 没有可交付描述的任务不配拿单号，不足时明确告知还差多少字。
+  var descVal = String(body.description == null ? "" : body.description).trim();
+  if (descVal.length < TASK_DESC_MIN) {
+    return json(res, 400, {
+      success: false, error: "bad_description",
+      min: TASK_DESC_MIN, current: descVal.length, need: TASK_DESC_MIN - descVal.length,
+      message: "任务详情描述（description）必填且不少于 " + TASK_DESC_MIN + " 字，当前 " +
+        descVal.length + " 字，还差 " + (TASK_DESC_MIN - descVal.length) +
+        " 字。需写清：开发目标、改动范围、验收方式。"
+    });
+  }
+  // 负责人【不再由调用方随意登记】：强制 = 会话 ID（见下方 session 解析），
+  // 由钩子/登记助手随 body.session 带入 —— 接口侧不接受自定义 assignee（禁止无人认领）。
   var db = evTaskDb(req, res);
   if (!db) return json(res, 500, { success: false, error: "no_store_configured" });
 
@@ -1521,7 +1535,7 @@ async function handleTaskRegister(req, res) {
     }
   }
 
-  // —— 会话身份（可选）——  调用方可传 body.session = "<sid>" 或对象 {sid, raw_sid, tool, cwd, repo, title}
+  // —— 会话身份（必填）——  调用方传 body.session = "<sid>" 或对象 {sid, raw_sid, tool, cwd, repo, title}
   // 方案：docs/会话身份字段入库Supabase-方案.md（用户 2026-10-07 已批「开始」）
   var sessIn = body.session;
   var sess = null;
@@ -1540,8 +1554,17 @@ async function handleTaskRegister(req, res) {
     if (!sess.sid) sess = null;
   }
   var sessionSid = sess ? sess.sid : null;
+  if (!sessionSid) {
+    return json(res, 400, {
+      success: false, error: "missing_session",
+      message: "禁止无人认领：body.session 必填（字符串 sid 或 {sid,...}）。" +
+        "负责人（assignee）由服务端强制写成会话 ID，接口不接受自定义负责人。"
+    });
+  }
 
-  // 规则1（用户 2026-10-07）：每会话唯一单号 —— 同会话已有进行中单 → 409，须先 task-close。
+  // 规则1（用户 2026-10-07 重定义）：同一会话【进行中任务】只能有 1 个——
+  // 不是「不许开新任务」，而是「手上的活没结束就不许再开新的」。
+  // 命中即 409 并回传占用单 ID，要求调用方自己 task-close 收尾（禁止留垃圾）。
   if (sessionSid && status === "in_progress") {
     var openBySess = await db.listInProgressBySession(sessionSid);
     if (openBySess === null) {
@@ -1553,7 +1576,9 @@ async function handleTaskRegister(req, res) {
         success: false, error: "session_has_open_task",
         session_sid: sessionSid,
         open_id: openBySess[0].id, open_task: openBySess[0],
-        message: "该会话（" + sessionSid + "）已有进行中单号 " + openBySess[0].id + "，请先 task-close 结束它再开新单（每会话唯一单号，见总纲 §3.11）。"
+        message: "你手上有未结束的任务 " + openBySess[0].id + "（同一会话同时只能有 1 个进行中任务，" +
+          "不是不许开新任务，是手上的活必须先结束）。请先 task-close 结束它并收尾，不要留垃圾；" +
+          "结束后就有名额，再提交这条新任务。"
       });
     }
   }
@@ -1611,11 +1636,11 @@ async function handleTaskRegister(req, res) {
   var row = {
     id: id, project: String(body.project || "").trim().slice(0, 120),
     title: title.slice(0, 240), type: type,
-    description: body.description != null ? String(body.description).slice(0, 2000) : null,
-    assignee: assigneeVal.slice(0, 64),
+    description: descVal.slice(0, 2000),
+    assignee: sessionSid.slice(0, 64),   // 负责人 = 会话 ID（禁止无人认领；不采信调用方传值）
     eta_min: eta > 0 ? eta : null,
     status: status, priority: String(body.priority || "P2").trim().slice(0, 4),
-    owner: deviceOwner || String(body.owner || assigneeVal || "register").trim().slice(0, 120),
+    owner: deviceOwner || String(body.owner || sessionSid || "register").trim().slice(0, 120),
     session_sid: sessionSid,
     source: "register",
     extra: { note: body.note ? String(body.note).slice(0, 500) : null },
@@ -1666,7 +1691,7 @@ async function handleTaskRegister(req, res) {
         note: "已登记并即时回流看板（采集器将合并进 tasks.json 正式聚合）"
       });
     }
-    return json(res, 201, { ok: true, id: id, status: status, store: "supabase" });
+    return json(res, 201, { ok: true, id: id, status: status, assignee: sessionSid, store: "supabase" });
   } catch (e) {
     return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
   }
