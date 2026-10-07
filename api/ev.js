@@ -1288,9 +1288,25 @@ function evTaskDb(req, res) {
   var sbUrl = process.env.NEXT_PUBLIC_Ev_SUPABASE_URL;
   var sbKey = process.env.Ev_SUPABASE_SERVICE_ROLE_KEY;
   if (!sbUrl || !sbKey) return null;
+  /**
+   * 拼 PostgREST 请求头。
+   *
+   * ⚠️ 2026-10-07 修复（用户核实「心跳字段像是会话建立时间」时挖出）：
+   * 旧实现只合并 `opts.headers`，而全站调用都写成 `h({ Prefer: "..." })` ——
+   * **Prefer 被静默丢弃** → `?on_conflict=sid` 的 POST 对已存在的行退化成纯 INSERT
+   * → PostgREST 409 冲突 → `upsertSession` 恒返回 false。后果：会话心跳只在首次入库成功，
+   * 之后永远写不进去，`heartbeat_at` 看起来就等于「会话建立时刻」，
+   * 连带让规则2 僵尸判定（idle_min）失真。
+   * 现在两种写法都支持：`h({ headers: {...} })` 与 `h({ Prefer: "..." })`。
+   */
   function h(opts) {
     var hh = { apikey: sbKey, Authorization: "Bearer " + sbKey, "Content-Type": "application/json" };
-    if (opts && opts.headers) Object.assign(hh, opts.headers);
+    if (opts) {
+      if (opts.headers) Object.assign(hh, opts.headers);
+      Object.keys(opts).forEach(function (k) {
+        if (k !== "headers" && typeof opts[k] === "string") hh[k] = opts[k];
+      });
+    }
     return hh;
   }
   return {
