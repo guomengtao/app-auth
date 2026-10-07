@@ -1814,7 +1814,8 @@ async function handleTaskList(req, res) {
                   adds: Number(tt.adds) || 0,
                   dels: Number(tt.dels) || 0,
                   file_count: Number(tt.file_count) || (tt.files ? Object.keys(tt.files).length : 0),
-                  files: tt.files || {}
+                  files: tt.files || {},
+                  prompts: Array.isArray(tt.ps) ? tt.ps : []   // 逐条留痕（时间+内容，封顶20条）
                 };
               });
             }
@@ -1834,6 +1835,7 @@ async function handleTaskList(req, res) {
             t.session_dels = st.dels;
             t.session_file_count = st.file_count;
             t.session_files = st.files;
+            if (st.prompts.length) t.session_prompts = st.prompts;
           }
         });
       }
