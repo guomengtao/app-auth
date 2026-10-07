@@ -2031,6 +2031,11 @@ module.exports = async (req, res) => {
         // 会话身份全量 upsert（采集器把 Mac 黑板 data/active/*.json 推上来；规则2 的判据源）
         if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
         return await handleSessionSync(req, res);
+
+      case "session-get":
+        // 公开读：按 sid 查会话身份整行（任务详情页「发帖人」卡用；读不到返回 session=null）
+        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
+        return await handleSessionGet(req, res);
       default:
         return json(res, 400, { success: false, error: "Unknown action" });
     }
@@ -2039,3 +2044,30 @@ module.exports = async (req, res) => {
     return json(res, 500, { success: false, error: (e && e.message) || "Internal error" });
   }
 };
+
+
+/**
+ * 会话身份公开读 GET ?action=session-get&id=<sid>
+ * 返回 { success, session: <evops_sessions 整行 | null> }——任务详情页「发帖人」卡据此展示
+ * 发帖会话的标题 / 会话ID / 工具 / 工作目录 / 启动与心跳时间。读不到时 session=null（不报错）。
+ */
+async function handleSessionGet(req, res) {
+  var sid = String((req.query && req.query.id) || "").trim().slice(0, 120);
+  if (!sid) return json(res, 400, { success: false, error: "Missing id" });
+  var db = evTaskDb(req, res);
+  if (!db) return json(res, 502, { success: false, error: "supabase_unavailable" });
+  try {
+    var url = db.sbUrl + "/rest/v1/" + SESSIONS_TABLE +
+      "?select=*&sid=eq." + encodeURIComponent(sid) + "&limit=1";
+    var r = await fetch(url, { headers: db.headers() });
+    if (!r.ok) {
+      var txt = await r.text();
+      return json(res, 502, { success: false, error: "supabase_fetch_failed", detail: txt.slice(0, 200) });
+    }
+    var rows = await r.json();
+    var row = (Array.isArray(rows) && rows.length) ? rows[0] : null;
+    return json(res, 200, { success: true, session: row });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
