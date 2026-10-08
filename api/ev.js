@@ -1194,7 +1194,7 @@ async function mergeRegisteredTasks(payload, db) {
     var sessMap = {};
     try {
       var rs = await fetch(db.sbUrl + "/rest/v1/" + SESSIONS_TABLE +
-        "?select=sid,tool,title,heartbeat_at,status&limit=500", { headers: db.headers() });
+        "?select=sid,tool,title,started_at,heartbeat_at,status&limit=500", { headers: db.headers() });
       if (rs.ok) {
         var srows = await rs.json();
         if (Array.isArray(srows)) {
@@ -1202,7 +1202,7 @@ async function mergeRegisteredTasks(payload, db) {
             if (!s || !s.sid) return;
             var idle = null;
             try { idle = Math.max(0, Math.round((Date.now() - new Date(s.heartbeat_at).getTime()) / 60000)); } catch (e) {}
-            sessMap[s.sid] = { tool: s.tool || "", title: s.title || "", heartbeat_at: s.heartbeat_at || null, idle_min: idle, session_status: s.status || "" };
+            sessMap[s.sid] = { tool: s.tool || "", title: s.title || "", started_at: s.started_at || null, heartbeat_at: s.heartbeat_at || null, idle_min: idle, session_status: s.status || "" };
           });
         }
       }
@@ -1223,6 +1223,7 @@ async function mergeRegisteredTasks(payload, db) {
         session_title: sess ? sess.title : null,
         session_heartbeat_at: sess ? sess.heartbeat_at : null,
         session_idle_min: sess ? sess.idle_min : null,
+        effort: taskEffort(t, sess || null, null), // 工时（2026-10-08 P1）
         close_reason: t.close_reason || "", closed_note: t.closed_note || "",
         replies: Array.isArray(t.replies) ? t.replies : [],
         created_at: t.created_at, updated_at: t.updated_at
@@ -1734,6 +1735,7 @@ async function handleTaskClose(req, res) {
   var extra = (typeof row.extra === "object" && row.extra) || {};
   if (body.evidence) extra.evidence = Array.isArray(body.evidence) ? body.evidence.map(String).slice(0, 10) : [String(body.evidence)];
   if (note) extra.closed_note = note;
+  extra.closed_at = new Date().toISOString(); // 工时方案③：精确关闭时刻，墙钟终点不再靠 updated_at 猜
   patch.extra = extra;
   try {
     var r = await fetch(db.sbUrl + "/rest/v1/" + TASKS_TABLE + "?id=eq." + encodeURIComponent(id), {
@@ -1836,7 +1838,7 @@ async function handleTaskActivity(req, res) {
     var sessMap = {};
     try {
       var rs = await fetch(db.sbUrl + "/rest/v1/" + SESSIONS_TABLE +
-        "?select=sid,heartbeat_at,status&limit=500", { headers: db.headers() });
+        "?select=sid,started_at,heartbeat_at,status&limit=500", { headers: db.headers() });
       if (rs.ok) {
         var srows = await rs.json();
         if (Array.isArray(srows)) srows.forEach(function (s) { if (s && s.sid) sessMap[s.sid] = s; });
@@ -1845,10 +1847,17 @@ async function handleTaskActivity(req, res) {
     var list = [];
     rows.forEach(function (t) {
       if (!t || !t.id) return;
-      var act = taskActivity(t, t.session_sid ? (sessMap[t.session_sid] || null) : null);
-      if (scope && act.activity !== scope) return;
+      var s = t.session_sid ? (sessMap[t.session_sid] || null) : null;
+      var act = taskActivity(t, s);
+      var eff = taskEffort(t, s, null);
+      // scope 扩展（P2）：capped/frozen 是工时复核雷达
+      if (scope === "capped" && !eff.capped) return;
+      if (scope === "frozen" && !eff.frozen) return;
+      if (scope && ["orphan", "stale", "active", "unbound"].indexOf(scope) >= 0 && act.activity !== scope) return;
       list.push({ id: t.id, project: t.project || "", title: t.title || "", status: t.status || "in_progress",
                   assignee: t.assignee || "", activity: act.activity, idle_min: act.idle_min,
+                  effort: { wall_min: eff.wall_min, active_min: eff.active_min, evidenced_min: eff.evidenced_min,
+                            confidence: eff.confidence, frozen: eff.frozen, capped: eff.capped },
                   stale_since: act.stale_since, reason: act.reason, updated_at: t.updated_at });
     });
     var counts = { active: 0, stale: 0, orphan: 0, unbound: 0 };
@@ -1856,10 +1865,80 @@ async function handleTaskActivity(req, res) {
       if (!t || !t.id) return;
       counts[taskActivity(t, t.session_sid ? (sessMap[t.session_sid] || null) : null).activity]++;
     });
-    return json(res, 200, { success: true, scope: scope || "all", total: list.length, counts: counts, tasks: list });
+    return json(res, 200, { success: true, scope: scope || "all", total: list.length, counts: counts, thresholds: { gap_min: evEffThresholds().gap, cap_days: evEffThresholds().capDays }, tasks: list });
   } catch (e) {
     return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
   }
+}
+
+/* ── 任务工时（2026-10-08，docs/任务工时-设计方案-v1.md）──
+ * 三口径：wall_min（墙钟，不进指标）/ active_min（有效工时=主指标）/ evidenced_min（per-prompt 证据）。
+ * 防虚高四道闸：①orphan/unbound 冻结（停表）②gap>30min 只计 30min ③close 落 extra.closed_at ④超 7 天无证据 capped。
+ * 零 schema 变更：closed_at 进 extra jsonb，工时实时派生。阈值 EV_EFF_GAP_MIN / EV_EFF_CAP_DAYS 可调。
+ */
+function evEffThresholds() {
+  function num(v, dflt) { var n = parseInt(v, 10); return (n > 0) ? n : dflt; }
+  var e = (typeof process !== "undefined" && process.env) || {};
+  return { gap: num(e.EV_EFF_GAP_MIN, 30), capDays: num(e.EV_EFF_CAP_DAYS, 7) };
+}
+
+/** @param t 任务行（created_at/updated_at/extra/status/session_sid）
+ *  @param sess 会话行或 null（started_at/heartbeat_at）
+ *  @param tstats 该任务在会话黑板里的统计或 null（prompts[{t}]/adds/last_prompt） */
+function taskEffort(t, sess, tstats) {
+  var th = evEffThresholds();
+  var now = Date.now();
+  var isClosed = t && ["done", "cancelled", "blocked"].indexOf(t.status) >= 0;
+  var extraObj = (t && t.extra && typeof t.extra === "object") ? t.extra : null;
+  if (!extraObj && t && typeof t.extra === "string" && t.extra) { try { extraObj = JSON.parse(t.extra); } catch (e) { extraObj = null; } }
+  var closedAtIso = (extraObj && extraObj.closed_at) || null;
+  var endMs = closedAtIso ? new Date(closedAtIso).getTime() : (isClosed && t.updated_at ? new Date(t.updated_at).getTime() : now);
+  if (isNaN(endMs)) endMs = now;
+  var startMs = t && t.created_at ? new Date(t.created_at).getTime() : now;
+  if (isNaN(startMs)) startMs = now;
+  var wallMin = Math.max(0, Math.round((endMs - startMs) / 60000));
+  var act = taskActivity(t, sess);
+  var frozen = act.activity === "orphan" || act.activity === "unbound";
+
+  // 口径 A：per-prompt 轨迹切片（最硬证据；轨迹只有最近 20 条 → 是下界样本）
+  var prompts = (tstats && Array.isArray(tstats.prompts) ? tstats.prompts : [])
+    .map(function (p) { var ms = new Date((p && (p.t || p.time || p.at)) || p).getTime(); return isNaN(ms) ? null : ms; })
+    .filter(function (x) { return x !== null; }).sort(function (a, b) { return a - b; });
+  var evidencedMin = 0;
+  for (var i = 1; i < prompts.length; i++) {
+    evidencedMin += Math.min(Math.max(0, (prompts[i] - prompts[i - 1]) / 60000), th.gap);
+  }
+  evidencedMin = Math.round(evidencedMin);
+
+  // 口径 B：心跳窗口（无 prompt 轨迹时的主证据；单窗无法切片 → 超 8h 标 capped 人工复核）
+  var activeMin = 0, capped = false;
+  if (sess && sess.started_at && sess.heartbeat_at) {
+    var s0 = Math.max(new Date(sess.started_at).getTime(), startMs);
+    var e0 = Math.min(new Date(sess.heartbeat_at).getTime(), endMs);
+    activeMin = Math.max(0, Math.round((e0 - s0) / 60000));
+    if (activeMin > 480) capped = true; // 单窗超 8h 却无 prompt 证据 → 存疑
+  } else if (evidencedMin > 0) {
+    activeMin = evidencedMin;
+  }
+  if (evidencedMin > 0 && evidencedMin > activeMin) activeMin = evidencedMin;
+
+  // 大限闸：开着的任务超 capDays 且无 prompt 证据 → 封顶复核
+  if (!isClosed && wallMin > th.capDays * 1440 && prompts.length === 0) capped = true;
+
+  var confidence = "low";
+  if (prompts.length >= 2 && activeMin >= evidencedMin * 0.5) confidence = "high";
+  else if (tstats && ((tstats.adds || 0) > 0 || tstats.last_prompt)) confidence = "mid";
+  if (act.activity === "unbound") confidence = "low";
+
+  return {
+    wall_min: wallMin,
+    active_min: Math.min(activeMin, wallMin),
+    evidenced_min: evidencedMin,
+    confidence: confidence,
+    frozen: frozen,
+    capped: capped,
+    closed_at: closedAtIso
+  };
 }
 
 async function handleTaskList(req, res) {
@@ -1930,6 +2009,8 @@ async function handleTaskList(req, res) {
           t.activity_idle_min = act.idle_min;
           t.activity_stale_since = act.stale_since;
           t.activity_reason = act.reason;
+          // 工时注入（2026-10-08 P1）：三口径 + confidence + frozen/capped
+          t.effort = taskEffort(t, s || null, (s && s.stats ? s.stats[t.id] : null) || null);
           if (!s) return;
           t.session_raw_sid = s.raw_sid;
           t.session_tool = s.tool;
