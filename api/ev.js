@@ -1872,6 +1872,108 @@ async function handleTaskActivity(req, res) {
   }
 }
 
+/* ── 数字大屏聚合（2026-10-08，docs/数字大屏-设计方案-v1.md P1）──
+ * GET ?action=dashboard —— 一帧返回 开发(任务) + 运营(PV/UV/激活/城市/周走势) 全量数据。
+ * 数据源（零新表）：visitor_logs(Postgres, lib/visitor-log.js) / auth:activation_logs(redis) / evops_tasks+sessions(Supabase)。
+ * 订单：爱发电订单散在 redis afdian:order:<no> 私钥下，无索引键可数 → 本期返回 null（端上显示 —），列入待办。
+ * 缓存：内存 60s（大屏 30s 轮询，防打爆下游）；?fresh=1 跳缓存。 */
+var _dashCache = { at: 0, data: null };
+
+async function handleDashboard(req, res) {
+  var now = Date.now();
+  if (!_dashCache.data || now - _dashCache.at > 60000 || (req.query && req.query.fresh === "1")) {
+    _dashCache.data = await buildDashboard();
+    _dashCache.at = now;
+  }
+  return json(res, 200, Object.assign({ success: true, cached: now - _dashCache.at < 55000 }, _dashCache.data));
+}
+
+async function buildDashboard() {
+  var out = { generated_at: new Date().toISOString(), ops: {}, dev: {} };
+  var CST = 8 * 3600 * 1000;
+  var bjDay = function (ms) { var d = new Date(ms + CST); return d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, "0") + "-" + String(d.getUTCDate()).padStart(2, "0"); };
+  var todayStartIso = new Date(bjDay(Date.now()) + "T00:00:00+08:00").toISOString();
+
+  // ── 运营：visitor_logs（PG）──
+  try {
+    var pg = require("../lib/postgres");
+    var q = function (sql) { return pg.query(sql).then(function (r) { return r.rows || []; }); };
+    var today = (await q("select count(*)::int pv, count(distinct visitor_hash)::int uv from visitor_logs where ts >= '" + todayStartIso + "'"))[0] || {};
+    var total = (await q("select count(*)::int pv, count(distinct visitor_hash)::int uv from visitor_logs"))[0] || {};
+    // 新访客：今天出现的 hash 在今天之前从没出现过
+    var nv = (await q("select count(*)::int n from (select distinct visitor_hash from visitor_logs where ts >= '" + todayStartIso + "' and visitor_hash <> '' and visitor_hash not in (select distinct visitor_hash from visitor_logs where ts < '" + todayStartIso + "' and visitor_hash <> '')) t"))[0] || {};
+    var city = await q("select coalesce(nullif(city,''),'未知') city, count(*)::int c from visitor_logs where ts >= '" + todayStartIso + "' group by 1 order by c desc limit 5");
+    // 7 日走势：pv / uv / app_pv（按北京时间日分组，今天必含）
+    var trend = await q("select to_char((ts at time zone 'Asia/Shanghai'),'MM-DD') d, min(ts::date)::text dkey," +
+      " count(*)::int pv, count(distinct visitor_hash)::int uv," +
+      " count(*) filter (where coalesce(device->>'model','')<>'' or coalesce(device->>'app_version','')<>'' or coalesce(device->>'install_id','')<>'')::int app_pv" +
+      " from visitor_logs where ts >= now() - interval '7 days' group by dkey order by dkey");
+    out.ops = {
+      pv_today: today.pv || 0, uv_today: today.uv || 0,
+      pv_total: total.pv || 0, uv_total: total.uv || 0,
+      new_visitors_today: nv.n || 0,
+      city_top5: city, trend: trend,
+      orders: null  // 待办：afdian:order:* 无索引键，订单计数暂缺（见方案 §七）
+    };
+  } catch (e) { out.ops = { error: String(e && e.message) }; }
+
+  // ── 运营：激活（redis auth:activation_logs，口径同 handleActivationStats）──
+  try {
+    var list = await redis.lrange("auth:activation_logs", 0, -1);
+    var entries = [];
+    for (var i = 0; i < list.length; i++) { try { entries.push(JSON.parse(list[i])); } catch (e2) {} }
+    var today = bjDay(Date.now());
+    var wk = bjDay(Date.now() - 6 * 86400000);
+    var seenAll = {}, seenToday = {}, aToday = 0, aWeek = 0, aTotal = 0;
+    var weekByDay = {};
+    for (var j = 0; j < entries.length; j++) {
+      var e = entries[j];
+      var eDay = bjDay(new Date(e.ts));
+      var key = (e.code && String(e.code)) || (e.redeem && String(e.redeem)) || (e.device && String(e.device)) || ("i" + j);
+      if (!seenAll[key]) { seenAll[key] = true; aTotal++; }
+      if (eDay === today && !seenToday[key]) { seenToday[key] = true; aToday++; }
+      if (eDay >= wk) { aWeek++; if (!weekByDay[eDay]) weekByDay[eDay] = 0; weekByDay[eDay]++; }
+    }
+    out.ops.act_today = aToday; out.ops.act_week7 = aWeek; out.ops.act_total = aTotal;
+    out.ops.act_week_by_day = weekByDay;
+  } catch (e3) { out.ops.act_today = 0; out.ops.act_total = 0; }
+
+  // ── 开发：任务聚合（复用 taskActivity/taskEffort，同 task-activity 的取数模式）──
+  try {
+    var db = evTaskDb(req, null);
+    if (db) {
+      var url = db.sbUrl + "/rest/v1/" + TASKS_TABLE + "?select=*&order=updated_at.desc&limit=300";
+      var r = await fetch(url, { headers: db.headers() });
+      var rows = r.ok ? await r.json() : [];
+      if (!Array.isArray(rows)) rows = [];
+      var sessMap = {};
+      try {
+        var rs = await fetch(db.sbUrl + "/rest/v1/" + SESSIONS_TABLE + "?select=sid,started_at,heartbeat_at,status&limit=500", { headers: db.headers() });
+        if (rs.ok) { var sr = await rs.json(); if (Array.isArray(sr)) sr.forEach(function (s) { if (s && s.sid) sessMap[s.sid] = s; }); }
+      } catch (e4) {}
+      var open = 0, active = 0, frozen = 0, blocked = 0;
+      var doneRecent = [];
+      rows.forEach(function (t) {
+        if (!t || !t.id) return;
+        var s = t.session_sid ? (sessMap[t.session_sid] || null) : null;
+        if (t.status === "blocked") blocked++;
+        else if (t.status === "in_progress" || t.status === "planned") {
+          open++;
+          var a = taskActivity(t, s);
+          if (a.activity === "active") active++;
+          if (a.activity === "orphan" || a.activity === "unbound") frozen++;
+        } else if (t.status === "done") {
+          var eff = taskEffort(t, s, null);
+          doneRecent.push({ id: t.id, title: t.title || "", project: t.project || "", wall_min: eff.wall_min, active_min: eff.active_min, closed_at: (t.extra && typeof t.extra === "object" && t.extra.closed_at) || t.updated_at });
+        }
+      });
+      doneRecent.sort(function (a, b) { return String(b.closed_at).localeCompare(String(a.closed_at)); });
+      out.dev = { open: open, active: active, frozen: frozen, blocked: blocked, done_recent: doneRecent.slice(0, 5) };
+    }
+  } catch (e5) { out.dev = { error: String(e5 && e5.message) }; }
+  return out;
+}
+
 /* ── 任务工时（2026-10-08，docs/任务工时-设计方案-v1.md）──
  * 三口径：wall_min（墙钟，不进指标）/ active_min（有效工时=主指标）/ evidenced_min（per-prompt 证据）。
  * 防虚高四道闸：①orphan/unbound 冻结（停表）②gap>30min 只计 30min ③close 落 extra.closed_at ④超 7 天无证据 capped。
@@ -2110,6 +2212,10 @@ module.exports = async (req, res) => {
         // 公开读：任务活跃度四档位清单（orphan=晨割收割线，unbound=裸奔雷达）
         if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
         return await handleTaskActivity(req, res);
+      case "dashboard":
+        // 数字大屏聚合（只读）：开发+运营一帧全量，60s 内存缓存
+        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
+        return await handleDashboard(req, res);
       case "task-update":
         if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
         return await handleTaskUpdate(req, res);
