@@ -1803,7 +1803,8 @@ function taskActivity(t, sess) {
     }
     return { activity: "unbound", idle_min: updIdle, stale_since: null, reason: "never_bound" };
   }
-  var sessDead = sess && sess.session_status && sess.session_status !== "active" && sess.session_status !== "online";
+  var ss = sess && sess.session_status ? String(sess.session_status) : "";
+  var sessDead = ss !== "" && ["active", "online", "live"].indexOf(ss) < 0; // live=采集器在线态
   var orphan = (hbIdle != null && hbIdle > th.orphan) || !!sessDead ||
                (hbIdle == null && updIdle != null && updIdle > th.orphan);
   if (orphan) {
