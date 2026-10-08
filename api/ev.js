@@ -1909,12 +1909,21 @@ async function buildDashboard(req) {
       " count(*) filter (where coalesce(device->>'model','')<>'' or coalesce(device->>'app_version','')<>'' or coalesce(device->>'install_id','')<>'')::int app_pv" +
       " from visitor_logs where ts >= now() - interval '7 days' group by 1 order by 1");
     trend.forEach(function (r) { r.d = String(r.dkey || "").substring(5); });
+    // 大屏实时化（evtask-D-evev-ops-and-261008-prv5y5）：最新3条访客明细（城市为主）——
+    // 只取展示字段，不吐 ip/ua/hash（dash_events 推送同口径）
+    var rv = await q("select ts, coalesce(nullif(city,''),'未知') city, coalesce(device_model,'') model, coalesce(source,'visit') src" +
+      " from visitor_logs order by ts desc limit 3");
+    // 最新订单：tracking_events kind=order（PG 同库，禁 redis 口径），取历史最新 1 条兜底
+    var lo = await q("select ts, payload->>'plan_title' title, payload->>'amount' amount, coalesce(out_trade_no,'') no" +
+      " from tracking_events where kind='order' order by ts desc limit 1");
     out.ops = {
       pv_today: today.pv || 0, uv_today: today.uv || 0,
       pv_total: total.pv || 0, uv_total: total.uv || 0,
       new_visitors_today: nv.n || 0,
       city_top5: city, trend: trend,
-      orders: null  // 待办：afdian:order:* 无索引键，订单计数暂缺（见方案 §七）
+      recent_visits: rv.map(function (r) { return { ts: new Date(r.ts).getTime(), city: r.city, model: r.model, src: r.src }; }),
+      last_order: lo.length ? { ts: new Date(lo[0].ts).getTime(), title: lo[0].title || "爱发电订单", amount: lo[0].amount || "", no: lo[0].no || "" } : null,
+      orders: null  // 待办：订单总数口径（tracking_events 之前的历史散键），见方案 §七
     };
   } catch (e) { out.ops = { error: String(e && e.message) }; }
 
@@ -1973,7 +1982,21 @@ async function buildDashboard(req) {
         }
       });
       doneRecent.sort(function (a, b) { return String(b.closed_at).localeCompare(String(a.closed_at)); });
-      out.dev = { open: open, active: active, frozen: frozen, blocked: blocked, flow: flow, done_recent: doneRecent.slice(0, 5) };
+      // 在岗开发列表（用户 2026-10-08 指定，重要）：in_progress 且会话心跳 ≤30min 的任务，
+      // 按负责人（assignee/会话）去重，每人带当前任务与有效工时 —— 大屏左栏展示
+      var devSeen = {}, devs = [];
+      rows.forEach(function (t) {
+        if (!t || t.status !== "in_progress" || devs.length >= 6) return;
+        var s2 = t.session_sid ? (sessMap[t.session_sid] || null) : null;
+        var a3 = taskActivity(t, s2);
+        if (a3.activity !== "active") return;
+        var who = (t.assignee && String(t.assignee)) || (t.session_sid ? String(t.session_sid) : "未知");
+        if (devSeen[who]) return;
+        devSeen[who] = true;
+        var f3 = taskEffort(t, s2, null);
+        devs.push({ who: who, title: t.title || "", active_min: f3.active_min, hb: (s2 && s2.heartbeat_at) || null });
+      });
+      out.dev = { open: open, active: active, frozen: frozen, blocked: blocked, flow: flow, devs: devs, done_recent: doneRecent.slice(0, 5) };
     }
   } catch (e5) { out.dev = { error: String(e5 && e5.message) }; }
   return out;
