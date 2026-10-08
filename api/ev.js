@@ -1715,7 +1715,9 @@ async function handleTaskClose(req, res) {
   var reason = String(body.close_reason || "").trim().slice(0, 40);
   var note = body.closed_note != null ? String(body.closed_note).slice(0, 1000) : null;
   if (status !== "done" && !reason) {
-    return json(res, 400, { success: false, error: "reason_required", detail: "cancelled/blocked 必须给原因（护栏①）" });
+    // 2026-10-08：detail 明确指出字段名 close_reason——此前只说"必须给原因"，
+    // 调用方拿 body.reason 盲试 6 次全失败（晨割-20261008 实测，正确字段见 L1702 注释）
+    return json(res, 400, { success: false, error: "reason_required", detail: "cancelled/blocked 必须给原因（护栏①）：body 传 close_reason 字段（≤40字），closed_note 可附详细说明" });
   }
   var db = evTaskDb(req, res);
   if (!db) return json(res, 500, { success: false, error: "no_store_configured" });
