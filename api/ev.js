@@ -2454,7 +2454,8 @@ async function handlePromptLog(req, res) {
       headers: Object.assign({}, db.headers(), { "Content-Type": "application/json", Prefer: "return=minimal" }),
       body: JSON.stringify([{ t: "prompt", payload: {
         sid: sid, task: task, tool: String(body.tool || "").slice(0, 40),
-        title: String(body.title || "").slice(0, 120), text: text, at: new Date().toISOString() } }])
+        title: String(body.title || "").slice(0, 120), text: text,
+        short: !!body.short, at: new Date().toISOString() } }])
     });
     if (!r.ok && r.status !== 201) {
       var txt = await r.text();
