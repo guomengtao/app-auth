@@ -2341,6 +2341,13 @@ module.exports = async (req, res) => {
         // 任务指令留痕全量时间线（dash_events t=prompt，evtask-qatst4）
         if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
         return await handleTaskPsList(req, res);
+      case "progress-log":
+        // 进度汇报逐条上云（evtask-aphwge）：task-notify.sh 设 EV_PROGRESS_TASK 后附带调用
+        return await handleProgressLog(req, res);
+      case "task-progress-list":
+        // 任务进度时间线公开读（evtask-aphwge）
+        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
+        return await handleTaskProgressList(req, res);
       case "session-list":
         // 公开读：会话清单按心跳倒序（运行态 Tab「AI 会话在线总览」数据源）
         if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
@@ -2493,6 +2500,63 @@ async function handleTaskPsList(req, res) {
   }
 }
 
+/**
+ * 进度汇报逐条上云 POST ?action=progress-log（evtask-D-ev-ops-andro-261008-aphwge）
+ * 长任务中途报进度时调用（task-notify.sh 设 EV_PROGRESS_TASK 后自动附带），
+ * 追加写入 dash_events(t='progress')——事件流式、不覆盖。
+ * body: { sid, task, tool, text }；text 截 300 字。
+ */
+async function handleProgressLog(req, res) {
+  if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
+  var body = (req.body && typeof req.body === "object") ? req.body : {};
+  var sid = String(body.sid || "").slice(0, 120);
+  var task = String(body.task || "").slice(0, 120);
+  var text = String(body.text || "").slice(0, 300);
+  if (!sid || !task || !text) return json(res, 400, { success: false, error: "sid/task/text required" });
+  var db = evTaskDb(req, res);
+  if (!db) return json(res, 502, { success: false, error: "supabase_unavailable" });
+  try {
+    var r = await fetch(db.sbUrl + "/rest/v1/dash_events", {
+      method: "POST",
+      headers: Object.assign({}, db.headers(), { "Content-Type": "application/json", Prefer: "return=minimal" }),
+      body: JSON.stringify([{ t: "progress", payload: {
+        sid: sid, task: task, tool: String(body.tool || "").slice(0, 40),
+        text: text, at: new Date().toISOString() } }])
+    });
+    if (!r.ok && r.status !== 201) {
+      var txt = await r.text();
+      return json(res, 502, { success: false, error: "supabase_insert_failed", detail: txt.slice(0, 200) });
+    }
+    return json(res, 200, { success: true });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
+/**
+ * 任务进度汇报时间线 GET ?action=task-progress-list&id=<taskId>（evtask-aphwge）
+ * 数据源：dash_events（t='progress'），按任务过滤，ts 正序取 200 条。
+ */
+async function handleTaskProgressList(req, res) {
+  var id = String((req.query && req.query.id) || "").trim().slice(0, 120);
+  if (!id) return json(res, 400, { success: false, error: "Missing id" });
+  var db = evTaskDb(req, res);
+  if (!db) return json(res, 502, { success: false, error: "supabase_unavailable" });
+  try {
+    var url = db.sbUrl + "/rest/v1/dash_events" +
+      "?select=ts,payload&t=eq.progress&payload-%3E%3Etask=eq." + encodeURIComponent(id) +
+      "&order=ts.asc&limit=200";
+    var r = await fetch(url, { headers: db.headers() });
+    if (!r.ok) {
+      var txt = await r.text();
+      return json(res, 502, { success: false, error: "supabase_fetch_failed", detail: txt.slice(0, 200) });
+    }
+    var rows = await r.json();
+    return json(res, 200, { success: true, items: Array.isArray(rows) ? rows : [] });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
 
 /**
  * 会话清单公开读 GET ?action=session-list（2026-10-07 运行态改造：AI 会话在线总览）
