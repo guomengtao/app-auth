@@ -1906,12 +1906,12 @@ async function buildDashboard(req) {
     // 新访客：今天出现的 hash 在今天之前从没出现过
     var nv = (await q("select count(*)::int n from (select distinct visitor_hash from visitor_logs where ts >= '" + todayStartIso + "' and visitor_hash <> '' and visitor_hash not in (select distinct visitor_hash from visitor_logs where ts < '" + todayStartIso + "' and visitor_hash <> '')) t"))[0] || {};
     var city = await q("select coalesce(nullif(city,''),'未知') city, count(*)::int c from visitor_logs where ts >= '" + todayStartIso + "' group by 1 order by c desc limit 5");
-    // 7 日走势：pv / uv / app_pv（按北京时间日分组，今天必含）
-    var trend = await q("select to_char(ts,'YYYY-MM-DD') dkey," +
+    // 24 小时走势（bupe2h，用户 2026-10-08 指定由 7 日改）：pv / uv / app_pv 按小时桶（北京时间）
+    var trend = await q("select to_char(ts at time zone 'Asia/Shanghai','MM-DD HH24:00') dkey," +
       " count(*)::int pv, count(distinct visitor_hash)::int uv," +
       " count(*) filter (where coalesce(device->>'model','')<>'' or coalesce(device->>'app_version','')<>'' or coalesce(device->>'install_id','')<>'')::int app_pv" +
-      " from visitor_logs where ts >= now() - interval '7 days' group by 1 order by 1");
-    trend.forEach(function (r) { r.d = String(r.dkey || "").substring(5); });
+      " from visitor_logs where ts >= now() - interval '24 hours' group by 1 order by 1");
+    trend.forEach(function (r) { r.d = String(r.dkey || ""); });   // 'MM-DD HH24:00'
     // 大屏实时化（prv5y5）+ 访客增强（phkgzq，用户 2026-10-08 指定）：最新 10 条访客明细，
     // 城市中文化（复用 geo-zh 的 cityZhOf，307 城市映射；’/' 归一化兜底，翻不出回落原名），
     // 带访问网址 path——只取展示字段，不吐 ip/ua/hash（dash_events 推送同口径）
@@ -1926,6 +1926,25 @@ async function buildDashboard(req) {
     // 最新订单：tracking_events kind=order（PG 同库，禁 redis 口径），取历史最新 1 条兜底
     var lo = await q("select ts, payload->>'plan_title' title, payload->>'amount' amount, coalesce(out_trade_no,'') no" +
       " from tracking_events where kind='order' order by ts desc limit 1");
+    // ── 最近心跳（bupe2h，用户 2026-10-08 指定大屏加栏目）：hb 事件留痕表取近 24h，
+    //    同 sid+task 取最新一次去重，最多 5 条；不足回退补 evops_sessions 最近会话 ──
+    var hbRows = await q("select distinct on (payload->>'sid', payload->>'task') ts, payload->>'title' title," +
+      " payload->>'tool' tool, payload->>'task' task, payload->>'sid' sid" +
+      " from dash_events where t='hb' and ts >= now() - interval '24 hours'" +
+      " order by payload->>'sid', payload->>'task', ts desc");
+    hbRows.sort(function (a, b) { return new Date(b.ts) - new Date(a.ts); });
+    var hb = hbRows.slice(0, 5).map(function (r) { return { ts: new Date(r.ts).getTime(), title: r.title || "", tool: r.tool || "", task: r.task || "", sid: r.sid || "" }; });
+    if (hb.length < 5) {
+      var have = {}; hb.forEach(function (x) { have[x.sid + "|" + x.task] = 1; });
+      var sessRows = await q("select sid, coalesce(title,'') title, coalesce(tool,'') tool, coalesce(open_task_id,'') task, heartbeat_at ts" +
+        " from evops_sessions where heartbeat_at is not null order by heartbeat_at desc limit 10");
+      for (var si = 0; si < sessRows.length && hb.length < 5; si++) {
+        var s0 = sessRows[si];
+        var key0 = s0.sid + "|" + s0.task;
+        if (!have[key0]) { have[key0] = 1; hb.push({ ts: new Date(s0.ts).getTime(), title: s0.title, tool: s0.tool, task: s0.task, sid: s0.sid }); }
+      }
+      hb.sort(function (a, b) { return b.ts - a.ts; });
+    }
     // ── 昨日对比（evtask-D-evev-ops-and-261008-gecm6s，用户 2026-10-08 指定）──
     var yp = (await q("select count(*)::int pv, count(distinct visitor_hash)::int uv from visitor_logs where ts >= '" + ystStartIso + "' and ts < '" + todayStartIso + "'"))[0] || {};
     // 昨日新访客：昨天出现的 hash 在昨天之前从没出现过
@@ -1940,7 +1959,8 @@ async function buildDashboard(req) {
       last_order: lo.length ? { ts: new Date(lo[0].ts).getTime(), title: lo[0].title || "爱发电订单", amount: lo[0].amount || "", no: lo[0].no || "" } : null,
       orders: null,  // 待办：订单总数口径（tracking_events 之前的历史散键），见方案 §七
       orders_today: odCnt.t || 0, orders_yesterday: odCnt.y || 0,
-      yesterday: { pv: yp.pv || 0, uv: yp.uv || 0, orders: odCnt.y || 0, new_visitors: ynv.n || 0 }
+      yesterday: { pv: yp.pv || 0, uv: yp.uv || 0, orders: odCnt.y || 0, new_visitors: ynv.n || 0 },
+      recent_heartbeats: hb
     };
   } catch (e) { out.ops = { error: String(e && e.message) }; }
 
