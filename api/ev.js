@@ -1775,7 +1775,7 @@ function noteOfExtra(extra) {
  */
 /* ── 任务活跃度（2026-10-08，docs/任务活跃度-设计方案-v1.md）──
  * 三信号合成、木桶原则取最差：绑定会话心跳 / 任务 updated_at / 会话绑定存在性。
- * 纯派生值：不写库、零 schema 变更；阈值走环境变量 EV_ACT_TH_*（分钟），缺省 30/120/480。
+ * 纯派生值：不写库、零 schema 变更；阈值走环境变量 EV_ACT_TH_*（分钟），缺省 30/120/360。
  * orphan = 晨割 v2 的「无人负责」系统定义；unbound = 从未绑定会话（Trae 裸奔雷达）。
  */
 function evActThresholds() {
@@ -1784,7 +1784,7 @@ function evActThresholds() {
   return {
     active: num(e.EV_ACT_TH_ACTIVE_MIN, 30),    // 心跳 ≤30min 视为活着
     stale: num(e.EV_ACT_TH_STALE_MIN, 120),     // updated_at ≤2h 视为活跃
-    orphan: num(e.EV_ACT_TH_ORPHAN_MIN, 480)    // 8h = 晨割收割线
+    orphan: num(e.EV_ACT_TH_ORPHAN_MIN, 360)    // 6h = 晨割收割线
   };
 }
 
