@@ -1904,10 +1904,10 @@ async function buildDashboard(req) {
     var nv = (await q("select count(*)::int n from (select distinct visitor_hash from visitor_logs where ts >= '" + todayStartIso + "' and visitor_hash <> '' and visitor_hash not in (select distinct visitor_hash from visitor_logs where ts < '" + todayStartIso + "' and visitor_hash <> '')) t"))[0] || {};
     var city = await q("select coalesce(nullif(city,''),'未知') city, count(*)::int c from visitor_logs where ts >= '" + todayStartIso + "' group by 1 order by c desc limit 5");
     // 7 日走势：pv / uv / app_pv（按北京时间日分组，今天必含）
-    var trend = await q("select to_char((ts at time zone 'Asia/Shanghai'),'MM-DD') d, min(ts::date)::text dkey," +
+    var trend = await q("select to_char(ts,'MM-DD') d, to_char(ts,'YYYY-MM-DD') dkey," +
       " count(*)::int pv, count(distinct visitor_hash)::int uv," +
       " count(*) filter (where coalesce(device->>'model','')<>'' or coalesce(device->>'app_version','')<>'' or coalesce(device->>'install_id','')<>'')::int app_pv" +
-      " from visitor_logs where ts >= now() - interval '7 days' group by dkey order by dkey");
+      " from visitor_logs where ts >= now() - interval '7 days' group by 2 order by 2");
     out.ops = {
       pv_today: today.pv || 0, uv_today: today.uv || 0,
       pv_total: total.pv || 0, uv_total: total.uv || 0,
