@@ -2330,6 +2330,10 @@ module.exports = async (req, res) => {
         // 公开读：按 sid 查会话身份整行（任务详情页「发帖人」卡用；读不到返回 session=null）
         if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
         return await handleSessionGet(req, res);
+      case "task-hb-list":
+        // 公开读：任务心跳时间线（dash_events t=hb 按任务过滤，evtask-heewdq）
+        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
+        return await handleTaskHbList(req, res);
       case "session-list":
         // 公开读：会话清单按心跳倒序（运行态 Tab「AI 会话在线总览」数据源）
         if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
@@ -2365,6 +2369,34 @@ async function handleSessionGet(req, res) {
     var rows = await r.json();
     var row = (Array.isArray(rows) && rows.length) ? rows[0] : null;
     return json(res, 200, { success: true, session: row });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
+
+/**
+ * 任务心跳时间线 GET ?action=task-hb-list&id=<taskId>（evtask-D-ev-ops-andro-261008-heewdq）
+ * 数据源：dash_events（t='hb'，fn_dash_on_hb 触发器逐次心跳写入）。
+ * 过滤 payload->>'task' = 任务 id，ts 倒序取 50 条。
+ * 返回 { success, items: [ { ts, payload } ] } —— payload 含 sid/title/tool/repo。
+ */
+async function handleTaskHbList(req, res) {
+  var id = String((req.query && req.query.id) || "").trim().slice(0, 120);
+  if (!id) return json(res, 400, { success: false, error: "Missing id" });
+  var db = evTaskDb(req, res);
+  if (!db) return json(res, 502, { success: false, error: "supabase_unavailable" });
+  try {
+    var url = db.sbUrl + "/rest/v1/dash_events" +
+      "?select=ts,payload&t=eq.hb&payload-%3E%3Etask=eq." + encodeURIComponent(id) +
+      "&order=ts.desc&limit=50";
+    var r = await fetch(url, { headers: db.headers() });
+    if (!r.ok) {
+      var txt = await r.text();
+      return json(res, 502, { success: false, error: "supabase_fetch_failed", detail: txt.slice(0, 200) });
+    }
+    var rows = await r.json();
+    return json(res, 200, { success: true, items: Array.isArray(rows) ? rows : [] });
   } catch (e) {
     return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
   }
