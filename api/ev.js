@@ -2359,6 +2359,14 @@ module.exports = async (req, res) => {
         // 公开读：会话清单按心跳倒序（运行态 Tab「AI 会话在线总览」数据源）
         if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
         return await handleSessionList(req, res);
+      case "ev-config-read":
+        // 槽位上限云端读（evtask-gz3fg2）：此前 handler 已实现但从未注册进 dispatch，
+        // 手机设置页读写一律 Unknown action → 上限改不动。补注册。
+        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
+        return await handleEvConfigRead(req, res);
+      case "ev-config-write":
+        // 槽位上限云端写（公开写，与 ev-command-write 同安全模型）
+        return await handleEvConfigWrite(req, res);
       default:
         return json(res, 400, { success: false, error: "Unknown action" });
     }
