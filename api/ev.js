@@ -1952,7 +1952,7 @@ async function buildDashboard() {
         if (rs.ok) { var sr = await rs.json(); if (Array.isArray(sr)) sr.forEach(function (s) { if (s && s.sid) sessMap[s.sid] = s; }); }
       } catch (e4) {}
       var open = 0, active = 0, frozen = 0, blocked = 0;
-      var doneRecent = [];
+      var doneRecent = [], flow = [];
       rows.forEach(function (t) {
         if (!t || !t.id) return;
         var s = t.session_sid ? (sessMap[t.session_sid] || null) : null;
@@ -1966,9 +1966,13 @@ async function buildDashboard() {
           var eff = taskEffort(t, s, null);
           doneRecent.push({ id: t.id, title: t.title || "", project: t.project || "", wall_min: eff.wall_min, active_min: eff.active_min, closed_at: (t.extra && typeof t.extra === "object" && t.extra.closed_at) || t.updated_at });
         }
+        if (t.status === "in_progress" && flow.length < 6) {
+          var a2 = taskActivity(t, s), f2 = taskEffort(t, s, null);
+          flow.push({ id: t.id, title: t.title || "", activity: a2.activity, active_min: f2.active_min, frozen: f2.frozen });
+        }
       });
       doneRecent.sort(function (a, b) { return String(b.closed_at).localeCompare(String(a.closed_at)); });
-      out.dev = { open: open, active: active, frozen: frozen, blocked: blocked, done_recent: doneRecent.slice(0, 5) };
+      out.dev = { open: open, active: active, frozen: frozen, blocked: blocked, flow: flow, done_recent: doneRecent.slice(0, 5) };
     }
   } catch (e5) { out.dev = { error: String(e5 && e5.message) }; }
   return out;
