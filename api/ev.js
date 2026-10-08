@@ -2368,6 +2368,29 @@ async function handleSessionGet(req, res) {
     }
     var rows = await r.json();
     var row = (Array.isArray(rows) && rows.length) ? rows[0] : null;
+    // 会话详情任务清单补全（evtask-D-ev-ops-andro-261008-a8qzf7）：
+    // evops_sessions.tasks 是心跳 upsert 的快照，会被新任务冲掉历史——
+    // 这里按 session_sid 反查 evops_tasks 全量（倒序 50 条），云任务非空时覆盖快照，
+    // Android 端 tasksCard 零改动直接受益。
+    if (row) {
+      try {
+        var turl = db.sbUrl + "/rest/v1/evops_tasks" +
+          "?select=id,status,title,description,ps,created_at,updated_at" +
+          "&session_sid=eq." + encodeURIComponent(sid) +
+          "&order=created_at.desc&limit=50";
+        var tr = await fetch(turl, { headers: db.headers() });
+        if (tr.ok) {
+          var trows = await tr.json();
+          if (Array.isArray(trows) && trows.length) {
+            row.tasks = trows.map(function (t) {
+              return { id: t.id, status: t.status, title: t.title,
+                description: t.description || "", ps: t.ps || [],
+                at: t.created_at };
+            });
+          }
+        }
+      } catch (e2) { /* 补全失败静默回退快照 */ }
+    }
     return json(res, 200, { success: true, session: row });
   } catch (e) {
     return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
