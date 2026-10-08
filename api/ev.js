@@ -1995,7 +1995,7 @@ async function buildDashboard(req) {
       if (!Array.isArray(rows)) rows = [];
       var sessMap = {};
       try {
-        var rs = await fetch(db.sbUrl + "/rest/v1/" + SESSIONS_TABLE + "?select=sid,started_at,heartbeat_at,status&limit=500", { headers: db.headers() });
+        var rs = await fetch(db.sbUrl + "/rest/v1/" + SESSIONS_TABLE + "?select=sid,title,started_at,heartbeat_at,status&limit=500", { headers: db.headers() });
         if (rs.ok) { var sr = await rs.json(); if (Array.isArray(sr)) sr.forEach(function (s) { if (s && s.sid) sessMap[s.sid] = s; }); }
       } catch (e4) {}
       var open = 0, active = 0, frozen = 0, blocked = 0;
