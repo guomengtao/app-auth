@@ -1912,10 +1912,17 @@ async function buildDashboard(req) {
       " count(*) filter (where coalesce(device->>'model','')<>'' or coalesce(device->>'app_version','')<>'' or coalesce(device->>'install_id','')<>'')::int app_pv" +
       " from visitor_logs where ts >= now() - interval '7 days' group by 1 order by 1");
     trend.forEach(function (r) { r.d = String(r.dkey || "").substring(5); });
-    // 大屏实时化（evtask-D-evev-ops-and-261008-prv5y5）：最新3条访客明细（城市为主）——
-    // 只取展示字段，不吐 ip/ua/hash（dash_events 推送同口径）
-    var rv = await q("select ts, coalesce(nullif(city,''),'未知') city, coalesce(device_model,'') model, coalesce(source,'visit') src" +
-      " from visitor_logs order by ts desc limit 3");
+    // 大屏实时化（prv5y5）+ 访客增强（phkgzq，用户 2026-10-08 指定）：最新 10 条访客明细，
+    // 城市中文化（复用 geo-zh 的 cityZhOf，307 城市映射；’/' 归一化兜底，翻不出回落原名），
+    // 带访问网址 path——只取展示字段，不吐 ip/ua/hash（dash_events 推送同口径）
+    var geoZh = require("../lib/geo-zh");
+    var zhCity = function (c) {
+      var v = String(c || "").trim();
+      if (!v) return "未知";
+      return geoZh.cityZhOf(v.replace(/’/g, "'")) || v;
+    };
+    var rv = await q("select ts, city, coalesce(device_model,'') model, coalesce(source,'visit') src, coalesce(path,'') p" +
+      " from visitor_logs order by ts desc limit 10");
     // 最新订单：tracking_events kind=order（PG 同库，禁 redis 口径），取历史最新 1 条兜底
     var lo = await q("select ts, payload->>'plan_title' title, payload->>'amount' amount, coalesce(out_trade_no,'') no" +
       " from tracking_events where kind='order' order by ts desc limit 1");
@@ -1929,7 +1936,7 @@ async function buildDashboard(req) {
       pv_total: total.pv || 0, uv_total: total.uv || 0,
       new_visitors_today: nv.n || 0,
       city_top5: city, trend: trend,
-      recent_visits: rv.map(function (r) { return { ts: new Date(r.ts).getTime(), city: r.city, model: r.model, src: r.src }; }),
+      recent_visits: rv.map(function (r) { return { ts: new Date(r.ts).getTime(), city: zhCity(r.city), model: r.model, src: r.src, path: r.p }; }),
       last_order: lo.length ? { ts: new Date(lo[0].ts).getTime(), title: lo[0].title || "爱发电订单", amount: lo[0].amount || "", no: lo[0].no || "" } : null,
       orders: null,  // 待办：订单总数口径（tracking_events 之前的历史散键），见方案 §七
       orders_today: odCnt.t || 0, orders_yesterday: odCnt.y || 0,
