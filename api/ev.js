@@ -2041,7 +2041,12 @@ async function buildDashboard(req) {
         if (!t || t.status !== "in_progress" || devs.length >= 8) return;
         var s2 = t.session_sid ? (sessMap[t.session_sid] || null) : null;
         var a3 = taskActivity(t, s2);
-        var who = (t.assignee && String(t.assignee)) || (t.session_sid ? String(t.session_sid) : "未知");
+        // 负责人显示名（evtask-D-ev-ops-andro-261008-8pkmws，2026-10-08 用户批）：
+        // 有会话标题（WorkBuddy 自定义名）→ 显示标题；否则退回 assignee(sid)/session_sid。
+        // assignee 仍强制 = sid（禁止无人认领铁律不动），这里只是展示层。
+        var who = (s2 && s2.title && String(s2.title).trim())
+          ? String(s2.title).trim()
+          : ((t.assignee && String(t.assignee)) || (t.session_sid ? String(t.session_sid) : "未知"));
         var f3 = taskEffort(t, s2, null);
         devs.push({ who: who, title: t.title || "", active_min: f3.active_min, hb: (s2 && s2.heartbeat_at) || null,
           stale: a3.activity !== "active", sid: t.session_sid || "" });
