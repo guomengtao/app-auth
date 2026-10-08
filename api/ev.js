@@ -1882,13 +1882,13 @@ var _dashCache = { at: 0, data: null };
 async function handleDashboard(req, res) {
   var now = Date.now();
   if (!_dashCache.data || now - _dashCache.at > 60000 || (req.query && req.query.fresh === "1")) {
-    _dashCache.data = await buildDashboard();
+    _dashCache.data = await buildDashboard(req);
     _dashCache.at = now;
   }
   return json(res, 200, Object.assign({ success: true, cached: now - _dashCache.at < 55000 }, _dashCache.data));
 }
 
-async function buildDashboard() {
+async function buildDashboard(req) {
   var out = { generated_at: new Date().toISOString(), ops: {}, dev: {} };
   var CST = 8 * 3600 * 1000;
   var bjDay = function (ms) { var d = new Date(ms + CST); return d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, "0") + "-" + String(d.getUTCDate()).padStart(2, "0"); };
