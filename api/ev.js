@@ -2348,6 +2348,13 @@ module.exports = async (req, res) => {
         // 任务进度时间线公开读（evtask-aphwge）
         if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
         return await handleTaskProgressList(req, res);
+      case "file-log":
+        // 文件改动逐条上云（evtask-pjzrta）：PostToolUse 钩子每次写/改文件调用一次
+        return await handleFileLog(req, res);
+      case "task-file-list":
+        // 任务文件改动全量时间线（dash_events t=files，evtask-pjzrta）
+        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
+        return await handleTaskFileList(req, res);
       case "session-list":
         // 公开读：会话清单按心跳倒序（运行态 Tab「AI 会话在线总览」数据源）
         if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
@@ -2487,6 +2494,67 @@ async function handleTaskPsList(req, res) {
   try {
     var url = db.sbUrl + "/rest/v1/dash_events" +
       "?select=ts,payload&t=eq.prompt&payload-%3E%3Etask=eq." + encodeURIComponent(id) +
+      "&order=ts.asc&limit=500";
+    var r = await fetch(url, { headers: db.headers() });
+    if (!r.ok) {
+      var txt = await r.text();
+      return json(res, 502, { success: false, error: "supabase_fetch_failed", detail: txt.slice(0, 200) });
+    }
+    var rows = await r.json();
+    return json(res, 200, { success: true, items: Array.isArray(rows) ? rows : [] });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
+/**
+ * 文件改动逐条上云 POST ?action=file-log（evtask-D-evapp-auth-261008-pjzrta）
+ * PostToolUse 钩子每次 Write/Edit/MultiEdit/NotebookEdit 调用一次，
+ * 追加写入 dash_events(t='files')——事件流式、不覆盖、无上限。
+ * 只记路径与次数，不存文件内容（避免隐私与体积）。
+ * body: { sid, task, tool, path, count }；path 截 300 字，task 可空（此时只有 sid 维度）。
+ */
+async function handleFileLog(req, res) {
+  if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
+  var body = (req.body && typeof req.body === "object") ? req.body : {};
+  var sid = String(body.sid || "").slice(0, 120);
+  var path_ = String(body.path || "").slice(0, 300);
+  if (!sid || !path_) return json(res, 400, { success: false, error: "sid/path required" });
+  var db = evTaskDb(req, res);
+  if (!db) return json(res, 502, { success: false, error: "supabase_unavailable" });
+  try {
+    var r = await fetch(db.sbUrl + "/rest/v1/dash_events", {
+      method: "POST",
+      headers: Object.assign({}, db.headers(), { "Content-Type": "application/json", Prefer: "return=minimal" }),
+      body: JSON.stringify([{ t: "files", payload: {
+        sid: sid, task: String(body.task || "").slice(0, 120),
+        tool: String(body.tool || "").slice(0, 40),
+        path: path_, count: Number(body.count) || 1,
+        at: new Date().toISOString() } }])
+    });
+    if (!r.ok && r.status !== 201) {
+      var txt = await r.text();
+      return json(res, 502, { success: false, error: "supabase_insert_failed", detail: txt.slice(0, 200) });
+    }
+    return json(res, 200, { success: true });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
+/**
+ * 任务文件改动全量时间线 GET ?action=task-file-list&id=<taskId>（evtask-pjzrta）
+ * 数据源：dash_events（t='files'，file-log 逐条写入），按任务过滤，ts 正序取 500 条。
+ * 返回 { success, items: [ { ts, payload } ] } —— payload 含 sid/tool/path/count/at。
+ */
+async function handleTaskFileList(req, res) {
+  var id = String((req.query && req.query.id) || "").trim().slice(0, 120);
+  if (!id) return json(res, 400, { success: false, error: "Missing id" });
+  var db = evTaskDb(req, res);
+  if (!db) return json(res, 502, { success: false, error: "supabase_unavailable" });
+  try {
+    var url = db.sbUrl + "/rest/v1/dash_events" +
+      "?select=ts,payload&t=eq.files&payload-%3E%3Etask=eq." + encodeURIComponent(id) +
       "&order=ts.asc&limit=500";
     var r = await fetch(url, { headers: db.headers() });
     if (!r.ok) {
