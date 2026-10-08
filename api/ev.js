@@ -2375,7 +2375,7 @@ async function handleSessionGet(req, res) {
     if (row) {
       try {
         var turl = db.sbUrl + "/rest/v1/evops_tasks" +
-          "?select=id,status,title,description,ps,created_at,updated_at" +
+          "?select=id,status,title,description,created_at,updated_at" +
           "&session_sid=eq." + encodeURIComponent(sid) +
           "&order=created_at.desc&limit=50";
         var tr = await fetch(turl, { headers: db.headers() });
@@ -2384,7 +2384,7 @@ async function handleSessionGet(req, res) {
           if (Array.isArray(trows) && trows.length) {
             row.tasks = trows.map(function (t) {
               return { id: t.id, status: t.status, title: t.title,
-                description: t.description || "", ps: t.ps || [],
+                description: t.description || "", ps: [],
                 at: t.created_at };
             });
           }
