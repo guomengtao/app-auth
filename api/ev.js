@@ -2033,19 +2033,18 @@ async function buildDashboard(req) {
         if (cr === todayKey) newToday++;
         if (cr === ystKey) newYst++;
       });
-      // 在岗开发列表（用户 2026-10-08 指定，重要）：in_progress 且会话心跳 ≤30min 的任务，
-      // 按负责人（assignee/会话）去重，每人带当前任务与有效工时 —— 大屏左栏展示
-      var devSeen = {}, devs = [];
+      // 在岗开发列表（用户 2026-10-08 两次指定）：与「在岗」统计逐一对齐 ——
+      // 每个 in_progress 任务一行（不再按负责人去重、不再滤掉心跳停滞的，
+      // 停滞的 stale:true 由客户端灰显「心跳停滞」），上限 8（ef5tq5 修复丢 2 条）
+      var devs = [];
       rows.forEach(function (t) {
-        if (!t || t.status !== "in_progress" || devs.length >= 6) return;
+        if (!t || t.status !== "in_progress" || devs.length >= 8) return;
         var s2 = t.session_sid ? (sessMap[t.session_sid] || null) : null;
         var a3 = taskActivity(t, s2);
-        if (a3.activity !== "active") return;
         var who = (t.assignee && String(t.assignee)) || (t.session_sid ? String(t.session_sid) : "未知");
-        if (devSeen[who]) return;
-        devSeen[who] = true;
         var f3 = taskEffort(t, s2, null);
-        devs.push({ who: who, title: t.title || "", active_min: f3.active_min, hb: (s2 && s2.heartbeat_at) || null });
+        devs.push({ who: who, title: t.title || "", active_min: f3.active_min, hb: (s2 && s2.heartbeat_at) || null,
+          stale: a3.activity !== "active", sid: t.session_sid || "" });
       });
       out.dev = { open: open, active: active, frozen: frozen, blocked: blocked, flow: flow, devs: devs, done_recent: doneRecent.slice(0, 5),
         done_today: doneToday, done_yesterday: doneYst, new_today: newToday, new_yesterday: newYst };
