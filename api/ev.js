@@ -1912,11 +1912,15 @@ function taskEffort(t, sess, tstats) {
 
   // 口径 B：心跳窗口（无 prompt 轨迹时的主证据；单窗无法切片 → 超 8h 标 capped 人工复核）
   var activeMin = 0, capped = false;
-  if (sess && sess.started_at && sess.heartbeat_at) {
-    var s0 = Math.max(new Date(sess.started_at).getTime(), startMs);
-    var e0 = Math.min(new Date(sess.heartbeat_at).getTime(), endMs);
-    activeMin = Math.max(0, Math.round((e0 - s0) / 60000));
-    if (activeMin > 480) capped = true; // 单窗超 8h 却无 prompt 证据 → 存疑
+  if (sess && sess.heartbeat_at) {
+    // started_at 常缺（采集器未上报）→ 回退任务创建时刻，窗口从任务诞生算到最后一次心跳
+    var st = sess.started_at || (t && t.created_at) || null;
+    if (st) {
+      var s0 = Math.max(new Date(st).getTime(), startMs);
+      var e0 = Math.min(new Date(sess.heartbeat_at).getTime(), endMs);
+      activeMin = Math.max(0, Math.round((e0 - s0) / 60000));
+      if (activeMin > 480) capped = true; // 单窗超 8h 却无 prompt 证据 → 存疑
+    }
   } else if (evidencedMin > 0) {
     activeMin = evidencedMin;
   }
