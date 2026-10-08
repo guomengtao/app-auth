@@ -1771,6 +1771,97 @@ function noteOfExtra(extra) {
  * 任务列表公开读 —— 手机端「任务」栏目直接从 evops_tasks 表拉取（不经过聚合）。
  * 支持 ?status=in_progress 过滤（可选）；返回按 updated_at 降序，limit 200。
  */
+/* ── 任务活跃度（2026-10-08，docs/任务活跃度-设计方案-v1.md）──
+ * 三信号合成、木桶原则取最差：绑定会话心跳 / 任务 updated_at / 会话绑定存在性。
+ * 纯派生值：不写库、零 schema 变更；阈值走环境变量 EV_ACT_TH_*（分钟），缺省 30/120/480。
+ * orphan = 晨割 v2 的「无人负责」系统定义；unbound = 从未绑定会话（Trae 裸奔雷达）。
+ */
+function evActThresholds() {
+  function num(v, dflt) { var n = parseInt(v, 10); return (n > 0) ? n : dflt; }
+  var e = (typeof process !== "undefined" && process.env) || {};
+  return {
+    active: num(e.EV_ACT_TH_ACTIVE_MIN, 30),    // 心跳 ≤30min 视为活着
+    stale: num(e.EV_ACT_TH_STALE_MIN, 120),     // updated_at ≤2h 视为活跃
+    orphan: num(e.EV_ACT_TH_ORPHAN_MIN, 480)    // 8h = 晨割收割线
+  };
+}
+
+/** @param t 任务行（需 updated_at / session_sid / status）
+ *  @param sess 会话行或 null（需 heartbeat_at / session_status） */
+function taskActivity(t, sess) {
+  var th = evActThresholds();
+  var now = Date.now();
+  function ageMin(x) { try { return Math.max(0, Math.round((now - new Date(x).getTime()) / 60000)); } catch (e) { return null; } }
+  var updIdle = t && t.updated_at ? ageMin(t.updated_at) : null;
+  var hbIdle = sess && sess.heartbeat_at ? ageMin(sess.heartbeat_at) : null;
+  if (!t || !t.session_sid) {
+    // 从未绑定会话：updated_at 超收割线也算 orphan（挂着没人管），否则 unbound
+    if (updIdle != null && updIdle > th.orphan) {
+      return { activity: "orphan", idle_min: updIdle, stale_since: t && t.updated_at || null, reason: "no_session_and_stale" };
+    }
+    return { activity: "unbound", idle_min: updIdle, stale_since: null, reason: "never_bound" };
+  }
+  var sessDead = sess && sess.session_status && sess.session_status !== "active" && sess.session_status !== "online";
+  var orphan = (hbIdle != null && hbIdle > th.orphan) || !!sessDead ||
+               (hbIdle == null && updIdle != null && updIdle > th.orphan);
+  if (orphan) {
+    return { activity: "orphan", idle_min: hbIdle != null ? hbIdle : updIdle,
+             stale_since: sess && sess.heartbeat_at || t.updated_at || null,
+             reason: sessDead ? "session_dead" : (hbIdle != null ? "heartbeat_stale" : "no_heartbeat_stale_task") };
+  }
+  if ((hbIdle != null && hbIdle <= th.active) && (updIdle != null && updIdle <= th.stale)) {
+    return { activity: "active", idle_min: hbIdle, stale_since: null, reason: "" };
+  }
+  return { activity: "stale", idle_min: hbIdle != null ? hbIdle : updIdle,
+           stale_since: (hbIdle != null && hbIdle > th.active) ? sess.heartbeat_at : t.updated_at, reason: "" };
+}
+
+/** 只读查询：任务活跃度清单（2026-10-08 P2）。
+ * GET ?action=task-activity[&scope=orphan|stale|active|unbound][&status=in_progress][&limit=200]
+ * 晨割 v2 消费方：scope=orphan 即「无人负责」收割清单，替代人肉时间戳判断。 */
+async function handleTaskActivity(req, res) {
+  var db = evTaskDb(req, res);
+  if (!db) return json(res, 502, { success: false, error: "supabase_unavailable" });
+  var q = (req && req.query) || {};
+  var scope = String(q.scope || "").toLowerCase();
+  var status = String(q.status || "in_progress");
+  var limit = Math.min(Math.max(parseInt(q.limit, 10) || 200, 1), 500);
+  var url = db.sbUrl + "/rest/v1/" + TASKS_TABLE + "?select=*&order=updated_at.desc&limit=" + limit;
+  if (status && status !== "all") url += "&status=eq." + encodeURIComponent(status);
+  try {
+    var r = await fetch(url, { headers: db.headers() });
+    if (!r.ok) { var txt = await r.text(); return json(res, 502, { success: false, error: "supabase_fetch_failed", detail: txt.slice(0, 200) }); }
+    var rows = await r.json();
+    if (!Array.isArray(rows)) rows = [];
+    var sessMap = {};
+    try {
+      var rs = await fetch(db.sbUrl + "/rest/v1/" + SESSIONS_TABLE +
+        "?select=sid,heartbeat_at,status&limit=500", { headers: db.headers() });
+      if (rs.ok) {
+        var srows = await rs.json();
+        if (Array.isArray(srows)) srows.forEach(function (s) { if (s && s.sid) sessMap[s.sid] = s; });
+      }
+    } catch (e) { /* 会话表读不到 → 全按无心跳判定 */ }
+    var list = [];
+    rows.forEach(function (t) {
+      if (!t || !t.id) return;
+      var act = taskActivity(t, t.session_sid ? (sessMap[t.session_sid] || null) : null);
+      if (scope && act.activity !== scope) return;
+      list.push({ id: t.id, project: t.project || "", title: t.title || "", status: t.status || "in_progress",
+                  assignee: t.assignee || "", activity: act.activity, idle_min: act.idle_min,
+                  stale_since: act.stale_since, reason: act.reason, updated_at: t.updated_at });
+    });
+    var counts = { active: 0, stale: 0, orphan: 0, unbound: 0 };
+    rows.forEach(function (t) {
+      if (!t || !t.id) return;
+      counts[taskActivity(t, t.session_sid ? (sessMap[t.session_sid] || null) : null).activity]++;
+    });
+    return json(res, 200, { success: true, scope: scope || "all", total: list.length, counts: counts, tasks: list });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
 async function handleTaskList(req, res) {
   var db = evTaskDb(req, res);
   if (!db) return json(res, 502, { success: false, error: "supabase_unavailable" });
@@ -1833,6 +1924,12 @@ async function handleTaskList(req, res) {
         }
         list.forEach(function (t) {
           var s = t.session_sid ? smap[t.session_sid] : null;
+          // 活跃度注入（2026-10-08）：纯派生，四档位 active/stale/orphan/unbound
+          var act = taskActivity(t, s || null);
+          t.activity = act.activity;
+          t.activity_idle_min = act.idle_min;
+          t.activity_stale_since = act.stale_since;
+          t.activity_reason = act.reason;
           if (!s) return;
           t.session_raw_sid = s.raw_sid;
           t.session_tool = s.tool;
@@ -1923,6 +2020,10 @@ module.exports = async (req, res) => {
         // 公开读：手机端任务栏目直接拉 evops_tasks（过滤/分页由后端管）
         if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
         return await handleTaskList(req, res);
+      case "task-activity":
+        // 公开读：任务活跃度四档位清单（orphan=晨割收割线，unbound=裸奔雷达）
+        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
+        return await handleTaskActivity(req, res);
       case "task-update":
         if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
         return await handleTaskUpdate(req, res);
