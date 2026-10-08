@@ -1893,6 +1893,9 @@ async function buildDashboard(req) {
   var CST = 8 * 3600 * 1000;
   var bjDay = function (ms) { var d = new Date(ms + CST); return d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, "0") + "-" + String(d.getUTCDate()).padStart(2, "0"); };
   var todayStartIso = new Date(bjDay(Date.now()) + "T00:00:00+08:00").toISOString();
+  var ystStartIso = new Date(new Date(todayStartIso).getTime() - 86400000).toISOString();
+  var todayKey = bjDay(Date.now());
+  var ystKey = bjDay(Date.now() - 86400000);
 
   // ── 运营：visitor_logs（PG）──
   try {
@@ -1916,6 +1919,11 @@ async function buildDashboard(req) {
     // 最新订单：tracking_events kind=order（PG 同库，禁 redis 口径），取历史最新 1 条兜底
     var lo = await q("select ts, payload->>'plan_title' title, payload->>'amount' amount, coalesce(out_trade_no,'') no" +
       " from tracking_events where kind='order' order by ts desc limit 1");
+    // ── 昨日对比（evtask-D-evev-ops-and-261008-gecm6s，用户 2026-10-08 指定）──
+    var yp = (await q("select count(*)::int pv, count(distinct visitor_hash)::int uv from visitor_logs where ts >= '" + ystStartIso + "' and ts < '" + todayStartIso + "'"))[0] || {};
+    // 昨日新访客：昨天出现的 hash 在昨天之前从没出现过
+    var ynv = (await q("select count(*)::int n from (select distinct visitor_hash from visitor_logs where ts >= '" + ystStartIso + "' and ts < '" + todayStartIso + "' and visitor_hash <> '' and visitor_hash not in (select distinct visitor_hash from visitor_logs where ts < '" + ystStartIso + "' and visitor_hash <> '')) t"))[0] || {};
+    var odCnt = (await q("select count(*) filter (where ts >= '" + todayStartIso + "')::int t, count(*) filter (where ts >= '" + ystStartIso + "' and ts < '" + todayStartIso + "')::int y from tracking_events where kind='order'"))[0] || {};
     out.ops = {
       pv_today: today.pv || 0, uv_today: today.uv || 0,
       pv_total: total.pv || 0, uv_total: total.uv || 0,
@@ -1923,7 +1931,9 @@ async function buildDashboard(req) {
       city_top5: city, trend: trend,
       recent_visits: rv.map(function (r) { return { ts: new Date(r.ts).getTime(), city: r.city, model: r.model, src: r.src }; }),
       last_order: lo.length ? { ts: new Date(lo[0].ts).getTime(), title: lo[0].title || "爱发电订单", amount: lo[0].amount || "", no: lo[0].no || "" } : null,
-      orders: null  // 待办：订单总数口径（tracking_events 之前的历史散键），见方案 §七
+      orders: null,  // 待办：订单总数口径（tracking_events 之前的历史散键），见方案 §七
+      orders_today: odCnt.t || 0, orders_yesterday: odCnt.y || 0,
+      yesterday: { pv: yp.pv || 0, uv: yp.uv || 0, orders: odCnt.y || 0, new_visitors: ynv.n || 0 }
     };
   } catch (e) { out.ops = { error: String(e && e.message) }; }
 
@@ -1982,6 +1992,20 @@ async function buildDashboard(req) {
         }
       });
       doneRecent.sort(function (a, b) { return String(b.closed_at).localeCompare(String(a.closed_at)); });
+      // 昨日对比（gecm6s）：今日/昨日完成任务数（closed_at 前缀比较）+ 新建任务数
+      var doneToday = 0, doneYst = 0, newToday = 0, newYst = 0;
+      rows.forEach(function (t) {
+        if (!t || !t.id) return;
+        var cl = (t.extra && typeof t.extra === "object" && t.extra.closed_at) || (t.status === "done" ? t.updated_at : "");
+        if (t.status === "done") {
+          var cls = String(cl || "");
+          if (cls.substring(0, 10) === todayKey) doneToday++;
+          if (cls.substring(0, 10) === ystKey) doneYst++;
+        }
+        var cr = String(t.created_at || "").substring(0, 10);
+        if (cr === todayKey) newToday++;
+        if (cr === ystKey) newYst++;
+      });
       // 在岗开发列表（用户 2026-10-08 指定，重要）：in_progress 且会话心跳 ≤30min 的任务，
       // 按负责人（assignee/会话）去重，每人带当前任务与有效工时 —— 大屏左栏展示
       var devSeen = {}, devs = [];
@@ -1996,7 +2020,8 @@ async function buildDashboard(req) {
         var f3 = taskEffort(t, s2, null);
         devs.push({ who: who, title: t.title || "", active_min: f3.active_min, hb: (s2 && s2.heartbeat_at) || null });
       });
-      out.dev = { open: open, active: active, frozen: frozen, blocked: blocked, flow: flow, devs: devs, done_recent: doneRecent.slice(0, 5) };
+      out.dev = { open: open, active: active, frozen: frozen, blocked: blocked, flow: flow, devs: devs, done_recent: doneRecent.slice(0, 5),
+        done_today: doneToday, done_yesterday: doneYst, new_today: newToday, new_yesterday: newYst };
     }
   } catch (e5) { out.dev = { error: String(e5 && e5.message) }; }
   return out;
