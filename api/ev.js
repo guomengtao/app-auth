@@ -1140,6 +1140,7 @@ function evConfigRateAllowed(src) {
  * ================================================================== */
 
 var TASKS_TABLE = "evops_tasks";
+var USAGE_TABLE = "evops_usage";         // 每会话用量（积分+Token，覆盖式 upsert；方案 ev-ops-android/docs/积分消耗统计-方案.md）
 var SESSIONS_TABLE = "evops_sessions";   // 会话身份（方案：docs/会话身份字段入库Supabase-方案.md）
 var PROJECTS_TABLE = "evops_projects";   // 项目真源（2026-10-07：取代聚合 evops_status.payload.projects[]，方案 docs/聚合下线-只留Supabase真源-方案.md）
 
@@ -2629,6 +2630,14 @@ module.exports = async (req, res) => {
         // 模型用量按天汇总（视图 v_evops_model_daily 现算，公开读）
         if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
         return await handleModelDaily(req, res);
+      case "usage-log":
+        // 钩子上报每会话用量（积分+Token）→ upsert evops_usage（Bearer EV_SYNC_TOKEN）
+        if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
+        return await handleUsageLog(req, res);
+      case "usage-list":
+        // 公开读：EvOps「积分」Tab 拉 evops_usage（按积分倒序）
+        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
+        return await handleUsageList(req, res);
       case "agent-nickname":
         // AI 开发者昵称（花名）读写：GET 公开读 / POST 鉴权 upsert（V5，允许重名）
         return await handleAgentNickname(req, res);
@@ -2890,6 +2899,67 @@ async function handleModelDaily(req, res) {
     }
     var items = await r.json();
     return json(res, 200, { success: true, days: days, items: items });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
+/* =====================================================================
+ * EvOps 用量（积分 + Token）—— 写/读接口（evtask-D-evev-ops-and-261009-3xecvb）
+ * 方案：ev-ops-android/docs/积分消耗统计-方案.md
+ *   usage-log  POST（Bearer EV_SYNC_TOKEN）：钩子每次上报 upsert 一行（on_conflict=sid）。
+ *   usage-list GET （公开）：EvOps「积分」Tab 直接拉，按积分倒序。
+ * ================================================================== */
+async function handleUsageLog(req, res) {
+  if (!evTaskAuthOk(req)) return json(res, 401, { success: false, error: "unauthorized" });
+  var db = evTaskDb(req, res);
+  if (!db) return json(res, 500, { success: false, error: "no_store_configured" });
+  var body = (req.body && typeof req.body === "object") ? req.body : {};
+  var sid = String(body.sid || "").trim().slice(0, 120);
+  if (!sid) return json(res, 400, { success: false, error: "sid required" });
+  function num(v, dflt) { var n = Number(v); return isFinite(n) ? n : dflt; }
+  var row = {
+    sid: sid,
+    raw_sid: String(body.raw_sid || "").slice(0, 120),
+    tool: String(body.tool || "").slice(0, 32),
+    model: String(body.model || "").slice(0, 64),
+    title: String(body.title || "").slice(0, 240),
+    credit_total: Math.max(0, num(body.credit_total, 0)),
+    tok_in: Math.max(0, Math.floor(num(body.tok_in, 0))),
+    tok_out: Math.max(0, Math.floor(num(body.tok_out, 0))),
+    tok_total: Math.max(0, Math.floor(num(body.tok_total, 0))),
+    messages: Math.max(0, Math.floor(num(body.messages, 0))),
+    started_at: body.started_at ? String(body.started_at).slice(0, 40) : null,
+    updated_at: new Date().toISOString()
+  };
+  try {
+    var r = await fetch(db.sbUrl + "/rest/v1/" + USAGE_TABLE + "?on_conflict=sid", {
+      method: "POST",
+      headers: db.headers({ Prefer: "resolution=merge-duplicates,return=minimal" }),
+      body: JSON.stringify(row)
+    });
+    if (r.ok || r.status === 201) return json(res, 200, { success: true, sid: sid });
+    var txt = await r.text();
+    return json(res, 502, { success: false, error: "supabase_write_failed", detail: String(txt).slice(0, 200) });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
+async function handleUsageList(req, res) {
+  var db = evTaskDb(req, res);
+  if (!db) return json(res, 502, { success: false, error: "supabase_unavailable" });
+  var limit = parseInt((req.query && req.query.limit) || "200", 10);
+  if (!(limit > 0 && limit <= 500)) limit = 200;
+  try {
+    var r = await fetch(db.sbUrl + "/rest/v1/" + USAGE_TABLE +
+      "?select=*&order=credit_total.desc,updated_at.desc&limit=" + limit, { headers: db.headers() });
+    if (!r.ok) {
+      var txt = await r.text();
+      return json(res, 502, { success: false, error: "supabase_read_failed", detail: String(txt).slice(0, 200) });
+    }
+    var items = await r.json();
+    return json(res, 200, { success: true, items: Array.isArray(items) ? items : [] });
   } catch (e) {
     return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
   }
