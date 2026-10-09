@@ -2128,6 +2128,20 @@ async function buildDashboard(req) {
         try {
           var pg5 = require("../lib/postgres");
           var q5 = function (sql, p) { return pg5.query(sql, p).then(function (r) { return r.rows || []; }); };
+          // 日期 → 北京日（⚠️ 不能用 String(v).slice(0,10)：那是 UTC 日，会把北京
+          //   00:00–08:00 的单算到前一天。2026-10-09 P1 实施中发现并统一）
+          var BJ_CST = 8 * 3600 * 1000;
+          var bjDayOf = function (v) {
+            if (!v) return "";
+            // ⚠️ 数字＝epoch 毫秒，必须直接当 ms 用；Date.parse(String(1234)) 得 NaN，
+            //   回退分支会返回时间戳前 10 位（形如 "1791459569"）——不是日期，会让查询恒空。
+            var ms = (typeof v === "number") ? v
+              : (v instanceof Date) ? v.getTime() : Date.parse(String(v));
+            if (isNaN(ms)) return String(v).slice(0, 10);
+            var d = new Date(ms + BJ_CST);
+            return d.getUTCFullYear() + "-" + ("0" + (d.getUTCMonth() + 1)).slice(-2) + "-" + ("0" + d.getUTCDate()).slice(-2);
+          };
+          var ystKey5 = bjDay(Date.now() - 86400000);   // 用外层 bjDay(ms)，勿用 bjDayOf（后者收日期串）
           // 今日 per-sid：对话 / 文件 / 心跳 / 快速通道（dash_events，按 payload->>'sid' 归因）
           var rowsAgg = await q5(
             "select coalesce(payload->>'sid','') sid," +
@@ -2145,6 +2159,29 @@ async function buildDashboard(req) {
             " from evops_messages where ts >= $1 and coalesce(sid,'')<>'' group by sid", [todayStartIso]);
           var msgMap = {};
           msgAgg.forEach(function (r) { msgMap[r.sid] = r; });
+          // 今日 per-sid：对话按模式拆分（方案《大屏-会话今日报告》§4.1）
+          //   口径 v2（用户 2026-10-09 拍板）：短消息**全算**；task_id 空=快速对话、非空=任务单对话。
+          //   零钩子改动 —— task_id 落库那刻就带「当时是否持单」语义（ev-report.js L517）。
+          var talkMap = {};
+          (await q5(
+            "select coalesce(sid,'') sid," +
+            " count(*) filter (where hook_event='UserPromptSubmit')::int talk," +
+            " count(*) filter (where hook_event='UserPromptSubmit' and coalesce(task_id,'')='')::int talk_quick," +
+            " count(*) filter (where hook_event='UserPromptSubmit' and coalesce(task_id,'')<>'')::int talk_task," +
+            " count(*) filter (where hook_event='UserPromptSubmit' and is_short)::int talk_short" +
+            " from evops_messages where ts >= $1 and coalesce(sid,'')<>'' group by 1",
+            [todayStartIso])).forEach(function (r) { talkMap[r.sid] = r; });
+          // 全表口径：昨日完成单量。⚠️ 必须单算 —— 昨天收尾的单，其会话今天多半不在榜
+          //   （榜单 = 近24h在线 ∪ 今日有事件，且截断 12 条），per-sid 根本取不到。
+          //   独立 try 兜错：closed_at 万一有脏格式，不让它拖垮整个 V5 块。
+          //   ⚠️ 必须从 Supabase 的 rows 算，**不能**用 q5(lib/postgres)：evops_tasks 只在 Supabase，
+          //      q5 连的是另一个库（无该表）→ 查询抛错被吞成 0（2026-10-09 实测踩过）。零新增查询。
+          var ystDoneAllN = 0;
+          rows.forEach(function (t) {
+            if (!t || t.status !== "done") return;
+            var cl5y = (t.extra && typeof t.extra === "object" && t.extra.closed_at) || t.updated_at;
+            if (bjDayOf(cl5y) === ystKey5) ystDoneAllN++;
+          });
           // 昵称注册表（显示名来源，非唯一）
           var nickMap = {};
           (await q5("select sid, nickname, avatar from evops_agents", [])).forEach(function (a) {
@@ -2152,14 +2189,23 @@ async function buildDashboard(req) {
           });
           // 打磨：最近完成的负责人，若有花名则优先显示花名（昵称仅显示、非唯一键，按 sid 取）
           doneRecent.forEach(function (d) { var nk5 = nickMap[d.session_sid]; if (nk5 && nk5.nickname) d.who = nk5.nickname; });
-          // 今日 per-sid：完成任务数（复用已取的 rows）
-          var doneMap = {};
+          // 今日/昨日 per-sid：完成任务数 + 任务三态（复用已取的 rows，零新增查询）
+          //   ⚠️ 日期一律 bjDayOf（北京日）—— 原 substring(0,10) 是 UTC 日，跨零点会串日
+          var doneMap = {}, ystMap = {}, newMap = {}, openMap = {}, blockMap = {};
           rows.forEach(function (t) {
-            if (!t || t.status !== "done") return;
-            var cl5 = (t.extra && typeof t.extra === "object" && t.extra.closed_at) || t.updated_at;
-            if (String(cl5 || "").substring(0, 10) !== todayKey) return;
+            if (!t || !t.id) return;
             var k5 = (t.session_sid && String(t.session_sid)) || (t.assignee && String(t.assignee)) || "";
-            if (k5) doneMap[k5] = (doneMap[k5] || 0) + 1;
+            if (!k5) return;
+            var st5x = String(t.status || "");
+            var cl5 = (t.extra && typeof t.extra === "object" && t.extra.closed_at) || t.updated_at;
+            var clDay5 = bjDayOf(cl5);
+            if (st5x === "done") {
+              if (clDay5 === todayKey) doneMap[k5] = (doneMap[k5] || 0) + 1;
+              else if (clDay5 === ystKey5) ystMap[k5] = (ystMap[k5] || 0) + 1;
+            }
+            if (bjDayOf(t.created_at) === todayKey) newMap[k5] = (newMap[k5] || 0) + 1;  // 今日领取
+            if (st5x === "in_progress") openMap[k5] = (openMap[k5] || 0) + 1;            // 当前进行中
+            if (st5x === "blocked") blockMap[k5] = (blockMap[k5] || 0) + 1;              // 当前阻塞
           });
           // 视角修正（§十四 2026-10-09）：每条「会话」的今日任务单明细 —— 1 会话 : N 任务单。
           //   复用上面已取的 rows（evops_tasks），**零新增查询**；口径与 doneMap 一致（同为今日）。
@@ -2169,15 +2215,17 @@ async function buildDashboard(req) {
             if (!t || !t.id) return;
             var st5 = String(t.status || "");
             var cl5b = (t.extra && typeof t.extra === "object" && t.extra.closed_at) || t.updated_at;
-            var clDay5 = String(cl5b || "").substring(0, 10);
+            var clDay5b = bjDayOf(cl5b);
             var isTodayTask = (st5 === "in_progress" || st5 === "blocked" || st5 === "planned")
-              || (st5 === "done" && clDay5 === todayKey);
+              || (st5 === "done" && clDay5b === todayKey);
             if (!isTodayTask) return;
             var k5t = (t.session_sid && String(t.session_sid)) || (t.assignee && String(t.assignee)) || "";
             if (!k5t) return;
             (taskMap[k5t] || (taskMap[k5t] = [])).push({
               id: String(t.id), title: String(t.title || "").slice(0, 40),
-              status: st5, at: String(cl5b || t.created_at || "")
+              status: st5, at: String(cl5b || t.created_at || ""),
+              created_at: String(t.created_at || ""), closed_at: String(cl5b || ""),
+              is_new_today: bjDayOf(t.created_at) === todayKey
             });
           });
           Object.keys(taskMap).forEach(function (k5s) {
@@ -2221,6 +2269,18 @@ async function buildDashboard(req) {
               // 视角修正 §十四：该会话今日领的任务单（左栏可展开；1 会话 : N 单）
               tasks_today: (taskMap[sid5] || []).slice(0, 5),
               tasks_today_n: (taskMap[sid5] || []).length,
+              // 今日报告（方案《大屏-会话今日报告》）：对话按模式拆 + 任务三态 + 昨日完成
+              report: (function () {
+                var tk5 = talkMap[sid5] || {};
+                return {
+                  talk: tk5.talk || 0, talk_quick: tk5.talk_quick || 0,
+                  talk_task: tk5.talk_task || 0, talk_short: tk5.talk_short || 0,
+                  tasks_new: newMap[sid5] || 0, tasks_open: openMap[sid5] || 0,
+                  tasks_blocked: blockMap[sid5] || 0, tasks_done: doneMap[sid5] || 0,
+                  tasks_done_yst: ystMap[sid5] || 0,
+                  files: file5, hearts: a.hearts || 0, tok_total: Number(m.tok_total || 0)
+                };
+              })(),
               tok_total: Number(m.tok_total || 0), msgs: m.msgs || 0,
               last_at: a.last_at ? new Date(a.last_at).getTime() : (s.heartbeat_at ? new Date(s.heartbeat_at).getTime() : null)
             });
@@ -2229,14 +2289,19 @@ async function buildDashboard(req) {
           out.dev.agents = agents.slice(0, 12);
           out.dev.agents_total = agents.length;
           // 全量汇总（KPI 用；agents[] 已截断到 12，故须在截断前用全集算）
-          var tot5 = { agents: agents.length, prompts: 0, files: 0, hearts: 0, quick: 0, quick_actions: 0, msgs: 0, tok_total: 0, task: 0, quick_mode: 0, idle: 0, tasks_today: 0 };
+          var tot5 = { agents: agents.length, prompts: 0, files: 0, hearts: 0, quick: 0, quick_actions: 0, msgs: 0, tok_total: 0, task: 0, quick_mode: 0, idle: 0, tasks_today: 0,
+            report: { talk: 0, talk_quick: 0, talk_task: 0, talk_short: 0, tasks_new: 0, tasks_open: 0, tasks_blocked: 0, tasks_done: 0, tasks_done_yst: 0, tasks_done_yst_all: 0 } };
           agents.forEach(function (a) {
             tot5.prompts += a.prompts || 0; tot5.files += a.files || 0; tot5.hearts += a.hearts || 0;
             tot5.quick += a.quick || 0; tot5.quick_actions += a.quick_actions || 0;
             tot5.msgs += a.msgs || 0; tot5.tok_total += Number(a.tok_total || 0);
             tot5.tasks_today += a.tasks_today_n || 0;
+            var rp5 = a.report || {};
+            Object.keys(tot5.report).forEach(function (kk) { tot5.report[kk] += Number(rp5[kk] || 0); });
             if (a.mode === "task") tot5.task++; else if (a.mode === "quick") tot5.quick_mode++; else tot5.idle++;
           });
+          // 昨日完成用**全表**口径覆盖（榜内 Σ 只是子集，会话跨天基本不在榜 → 会恒为 0）
+          tot5.report.tasks_done_yst_all = ystDoneAllN;
           out.dev.totals = tot5;
           // 模型用量（近 7 天，读视图 v_evops_model_daily，含 token）
           // 注意：day 作**裸别名**会语法错（PG 保留字），必须 as d 或加引号。
