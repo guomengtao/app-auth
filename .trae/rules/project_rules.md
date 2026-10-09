@@ -138,3 +138,18 @@ This is the design for the EV Sync plugin.
 > ⚠️ 本节已由**总纲 §3.11 / §4.4 取代**（正式要求单一权威 = 总纲）：任务单号唯一来源 = `task-register` API 领取 `evtask-` 前缀（写 Supabase `evops_tasks`），拿到单号 → 明确告知用户 → 登记 → 才动手。**旧 `TCK-` 自编号已作废，不再使用**（历史遗留 TCK- 记录不算正式单号）。
 >
 > 总纲路径：`/Users/Banner/Documents/guomengtao/多人多AI统一协调开发总纲.md`
+
+## ev-sweeper 纠察记录
+
+> 由 ev-sweeper 2026-10-08 清扫发现。
+
+### 本次发现（2026-10-08）
+
+| 问题 | 严重度 |
+|------|:--:|
+| `.env.bak` 敏感文件备份留存在根目录 | 🔴 |
+
+### 防重复规则
+
+1. **禁止 `.env*` 备份**：`.env` 文件**严禁**创建任何备份副本（`.env.bak`、`.env.old` 等），修改后直接覆盖
+2. 如确需保留环境变量历史，使用 `1password` 或 `安全笔记` 存储，不得留文件在磁盘
