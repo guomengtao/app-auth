@@ -2161,6 +2161,28 @@ async function buildDashboard(req) {
             var k5 = (t.session_sid && String(t.session_sid)) || (t.assignee && String(t.assignee)) || "";
             if (k5) doneMap[k5] = (doneMap[k5] || 0) + 1;
           });
+          // 视角修正（§十四 2026-10-09）：每条「会话」的今日任务单明细 —— 1 会话 : N 任务单。
+          //   复用上面已取的 rows（evops_tasks），**零新增查询**；口径与 doneMap 一致（同为今日）。
+          //   今日单 = 进行中/阻塞/计划 中，或 done 且关闭日=今日。键 = session_sid 优先，assignee 兜底。
+          var taskMap = {};
+          rows.forEach(function (t) {
+            if (!t || !t.id) return;
+            var st5 = String(t.status || "");
+            var cl5b = (t.extra && typeof t.extra === "object" && t.extra.closed_at) || t.updated_at;
+            var clDay5 = String(cl5b || "").substring(0, 10);
+            var isTodayTask = (st5 === "in_progress" || st5 === "blocked" || st5 === "planned")
+              || (st5 === "done" && clDay5 === todayKey);
+            if (!isTodayTask) return;
+            var k5t = (t.session_sid && String(t.session_sid)) || (t.assignee && String(t.assignee)) || "";
+            if (!k5t) return;
+            (taskMap[k5t] || (taskMap[k5t] = [])).push({
+              id: String(t.id), title: String(t.title || "").slice(0, 40),
+              status: st5, at: String(cl5b || t.created_at || "")
+            });
+          });
+          Object.keys(taskMap).forEach(function (k5s) {
+            taskMap[k5s].sort(function (a, b) { return String(b.at).localeCompare(String(a.at)); });
+          });
           // 近 24h 在线会话 + 今日有事件的 sid，合并成开发者榜（sid 为唯一键）
           var live = await q5(
             "select sid, coalesce(tool,'') tool, coalesce(title,'') title, heartbeat_at," +
@@ -2196,6 +2218,9 @@ async function buildDashboard(req) {
               open_task_id: openTask,
               prompts: prompts5, files: file5, hearts: a.hearts || 0,
               quick: quick5, quick_actions: quickActs5, done_today: doneMap[sid5] || 0,
+              // 视角修正 §十四：该会话今日领的任务单（左栏可展开；1 会话 : N 单）
+              tasks_today: (taskMap[sid5] || []).slice(0, 5),
+              tasks_today_n: (taskMap[sid5] || []).length,
               tok_total: Number(m.tok_total || 0), msgs: m.msgs || 0,
               last_at: a.last_at ? new Date(a.last_at).getTime() : (s.heartbeat_at ? new Date(s.heartbeat_at).getTime() : null)
             });
@@ -2204,11 +2229,12 @@ async function buildDashboard(req) {
           out.dev.agents = agents.slice(0, 12);
           out.dev.agents_total = agents.length;
           // 全量汇总（KPI 用；agents[] 已截断到 12，故须在截断前用全集算）
-          var tot5 = { agents: agents.length, prompts: 0, files: 0, hearts: 0, quick: 0, quick_actions: 0, msgs: 0, tok_total: 0, task: 0, quick_mode: 0, idle: 0 };
+          var tot5 = { agents: agents.length, prompts: 0, files: 0, hearts: 0, quick: 0, quick_actions: 0, msgs: 0, tok_total: 0, task: 0, quick_mode: 0, idle: 0, tasks_today: 0 };
           agents.forEach(function (a) {
             tot5.prompts += a.prompts || 0; tot5.files += a.files || 0; tot5.hearts += a.hearts || 0;
             tot5.quick += a.quick || 0; tot5.quick_actions += a.quick_actions || 0;
             tot5.msgs += a.msgs || 0; tot5.tok_total += Number(a.tok_total || 0);
+            tot5.tasks_today += a.tasks_today_n || 0;
             if (a.mode === "task") tot5.task++; else if (a.mode === "quick") tot5.quick_mode++; else tot5.idle++;
           });
           out.dev.totals = tot5;
