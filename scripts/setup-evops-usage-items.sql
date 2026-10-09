@@ -39,6 +39,19 @@ create policy "evops_usage_items_anon_read" on evops_usage_items for select usin
 create policy "evops_usage_items_svc_all"  on evops_usage_items for all
   using (auth.role() = 'service_role') with check (auth.role() = 'service_role');
 
+-- ── 迭代2 新增列（2026-10-10，evtask-D-evev-ops-and-261009-3xecvb）：行卡要显示对话内容/单号/上下文 ──
+-- 幂等 add column：可重复执行，已存在则跳过。
+alter table evops_usage_items add column if not exists prompt_text text;       -- 该轮用户发的指令内容（截断 120 字）
+alter table evops_usage_items add column if not exists task_id     varchar(64);-- ev 任务单号（evtask-…），无则空
+alter table evops_usage_items add column if not exists task_title  varchar(240);-- 任务名
+alter table evops_usage_items add column if not exists ctx_used    int;        -- 该轮时上下文占用 token（session_usage.used）
+alter table evops_usage_items add column if not exists ctx_size    int;        -- 上下文窗口（session_usage.size）
+alter table evops_usage_items add column if not exists calls       int;        -- 已计费轮次（credit_json 条目数）＝「已调用 N 次」
+
+-- 筛选/分页辅助索引
+create index if not exists idx_eui_model on evops_usage_items(model);
+create index if not exists idx_eui_tool  on evops_usage_items(tool);
+
 -- ⭐ 实时推送开关（缺了这一步，安卓 SupabaseRealtime 连上了也收不到任何 INSERT 事件）
 -- Supabase Realtime 只对 publication 内的表广播；drop+add 保证幂等可重复执行。
 do $$

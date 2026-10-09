@@ -3003,7 +3003,14 @@ async function handleUsageItemsLog(req, res) {
       seq: Math.max(0, Math.floor(num(it.seq, 0))),
       credit: Math.max(0, num(it.credit, 0)),
       occurred_at: it.occurred_at ? String(it.occurred_at).slice(0, 40) : new Date().toISOString(),
-      synced_at: new Date().toISOString()
+      synced_at: new Date().toISOString(),
+      // 迭代2（2026-10-10）：行卡展示用 —— 指令原文 / 任务单号+任务名 / 上下文与已调用轮次
+      prompt_text: it.prompt_text == null ? null : String(it.prompt_text).slice(0, 400),
+      task_id: it.task_id == null ? null : String(it.task_id).slice(0, 64),
+      task_title: it.task_title == null ? null : String(it.task_title).slice(0, 240),
+      ctx_used: it.ctx_used == null ? null : Math.max(0, Math.floor(num(it.ctx_used, 0))),
+      ctx_size: it.ctx_size == null ? null : Math.max(0, Math.floor(num(it.ctx_size, 0))),
+      calls: it.calls == null ? null : Math.max(0, Math.floor(num(it.calls, 0)))
     });
   }
   if (!rows.length) return json(res, 400, { success: false, error: "no valid items" });
@@ -3024,25 +3031,48 @@ async function handleUsageItemsLog(req, res) {
 async function handleUsageItemsList(req, res) {
   var db = evTaskDb(req, res);
   if (!db) return json(res, 502, { success: false, error: "supabase_unavailable" });
-  var limit = parseInt((req.query && req.query.limit) || "300", 10);
-  if (!(limit > 0 && limit <= 1000)) limit = 300;
-  var sid = String((req.query && req.query.sid) || "").trim();
+  var q = req.query || {};
+  // 迭代2（2026-10-10）：默认 20 条 + offset 分页（安卓触底追加）；上限 200 防滥用
+  var limit = parseInt(q.limit || "20", 10);
+  if (!(limit > 0 && limit <= 200)) limit = 20;
+  var offset = parseInt(q.offset || "0", 10);
+  if (!(offset >= 0)) offset = 0;
+  var sid = String(q.sid || "").trim();
+  var model = String(q.model || "").trim();
+  var tool = String(q.tool || "").trim();
+  var days = parseInt(q.days || "0", 10);          // 1=今天 / 7=近7天 / 0=全部
   try {
     var url = db.sbUrl + "/rest/v1/" + USAGE_ITEMS_TABLE + "?select=*" +
       (sid ? "&sid=eq." + encodeURIComponent(sid) : "") +
+      (model ? "&model=eq." + encodeURIComponent(model) : "") +
+      (tool ? "&tool=eq." + encodeURIComponent(tool) : "") +
+      (days > 0 ? "&occurred_at=gte." + encodeURIComponent(
+        new Date(Date.now() - days * 86400000).toISOString()) : "") +
       // ⭐ 次级排序 seq.desc：若某轮的真实时刻 join 失败（退化为同一时刻），
       //    仍保证「轮次越大（越晚）排越前」⇒ 列表永远最新在前，不会因时间相同而乱序。
-      "&order=occurred_at.desc,seq.desc&limit=" + limit;   // ⭐ 全部会话混合，按真实发生时间倒序
-    var r = await fetch(url, { headers: db.headers() });
+      "&order=occurred_at.desc,seq.desc" +
+      "&offset=" + offset + "&limit=" + limit;     // ⭐ 全部会话混合，按真实发生时间倒序
+    // Prefer: count=exact ⇒ 响应头 content-range 带回筛选后的总条数（供前端判断是否还有下一页）
+    var r = await fetch(url, { headers: db.headers({ Prefer: "count=exact" }) });
     if (!r.ok) {
       var txt = await r.text();
       return json(res, 502, { success: false, error: "supabase_read_failed", detail: String(txt).slice(0, 200) });
     }
     var items = await r.json();
     if (!Array.isArray(items)) items = [];
+    var total = -1;
+    var cr = r.headers && r.headers.get ? r.headers.get("content-range") : "";
+    if (cr && cr.indexOf("/") >= 0) {
+      var t = parseInt(cr.split("/")[1], 10);
+      if (isFinite(t)) total = t;
+    }
     var sum = 0;
     for (var i = 0; i < items.length; i++) sum += Number(items[i].credit) || 0;
-    return json(res, 200, { success: true, items: items, credit_sum: Math.round(sum * 100) / 100 });
+    return json(res, 200, {
+      success: true, items: items, total: total, offset: offset, limit: limit,
+      has_more: total < 0 ? items.length === limit : (offset + items.length) < total,
+      credit_sum: Math.round(sum * 100) / 100
+    });
   } catch (e) {
     return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
   }
