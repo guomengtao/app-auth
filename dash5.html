@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ev 数据大屏 V5 · AI 开发者视角</title>
+<title>Ev 数据大屏 V5 · 会话视角</title>
 <style>
   :root{
     --bg0:#081020; --bg1:#0d1830; --card:#12203c; --card2:#0e1a33;
@@ -44,6 +44,9 @@
     background:var(--card);border:1px solid var(--line);padding:6px 13px;border-radius:9px;transition:all .15s}
   .fsbtn:hover{color:var(--ink);border-color:var(--indigo)}
   .clock{font-family:var(--mono);font-size:.95rem;font-weight:700;letter-spacing:1px}
+  .ver{font-family:var(--mono);font-size:.66rem;color:var(--ink3);border:1px solid var(--line);
+    border-radius:8px;padding:4px 9px;white-space:nowrap}
+  .ver b{color:var(--teal)}
 
   .panel{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);
     border-radius:15px;padding:14px 16px;display:flex;flex-direction:column}
@@ -76,7 +79,7 @@
   .main{display:grid;grid-template-columns:1.1fr 1.5fr 1.05fr;gap:12px;align-items:start}
   .col{display:flex;flex-direction:column;gap:12px;min-width:0}
 
-  /* AI 开发者榜 */
+  /* 今日会话榜 */
   .devrow{padding:9px 11px;border-radius:11px;background:rgba(255,255,255,.03);border:1px solid transparent;flex:none}
   .devrow:hover{border-color:rgba(129,140,248,.3)}
   .devrow .top{display:flex;align-items:center;gap:7px}
@@ -168,12 +171,13 @@
   <div class="topbar">
     <div class="logo">◉</div>
     <div>
-      <h1>Ev 数据大屏 <span style="font-size:.6em;color:var(--teal);vertical-align:2px">V5 · AI 开发者视角</span></h1>
-      <div class="sub">实体＝AI 开发者（会话 sid 唯一）· 昵称仅显示 · 模式：任务单 / 快速通道 · 含模型与 Token 用量</div>
+      <h1>Ev 数据大屏 <span style="font-size:.6em;color:var(--teal);vertical-align:2px">V5 · 会话视角</span></h1>
+      <div class="sub">实体＝会话（sid 唯一）· 别名仅显示 · 模式：任务单 / 快速通道 · 含模型与 Token 用量</div>
     </div>
     <div class="spacer"></div>
     <div class="live" id="live"><span class="dot"></span><span id="liveTxt">连接中</span></div>
     <div class="src" id="srcTxt">SSE <b>/api/ev?action=dash-stream</b></div>
+    <div class="ver" id="ver" title="大屏独立版本号 · 每次改动 dash*.html 自动 +1">v—</div>
     <button class="fsbtn" id="fsBtn">⛶ 全屏</button>
     <div class="clock" id="clock">--:--:--</div>
   </div>
@@ -184,11 +188,11 @@
     <!-- 左栏 -->
     <div class="col">
       <div class="panel">
-        <div class="ph"><span class="bar"></span><h3>👥 AI 开发者 · 今日榜</h3><span class="tag" id="agTag">前 12 名</span></div>
+        <div class="ph"><span class="bar"></span><h3>👥 今日会话</h3><span class="tag" id="agTag">前 12 名</span></div>
         <div class="scroll" id="devList" style="max-height:430px"></div>
       </div>
       <div class="panel">
-        <div class="ph"><span class="bar"></span><h3>🟢 在线 AI · 实时心跳</h3><span class="tag">带模式归因</span></div>
+        <div class="ph"><span class="bar"></span><h3>🟢 活跃会话 · 实时心跳</h3><span class="tag">带模式归因</span></div>
         <div class="scroll" id="hb" style="max-height:210px"></div>
       </div>
     </div>
@@ -196,10 +200,10 @@
     <!-- 中栏 -->
     <div class="col">
       <div class="panel">
-        <div class="ph"><span class="bar"></span><h3>🔧 开发态势</h3><span class="tag">按会话 sid 归因</span></div>
+        <div class="ph"><span class="bar"></span><h3>🔧 会话态势</h3><span class="tag">按会话 sid 归因</span></div>
         <div class="dstat" id="dstat"></div>
         <div class="msplit">
-          <div class="cap"><span>模式分布 · 任务单 <b id="msTask">0</b> 人</span><span>快速通道 <b id="msQuick">0</b> 人 · 动作 <b id="msQAct">0</b></span></div>
+          <div class="cap"><span>模式分布 · 任务单 <b id="msTask">0</b> 个</span><span>快速通道 <b id="msQuick">0</b> 个 · 动作 <b id="msQAct">0</b></span></div>
           <div class="track"><div class="seg" id="segTask" style="background:linear-gradient(90deg,#6366f1,#818cf8)"></div><div class="seg" id="segQuick" style="background:linear-gradient(90deg,#14b8a6,#2dd4bf)"></div></div>
         </div>
       </div>
@@ -247,7 +251,7 @@
     </div>
   </div>
 
-  <div class="foot">EvOps 大屏 V5 · AI 开发者视角 · SSE 长连接推送（禁轮询） · 数据没变绝不动，变了才慢速替换</div>
+  <div class="foot">EvOps 大屏 V5 · 会话视角 · SSE 长连接推送（禁轮询） · 数据没变绝不动，变了才慢速替换</div>
 </div>
 
 <script>
@@ -281,6 +285,21 @@ function timeAgo(ts){
 function clock(){var t=new Date();var p=x=>String(x).padStart(2,'0');
   document.getElementById('clock').textContent=p(t.getHours())+':'+p(t.getMinutes())+':'+p(t.getSeconds());}
 setInterval(clock,1000);clock();
+
+/* 大屏版本号（dash-version.json，由提交门在改动 dash*.html 时自动第三位 +1）
+   —— 加时间戳 + no-store 防缓存；取不到就保留 v— 静默降级，不影响大屏主功能。 */
+(function(){
+  var el=document.getElementById('ver'); if(!el)return;
+  fetch('dash-version.json?t='+Date.now(),{cache:'no-store'})
+    .then(function(r){return r.ok?r.json():null;})
+    .then(function(d){
+      if(d&&d.version){
+        el.innerHTML='<b>v'+escapeHtml(d.version)+'</b>';
+        el.title='大屏 v'+d.version+(d.updated?' · 更新于 '+d.updated:'');
+      }
+    })
+    .catch(function(){});
+})();
 function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
 /* ====== odometer（值不变绝不动） ====== */
@@ -356,7 +375,7 @@ function drawChart(trend){
 
 /* ====== KPI 骨架（开发组 4 + 分隔 + 运营组 4） ====== */
 var KPI_META=[
-  {k:'ag', l:'AI 开发者',  c:'#818cf8', d:'榜内活跃', grp:'dev'},
+  {k:'ag', l:'会话',  c:'#818cf8', d:'榜内活跃', grp:'dev'},
   {k:'pr', l:'今日对话',   c:'#2dd4bf', d:'全量',     grp:'dev'},
   {k:'tk', l:'今日 Token', c:'#a78bfa', d:'增量',     grp:'dev', f:fmtTok},
   {k:'open', l:'进行中任务', c:'#fb7185', d:'活跃',   grp:'dev'},
@@ -428,7 +447,7 @@ function render(data){
   if(st.dataset.w!==wt){st.dataset.w=wt;st.style.width=wt;}
   if(sq.dataset.w!==wq){sq.dataset.w=wq;sq.style.width=wq;}
 
-  /* AI 开发者今日榜 */
+  /* 今日会话榜 */
   var METERS=[['prompts','💬','对话'],['files','📄','文件'],['done_today','✅','完成'],['hearts','⏱','心跳'],['tok_total','🪙','Token']];
   diffList(document.getElementById('devList'),agents,function(x){return x.sid;},function(x){
     var d=document.createElement('div');d.className='devrow';
@@ -450,7 +469,7 @@ function render(data){
       else odoSet(o,x.sid+'|'+m[0],x[m[0]]||0);
     });
   });
-  document.getElementById('agTag').textContent='榜内 '+agents.length+' / 共 '+fmt(dev.agents_total||agents.length)+' 人';
+  document.getElementById('agTag').textContent='榜内 '+agents.length+' / 共 '+fmt(dev.agents_total||agents.length)+' 个';
 
   /* 心跳（带模式归因） */
   diffList(document.getElementById('hb'),(ops.recent_heartbeats||[]),function(x){return (x.sid||'')+'|'+(x.ts||'');},
