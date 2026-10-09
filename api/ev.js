@@ -2114,6 +2114,95 @@ async function buildDashboard(req) {
           return a;
         }).sort(function (x, y) { return (y.open * 100 + y.done_today) - (x.open * 100 + x.done_today) || y.prompts - x.prompts; }).slice(0, 8);
         out.dev.ai_stats = aiStats;
+
+        // ── V5（evtask-D-evevbox-261009-3ekk7u，2026-10-09 用户批「开工」+「用量一起上屏」）──
+        //    核心实体换成「AI 开发者」= 会话 sid：昵称(join evops_agents·仅显示) + 工作模式 + 今日战绩 + 模型用量 + token。
+        //    全部按 sid 归因（唯一键）；昵称允许重名、绝不参与聚合/排序 tiebreak（修 E1 的根因）。
+        try {
+          var pg5 = require("../lib/postgres");
+          var q5 = function (sql, p) { return pg5.query(sql, p).then(function (r) { return r.rows || []; }); };
+          // 今日 per-sid：对话 / 文件 / 心跳 / 快速通道（dash_events，按 payload->>'sid' 归因）
+          var rowsAgg = await q5(
+            "select coalesce(payload->>'sid','') sid," +
+            " count(*) filter (where t='prompt')::int prompts," +
+            " count(*) filter (where t='files')::int files," +
+            " count(*) filter (where t='hb')::int hearts," +
+            " count(*) filter (where t='quick')::int quick," +
+            " max(ts) last_at" +
+            " from dash_events where ts >= $1 and coalesce(payload->>'sid','')<>'' group by 1", [todayStartIso]);
+          var aggMap = {};
+          rowsAgg.forEach(function (r) { aggMap[r.sid] = r; });
+          // 今日 per-sid：模型 + token（evops_messages 增量口径）
+          var msgAgg = await q5(
+            "select sid, max(model) model, coalesce(sum(tok_total),0)::bigint tok_total, count(*)::int msgs" +
+            " from evops_messages where ts >= $1 and coalesce(sid,'')<>'' group by sid", [todayStartIso]);
+          var msgMap = {};
+          msgAgg.forEach(function (r) { msgMap[r.sid] = r; });
+          // 昵称注册表（显示名来源，非唯一）
+          var nickMap = {};
+          (await q5("select sid, nickname, avatar from evops_agents", [])).forEach(function (a) {
+            nickMap[a.sid] = { nickname: a.nickname || "", avatar: a.avatar || "" };
+          });
+          // 今日 per-sid：完成任务数（复用已取的 rows）
+          var doneMap = {};
+          rows.forEach(function (t) {
+            if (!t || t.status !== "done") return;
+            var cl5 = (t.extra && typeof t.extra === "object" && t.extra.closed_at) || t.updated_at;
+            if (String(cl5 || "").substring(0, 10) !== todayKey) return;
+            var k5 = (t.session_sid && String(t.session_sid)) || (t.assignee && String(t.assignee)) || "";
+            if (k5) doneMap[k5] = (doneMap[k5] || 0) + 1;
+          });
+          // 近 24h 在线会话 + 今日有事件的 sid，合并成开发者榜（sid 为唯一键）
+          var live = await q5(
+            "select sid, coalesce(tool,'') tool, coalesce(title,'') title, heartbeat_at," +
+            " coalesce(status,'') status, coalesce(open_task_id,'') open_task_id, coalesce(model,'') sess_model" +
+            " from evops_sessions where heartbeat_at is not null and heartbeat_at >= now() - interval '24 hours'" +
+            " order by heartbeat_at desc limit 30", []);
+          var seen = {}, agents = [];
+          var pool5 = live.concat(
+            Object.keys(aggMap).map(function (s) { return { sid: s }; }),
+            Object.keys(msgMap).map(function (s) { return { sid: s }; })
+          );
+          pool5.forEach(function (s) {
+            var sid5 = String(s.sid || "");
+            if (!sid5 || seen[sid5]) return;
+            seen[sid5] = 1;
+            var a = aggMap[sid5] || {}, m = msgMap[sid5] || {}, nk = nickMap[sid5] || {};
+            var openTask = String(s.open_task_id || "");
+            var prompts5 = a.prompts || 0, quick5 = a.quick || 0;
+            // 工作模式：有进行中单 → 任务单(task)；否则有快速/对话 → 快速通道(quick)；都不沾 → '-'
+            var mode5 = openTask ? "task" : ((quick5 || prompts5) ? "quick" : "-");
+            agents.push({
+              sid: sid5,
+              nickname: nk.nickname || "",
+              display: nk.nickname || String(s.title || "").trim() || ("会话 ···" + sid5.slice(-4)),
+              tool: String(s.tool || "").trim(),
+              model: String(m.model || s.sess_model || "").trim(),
+              mode: mode5,
+              open_task_id: openTask,
+              prompts: prompts5, files: a.files || 0, hearts: a.hearts || 0,
+              quick: quick5, done_today: doneMap[sid5] || 0,
+              tok_total: Number(m.tok_total || 0), msgs: m.msgs || 0,
+              last_at: a.last_at ? new Date(a.last_at).getTime() : (s.heartbeat_at ? new Date(s.heartbeat_at).getTime() : null)
+            });
+          });
+          agents.sort(function (x, y) { return (y.prompts + y.files) - (x.prompts + x.files) || (y.last_at || 0) - (x.last_at || 0); });
+          out.dev.agents = agents.slice(0, 12);
+          out.dev.agents_total = agents.length;
+          // 模型用量（近 7 天，读视图 v_evops_model_daily，含 token）
+          // 注意：day 作**裸别名**会语法错（PG 保留字），必须 as d 或加引号。
+          out.dev.model_daily = (await q5(
+            "select to_char(day,'YYYY-MM-DD') as d, coalesce(tool,'') as tool, coalesce(model,'') as model," +
+            " messages, sessions, tasks, tok_in, tok_out, tok_total" +
+            " from v_evops_model_daily where day >= (current_date - interval '6 days')" +
+            " order by day desc, messages desc limit 60", [])).map(function (r) {
+              return { day: r.d, tool: r.tool, model: r.model,
+                messages: Number(r.messages || 0), sessions: Number(r.sessions || 0), tasks: Number(r.tasks || 0),
+                tok_in: Number(r.tok_in || 0), tok_out: Number(r.tok_out || 0), tok_total: Number(r.tok_total || 0) };
+            });
+          var tt5 = (await q5("select coalesce(sum(tok_total),0)::bigint t from evops_messages where ts >= $1", [todayStartIso]))[0] || {};
+          out.dev.tokens_today = Number(tt5.t || 0);
+        } catch (e7) { /* V5 聚合失败不影响既有 dev 数据 */ }
       } catch (e6) { /* 聚合失败不影响主数据 */ }
     }
   } catch (e5) { out.dev = { error: String(e5 && e5.message) }; }
@@ -2426,6 +2515,13 @@ module.exports = async (req, res) => {
         // 模型用量按天汇总（视图 v_evops_model_daily 现算，公开读）
         if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
         return await handleModelDaily(req, res);
+      case "agent-nickname":
+        // AI 开发者昵称（花名）读写：GET 公开读 / POST 鉴权 upsert（V5，允许重名）
+        return await handleAgentNickname(req, res);
+      case "quick-log":
+        // 快速通道留痕（门禁 pre-commit 放行时调用，fire-and-forget）
+        if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
+        return await handleQuickLog(req, res);
 
       case "project-list":
         // 公开读：项目真源（取代聚合 payload.projects[]）
@@ -2638,6 +2734,10 @@ async function handleMessageLog(req, res) {
     transcript_path: String(body.transcript_path || "").slice(0, 400),
     cwd: String(body.cwd || "").slice(0, 240),
     repo: String(body.repo || "").slice(0, 240),
+    // token 用量（V5，2026-10-09）：本轮增量（钩子从 transcript 增量解析）。老钩子不带 → 0。
+    tok_in: Math.max(0, parseInt(body.tok_in, 10) || 0),
+    tok_out: Math.max(0, parseInt(body.tok_out, 10) || 0),
+    tok_total: Math.max(0, parseInt(body.tok_total, 10) || 0),
     payload: (body.payload && typeof body.payload === "object") ? body.payload : {}
   };
   try {
@@ -2676,6 +2776,79 @@ async function handleModelDaily(req, res) {
     }
     var items = await r.json();
     return json(res, 200, { success: true, days: days, items: items });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
+/**
+ * AI 开发者昵称（花名）读写 —— POST/GET ?action=agent-nickname（V5，evtask-D-evevbox-261009-3ekk7u）
+ * 昵称属于「人」(sid)，独立于会被 upsert 覆盖的 evops_sessions；**允许重名**（不作唯一键）。
+ *   GET  ?sid=<sid> → 单条 / 无 sid → 全部（供大屏一次性拉映射；公开读）
+ *   POST { sid*, nickname, avatar?, note? } → upsert evops_agents(on_conflict=sid)（需鉴权）
+ */
+async function handleAgentNickname(req, res) {
+  var db = evTaskDb(req, res);
+  if (!db) return json(res, 502, { success: false, error: "supabase_unavailable" });
+  try {
+    if (req.method === "GET") {
+      var sid = String((req.query && req.query.sid) || "").trim().slice(0, 120);
+      var url = db.sbUrl + "/rest/v1/evops_agents?select=sid,nickname,avatar,note,updated_at" +
+        (sid ? "&sid=eq." + encodeURIComponent(sid) : "") + "&order=updated_at.desc&limit=500";
+      var rg = await fetch(url, { headers: db.headers() });
+      if (!rg.ok) { var t1 = await rg.text(); return json(res, 502, { success: false, error: "supabase_read_failed", detail: String(t1).slice(0, 200) }); }
+      var items = await rg.json();
+      return json(res, 200, { success: true, items: Array.isArray(items) ? items : [] });
+    }
+    if (!evTaskAuthOk(req)) return json(res, 401, { success: false, error: "unauthorized" });
+    var body = (req.body && typeof req.body === "object") ? req.body : {};
+    var sid2 = String(body.sid || "").trim().slice(0, 120);
+    if (!sid2) return json(res, 400, { success: false, error: "sid required" });
+    var row = {
+      sid: sid2,
+      nickname: String(body.nickname == null ? "" : body.nickname).slice(0, 60),
+      avatar: String(body.avatar == null ? "" : body.avatar).slice(0, 16),
+      note: String(body.note == null ? "" : body.note).slice(0, 200),
+      updated_at: new Date().toISOString()
+    };
+    var r = await fetch(db.sbUrl + "/rest/v1/evops_agents?on_conflict=sid", {
+      method: "POST",
+      headers: Object.assign({}, db.headers(), { "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" }),
+      body: JSON.stringify([row])
+    });
+    if (!r.ok && r.status !== 201) { var t2 = await r.text(); return json(res, 502, { success: false, error: "supabase_upsert_failed", detail: String(t2).slice(0, 200) }); }
+    return json(res, 200, { success: true });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
+/**
+ * 快速通道留痕 POST ?action=quick-log（V5，evtask-D-evevbox-261009-3ekk7u）
+ * 门禁 pre-commit 判定「快速通道放行」（§4.4 免登记：单文件 ≤5 行 / 纯 .md ≤50 行）时调用，
+ * 追加 dash_events(t='quick')：payload { sid?, files, lines, repo, branch }。
+ * 背景（方案 §3.1 M3）：此前门禁只 echo 一行，快速通道干的活在大屏上完全不可见。
+ * 失败由调用方静默处理，**绝不阻断 commit**。sid 门禁侧拿不到时留空（只作全局计数）。
+ */
+async function handleQuickLog(req, res) {
+  if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
+  var body = (req.body && typeof req.body === "object") ? req.body : {};
+  var db = evTaskDb(req, res);
+  if (!db) return json(res, 502, { success: false, error: "supabase_unavailable" });
+  try {
+    var r = await fetch(db.sbUrl + "/rest/v1/dash_events", {
+      method: "POST",
+      headers: Object.assign({}, db.headers(), { "Content-Type": "application/json", Prefer: "return=minimal" }),
+      body: JSON.stringify([{ t: "quick", payload: {
+        sid: String(body.sid || "").slice(0, 120),
+        files: String(body.files || "").slice(0, 600),
+        lines: Math.max(0, parseInt(body.lines, 10) || 0),
+        repo: String(body.repo || "").slice(0, 120),
+        branch: String(body.branch || "").slice(0, 80),
+        at: new Date().toISOString() } }])
+    });
+    if (!r.ok && r.status !== 201) { var txt = await r.text(); return json(res, 502, { success: false, error: "supabase_insert_failed", detail: String(txt).slice(0, 200) }); }
+    return json(res, 200, { success: true });
   } catch (e) {
     return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
   }
