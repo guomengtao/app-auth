@@ -91,6 +91,22 @@
   .devrow .m .v{font-family:var(--mono);font-size:.8rem;font-weight:800;color:var(--teal);line-height:1.15}
   .devrow .m .l{font-size:.5rem;color:var(--ink3);margin-top:1px}
   .devrow .m .v.tk{color:var(--amber);font-size:.72rem}
+  /* 展开今日任务单（只 toggle hidden，不重建行 → 守"数据没变绝不动"防跳铁律） */
+  .devrow{cursor:pointer}
+  .devrow .chev{font-size:.6rem;color:var(--ink3);flex:none;width:10px;text-align:center;transition:transform .2s}
+  .devrow.open .chev{transform:rotate(90deg)}
+  .devrow .tasks{margin-top:7px;padding-top:7px;border-top:1px dashed rgba(255,255,255,.09);display:flex;flex-direction:column;gap:4px}
+  .devrow .tasks[hidden]{display:none}
+  .devrow .tk{display:flex;align-items:center;gap:6px;font-size:.62rem;line-height:1.5}
+  .devrow .tk .st{font-size:.5rem;padding:1px 5px;border-radius:6px;flex:none;font-weight:700;white-space:nowrap}
+  .devrow .tk .st.run{background:rgba(129,140,248,.18);color:var(--indigo)}
+  .devrow .tk .st.done{background:rgba(52,211,153,.16);color:var(--green)}
+  .devrow .tk .st.block{background:rgba(251,113,133,.18);color:var(--rose)}
+  .devrow .tk .st.plan{background:rgba(255,255,255,.06);color:var(--ink3)}
+  .devrow .tk .id{font-family:var(--mono);color:var(--ink3);flex:none}
+  .devrow .tk .tkt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink2)}
+  .devrow .tk.cur .tkt{color:var(--amber);font-weight:700}
+  .devrow .tmore{font-size:.55rem;color:var(--ink3);font-family:var(--mono)}
 
   .mb{font-size:.54rem;padding:2px 7px;border-radius:8px;flex:none;font-weight:700;white-space:nowrap}
   .mb.task{background:rgba(129,140,248,.16);color:var(--indigo)}
@@ -286,6 +302,14 @@ function clock(){var t=new Date();var p=x=>String(x).padStart(2,'0');
   document.getElementById('clock').textContent=p(t.getHours())+':'+p(t.getMinutes())+':'+p(t.getSeconds());}
 setInterval(clock,1000);clock();
 
+/* 会话行点击展开/收起「今日任务单」——只 toggle hidden + 父类，绝不重建行（守防跳铁律） */
+(function(){var dl=document.getElementById('devList');if(!dl)return;
+  dl.addEventListener('click',function(e){
+    var r=e.target.closest?e.target.closest('.devrow'):null; if(!r)return;
+    var t=r.querySelector('.tasks'); if(!t)return;
+    t.hidden=!t.hidden; r.classList.toggle('open',!t.hidden);
+  });})();
+
 /* 大屏版本号（dash-version.json，由提交门在改动 dash*.html 时自动第三位 +1）
    —— 加时间戳 + no-store 防缓存；取不到就保留 v— 静默降级，不影响大屏主功能。 */
 (function(){
@@ -301,6 +325,20 @@ setInterval(clock,1000);clock();
     .catch(function(){});
 })();
 function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+/* 今日任务单条目（会话行展开区）。openId=当前执行中那张，高亮 */
+function buildTaskItems(arr,openId,tn){
+  arr=arr||[];
+  if(!arr.length)return '<div class="tmore">今日无任务单</div>';
+  var html=arr.map(function(t){
+    var st=t.status||'';
+    var cls=st==='done'?'done':(st==='blocked'?'block':(st==='in_progress'?'run':'plan'));
+    var lbl=st==='done'?'已完成':(st==='blocked'?'阻塞':(st==='in_progress'?'进行中':(st==='planned'?'计划':'未知')));
+    var cur=(openId&&t.id===openId)?' cur':'';
+    return '<div class="tk'+cur+'"><span class="st '+cls+'">'+lbl+'</span><span class="id">'+escapeHtml(String(t.id||'').slice(-8))+'</span><span class="tkt">'+escapeHtml(t.title||t.id||'')+'</span></div>';
+  }).join('');
+  if(tn>arr.length)html+='<div class="tmore">…还有 '+(tn-arr.length)+' 单</div>';
+  return html;
+}
 
 /* ====== odometer（值不变绝不动） ====== */
 var numState={};
@@ -452,7 +490,7 @@ function render(data){
   diffList(document.getElementById('devList'),agents,function(x){return x.sid;},function(x){
     var d=document.createElement('div');d.className='devrow';
     var mh=METERS.map(function(m){return '<div class="m"><div class="v'+(m[0]==='tok_total'?' tk':'')+'"><span class="odo" data-mk="'+m[0]+'"><span class="cur">0</span></span></div><div class="l">'+m[1]+' '+m[2]+'</div></div>';}).join('');
-    d.innerHTML='<div class="top"><span class="nm"></span><span class="mb"></span></div><div class="sub"></div><div class="meters">'+mh+'</div>';
+    d.innerHTML='<div class="top"><span class="nm"></span><span class="mb"></span><span class="chev">▸</span></div><div class="sub"></div><div class="meters">'+mh+'</div><div class="tasks" hidden></div>';
     return d;});
   var dv=document.getElementById('devList');
   Array.prototype.forEach.call(dv.children,function(el){
@@ -468,6 +506,11 @@ function render(data){
       if(m[0]==='tok_total'){var v=fmtTok(x.tok_total||0);var c0=o.querySelector('.cur');if(c0.textContent!==v)c0.textContent=v;}
       else odoSet(o,x.sid+'|'+m[0],x[m[0]]||0);
     });
+    /* 今日任务单：内层用 JSON 签名比对，未变不重建（行本身 key=sid 永不重建） */
+    var tk=el.querySelector('.tasks'); if(tk){
+      var tArr=x.tasks_today||[]; var tj=JSON.stringify(tArr);
+      if(tk.dataset.sig!==tj){ tk.dataset.sig=tj; tk.innerHTML=buildTaskItems(tArr,x.open_task_id,x.tasks_today_n||tArr.length); }
+    }
   });
   document.getElementById('agTag').textContent='榜内 '+agents.length+' / 共 '+fmt(dev.agents_total||agents.length)+' 个';
 
