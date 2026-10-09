@@ -3030,7 +3030,9 @@ async function handleUsageItemsList(req, res) {
   try {
     var url = db.sbUrl + "/rest/v1/" + USAGE_ITEMS_TABLE + "?select=*" +
       (sid ? "&sid=eq." + encodeURIComponent(sid) : "") +
-      "&order=occurred_at.desc&limit=" + limit;      // ⭐ 全部会话混合，按真实发生时间倒序
+      // ⭐ 次级排序 seq.desc：若某轮的真实时刻 join 失败（退化为同一时刻），
+      //    仍保证「轮次越大（越晚）排越前」⇒ 列表永远最新在前，不会因时间相同而乱序。
+      "&order=occurred_at.desc,seq.desc&limit=" + limit;   // ⭐ 全部会话混合，按真实发生时间倒序
     var r = await fetch(url, { headers: db.headers() });
     if (!r.ok) {
       var txt = await r.text();
