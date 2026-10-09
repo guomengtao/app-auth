@@ -494,7 +494,8 @@ function render(data){
   Array.prototype.forEach.call(dn.children,function(el){
     var x=(dev.done_recent||[]).find(function(a){return a.id===el.dataset.key;});if(!x)return;
     setText(el.querySelector('.tt'),x.title||x.id);
-    setText(el.querySelector('.me'),'有效 '+fmt(x.active_min||0)+' 分 · '+(x.closed_at?String(x.closed_at).slice(5,16):''));
+    var whoTxt=x.who?('👤 '+x.who+' · '):'';
+    setText(el.querySelector('.me'),whoTxt+'有效 '+fmt(x.active_min||0)+' 分 · '+(x.closed_at?String(x.closed_at).slice(5,16):''));
     var st=el.querySelector('.stats');
     var txt='<span>📄 '+(x.files||0)+'</span><span>💬 '+(x.prompts||0)+'</span>';
     if(st.innerHTML!==txt)st.innerHTML=txt;

@@ -2027,7 +2027,13 @@ async function buildDashboard(req) {
           if (a.activity === "orphan" || a.activity === "unbound") frozen++;
         } else if (t.status === "done") {
           var eff = taskEffort(t, s, null);
-          doneRecent.push({ id: t.id, title: t.title || "", project: t.project || "", wall_min: eff.wall_min, active_min: eff.active_min, closed_at: (t.extra && typeof t.extra === "object" && t.extra.closed_at) || t.updated_at });
+          // 打磨（2026-10-09）：最近完成带负责人 —— session_sid 归因；
+          //   who 先用会话标题兜底，若 evops_agents 有昵称则在 V5 块（nickMap 就绪后）覆盖为花名。
+          var sessTitle = (s && s.title && String(s.title).trim()) ? String(s.title).trim() : "";
+          var sidTail = t.session_sid ? ("会话 ···" + String(t.session_sid).slice(-4)) : "";
+          doneRecent.push({ id: t.id, title: t.title || "", project: t.project || "",
+            session_sid: t.session_sid || "", who: sessTitle || sidTail || "未绑定",
+            wall_min: eff.wall_min, active_min: eff.active_min, closed_at: (t.extra && typeof t.extra === "object" && t.extra.closed_at) || t.updated_at });
         }
         if (t.status === "in_progress" && flow.length < 6) {
           var a2 = taskActivity(t, s), f2 = taskEffort(t, s, null);
@@ -2144,6 +2150,8 @@ async function buildDashboard(req) {
           (await q5("select sid, nickname, avatar from evops_agents", [])).forEach(function (a) {
             nickMap[a.sid] = { nickname: a.nickname || "", avatar: a.avatar || "" };
           });
+          // 打磨：最近完成的负责人，若有花名则优先显示花名（昵称仅显示、非唯一键，按 sid 取）
+          doneRecent.forEach(function (d) { var nk5 = nickMap[d.session_sid]; if (nk5 && nk5.nickname) d.who = nk5.nickname; });
           // 今日 per-sid：完成任务数（复用已取的 rows）
           var doneMap = {};
           rows.forEach(function (t) {
