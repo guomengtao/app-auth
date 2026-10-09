@@ -1968,7 +1968,8 @@ async function buildDashboard(req) {
       pv_today: today.pv || 0, uv_today: today.uv || 0,
       pv_total: total.pv || 0, uv_total: total.uv || 0,
       new_visitors_today: nv.n || 0,
-      city_top5: city.map(function (c) { return { city: zhCity(c.city), c: c.c }; }),  // V4 fubd7v：top5 也过中文（原漏映射输出英文） trend: trend,
+      city_top5: city.map(function (c) { return { city: zhCity(c.city), c: c.c }; }),  // V4 fubd7v：top5 也过中文（原漏映射输出英文）
+      trend: trend,  // 24h 走势（PV/UV/App）。修复：此前 `trend: trend,` 被上一行尾注释吞掉 → ops.trend 恒 undefined → 走势图空白（2026-10-09）
       recent_visits: rv.map(function (r) { return { ts: new Date(r.ts).getTime(), city: zhCity(r.city), model: r.model, src: r.src, path: r.p }; }),
       last_order: lo.length ? { ts: new Date(lo[0].ts).getTime(), title: lo[0].title || "爱发电订单", amount: lo[0].amount || "", no: lo[0].no || "" } : null,
       orders: null,  // 待办：订单总数口径（tracking_events 之前的历史散键），见方案 §七
