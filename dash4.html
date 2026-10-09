@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ev 数据大屏 V4 · SSE 实时版</title>
+<style>
+  :root{
+    --bg0:#081020; --bg1:#0d1830; --card:#12203c; --card2:#0e1a33;
+    --line:#22375f; --ink:#edf3ff; --ink2:#9db0d6; --ink3:#5c6f96;
+    --indigo:#818cf8; --teal:#2dd4bf; --amber:#fbbf24; --rose:#fb7185; --green:#34d399; --violet:#a78bfa;
+    --mono:'SF Mono','JetBrains Mono',ui-monospace,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{
+    font-family:var(--sans);color:var(--ink);
+    background:
+      radial-gradient(1100px 520px at 88% -8%, rgba(129,140,248,.15), transparent 60%),
+      radial-gradient(900px 480px at -5% 106%, rgba(45,212,191,.11), transparent 55%),
+      linear-gradient(170deg,var(--bg0),var(--bg1));
+    min-height:100vh;padding:14px 22px 16px;
+  }
+  body::before{content:"";position:fixed;inset:0;background-image:
+      linear-gradient(rgba(120,150,220,.04) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(120,150,220,.04) 1px,transparent 1px);
+    background-size:44px 44px;pointer-events:none;z-index:0}
+  .wrap{position:relative;z-index:1;max-width:1720px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+
+  .topbar{display:flex;align-items:center;gap:14px}
+  .topbar .logo{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;font-size:20px;
+    background:linear-gradient(135deg,#6366f1,#14b8a6);box-shadow:0 6px 18px rgba(99,102,241,.4)}
+  .topbar h1{font-size:1.18rem;font-weight:800}
+  .topbar .sub{font-size:.7rem;color:var(--ink2);margin-top:1px}
+  .topbar .spacer{flex:1}
+  .live{display:inline-flex;align-items:center;gap:6px;font-size:.72rem;color:var(--green);
+    background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25);padding:5px 12px;border-radius:18px}
+  .live.warn{color:var(--amber);background:rgba(251,191,36,.08);border-color:rgba(251,191,36,.3)}
+  .live.warn .dot{background:var(--amber)}
+  .live .dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(52,211,153,.5)}70%{box-shadow:0 0 0 8px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}
+  .src{font-size:.68rem;color:var(--ink3)} .src b{color:var(--green)}
+  .fsbtn{display:inline-flex;align-items:center;gap:6px;font-size:.74rem;color:var(--ink2);cursor:pointer;
+    background:var(--card);border:1px solid var(--line);padding:6px 13px;border-radius:9px;transition:all .15s}
+  .fsbtn:hover{color:var(--ink);border-color:var(--indigo)}
+  .clock{font-family:var(--mono);font-size:.95rem;font-weight:700;letter-spacing:1px}
+
+  .panel{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);
+    border-radius:15px;padding:14px 16px;display:flex;flex-direction:column}
+  .ph{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .ph .bar{width:4px;height:14px;border-radius:3px;background:linear-gradient(#6366f1,#2dd4bf)}
+  .ph h3{font-size:.9rem;font-weight:800}
+  .ph .tag{margin-left:auto;font-size:.62rem;color:var(--ink3);font-family:var(--mono)}
+  .scroll{display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto;scrollbar-width:none}
+  .scroll::-webkit-scrollbar{display:none}
+
+  /* KPI */
+  .kpis{display:grid;grid-template-columns:repeat(7,1fr);gap:10px}
+  .kpi{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);
+    border-radius:14px;padding:12px 15px 11px;position:relative;overflow:hidden}
+  .kpi .lbl{font-size:.66rem;color:var(--ink2);font-weight:600;display:flex;align-items:center;gap:5px}
+  .kpi .lbl::before{content:"";width:6px;height:6px;border-radius:2px;background:var(--c,#818cf8)}
+  .kpi .delta{font-size:.62rem;color:var(--ink3);margin-top:3px}
+  .kpi::after{content:"";position:absolute;right:-16px;top:-16px;width:54px;height:54px;border-radius:50%;background:var(--c,#818cf8);opacity:.07}
+
+  /* odometer 数字上下替换（慢速 0.8s） */
+  .odo{position:relative;display:inline-block;overflow:hidden;height:1.25em;vertical-align:bottom;font-family:var(--mono);font-weight:800;font-variant-numeric:tabular-nums}
+  .odo .cur{display:block;line-height:1.25em;transition:transform .8s cubic-bezier(.35,.8,.3,1),opacity .8s ease}
+  .odo .cur.out{position:absolute;left:0;right:0;transform:translateY(-115%);opacity:0}
+  .odo .cur.in{transform:translateY(115%);opacity:0}
+
+  /* 主区三列 */
+  .main{display:grid;grid-template-columns:1fr 1.55fr 1fr;gap:12px;align-items:start}
+  .col{display:flex;flex-direction:column;gap:12px;min-width:0}
+
+  /* 在线AI 统计（重点） */
+  .airow{padding:8px 11px;border-radius:11px;background:rgba(255,255,255,.03);border:1px solid transparent;flex:none}
+  .airow:hover{border-color:rgba(129,140,248,.3)}
+  .airow .nm{font-size:.8rem;font-weight:700;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .airow .meters{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+  .airow .m{text-align:center}
+  .airow .m .v{font-family:var(--mono);font-size:.92rem;font-weight:800;color:var(--teal)}
+  .airow .m .l{font-size:.54rem;color:var(--ink3);margin-top:1px}
+
+  /* 勤奋榜 */
+  .rrow{display:flex;align-items:center;gap:9px;padding:6px 10px;border-radius:10px;background:rgba(255,255,255,.03);flex:none}
+  .rno{width:20px;height:20px;border-radius:6px;display:grid;place-items:center;font-family:var(--mono);font-weight:800;font-size:.68rem;background:var(--line);color:var(--ink2);flex:none}
+  .rrow.top1 .rno{background:linear-gradient(135deg,#f5c451,#f59e0b);color:#3a2a00}
+  .rrow.top2 .rno{background:linear-gradient(135deg,#d7def0,#aab4cf);color:#1b2438}
+  .rrow.top3 .rno{background:linear-gradient(135deg,#e0a06a,#c8843f);color:#2a1800}
+  .rwho{flex:1;min-width:0}
+  .rwho .nm{font-size:.77rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rwho .mt{font-size:.58rem;color:var(--ink3)}
+  .rnum{font-family:var(--mono);text-align:right;flex:none}
+  .rnum .t{font-size:.95rem;font-weight:800;color:var(--amber)}
+  .rnum .s{font-size:.55rem;color:var(--ink3)}
+
+  /* 任务列表（重点窗口） */
+  .trow{display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:11px;background:rgba(255,255,255,.03);
+    border-left:3px solid var(--indigo);flex:none}
+  .trow.done{border-left-color:var(--green)}
+  .trow .ti{flex:1;min-width:0}
+  .trow .tt{font-size:.78rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .trow .me{font-size:.6rem;color:var(--ink3);margin-top:1px}
+  .trow .me b{color:var(--ink2);font-weight:600}
+  .trow .stats{display:flex;gap:8px;flex:none;font-family:var(--mono);font-size:.62rem}
+  .trow .stats span{color:var(--teal)}
+  .trow .stats .fz{color:var(--rose)}
+  .badge{font-size:.56rem;padding:2px 7px;border-radius:9px;flex:none;font-weight:700}
+  .badge.act{background:rgba(52,211,153,.14);color:var(--green)}
+  .badge.stale{background:rgba(251,113,133,.14);color:var(--rose)}
+
+  /* 订单 */
+  .order{padding:10px 12px;border-radius:11px;background:linear-gradient(135deg,rgba(251,191,36,.08),rgba(251,113,133,.05));
+    border:1px solid rgba(251,191,36,.22)}
+  .order .ot{font-size:.8rem;font-weight:700}
+  .order .om{font-size:.66rem;color:var(--ink3);margin-top:3px;display:flex;justify-content:space-between}
+  .order .amt{font-family:var(--mono);font-weight:800;color:var(--amber);font-size:.95rem}
+
+  /* 对话 */
+  .crow{padding:7px 10px;border-radius:10px;background:rgba(255,255,255,.03);flex:none}
+  .crow .meta{font-size:.6rem;color:var(--ink3);display:flex;gap:7px;margin-bottom:2px}
+  .crow .meta .who{color:var(--indigo);font-weight:700}
+  .crow .txt{font-size:.7rem;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+  /* 城市/访客 */
+  .cb{display:flex;align-items:center;gap:9px;flex:none}
+  .cb .nm{font-size:.7rem;width:56px;flex:none;color:var(--ink2);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cb .track{flex:1;height:7px;border-radius:4px;background:rgba(255,255,255,.06);overflow:hidden}
+  .cb .fill{height:100%;border-radius:4px;background:linear-gradient(90deg,#6366f1,#2dd4bf);transition:width 1.2s cubic-bezier(.2,.8,.2,1)}
+  .cb .ct{font-family:var(--mono);font-size:.66rem;font-weight:700;width:30px;text-align:right;flex:none}
+  .vrow{display:flex;align-items:center;gap:8px;padding:4px 2px;font-size:.68rem;border-bottom:1px dashed rgba(255,255,255,.06);flex:none}
+  .vrow:last-child{border-bottom:none}
+  .vrow .vc{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .vrow .vc .path{color:var(--ink3);font-family:var(--mono);font-size:.6rem}
+  .vrow .vt{font-family:var(--mono);font-size:.58rem;color:var(--ink3);flex:none}
+
+  canvas{width:100%;display:block}
+  .legend{display:flex;gap:13px;font-size:.64rem;color:var(--ink2);margin-top:5px}
+  .legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+  .ycmp{display:flex;gap:8px;margin-bottom:2px}
+  .ycell{flex:1;background:rgba(255,255,255,.03);border-radius:10px;padding:7px 10px}
+  .ycell .l{font-size:.6rem;color:var(--ink2)}
+  .ycell .d{font-size:.56rem;margin-top:1px}
+  .up{color:var(--green)}.down{color:var(--rose)}
+  .empty{color:var(--ink3);font-size:.7rem;text-align:center;padding:8px}
+  .rowIn{animation:rowIn .5s cubic-bezier(.2,.9,.3,1.1) both}
+  @keyframes rowIn{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:none}}
+  .foot{text-align:center;font-size:.58rem;color:var(--ink3)}
+  @media (max-width:1200px){.main{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(4,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="logo">◉</div>
+    <div>
+      <h1>Ev 数据大屏 <span style="font-size:.6em;color:var(--teal);vertical-align:2px">V4 · SSE 实时</span></h1>
+      <div class="sub">长连接推送 · 数据变了才动 · 慢速上下替换</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="live" id="live"><span class="dot"></span><span id="liveTxt">连接中</span></div>
+    <div class="src" id="srcTxt">SSE <b>/api/ev?action=dash-stream</b></div>
+    <button class="fsbtn" id="fsBtn">⛶ 全屏</button>
+    <div class="clock" id="clock">--:--:--</div>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="main">
+    <div class="col">
+      <div class="panel">
+        <div class="ph"><span class="bar"></span><h3>在线 AI · 今日战绩</h3><span class="tag">任务/对话/文件</span></div>
+        <div class="scroll" id="aiStats" style="max-height:340px"></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="bar"></span><h3>勤奋 AI 榜</h3><span class="tag">按今日排名</span></div>
+        <div class="scroll" id="rank" style="max-height:260px"></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="bar"></span><h3>热门城市 Top5</h3><span class="tag">今日访客</span></div>
+        <div id="citybar" style="display:flex;flex-direction:column;gap:7px"></div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="panel">
+        <div class="ph"><span class="bar"></span><h3>24 小时流量走势</h3><span class="tag">PV / UV / App</span></div>
+        <canvas id="chart" height="190"></canvas>
+        <div class="legend">
+          <span><i style="background:#818cf8"></i>PV</span>
+          <span><i style="background:#2dd4bf"></i>UV</span>
+          <span><i style="background:#fbbf24"></i>App 访问</span>
+        </div>
+        <div class="ycmp" style="margin-top:9px" id="ycmp"></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="bar"></span><h3>⚙ 进行中任务</h3><span class="tag">重点窗口 · 文件/对话计数</span></div>
+        <div class="scroll" id="flow" style="max-height:330px"></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="bar"></span><h3>✔ 最近完成任务</h3><span class="tag">文件/对话计数</span></div>
+        <div class="scroll" id="done" style="max-height:230px"></div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="panel">
+        <div class="ph"><span class="bar"></span><h3>💰 最近订单</h3><span class="tag">爱发电</span></div>
+        <div id="order"></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="bar"></span><h3>💬 最近对话</h3><span class="tag">AI 留痕</span></div>
+        <div class="scroll" id="conv" style="max-height:280px"></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="bar"></span><h3>📍 最近访客</h3><span class="tag">含访问网址</span></div>
+        <div class="scroll" id="visits" style="max-height:240px"></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="bar"></span><h3>🟢 在线 AI · 实时心跳</h3><span class="tag">最近心跳</span></div>
+        <div class="scroll" id="hb" style="max-height:200px"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">EvOps 大屏 V4 · SSE 长连接推送（禁轮询） · 数据没变绝不动，变了才慢速替换</div>
+</div>
+
+<script>
+/* ====== 基础 ====== */
+function fmt(n){n=Number(n)||0;return n.toLocaleString('en-US');}
+function shortWho(w){
+  w=String(w||'').trim();
+  if(!w) return '未知';
+  var m=w.match(/(\d{4,})$/);
+  if(/^\w+-\d{6,}/i.test(w) && m){ return '会话 ···'+m[1].slice(-4); }
+  return w.length>16? w.slice(0,15)+'…' : w;
+}
+function timeAgo(ts){
+  var d=Date.now()-(ts||0); if(d<0)d=0;
+  var s=Math.floor(d/1000);
+  if(s<60) return s+'秒前';
+  var m=Math.floor(s/60); if(m<60) return m+'分前';
+  var h=Math.floor(m/60); if(h<24) return h+'时前';
+  return Math.floor(h/24)+'天前';
+}
+function clock(){var t=new Date();var p=x=>String(x).padStart(2,'0');
+  document.getElementById('clock').textContent=p(t.getHours())+':'+p(t.getMinutes())+':'+p(t.getSeconds());}
+setInterval(clock,1000);clock();
+function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+/* ====== odometer：慢速上下替换，值不变绝不动 ====== */
+var numState={};
+function makeOdo(cls){
+  var el=document.createElement('span');el.className='odo '+(cls||'');
+  var c=document.createElement('span');c.className='cur';c.textContent='0';
+  el.appendChild(c);return el;
+}
+function odoSet(el,key,v){
+  v=Number(v)||0;
+  var last=numState[key];
+  if(last===undefined){numState[key]=v;el.querySelector('.cur').textContent=fmt(v);return;}
+  if(last===v)return;                    // ★ 81→81 不动
+  numState[key]=v;
+  var cur=el.querySelector('.cur:not(.out)');
+  var nxt=document.createElement('span');nxt.className='cur in';nxt.textContent=fmt(v);
+  el.appendChild(nxt);
+  requestAnimationFrame(function(){requestAnimationFrame(function(){
+    nxt.classList.remove('in');
+    if(cur){cur.classList.add('out');setTimeout(function(){if(cur.parentNode)cur.parentNode.removeChild(cur);},850);}
+  });});
+}
+/* 行级 diff：新增才滑入，已有只刷真实变化的字段 */
+function diffList(container,items,keyOf,build){
+  var existing={};
+  Array.prototype.forEach.call(container.children,function(ch){existing[ch.dataset.key]=ch;});
+  var seen={};
+  items.forEach(function(it,i){
+    var k=keyOf(it);seen[k]=1;
+    var el=existing[k];
+    if(el){
+      if(container.children[i]!==el)container.insertBefore(el,container.children[i]||null);
+    }else{
+      el=build(it);el.dataset.key=k;el.classList.add('rowIn');
+      container.insertBefore(el,container.children[i]||null);
+    }
+  });
+  Object.keys(existing).forEach(function(k){if(!seen[k])existing[k].remove();});
+}
+function setText(el,txt){if(el&&el.textContent!==String(txt))el.textContent=String(txt);}
+
+/* ====== 图表（数据没变不重绘） ====== */
+var _lastTrendJson='';
+function drawChart(trend){
+  var json=JSON.stringify(trend||[]);
+  if(json===_lastTrendJson)return;
+  _lastTrendJson=json;window.__lastTrendObj=trend;
+  var cv=document.getElementById('chart');
+  var W=cv.clientWidth||600,H=190,dpr=window.devicePixelRatio||1;
+  cv.width=W*dpr;cv.height=H*dpr;
+  var ctx=cv.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,W,H);
+  var padL=34,padR=10,padT=8,padB=16;
+  var data=trend&&trend.length?trend:[];
+  var maxV=1;data.forEach(r=>{maxV=Math.max(maxV,r.pv||0,r.uv||0,r.app_pv||0);});
+  maxV=Math.ceil(maxV/5)*5||10;
+  ctx.font='9px monospace';ctx.fillStyle='rgba(157,176,214,.7)';
+  for(var i=0;i<=4;i++){var y=padT+(H-padT-padB)*i/4;
+    ctx.strokeStyle='rgba(150,170,220,.10)';ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(W-padR,y);ctx.stroke();
+    ctx.fillText(Math.round(maxV*(1-i/4)),4,y+3);}
+  if(!data.length){ctx.fillStyle='rgba(157,176,214,.5)';ctx.fillText('暂无数据',W/2-22,H/2);return;}
+  var n=data.length,x0=padL,x1=W-padR;
+  function X(i){return n>1?x0+(x1-x0)*i/(n-1):(x0+x1)/2;}
+  function V(v){return Math.max(0,Number(v)||0);}
+  function Y(v){return padT+(H-padT-padB)*(1-V(v)/maxV);}
+  function smooth(pts,color,area){
+    ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
+    for(var i=1;i<pts.length;i++){var p0=pts[i-1],p1=pts[i];var cx=(p0.x+p1.x)/2;
+      ctx.quadraticCurveTo(p0.x,p0.y,cx,(p0.y+p1.y)/2);}
+    ctx.lineTo(pts[pts.length-1].x,pts[pts.length-1].y);
+    ctx.strokeStyle=color;ctx.lineWidth=2.1;ctx.lineJoin='round';ctx.stroke();
+    if(area){ctx.lineTo(pts[pts.length-1].x,H-padB);ctx.lineTo(pts[0].x,H-padB);ctx.closePath();
+      var g=ctx.createLinearGradient(0,padT,0,H-padB);g.addColorStop(0,area);g.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle=g;ctx.fill();}
+  }
+  var pvP=data.map((r,i)=>({x:X(i),y:Y(r.pv)}));
+  var uvP=data.map((r,i)=>({x:X(i),y:Y(r.uv)}));
+  var apP=data.map((r,i)=>({x:X(i),y:Y(r.app_pv)}));
+  smooth(apP,'rgba(251,191,36,.85)');
+  smooth(uvP,'rgba(45,212,191,.95)');
+  smooth(pvP,'rgba(129,140,248,1)','rgba(129,140,248,.2)');
+  ctx.fillStyle='rgba(157,176,214,.65)';ctx.font='9px monospace';
+  [0,Math.floor((n-1)/2),n-1].forEach(i=>{var r=data[i];if(!r)return;
+    ctx.fillText(String(r.d||'').slice(6),X(i)-10,H-padB+11);});
+}
+
+/* ====== 骨架（一次性建好） ====== */
+var KPI_META=[
+  {k:'pv',l:'今日 PV',c:'#818cf8',d:'累计'},{k:'uv',l:'今日 UV',c:'#2dd4bf',d:'累计'},
+  {k:'nv',l:'新访客',c:'#fbbf24'},{k:'act',l:'激活今日',c:'#34d399',d:'本周'},
+  {k:'ord',l:'订单今日',c:'#fb7185',d:'昨日'},{k:'open',l:'任务进行中',c:'#a78bfa',d:'活跃'},
+  {k:'done',l:'勤奋完成',c:'#f472b6',d:'昨日'}
+];
+(function(){
+  var ke=document.getElementById('kpis');
+  KPI_META.forEach(function(m){
+    var d=document.createElement('div');d.className='kpi';d.style.setProperty('--c',m.c);
+    var o=makeOdo();o.id='kpi-'+m.k;
+    d.innerHTML='<div class="lbl">'+m.l+'</div>';
+    d.appendChild(o);
+    var dl=document.createElement('div');dl.className='delta';dl.id='kd-'+m.k;d.appendChild(dl);
+    ke.appendChild(d);
+  });
+  var yc=document.getElementById('ycmp');
+  ['PV','UV','新访客'].forEach(function(l,i){
+    var d=document.createElement('div');d.className='ycell';
+    var o=makeOdo();o.id='yv-'+i;
+    d.innerHTML='<div class="l">'+l+'</div>';
+    d.appendChild(o);
+    var dl=document.createElement('div');dl.className='d';dl.id='yd-'+i;d.appendChild(dl);
+    yc.appendChild(d);
+  });
+})();
+
+/* ====== 渲染（全 diff） ====== */
+function render(data){
+  var ops=data.ops||{},dev=data.dev||{};
+  var kv={pv:ops.pv_today,uv:ops.uv_today,nv:ops.new_visitors_today,act:ops.act_today,
+    ord:ops.orders_today,open:dev.open,done:dev.done_today};
+  var kd={pv:'累计 '+fmt(ops.pv_total),uv:'累计 '+fmt(ops.uv_total),nv:'今日新增',
+    act:'本周 '+fmt(ops.act_week7||0),ord:'昨日 '+fmt(ops.orders_yesterday||0),
+    open:'活跃 '+fmt(dev.active||0),done:'昨日 '+fmt(dev.done_yesterday||0)};
+  KPI_META.forEach(function(m){
+    odoSet(document.getElementById('kpi-'+m.k),m.k,kv[m.k]);
+    setText(document.getElementById('kd-'+m.k),kd[m.k]);
+  });
+  var y=ops.yesterday||{};
+  [['pv',ops.pv_today,y.pv],['uv',ops.uv_today,y.uv],['nv',ops.new_visitors_today,y.new_visitors]].forEach(function(c,i){
+    var r=Number(c[2])||0,tt=Number(c[1])||0;var pct=r?Math.round((tt-r)/r*100):0;
+    odoSet(document.getElementById('yv-'+i),'y'+i,tt);
+    var de=document.getElementById('yd-'+i);
+    var txt=(pct>=0?'▲ ':'▼ ')+Math.abs(pct)+'% vs '+fmt(r);
+    if(de.textContent!==txt){de.textContent=txt;de.className='d '+(pct>=0?'up':'down');}
+  });
+  /* 在线AI 今日战绩（五指标，行数待钩子上报） */
+  diffList(document.getElementById('aiStats'),(dev.ai_stats||[]),
+    function(x){return x.sid;},
+    function(x){var d=document.createElement('div');d.className='airow';
+      d.innerHTML='<div class="nm"></div><div class="meters">'+
+        '<div class="m"><div class="v"><span class="odo" data-mk="open"><span class="cur">0</span></span></div><div class="l">进行中</div></div>'+
+        '<div class="m"><div class="v"><span class="odo" data-mk="done"><span class="cur">0</span></span></div><div class="l">今日完成</div></div>'+
+        '<div class="m"><div class="v"><span class="odo" data-mk="prompts"><span class="cur">0</span></span></div><div class="l">对话</div></div>'+
+        '<div class="m"><div class="v"><span class="odo" data-mk="files"><span class="cur">0</span></span></div><div class="l">文件</div></div>'+
+        '<div class="m"><div class="v"><span class="odo" data-mk="lines"><span class="cur">—</span></span></div><div class="l">行数</div></div>'+
+        '</div>';
+      return d;});
+  var as=document.getElementById('aiStats');
+  Array.prototype.forEach.call(as.children,function(el){
+    var x=(dev.ai_stats||[]).find(function(a){return a.sid===el.dataset.key;});if(!x)return;
+    setText(el.querySelector('.nm'),shortWho(x.name));
+    ['open','done','prompts','files','lines'].forEach(function(mk){
+      var o=el.querySelector('[data-mk="'+mk+'"]');
+      var v=mk==='lines'?(x.lines==null?'—':fmt(x.lines)):(x[mk]||0);
+      if(mk==='lines'){var c0=o.querySelector('.cur');if(c0.textContent!==String(v))c0.textContent=String(v);}
+      else odoSet(o,x.sid+'|'+mk,x[mk]||0);
+    });
+  });
+  /* 勤奋榜：默认按今日完成排名（用户 2026-10-09 指定） */
+  var dl2=(dev.diligence||[]).slice().sort(function(a,b){return (b.today||0)-(a.today||0)||(b.total||0)-(a.total||0);});
+  diffList(document.getElementById('rank'),dl2,
+    function(x){return x.who;},
+    function(x){var d=document.createElement('div');d.className='rrow';
+      d.innerHTML='<div class="rno"></div><div class="rwho"><div class="nm"></div><div class="mt"></div></div><div class="rnum"><span class="odo"><span class="cur">0</span></span><div class="s">今日</div></div>';
+      return d;});
+  var rk=document.getElementById('rank');
+  Array.prototype.forEach.call(rk.children,function(el,i){
+    var x=dl2[i];if(!x)return;
+    el.className='rrow'+(i<3?(' top'+(i+1)):'');
+    el.querySelector('.rno').textContent=i+1;
+    setText(el.querySelector('.nm'),shortWho(x.who));
+    setText(el.querySelector('.mt'),'累计 '+x.total+' 次');
+    odoSet(el.querySelector('.odo'),'dili|'+x.who,x.today||0);
+  });
+  /* 城市 */
+  var cb=document.getElementById('citybar');
+  var ct=(ops.city_top5||[]);var mx=0;ct.forEach(c=>mx=Math.max(mx,c.c||0));
+  diffList(cb,ct,function(c){return c.city;},
+    function(c){var d=document.createElement('div');d.className='cb';
+      d.innerHTML='<div class="nm"></div><div class="track"><div class="fill"></div></div><div class="ct"></div>';
+      d.querySelector('.nm').textContent=c.city||'未知';
+      return d;});
+  ct.forEach(function(c){
+    var el=cb.querySelector('[data-key="'+CSS.escape(c.city||'未知')+'"]');if(!el)return;
+    var w=((c.c||0)/(mx||1)*100).toFixed(1)+'%';
+    var f=el.querySelector('.fill');
+    if(f.dataset.w!==w){f.dataset.w=w;f.style.width=w;}
+    setText(el.querySelector('.ct'),fmt(c.c));
+  });
+  /* 走势 */
+  drawChart(ops.trend);
+  /* 进行中任务（重点窗口） */
+  diffList(document.getElementById('flow'),(dev.flow||[]),
+    function(x){return x.id;},
+    function(x){var d=document.createElement('div');d.className='trow';
+      d.innerHTML='<div class="ti"><div class="tt"></div><div class="me"></div></div><div class="stats"></div><span class="badge"></span>';
+      return d;});
+  var fl=document.getElementById('flow');
+  Array.prototype.forEach.call(fl.children,function(el){
+    var x=(dev.flow||[]).find(function(a){return a.id===el.dataset.key;});if(!x)return;
+    setText(el.querySelector('.tt'),x.title||x.id);
+    setText(el.querySelector('.me'),'有效 '+fmt(x.active_min||0)+' 分钟');
+    var st=el.querySelector('.stats');
+    var txt='<span>📄 '+(x.files||0)+'</span><span>💬 '+(x.prompts||0)+'</span>'+(x.frozen?'<span class="fz">❄ 冻结</span>':'');
+    if(st.innerHTML!==txt)st.innerHTML=txt;
+    var b=el.querySelector('.badge');
+    var bc=x.activity==='active'?'act':'stale',bt=x.activity==='active'?'活跃':'停滞';
+    if(b.className!=='badge '+bc){b.className='badge '+bc;}setText(b,bt);
+  });
+  /* 完成任务 */
+  diffList(document.getElementById('done'),(dev.done_recent||[]),
+    function(x){return x.id;},
+    function(x){var d=document.createElement('div');d.className='trow done';
+      d.innerHTML='<div class="ti"><div class="tt"></div><div class="me"></div></div><div class="stats"></div>';
+      return d;});
+  var dn=document.getElementById('done');
+  Array.prototype.forEach.call(dn.children,function(el){
+    var x=(dev.done_recent||[]).find(function(a){return a.id===el.dataset.key;});if(!x)return;
+    setText(el.querySelector('.tt'),x.title||x.id);
+    setText(el.querySelector('.me'),'有效 '+fmt(x.active_min||0)+' 分钟 · '+(x.closed_at?String(x.closed_at).slice(5,16):''));
+    var st=el.querySelector('.stats');
+    var txt='<span>📄 '+(x.files||0)+'</span><span>💬 '+(x.prompts||0)+'</span>';
+    if(st.innerHTML!==txt)st.innerHTML=txt;
+  });
+  /* 最近订单 */
+  var od=document.getElementById('order');
+  var lo=ops.last_order;
+  if(!lo){od.innerHTML='<div class="empty">暂无订单</div>';}
+  else{
+    var key=(lo.no||'')+'|'+(lo.ts||'');
+    if(od.dataset.key!==key){
+      od.dataset.key=key;
+      od.innerHTML='<div class="order rowIn"><div class="ot">'+escapeHtml(lo.title||'爱发电订单')+'</div>'+
+        '<div class="om"><span>'+escapeHtml(lo.no||'')+' · '+timeAgo(lo.ts)+'</span><span class="amt">¥'+escapeHtml(lo.amount||'?')+'</span></div></div>'+
+        '<div class="delta" style="margin-top:6px;font-size:.62rem;color:var(--ink3)">今日 '+fmt(ops.orders_today||0)+' 单 · 昨日 '+fmt(ops.orders_yesterday||0)+' 单</div>';
+    }
+  }
+  /* 最近对话：AI 名用会话标题 */
+  diffList(document.getElementById('conv'),(ops.recent_prompts||[]),
+    function(x){return (x.ts||0)+'|'+String(x.text||'').slice(0,24);},
+    function(x){var d=document.createElement('div');d.className='crow';
+      d.innerHTML='<div class="meta"><span class="who"></span><span data-time></span></div><div class="txt"></div>';
+      d.querySelector('.who').textContent=x.title||x.tool||'AI';
+      d.querySelector('[data-time]').textContent=timeAgo(x.ts);
+      d.querySelector('.txt').textContent=x.text||'（无文本）';
+      return d;});
+  /* 最近访客：带访问网址 */
+  diffList(document.getElementById('visits'),(ops.recent_visits||[]).slice(0,10),
+    function(x){return (x.ts||0)+'|'+(x.city||'')+'|'+(x.path||'');},
+    function(x){var d=document.createElement('div');d.className='vrow';
+      d.innerHTML='<div class="vc"></div><div class="vt" data-time></div>';
+      d.querySelector('.vc').innerHTML='📍 '+escapeHtml(x.city||'未知')+(x.model?' · '+escapeHtml(x.model):'')+(x.path?' <span class="path">'+escapeHtml(x.path)+'</span>':'');
+      d.querySelector('[data-time]').textContent=timeAgo(x.ts);
+      return d;});
+  /* 心跳 */
+  diffList(document.getElementById('hb'),(ops.recent_heartbeats||[]),
+    function(x){return (x.sid||'')+'|'+(x.task||'')+'|'+(x.title||'');},
+    function(x){var d=document.createElement('div');d.className='trow';
+      d.style.borderLeftColor='var(--green)';
+      d.innerHTML='<div class="ti"><div class="tt"></div><div class="me"></div></div><div class="stats"></div>';
+      d.querySelector('.tt').textContent=x.title||'未命名会话';
+      d.querySelector('.me').textContent=(x.tool||'AI')+' · '+(x.task||'-');
+      d.querySelector('.stats').innerHTML='<span data-time>'+timeAgo(x.ts)+'</span>';
+      return d;});
+}
+
+/* ====== 全屏 ====== */
+document.getElementById('fsBtn').addEventListener('click',function(){
+  if(!document.fullscreenElement){document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen();this.textContent='✕ 退出全屏';}
+  else{document.exitFullscreen&&document.exitFullscreen();this.textContent='⛶ 全屏';}
+});
+document.addEventListener('fullscreenchange',function(){
+  document.getElementById('fsBtn').textContent=document.fullscreenElement?'✕ 退出全屏':'⛶ 全屏';
+});
+
+/* ====== SSE 长连接（禁轮询；断线自动重连） ====== */
+var live=document.getElementById('live'),liveTxt=document.getElementById('liveTxt');
+function setLive(ok,txt){
+  live.className='live'+(ok?'':' warn');
+  liveTxt.textContent=txt;
+}
+function connect(){
+  var es=new EventSource('/api/ev?action=dash-stream');
+  es.onopen=function(){setLive(true,'实时推送中');};
+  es.onmessage=function(ev){
+    try{
+      var j=JSON.parse(ev.data);
+      if(j&&j.ops){setLive(true,'实时推送中');render(j);}
+    }catch(e){}
+  };
+  es.onerror=function(){
+    setLive(false,'连接断开·自动重连');
+    es.close();
+    setTimeout(connect,3000);
+  };
+}
+connect();
+window.addEventListener('resize',function(){if(window.__lastTrendObj){_lastTrendJson='';drawChart(window.__lastTrendObj);}});
+</script>
+</body>
+</html>
