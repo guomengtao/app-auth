@@ -1945,6 +1945,14 @@ async function buildDashboard(req) {
       }
       hb.sort(function (a, b) { return b.ts - a.ts; });
     }
+    // ── 最近对话（evtask-D-evapp-auth-261009-fhtddx，2026-10-09 用户指定大屏加栏目）：
+    //    dash_events t=prompt 全局最近 12 条（复用 qatst4 留痕数据，无新 action）；text 截 300 字 ──
+    var pr = await q("select ts, payload->>'tool' tool, payload->>'sid' sid, payload->>'task' task," +
+      " left(coalesce(payload->>'text',''), 300) text" +
+      " from dash_events where t='prompt' order by ts desc limit 12");
+    var recentPrompts = pr.map(function (r) {
+      return { ts: new Date(r.ts).getTime(), tool: r.tool || "", sid: r.sid || "", task: r.task || "", text: String(r.text || "") };
+    });
     // ── 昨日对比（evtask-D-evev-ops-and-261008-gecm6s，用户 2026-10-08 指定）──
     var yp = (await q("select count(*)::int pv, count(distinct visitor_hash)::int uv from visitor_logs where ts >= '" + ystStartIso + "' and ts < '" + todayStartIso + "'"))[0] || {};
     // 昨日新访客：昨天出现的 hash 在昨天之前从没出现过
@@ -1960,7 +1968,8 @@ async function buildDashboard(req) {
       orders: null,  // 待办：订单总数口径（tracking_events 之前的历史散键），见方案 §七
       orders_today: odCnt.t || 0, orders_yesterday: odCnt.y || 0,
       yesterday: { pv: yp.pv || 0, uv: yp.uv || 0, orders: odCnt.y || 0, new_visitors: ynv.n || 0 },
-      recent_heartbeats: hb
+      recent_heartbeats: hb,
+      recent_prompts: recentPrompts
     };
   } catch (e) { out.ops = { error: String(e && e.message) }; }
 
@@ -2021,18 +2030,25 @@ async function buildDashboard(req) {
       doneRecent.sort(function (a, b) { return String(b.closed_at).localeCompare(String(a.closed_at)); });
       // 昨日对比（gecm6s）：今日/昨日完成任务数（closed_at 前缀比较）+ 新建任务数
       var doneToday = 0, doneYst = 0, newToday = 0, newYst = 0;
+      // 勤奋AI（evtask-fhtddx，2026-10-09 用户指定）：按负责人统计完成数，total 倒序前 8
+      var diliMap = {};
       rows.forEach(function (t) {
         if (!t || !t.id) return;
         var cl = (t.extra && typeof t.extra === "object" && t.extra.closed_at) || (t.status === "done" ? t.updated_at : "");
         if (t.status === "done") {
           var cls = String(cl || "");
-          if (cls.substring(0, 10) === todayKey) doneToday++;
+          var wkey = (t.assignee && String(t.assignee)) || (t.session_sid ? String(t.session_sid) : "未知");
+          var d0 = diliMap[wkey] || (diliMap[wkey] = { who: wkey, today: 0, total: 0 });
+          d0.total++;
+          if (cls.substring(0, 10) === todayKey) { doneToday++; d0.today++; }
           if (cls.substring(0, 10) === ystKey) doneYst++;
         }
         var cr = String(t.created_at || "").substring(0, 10);
         if (cr === todayKey) newToday++;
         if (cr === ystKey) newYst++;
       });
+      var diligence = Object.keys(diliMap).map(function (k) { return diliMap[k]; })
+        .sort(function (a, b) { return b.total - a.total || b.today - a.today; }).slice(0, 8);
       // 在岗开发列表（用户 2026-10-08 两次指定）：与「在岗」统计逐一对齐 ——
       // 每个 in_progress 任务一行（不再按负责人去重、不再滤掉心跳停滞的，
       // 停滞的 stale:true 由客户端灰显「心跳停滞」），上限 8（ef5tq5 修复丢 2 条）
@@ -2052,7 +2068,8 @@ async function buildDashboard(req) {
           stale: a3.activity !== "active", sid: t.session_sid || "" });
       });
       out.dev = { open: open, active: active, frozen: frozen, blocked: blocked, flow: flow, devs: devs, done_recent: doneRecent.slice(0, 5),
-        done_today: doneToday, done_yesterday: doneYst, new_today: newToday, new_yesterday: newYst };
+        done_today: doneToday, done_yesterday: doneYst, new_today: newToday, new_yesterday: newYst,
+        diligence: diligence };
     }
   } catch (e5) { out.dev = { error: String(e5 && e5.message) }; }
   return out;
