@@ -2189,6 +2189,14 @@ async function buildDashboard(req) {
           agents.sort(function (x, y) { return (y.prompts + y.files) - (x.prompts + x.files) || (y.last_at || 0) - (x.last_at || 0); });
           out.dev.agents = agents.slice(0, 12);
           out.dev.agents_total = agents.length;
+          // 全量汇总（KPI 用；agents[] 已截断到 12，故须在截断前用全集算）
+          var tot5 = { agents: agents.length, prompts: 0, files: 0, hearts: 0, quick: 0, msgs: 0, tok_total: 0, task: 0, quick_mode: 0, idle: 0 };
+          agents.forEach(function (a) {
+            tot5.prompts += a.prompts || 0; tot5.files += a.files || 0; tot5.hearts += a.hearts || 0;
+            tot5.quick += a.quick || 0; tot5.msgs += a.msgs || 0; tot5.tok_total += Number(a.tok_total || 0);
+            if (a.mode === "task") tot5.task++; else if (a.mode === "quick") tot5.quick_mode++; else tot5.idle++;
+          });
+          out.dev.totals = tot5;
           // 模型用量（近 7 天，读视图 v_evops_model_daily，含 token）
           // 注意：day 作**裸别名**会语法错（PG 保留字），必须 as d 或加引号。
           out.dev.model_daily = (await q5(
