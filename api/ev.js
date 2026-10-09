@@ -2988,6 +2988,13 @@ async function handleUsageItemsLog(req, res) {
   if (arr.length === 0) return json(res, 400, { success: false, error: "items required" });
   if (arr.length > 500) arr = arr.slice(0, 500);
   function num(v, dflt) { var n = Number(v); return isFinite(n) ? n : dflt; }
+  // 字符串归一：空串 / 字面量 "null" / "undefined" 一律存 null（避免安卓端 optString 读到脏值）
+  function sOrNull(v, max) {
+    if (v == null) return null;
+    var s = String(v).trim();
+    if (s === "" || s === "null" || s === "undefined") return null;
+    return s.slice(0, max);
+  }
   var rows = [];
   for (var i = 0; i < arr.length; i++) {
     var it = arr[i] || {};
@@ -3005,9 +3012,9 @@ async function handleUsageItemsLog(req, res) {
       occurred_at: it.occurred_at ? String(it.occurred_at).slice(0, 40) : new Date().toISOString(),
       synced_at: new Date().toISOString(),
       // 迭代2（2026-10-10）：行卡展示用 —— 指令原文 / 任务单号+任务名 / 上下文与已调用轮次
-      prompt_text: it.prompt_text == null ? null : String(it.prompt_text).slice(0, 400),
-      task_id: it.task_id == null ? null : String(it.task_id).slice(0, 64),
-      task_title: it.task_title == null ? null : String(it.task_title).slice(0, 240),
+      prompt_text: sOrNull(it.prompt_text, 400),
+      task_id: sOrNull(it.task_id, 64),
+      task_title: sOrNull(it.task_title, 240),
       ctx_used: it.ctx_used == null ? null : Math.max(0, Math.floor(num(it.ctx_used, 0))),
       ctx_size: it.ctx_size == null ? null : Math.max(0, Math.floor(num(it.ctx_size, 0))),
       calls: it.calls == null ? null : Math.max(0, Math.floor(num(it.calls, 0)))
