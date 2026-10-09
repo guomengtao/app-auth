@@ -1590,6 +1590,11 @@ async function handleSessionSync(req, res) {
     if (s.cwd) row.cwd = String(s.cwd).slice(0, 240);
     if (s.repo) row.repo = String(s.repo).slice(0, 240);
     if (s.title) row.title = String(s.title).slice(0, 240);
+    // 模型维度（2026-10-09）：会话当前模型 + 用过的模型集合 + 客户端/版本
+    if (s.model) row.model = String(s.model).slice(0, 64);
+    if (Array.isArray(s.models)) row.models = s.models;
+    if (s.client) row.client = String(s.client).slice(0, 32);
+    if (s.version) row.version = String(s.version).slice(0, 32);
     if (s.started_at) row.started_at = s.started_at;
     if (s.heartbeat_at) row.heartbeat_at = s.heartbeat_at;
     if (s.open_task_id != null) row.open_task_id = String(s.open_task_id).slice(0, 80);
@@ -1948,10 +1953,11 @@ async function buildDashboard(req) {
     // ── 最近对话（evtask-D-evapp-auth-261009-fhtddx，2026-10-09 用户指定大屏加栏目）：
     //    dash_events t=prompt 全局最近 12 条（复用 qatst4 留痕数据，无新 action）；text 截 300 字 ──
     var pr = await q("select ts, payload->>'tool' tool, payload->>'sid' sid, payload->>'task' task," +
+      " payload->>'title' title," +
       " left(coalesce(payload->>'text',''), 300) text" +
       " from dash_events where t='prompt' order by ts desc limit 12");
     var recentPrompts = pr.map(function (r) {
-      return { ts: new Date(r.ts).getTime(), tool: r.tool || "", sid: r.sid || "", task: r.task || "", text: String(r.text || "") };
+      return { ts: new Date(r.ts).getTime(), tool: r.tool || "", sid: r.sid || "", task: r.task || "", title: r.title || "", text: String(r.text || "") };
     });
     // ── 昨日对比（evtask-D-evev-ops-and-261008-gecm6s，用户 2026-10-08 指定）──
     var yp = (await q("select count(*)::int pv, count(distinct visitor_hash)::int uv from visitor_logs where ts >= '" + ystStartIso + "' and ts < '" + todayStartIso + "'"))[0] || {};
@@ -1962,7 +1968,7 @@ async function buildDashboard(req) {
       pv_today: today.pv || 0, uv_today: today.uv || 0,
       pv_total: total.pv || 0, uv_total: total.uv || 0,
       new_visitors_today: nv.n || 0,
-      city_top5: city, trend: trend,
+      city_top5: city.map(function (c) { return { city: zhCity(c.city), c: c.c }; }),  // V4 fubd7v：top5 也过中文（原漏映射输出英文） trend: trend,
       recent_visits: rv.map(function (r) { return { ts: new Date(r.ts).getTime(), city: zhCity(r.city), model: r.model, src: r.src, path: r.p }; }),
       last_order: lo.length ? { ts: new Date(lo[0].ts).getTime(), title: lo[0].title || "爱发电订单", amount: lo[0].amount || "", no: lo[0].no || "" } : null,
       orders: null,  // 待办：订单总数口径（tracking_events 之前的历史散键），见方案 §七
@@ -2070,6 +2076,45 @@ async function buildDashboard(req) {
       out.dev = { open: open, active: active, frozen: frozen, blocked: blocked, flow: flow, devs: devs, done_recent: doneRecent.slice(0, 5),
         done_today: doneToday, done_yesterday: doneYst, new_today: newToday, new_yesterday: newYst,
         diligence: diligence };
+      // ── V4（evtask-fubd7v，用户 2026-10-09 指定）：dash_events(PG) per-task 文件/对话计数 +
+      //    per-AI 今日五指标（进行中/今日完成/对话数/文件数/编辑行数）。行数字段钩子未上报，暂 null（见规格 §三） ──
+      try {
+        var pg2 = require("../lib/postgres");
+        var q2 = function (sql) { return pg2.query(sql).then(function (r) { return r.rows || []; }); };
+        var tcnt = await q2("select payload->>'task' task," +
+          " count(*) filter (where t='files')::int fc," +
+          " count(*) filter (where t='prompt')::int pc" +
+          " from dash_events where coalesce(payload->>'task','')<>'' group by 1");
+        var tcMap = {};
+        tcnt.forEach(function (r) { tcMap[r.task] = { files: r.fc || 0, prompts: r.pc || 0 }; });
+        flow.forEach(function (f) { var c = tcMap[f.id] || {}; f.files = c.files || 0; f.prompts = c.prompts || 0; });
+        doneRecent.forEach(function (d) { var c = tcMap[d.id] || {}; d.files = c.files || 0; d.prompts = c.prompts || 0; });
+        var aiAgg = await q2("select payload->>'sid' sid," +
+          " count(*) filter (where t='prompt')::int pc," +
+          " count(*) filter (where t='files')::int fc," +
+          " coalesce(sum((payload->>'count')::int) filter (where t='files'),0)::int edits" +
+          " from dash_events where ts >= '" + todayStartIso + "' and coalesce(payload->>'sid','')<>'' group by 1");
+        var aiMap = {};
+        rows.forEach(function (t) {
+          if (!t || !t.id) return;
+          var sk = (t.session_sid && String(t.session_sid)) || (t.assignee && String(t.assignee)) || "";
+          if (!sk) return;
+          var a = aiMap[sk] || (aiMap[sk] = { sid: sk, open: 0, done_today: 0, prompts: 0, files: 0, edits: 0, lines: null });
+          if (t.status === "in_progress" || t.status === "planned") a.open++;
+          var cl4 = (t.extra && typeof t.extra === "object" && t.extra.closed_at) || (t.status === "done" ? t.updated_at : "");
+          if (t.status === "done" && String(cl4 || "").substring(0, 10) === todayKey) a.done_today++;
+        });
+        aiAgg.forEach(function (r) {
+          var a = aiMap[r.sid] || (aiMap[r.sid] = { sid: r.sid, open: 0, done_today: 0, prompts: 0, files: 0, edits: 0, lines: null });
+          a.prompts = r.pc || 0; a.files = r.fc || 0; a.edits = r.edits || 0;
+        });
+        var aiStats = Object.keys(aiMap).map(function (k) {
+          var a = aiMap[k]; var s4 = sessMap[k];
+          a.name = (s4 && s4.title && String(s4.title).trim()) ? String(s4.title).trim() : k;
+          return a;
+        }).sort(function (x, y) { return (y.open * 100 + y.done_today) - (x.open * 100 + x.done_today) || y.prompts - x.prompts; }).slice(0, 8);
+        out.dev.ai_stats = aiStats;
+      } catch (e6) { /* 聚合失败不影响主数据 */ }
     }
   } catch (e5) { out.dev = { error: String(e5 && e5.message) }; }
   return out;
@@ -2248,6 +2293,45 @@ async function handleTaskList(req, res) {
   }
 }
 
+/* ── V4（fubd7v）大屏 SSE 长连接：禁前端轮询 ──
+ * 每 5s 服务端构建一帧并与上次比对，**有变化才推 data 帧**，无变化只发 ping 注释行；
+ * 55s 主动收尾（Vercel 函数时长上限内），客户端 EventSource 内置自动重连。
+ * 多客户端共享 4s 节流缓存，避免下游被打爆。 */
+var _streamCache = { at: 0, data: null };
+async function buildFresh(req) {
+  var now = Date.now();
+  if (_streamCache.data && now - _streamCache.at < 4000) return _streamCache.data;
+  _streamCache.data = await buildDashboard(req);
+  _streamCache.at = now;
+  return _streamCache.data;
+}
+async function handleDashStream(req, res) {
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-cache, no-transform",
+    "Connection": "keep-alive",
+    "X-Accel-Buffering": "no"
+  });
+  var last = "", closed = false, start = Date.now();
+  req.on("close", function () { closed = true; });
+  async function push(force) {
+    if (closed) return;
+    try {
+      var data = await buildFresh(req);
+      var s = JSON.stringify(data);
+      if (force || s !== last) { last = s; res.write("data: " + s + "\n\n"); }
+      else { res.write(": ping\n\n"); }
+    } catch (e) {
+      try { res.write("event: err\ndata: " + JSON.stringify({ error: String(e && e.message) }) + "\n\n"); } catch (e2) {}
+    }
+  }
+  await push(true);
+  var iv = setInterval(function () {
+    if (closed || Date.now() - start > 55000) { clearInterval(iv); try { res.end(); } catch (e) {} return; }
+    push(false);
+  }, 5000);
+}
+
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   var action = (req.query && req.query.action) || "";
@@ -2317,6 +2401,10 @@ module.exports = async (req, res) => {
         // 数字大屏聚合（只读）：开发+运营一帧全量，60s 内存缓存
         if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
         return await handleDashboard(req, res);
+      case "dash-stream":
+        // V4（fubd7v）大屏 SSE 长连接：服务端每 5s 构建+比对，变化才推，禁前端轮询
+        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
+        return await handleDashStream(req, res);
       case "task-update":
         if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
         return await handleTaskUpdate(req, res);
@@ -2330,6 +2418,14 @@ module.exports = async (req, res) => {
         // 会话身份全量 upsert（采集器把 Mac 黑板 data/active/*.json 推上来；规则2 的判据源）
         if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
         return await handleSessionSync(req, res);
+      case "message-log":
+        // 钩子事件逐条落库（会话/模型全字段 append，evtask-D-evevbox-261009-3ekk7u）
+        if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
+        return await handleMessageLog(req, res);
+      case "model-daily":
+        // 模型用量按天汇总（视图 v_evops_model_daily 现算，公开读）
+        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
+        return await handleModelDaily(req, res);
 
       case "project-list":
         // 公开读：项目真源（取代聚合 payload.projects[]）
@@ -2494,6 +2590,10 @@ async function handlePromptLog(req, res) {
       body: JSON.stringify([{ t: "prompt", payload: {
         sid: sid, task: task, tool: String(body.tool || "").slice(0, 40),
         title: String(body.title || "").slice(0, 120), text: text,
+        model: String(body.model || "").slice(0, 64),
+        client: String(body.client || "").slice(0, 32),
+        version: String(body.version || "").slice(0, 32),
+        generation_id: String(body.generation_id || "").slice(0, 64),
         short: !!body.short, at: new Date().toISOString() } }])
     });
     if (!r.ok && r.status !== 201) {
@@ -2501,6 +2601,81 @@ async function handlePromptLog(req, res) {
       return json(res, 502, { success: false, error: "supabase_insert_failed", detail: txt.slice(0, 200) });
     }
     return json(res, 200, { success: true });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
+/**
+ * 钩子事件逐条落库 POST ?action=message-log（evtask-D-evevbox-261009-3ekk7u）
+ * 钩子（ev-report.js）每次调用上报一行 evops_messages：会话/模型全字段 append-only（永不覆盖）。
+ * 与 session-sync 的分工：sessions=当前态（谁在线）；messages=历史事件流（模型用量）。
+ * body: { hook_event, sid*, raw_sid, tool, task, model, client, version, generation_id,
+ *         agent_type, permission_mode, prompt, short, transcript_path, cwd, repo, payload }
+ * 失败由调用方静默处理；此处只做字段白名单 + 截断 + 401/400 校验。
+ */
+async function handleMessageLog(req, res) {
+  if (!evTaskAuthOk(req)) return json(res, 401, { success: false, error: "unauthorized" });
+  var body = (req.body && typeof req.body === "object") ? req.body : {};
+  var sid = String(body.sid || "").slice(0, 120);
+  if (!sid) return json(res, 400, { success: false, error: "sid required" });
+  var db = evTaskDb(req, res);
+  if (!db) return json(res, 502, { success: false, error: "supabase_unavailable" });
+  var row = {
+    hook_event: String(body.hook_event || "").slice(0, 32) || null,
+    sid: sid,
+    raw_sid: String(body.raw_sid || "").slice(0, 120),
+    tool: String(body.tool || "").slice(0, 32),
+    task_id: String(body.task || "").slice(0, 120),
+    model: String(body.model || "").slice(0, 64) || null,
+    client: String(body.client || "").slice(0, 32) || null,
+    version: String(body.version || "").slice(0, 32) || null,
+    generation_id: String(body.generation_id || "").slice(0, 64) || null,
+    agent_type: String(body.agent_type || "").slice(0, 24) || null,
+    permission_mode: String(body.permission_mode || "").slice(0, 24) || null,
+    prompt: String(body.prompt || "").slice(0, 500),
+    is_short: !!body.short,
+    transcript_path: String(body.transcript_path || "").slice(0, 400),
+    cwd: String(body.cwd || "").slice(0, 240),
+    repo: String(body.repo || "").slice(0, 240),
+    payload: (body.payload && typeof body.payload === "object") ? body.payload : {}
+  };
+  try {
+    var r = await fetch(db.sbUrl + "/rest/v1/evops_messages", {
+      method: "POST",
+      headers: Object.assign({}, db.headers(), { "Content-Type": "application/json", Prefer: "return=minimal" }),
+      body: JSON.stringify([row])
+    });
+    if (!r.ok && r.status !== 201) {
+      var txt = await r.text();
+      return json(res, 502, { success: false, error: "supabase_insert_failed", detail: String(txt).slice(0, 200) });
+    }
+    return json(res, 200, { success: true });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
+/**
+ * 模型用量按天汇总 GET ?action=model-daily&days=<n>（evtask-D-evevbox-261009-3ekk7u）
+ * 数据源：视图 v_evops_model_daily（evops_messages 现算，非冗余表）。默认最近 7 天。
+ * 返回 { success, days, items: [ {day, tool, model, client, messages, sessions, tasks} ] }
+ */
+async function handleModelDaily(req, res) {
+  var days = parseInt((req.query && req.query.days) || "7", 10);
+  if (!(days > 0 && days <= 90)) days = 7;
+  var db = evTaskDb(req, res);
+  if (!db) return json(res, 502, { success: false, error: "supabase_unavailable" });
+  var since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+  try {
+    var r = await fetch(db.sbUrl + "/rest/v1/v_evops_model_daily?day=gte." + since +
+      "&order=day.desc,messages.desc", { headers: db.headers() });
+    if (!r.ok) {
+      var txt = await r.text();
+      return json(res, 502, { success: false, error: "supabase_read_failed", detail: String(txt).slice(0, 200) });
+    }
+    var items = await r.json();
+    return json(res, 200, { success: true, days: days, items: items });
   } catch (e) {
     return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
   }
@@ -2761,3 +2936,5 @@ async function handleTaskSummary(req, res) {
     return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
   }
 }
+// V4（fubd7v）：SSE 长连接需要更长的函数执行窗口（fluid compute；不影响普通请求）
+module.exports.maxDuration = 60;
