@@ -1141,6 +1141,7 @@ function evConfigRateAllowed(src) {
 
 var TASKS_TABLE = "evops_tasks";
 var USAGE_TABLE = "evops_usage";         // 每会话用量（积分+Token，覆盖式 upsert；方案 ev-ops-android/docs/积分消耗统计-方案.md）
+var USAGE_ITEMS_TABLE = "evops_usage_items"; // 逐轮积分明细（append-only，每条一行；同上方案 §九）
 var SESSIONS_TABLE = "evops_sessions";   // 会话身份（方案：docs/会话身份字段入库Supabase-方案.md）
 var PROJECTS_TABLE = "evops_projects";   // 项目真源（2026-10-07：取代聚合 evops_status.payload.projects[]，方案 docs/聚合下线-只留Supabase真源-方案.md）
 
@@ -2634,6 +2635,14 @@ module.exports = async (req, res) => {
         // 钩子上报每会话用量（积分+Token）→ upsert evops_usage（Bearer EV_SYNC_TOKEN）
         if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
         return await handleUsageLog(req, res);
+      case "usage-items-log":
+        // 钩子上报逐轮积分明细（批量）→ upsert evops_usage_items（Bearer EV_SYNC_TOKEN，on_conflict=mid）
+        if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
+        return await handleUsageItemsLog(req, res);
+      case "usage-items":
+        // 公开读：EvOps「积分」Tab 明细流（按真实发生时间倒序，最新在前）
+        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
+        return await handleUsageItemsList(req, res);
       case "usage-list":
         // 公开读：EvOps「积分」Tab 拉 evops_usage（按积分倒序）
         if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
@@ -2960,6 +2969,78 @@ async function handleUsageList(req, res) {
     }
     var items = await r.json();
     return json(res, 200, { success: true, items: Array.isArray(items) ? items : [] });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
+/* =====================================================================
+ * EvOps 逐轮积分明细 —— 写/读接口（evtask-D-evev-ops-and-261009-3xecvb §九迭代）
+ *   usage-items-log POST（Bearer）：钩子批量 upsert 新明细（on_conflict=mid，幂等不重复）。
+ *   usage-items     GET （公开）  ：明细流按 occurred_at desc（最新在前），供安卓列表 + 长连接订阅。
+ * ================================================================== */
+async function handleUsageItemsLog(req, res) {
+  if (!evTaskAuthOk(req)) return json(res, 401, { success: false, error: "unauthorized" });
+  var db = evTaskDb(req, res);
+  if (!db) return json(res, 500, { success: false, error: "no_store_configured" });
+  var body = (req.body && typeof req.body === "object") ? req.body : {};
+  var arr = Array.isArray(body.items) ? body.items : [];
+  if (arr.length === 0) return json(res, 400, { success: false, error: "items required" });
+  if (arr.length > 500) arr = arr.slice(0, 500);
+  function num(v, dflt) { var n = Number(v); return isFinite(n) ? n : dflt; }
+  var rows = [];
+  for (var i = 0; i < arr.length; i++) {
+    var it = arr[i] || {};
+    var mid = String(it.mid || "").trim().slice(0, 64);
+    if (!mid) continue;                                   // 没 mid 的条目无法去重，直接丢弃
+    rows.push({
+      sid: String(it.sid || "").slice(0, 120),
+      raw_sid: String(it.raw_sid || "").slice(0, 120),
+      tool: String(it.tool || "").slice(0, 32),
+      model: String(it.model || "").slice(0, 64),
+      title: String(it.title || "").slice(0, 240),
+      mid: mid,
+      seq: Math.max(0, Math.floor(num(it.seq, 0))),
+      credit: Math.max(0, num(it.credit, 0)),
+      occurred_at: it.occurred_at ? String(it.occurred_at).slice(0, 40) : new Date().toISOString(),
+      synced_at: new Date().toISOString()
+    });
+  }
+  if (!rows.length) return json(res, 400, { success: false, error: "no valid items" });
+  try {
+    var r = await fetch(db.sbUrl + "/rest/v1/" + USAGE_ITEMS_TABLE + "?on_conflict=mid", {
+      method: "POST",
+      headers: db.headers({ Prefer: "resolution=merge-duplicates,return=minimal" }),
+      body: JSON.stringify(rows)
+    });
+    if (r.ok || r.status === 201) return json(res, 200, { success: true, upserted: rows.length });
+    var txt = await r.text();
+    return json(res, 502, { success: false, error: "supabase_write_failed", detail: String(txt).slice(0, 200) });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
+async function handleUsageItemsList(req, res) {
+  var db = evTaskDb(req, res);
+  if (!db) return json(res, 502, { success: false, error: "supabase_unavailable" });
+  var limit = parseInt((req.query && req.query.limit) || "300", 10);
+  if (!(limit > 0 && limit <= 1000)) limit = 300;
+  var sid = String((req.query && req.query.sid) || "").trim();
+  try {
+    var url = db.sbUrl + "/rest/v1/" + USAGE_ITEMS_TABLE + "?select=*" +
+      (sid ? "&sid=eq." + encodeURIComponent(sid) : "") +
+      "&order=occurred_at.desc&limit=" + limit;      // ⭐ 全部会话混合，按真实发生时间倒序
+    var r = await fetch(url, { headers: db.headers() });
+    if (!r.ok) {
+      var txt = await r.text();
+      return json(res, 502, { success: false, error: "supabase_read_failed", detail: String(txt).slice(0, 200) });
+    }
+    var items = await r.json();
+    if (!Array.isArray(items)) items = [];
+    var sum = 0;
+    for (var i = 0; i < items.length; i++) sum += Number(items[i].credit) || 0;
+    return json(res, 200, { success: true, items: items, credit_sum: Math.round(sum * 100) / 100 });
   } catch (e) {
     return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
   }
