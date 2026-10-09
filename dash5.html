@@ -199,7 +199,7 @@
         <div class="ph"><span class="bar"></span><h3>🔧 开发态势</h3><span class="tag">按会话 sid 归因</span></div>
         <div class="dstat" id="dstat"></div>
         <div class="msplit">
-          <div class="cap"><span>模式分布 · 任务单 <b id="msTask">0</b> 人</span><span>快速通道 <b id="msQuick">0</b> 人</span></div>
+          <div class="cap"><span>模式分布 · 任务单 <b id="msTask">0</b> 人</span><span>快速通道 <b id="msQuick">0</b> 人 · 动作 <b id="msQAct">0</b></span></div>
           <div class="track"><div class="seg" id="segTask" style="background:linear-gradient(90deg,#6366f1,#818cf8)"></div><div class="seg" id="segQuick" style="background:linear-gradient(90deg,#14b8a6,#2dd4bf)"></div></div>
         </div>
       </div>
@@ -422,6 +422,7 @@ function render(data){
   var denom=(tN+qN)||1;
   setText(document.getElementById('msTask'),tN);
   setText(document.getElementById('msQuick'),qN);
+  setText(document.getElementById('msQAct'),Number(tot.quick_actions||0));
   var st=document.getElementById('segTask'),sq=document.getElementById('segQuick');
   var wt=(tN/denom*100).toFixed(1)+'%',wq=(qN/denom*100).toFixed(1)+'%';
   if(st.dataset.w!==wt){st.dataset.w=wt;st.style.width=wt;}

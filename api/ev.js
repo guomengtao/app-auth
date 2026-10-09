@@ -2178,9 +2178,14 @@ async function buildDashboard(req) {
             seen[sid5] = 1;
             var a = aggMap[sid5] || {}, m = msgMap[sid5] || {}, nk = nickMap[sid5] || {};
             var openTask = String(s.open_task_id || "");
-            var prompts5 = a.prompts || 0, quick5 = a.quick || 0;
-            // 工作模式：有进行中单 → 任务单(task)；否则有快速/对话 → 快速通道(quick)；都不沾 → '-'
-            var mode5 = openTask ? "task" : ((quick5 || prompts5) ? "quick" : "-");
+            var prompts5 = a.prompts || 0, quick5 = a.quick || 0, file5 = a.files || 0;
+            // 工作模式（M3-B 服务端派生）：今日有任务单（进行中 或 已完成）→ 任务单(task)；
+            // 否则有快速通道留痕/对话/文件 → 快速通道(quick)；都不沾 → 待命('-')。
+            // 修正：原写法只看 open_task_id，会把「做完单、现在闲着」的开发者误判为快速通道。
+            var hasTaskToday = !!openTask || !!doneMap[sid5];
+            var mode5 = hasTaskToday ? "task" : ((quick5 || prompts5 || file5) ? "quick" : "-");
+            // 快速通道动作数（无任务单者的对话 + 文件；= 该开发者走快速通道的工作量）
+            var quickActs5 = hasTaskToday ? 0 : (prompts5 + file5);
             agents.push({
               sid: sid5,
               nickname: nk.nickname || "",
@@ -2189,8 +2194,8 @@ async function buildDashboard(req) {
               model: String(m.model || s.sess_model || "").trim(),
               mode: mode5,
               open_task_id: openTask,
-              prompts: prompts5, files: a.files || 0, hearts: a.hearts || 0,
-              quick: quick5, done_today: doneMap[sid5] || 0,
+              prompts: prompts5, files: file5, hearts: a.hearts || 0,
+              quick: quick5, quick_actions: quickActs5, done_today: doneMap[sid5] || 0,
               tok_total: Number(m.tok_total || 0), msgs: m.msgs || 0,
               last_at: a.last_at ? new Date(a.last_at).getTime() : (s.heartbeat_at ? new Date(s.heartbeat_at).getTime() : null)
             });
@@ -2199,10 +2204,11 @@ async function buildDashboard(req) {
           out.dev.agents = agents.slice(0, 12);
           out.dev.agents_total = agents.length;
           // 全量汇总（KPI 用；agents[] 已截断到 12，故须在截断前用全集算）
-          var tot5 = { agents: agents.length, prompts: 0, files: 0, hearts: 0, quick: 0, msgs: 0, tok_total: 0, task: 0, quick_mode: 0, idle: 0 };
+          var tot5 = { agents: agents.length, prompts: 0, files: 0, hearts: 0, quick: 0, quick_actions: 0, msgs: 0, tok_total: 0, task: 0, quick_mode: 0, idle: 0 };
           agents.forEach(function (a) {
             tot5.prompts += a.prompts || 0; tot5.files += a.files || 0; tot5.hearts += a.hearts || 0;
-            tot5.quick += a.quick || 0; tot5.msgs += a.msgs || 0; tot5.tok_total += Number(a.tok_total || 0);
+            tot5.quick += a.quick || 0; tot5.quick_actions += a.quick_actions || 0;
+            tot5.msgs += a.msgs || 0; tot5.tok_total += Number(a.tok_total || 0);
             if (a.mode === "task") tot5.task++; else if (a.mode === "quick") tot5.quick_mode++; else tot5.idle++;
           });
           out.dev.totals = tot5;
