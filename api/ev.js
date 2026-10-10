@@ -2082,7 +2082,9 @@ async function buildDashboard(req) {
         devs.push({ who: who, title: t.title || "", active_min: f3.active_min, hb: (s2 && s2.heartbeat_at) || null,
           stale: a3.activity !== "active", sid: t.session_sid || "" });
       });
-      out.dev = { open: open, active: active, frozen: frozen, blocked: blocked, flow: flow, devs: devs, done_recent: doneRecent.slice(0, 5),
+      // done_recent 上限 5 → 20（2026-10-10）：客户端「最近完成」已改固定高滚动容器（MAX_ROW=20），
+      //   传 5 条滚不动；与服务端 300 条窗口内取 20 条一致。
+      out.dev = { open: open, active: active, frozen: frozen, blocked: blocked, flow: flow, devs: devs, done_recent: doneRecent.slice(0, 20),
         done_today: doneToday, done_yesterday: doneYst, new_today: newToday, new_yesterday: newYst,
         diligence: diligence };
       // ── V4（evtask-fubd7v，用户 2026-10-09 指定）：dash_events(PG) per-task 文件/对话计数 +
@@ -2288,7 +2290,8 @@ async function buildDashboard(req) {
             });
           });
           agents.sort(function (x, y) { return (y.prompts + y.files) - (x.prompts + x.files) || (y.last_at || 0) - (x.last_at || 0); });
-          out.dev.agents = agents.slice(0, 12);
+          // 12 → 20（2026-10-10）：与客户端「今日会话」固定高滚动容器 MAX_ROW=20 对齐（totals 仍按全集算，不受影响）
+          out.dev.agents = agents.slice(0, 20);
           out.dev.agents_total = agents.length;
           // 全量汇总（KPI 用；agents[] 已截断到 12，故须在截断前用全集算）
           var tot5 = { agents: agents.length, prompts: 0, files: 0, hearts: 0, quick: 0, quick_actions: 0, msgs: 0, tok_total: 0, task: 0, quick_mode: 0, idle: 0, tasks_today: 0,
@@ -2322,6 +2325,110 @@ async function buildDashboard(req) {
       } catch (e6) { /* 聚合失败不影响主数据 */ }
     }
   } catch (e5) { out.dev = { error: String(e5 && e5.message) }; }
+
+  // ── 大屏补数（evtask-D-evev-ops-and-261010-2p3yf2，2026-10-10 用户批「继续开发」）──
+  //   ① 7 日序列 ×4（订单 / 激活 / 对话 / 任务完成）→ 走势图 4 页真曲线。
+  //      ⚠️ 字段名沿用客户端**既有**的 ops.week_orders / week_act / week_chat / week_done
+  //      （客户端 setWeek() 已支持 [{d,v}] 形态）⇒ 走势图零客户端改动即可生效。
+  //   ② 任务完成统计「昨日」列：prompts / credit 今昨 + open_yst=null。
+  //      ⚠️「进行中」是当前态，不存在"昨日进行中" ⇒ 显式输出 null，客户端显示 —（遵守数据规则：不编造）。
+  //   ③ 任务级积分：done_recent[].credit / agents[].tasks_today[].credit。
+  //   全部为**纯新增字段**，不改既有字段语义 ⇒ web 端 V5 大屏不读即无感。
+  //   任何异常都被兜住，绝不影响主数据。
+  try {
+    var pg7 = require("../lib/postgres");
+    var q7 = function (sql, p) { return pg7.query(sql, p).then(function (r) { return r.rows || []; }); };
+    // 近 7 个北京日（升序：最早 → 今天），key "YYYY-MM-DD"，label "MM-DD"
+    var days7 = [], lab7 = {};
+    for (var di = 6; di >= 0; di--) {
+      var k7 = bjDay(Date.now() - di * 86400000);
+      days7.push(k7); lab7[k7] = k7.slice(5);
+    }
+    var start7Iso = new Date(days7[0] + "T00:00:00+08:00").toISOString();
+    // 按北京日分桶统一走 JS 侧 bjDay（同 1962 / 1975 行口径），
+    // 规避 SQL 侧 to_char 受 session 时区 + ts 列类型（timestamp / timestamptz）差异影响
+    var mkBucket7 = function (arr, key) {
+      var m = {};
+      for (var i = 0; i < arr.length; i++) {
+        var v = arr[i][key];
+        if (!v) continue;
+        var kk = bjDay(new Date(v).getTime());
+        if (lab7[kk] === undefined) continue;
+        m[kk] = (m[kk] || 0) + 1;
+      }
+      return m;
+    };
+    var series7 = function (m) { return days7.map(function (k) { return { d: lab7[k], v: Number(m[k] || 0) }; }); };
+    // ①a 订单（tracking_events kind='order'）／ ①c 对话（dash_events t='prompt'）
+    var odRows7 = await q7("select ts from tracking_events where kind='order' and ts >= $1", [start7Iso]);
+    var prRows7 = await q7("select ts from dash_events where t='prompt' and ts >= $1", [start7Iso]);
+    // ①b 激活：复用前面 redis 已算好的 act_week_by_day（零新增查询）
+    var actByDay7 = (out.ops && out.ops.act_week_by_day) || {};
+    // ①d 任务完成：复用已拉入的 rows（≤300，零新增查询）
+    var doneByDay7 = {};
+    if (Array.isArray(rows)) rows.forEach(function (t) {
+      if (!t || t.status !== "done") return;
+      var cl = (t.extra && typeof t.extra === "object" && t.extra.closed_at) || t.updated_at;
+      if (!cl) return;
+      var kk = bjDay(new Date(cl).getTime());
+      if (lab7[kk] === undefined) return;
+      doneByDay7[kk] = (doneByDay7[kk] || 0) + 1;
+    });
+    var odMap7 = mkBucket7(odRows7, "ts"), prMap7 = mkBucket7(prRows7, "ts");
+    if (!out.ops) out.ops = {};
+    out.ops.week_days   = days7.map(function (k) { return lab7[k]; });   // x 轴标签轮（升序）
+    out.ops.week_orders = series7(odMap7);
+    out.ops.week_act    = series7(actByDay7);
+    out.ops.week_chat   = series7(prMap7);
+    out.ops.week_done   = series7(doneByDay7);
+
+    // ③ 任务级积分（Supabase evops_usage_items：task_id + credit）—— 近 7 日一次读，三处复用
+    var crMap7 = {}, crToday7 = 0, crYst7 = 0;
+    try {
+      var db7 = evTaskDb(req, null);
+      if (db7) {
+        var u7 = await fetch(db7.sbUrl + "/rest/v1/" + USAGE_ITEMS_TABLE +
+          "?select=task_id,credit,occurred_at&occurred_at=gte." + encodeURIComponent(start7Iso) + "&limit=5000",
+          { headers: db7.headers() });
+        var ui7 = u7.ok ? await u7.json() : [];
+        if (Array.isArray(ui7)) ui7.forEach(function (r) {
+          var c = Number(r.credit || 0); if (!c) return;
+          var dk = bjDay(new Date(r.occurred_at).getTime());
+          if (dk === todayKey) crToday7 += c;
+          if (dk === ystKey) crYst7 += c;
+          var tk = r.task_id ? String(r.task_id) : "";
+          if (tk) crMap7[tk] = (crMap7[tk] || 0) + c;
+        });
+      }
+    } catch (e8a) { /* 积分读失败 ⇒ 客户端保持占位显示 —，不编造 */ }
+
+    // ② 任务完成统计：今 / 昨（对话数 + 积分）
+    if (out.dev && out.dev.totals && out.dev.totals.report) {
+      var rp7 = out.dev.totals.report;
+      rp7.prompts_today = prMap7[todayKey] || 0;
+      rp7.prompts_yst   = prMap7[ystKey] || 0;
+      rp7.credit_today  = crToday7;
+      rp7.credit_yst    = crYst7;
+      rp7.open_yst      = null;   // 进行中＝当前态，无"昨日进行中" ⇒ 显式 null
+    }
+    // ③ 把积分落到每一行（无积分的行不写 credit ⇒ 客户端继续显示占位）
+    if (out.dev) {
+      var dr7 = out.dev.done_recent || [];
+      for (var i7 = 0; i7 < dr7.length; i7++) {
+        var c7 = crMap7[String(dr7[i7].id || "")];
+        if (c7) dr7[i7].credit = c7;
+      }
+      var ag7 = out.dev.agents || [];
+      for (var j7 = 0; j7 < ag7.length; j7++) {
+        var tt7 = ag7[j7].tasks_today || [];
+        for (var m7 = 0; m7 < tt7.length; m7++) {
+          var cc7 = crMap7[String(tt7[m7].id || "")];
+          if (cc7) tt7[m7].credit = cc7;
+        }
+      }
+    }
+  } catch (e8) { /* 大屏补数失败不影响主数据 */ }
+
   return out;
 }
 
