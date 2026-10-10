@@ -86,6 +86,12 @@ function pgUrl() {
     // 验证 5：行数（空表起步）
     const n = await pool.query('select count(*)::int as c from evops_messages');
     console.log('OK · evops_messages 行数 =', (n.rows[0] || {}).c);
+
+    // 验证 6：实时推送开关（安卓长连接订阅 postgres_changes 的必要条件）
+    const pub = await pool.query(
+      "select 1 from pg_publication_tables " +
+      "where pubname='supabase_realtime' and schemaname='public' and tablename='evops_messages'");
+    console.log('OK · supabase_realtime publication =', pub.rowCount > 0 ? '已加入（可实时推送）' : '未加入（收不到实时事件！）');
   } catch (e) {
     console.error('FAILED:', e && e.message);
     process.exitCode = 1;

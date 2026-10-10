@@ -54,7 +54,9 @@ alter table evops_sessions add column if not exists version varchar(32);
 alter table evops_tasks add column if not exists model varchar(64);
 
 -- 视图：按天 × 模型 × 工具 汇总（聚合现算，不落冗余表 —— 避免「登记加1、关闭不减」式漂移源）
-create or replace view v_evops_model_daily as
+-- 用 drop+create 而非 create or replace：视图列定义变化时后者会报 "cannot drop columns from view"
+drop view if exists v_evops_model_daily;
+create view v_evops_model_daily as
 select date_trunc('day', ts)::date as day,
        tool, model, client,
        count(*)                as messages,   -- 该天该模型的消息条数
@@ -64,3 +66,17 @@ from evops_messages
 where hook_event = 'UserPromptSubmit'
 group by 1,2,3,4
 order by 1 desc, 5 desc;
+
+-- Realtime 实时推送：把 evops_messages 加入 supabase_realtime publication。
+-- ★ 安卓长连接（SupabaseRealtime 订阅 postgres_changes）只对 publication 内的表广播；
+--   没加入即使 WS 连上、phx_join 成功，也收不到任何 INSERT 事件。
+-- 幂等：已在则跳过，可重复执行。
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'evops_messages'
+  ) then
+    alter publication supabase_realtime add table evops_messages;
+  end if;
+end $$;
