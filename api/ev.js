@@ -2043,7 +2043,15 @@ async function buildDashboard(req) {
         }
       });
       doneRecent.sort(function (a, b) { return String(b.closed_at).localeCompare(String(a.closed_at)); });
-      // 昨日对比（gecm6s）：今日/昨日完成任务数（closed_at 前缀比较）+ 新建任务数
+      // 昨日对比（gecm6s）：今日/昨日完成任务数 + 新建任务数
+      // ⚠️ 2026-10-10 修 bug：原用 String(x).substring(0,10) 比 todayKey —— 那是 **UTC 日**，
+      //   会把北京 00:00–08:00 的记录算到前一天（与第 2133 行既有警告同类，本处此前漏改）。
+      //   实测同一帧里 week_done 显示 24、左栏 done_today 显示 9，同屏自相矛盾 ⇒ 统一走 bjDay(北京日)。
+      var bjOf = function (v) {
+        if (!v) return "";
+        var ms = (typeof v === "number") ? v : Date.parse(String(v));
+        return isNaN(ms) ? String(v).slice(0, 10) : bjDay(ms);
+      };
       var doneToday = 0, doneYst = 0, newToday = 0, newYst = 0;
       // 勤奋AI（evtask-fhtddx，2026-10-09 用户指定）：按负责人统计完成数，total 倒序前 8
       var diliMap = {};
@@ -2051,17 +2059,18 @@ async function buildDashboard(req) {
         if (!t || !t.id) return;
         var cl = (t.extra && typeof t.extra === "object" && t.extra.closed_at) || (t.status === "done" ? t.updated_at : "");
         if (t.status === "done") {
-          var cls = String(cl || "");
+          var clk = bjOf(cl);
           var wkey = (t.assignee && String(t.assignee)) || (t.session_sid ? String(t.session_sid) : "未知");
           var d0 = diliMap[wkey] || (diliMap[wkey] = { who: wkey, today: 0, total: 0 });
           d0.total++;
-          if (cls.substring(0, 10) === todayKey) { doneToday++; d0.today++; }
-          if (cls.substring(0, 10) === ystKey) doneYst++;
+          if (clk === todayKey) { doneToday++; d0.today++; }
+          if (clk === ystKey) doneYst++;
         }
-        var cr = String(t.created_at || "").substring(0, 10);
+        var cr = bjOf(t.created_at);
         if (cr === todayKey) newToday++;
         if (cr === ystKey) newYst++;
       });
+      var doneClkMap = bjOf;   // 供后面 aiMap 复用（同口径）
       var diligence = Object.keys(diliMap).map(function (k) { return diliMap[k]; })
         .sort(function (a, b) { return b.total - a.total || b.today - a.today; }).slice(0, 8);
       // 在岗开发列表（用户 2026-10-08 两次指定）：与「在岗」统计逐一对齐 ——
@@ -2113,7 +2122,8 @@ async function buildDashboard(req) {
           var a = aiMap[sk] || (aiMap[sk] = { sid: sk, open: 0, done_today: 0, prompts: 0, files: 0, edits: 0, lines: null });
           if (t.status === "in_progress" || t.status === "planned") a.open++;
           var cl4 = (t.extra && typeof t.extra === "object" && t.extra.closed_at) || (t.status === "done" ? t.updated_at : "");
-          if (t.status === "done" && String(cl4 || "").substring(0, 10) === todayKey) a.done_today++;
+          // 同 2026-10-10 的 UTC 日修复：改用 bjOf(北京日)，与 done_today / week_done 同口径
+          if (t.status === "done" && bjOf(cl4) === todayKey) a.done_today++;
         });
         aiAgg.forEach(function (r) {
           var a = aiMap[r.sid] || (aiMap[r.sid] = { sid: r.sid, open: 0, done_today: 0, prompts: 0, files: 0, edits: 0, lines: null });
@@ -2388,7 +2398,11 @@ async function buildDashboard(req) {
       var db7 = evTaskDb(req, null);
       if (db7) {
         var u7 = await fetch(db7.sbUrl + "/rest/v1/" + USAGE_ITEMS_TABLE +
-          "?select=task_id,credit,occurred_at&occurred_at=gte." + encodeURIComponent(start7Iso) + "&limit=5000",
+          // ⚠️ 必须显式 order：PostgREST/Supabase 有 max-rows 上限（默认 1000），
+          //   一旦 7 日明细超过上限，无序截断会**无声丢掉新增记录**（今日/昨日正好是最重要的）。
+          //   按 occurred_at 倒序 ⇒ 万一截断也优先保住最近的数据，优雅降级。
+          "?select=task_id,credit,occurred_at&occurred_at=gte." + encodeURIComponent(start7Iso) +
+          "&order=occurred_at.desc&limit=5000",
           { headers: db7.headers() });
         var ui7 = u7.ok ? await u7.json() : [];
         if (Array.isArray(ui7)) ui7.forEach(function (r) {
