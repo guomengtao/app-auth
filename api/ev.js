@@ -1250,7 +1250,7 @@ function countIn(list) {
 }
 
 var TASK_TYPES = ["feature", "develop", "bug", "git", "docs", "infra", "refactor", "research"];
-var TASK_STATUSES = ["in_progress", "planned", "done", "cancelled", "blocked"];
+var TASK_STATUSES = ["in_progress", "planned", "verifying", "paused", "done", "delivered_unverified", "blocked", "cancelled", "superseded"]; // EVTIDY 8 态 + planned（总纲 §3.17，2026-10-10 批准）
 // 任务详情描述最短字数（用户 2026-10-07 定：必填且 >=50 字，写清开发目标与验收）
 var TASK_DESC_MIN = 50;
 
@@ -1632,6 +1632,12 @@ async function handleTaskUpdate(req, res) {
   if (body.description != null) { patch.description = String(body.description).slice(0, 2000); has = true; }
   if (body.assignee != null) { patch.assignee = String(body.assignee).trim().slice(0, 64) || null; has = true; }
   if (body.priority != null) { patch.priority = String(body.priority).trim().slice(0, 4); has = true; }
+  if (body.status != null) {
+    // EVTIDY（总纲 §3.17）：verifying/paused 等活动态经此处流转；终态仍应走 task-close（带证据/原因护栏）
+    var stUpd = String(body.status).trim();
+    if (TASK_STATUSES.indexOf(stUpd) < 0) return json(res, 400, { success: false, error: "bad_status", detail: "status 只接受 " + TASK_STATUSES.join("/") });
+    patch.status = stUpd; has = true;
+  }
   if (body.eta_min != null) {
     var eta = parseInt(body.eta_min, 10);
     if (!(eta > 0 && eta <= 1440)) return json(res, 400, { success: false, error: "bad_eta" });
@@ -1706,10 +1712,15 @@ async function handleTaskAppend(req, res) {
 }
 
 /**
- * 结束任务 POST ?action=task-close
- * body: { id*, status*: done|cancelled|blocked, close_reason?, closed_note?, evidence? }
- * done(解决)：close_reason=fixed，closed_note 作为文字证明（§五 已确认松绑，可无 git commit）。
- * cancelled(废弃)/blocked(未解决)：close_reason 必填。
+ * 结束任务 POST ?action=task-close（EVTIDY 8 态，总纲 §3.17；2026-10-10 放开）
+ * body: { id*, status*, close_reason?, closed_note?, evidence?, resume_hint?, related_to? }
+ * 终态白名单（6）：done | delivered_unverified | paused | blocked | cancelled | superseded
+ *   - done(有证据完成)：**必须带 evidence**（字符串或数组 ≤10 条，落 extra.evidence）；缺证据请改用 delivered_unverified。
+ *   - delivered_unverified(已交付·未验证)：诚实中间态，不强制 close_reason。
+ *   - paused(暂停·以后会做)：close_reason 必填（=stop_reason），建议 resume_hint 写「以后怎么接」。
+ *   - blocked(受阻)/cancelled(废弃)：close_reason 必填。
+ *   - superseded(被新单取代)：必须带 related_to（指向新单号）。
+ * 活动态 verifying 不在此设置 —— 走 task-update 改 status（verifying 是"正在验证"，不是结束）。
  */
 async function handleTaskClose(req, res) {
   if (!evTaskAuthOk(req)) return json(res, 401, { success: false, error: "unauthorized" });
@@ -1717,15 +1728,24 @@ async function handleTaskClose(req, res) {
   var id = String(body.id || "").trim();
   if (!id) return json(res, 400, { success: false, error: "Missing id" });
   var status = String(body.status || "").trim();
-  if (["done", "cancelled", "blocked"].indexOf(status) < 0) {
-    return json(res, 400, { success: false, error: "bad_status", detail: "结束状态只接受 done/cancelled/blocked" });
+  var CLOSE_STATUSES = ["done", "delivered_unverified", "paused", "blocked", "cancelled", "superseded"];
+  if (CLOSE_STATUSES.indexOf(status) < 0) {
+    return json(res, 400, { success: false, error: "bad_status", detail: "结束状态只接受 done/delivered_unverified/paused/blocked/cancelled/superseded（verifying 是活动态，请走 task-update 改 status）" });
   }
   var reason = String(body.close_reason || "").trim().slice(0, 40);
   var note = body.closed_note != null ? String(body.closed_note).slice(0, 1000) : null;
-  if (status !== "done" && !reason) {
+  var evidence = body.evidence ? (Array.isArray(body.evidence) ? body.evidence.map(String).slice(0, 10) : [String(body.evidence)]) : null;
+  if (status === "done" && (!evidence || !evidence.length)) {
+    // EVTIDY §3.17.2（总纲，2026-10-10 批准）：done = 有证据的完成，无证据不许叫 done —— 不逼人说谎，给诚实出口。
+    return json(res, 400, { success: false, error: "evidence_required", detail: "done 必须附 evidence（测试档位 + 命令/日志/截图路径 + 时间，≤10 条）。没有证据的交付请改用 status=delivered_unverified —— 它不否定你的工作（代码确实交付了），但明确告诉下一个人「这里还欠一次验证」" });
+  }
+  if (status === "superseded" && !String(body.related_to || "").trim()) {
+    return json(res, 400, { success: false, error: "related_to_required", detail: "superseded 必须带 related_to（指向接管本任务的新单号）" });
+  }
+  if (["blocked", "cancelled", "paused", "superseded"].indexOf(status) >= 0 && !reason) {
     // 2026-10-08：detail 明确指出字段名 close_reason——此前只说"必须给原因"，
     // 调用方拿 body.reason 盲试 6 次全失败（晨割-20261008 实测，正确字段见 L1702 注释）
-    return json(res, 400, { success: false, error: "reason_required", detail: "cancelled/blocked 必须给原因（护栏①）：body 传 close_reason 字段（≤40字），closed_note 可附详细说明" });
+    return json(res, 400, { success: false, error: "reason_required", detail: "paused/blocked/cancelled/superseded 必须给原因（护栏①）：body 传 close_reason 字段（≤40字），closed_note 可附详细说明，resume_hint 写「以后怎么接」" });
   }
   var db = evTaskDb(req, res);
   if (!db) return json(res, 500, { success: false, error: "no_store_configured" });
@@ -1740,8 +1760,12 @@ async function handleTaskClose(req, res) {
     updated_at: new Date().toISOString()
   };
   var extra = (typeof row.extra === "object" && row.extra) || {};
-  if (body.evidence) extra.evidence = Array.isArray(body.evidence) ? body.evidence.map(String).slice(0, 10) : [String(body.evidence)];
+  if (evidence) extra.evidence = evidence; // EVTIDY：done 必附（上方已校验），其余状态自愿附
   if (note) extra.closed_note = note;
+  var resumeHint = body.resume_hint != null ? String(body.resume_hint).slice(0, 500) : null;
+  var relatedTo = String(body.related_to || "").trim().slice(0, 60) || null;
+  if (resumeHint) extra.resume_hint = resumeHint;     // EVTIDY：paused/blocked 的「以后怎么接」
+  if (relatedTo) extra.related_to = relatedTo;        // EVTIDY：superseded 指向新单 / blocked 关联老单
   extra.closed_at = new Date().toISOString(); // 工时方案③：精确关闭时刻，墙钟终点不再靠 updated_at 猜
   patch.extra = extra;
   try {
@@ -1760,7 +1784,7 @@ async function handleTaskClose(req, res) {
         body: JSON.stringify({ open_task_id: null })
       });
     } catch (e2) { /* 清理失败不阻塞主链路 */ }
-    return json(res, 200, { success: true, id: id, status: status, reason: reason || null });
+    return json(res, 200, { success: true, id: id, status: status, reason: reason || null, evidence_count: (extra.evidence || []).length });
   } catch (e) {
     return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
   }
