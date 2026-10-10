@@ -2430,14 +2430,14 @@ async function buildDashboard(req) {
       var dr7 = out.dev.done_recent || [];
       for (var i7 = 0; i7 < dr7.length; i7++) {
         var c7 = crMap7[String(dr7[i7].id || "")];
-        if (c7) dr7[i7].credit = c7;
+        if (c7) dr7[i7].credit = Math.round(c7 * 100) / 100;
       }
       var ag7 = out.dev.agents || [];
       for (var j7 = 0; j7 < ag7.length; j7++) {
         var tt7 = ag7[j7].tasks_today || [];
         for (var m7 = 0; m7 < tt7.length; m7++) {
           var cc7 = crMap7[String(tt7[m7].id || "")];
-          if (cc7) tt7[m7].credit = cc7;
+          if (cc7) tt7[m7].credit = Math.round(cc7 * 100) / 100;
         }
       }
     }
