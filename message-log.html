@@ -273,8 +273,10 @@ function loadSnapshot(rows){
     tbody.innerHTML='<tr><td colspan="100" class="empty">暂无记录（evops_messages 为空）</td></tr>';
     countEl.textContent='0'; lastTsEl.textContent='—'; return;
   }
-  // rows 已按 id.desc（最新在前），逐行插入
-  rows.forEach(function(r){ addRow(r,false); });
+  // rows 为 id.desc（最新在前）；反向遍历逐条顶部插入 → 最终最新记录落在最上面
+  for(var i=rows.length-1;i>=0;i--){ addRow(rows[i], false); }
+  // 快照不计入「累计推送」（该计数只统计长连接实时推送的新记录）
+  pushed=0; pushedEl.textContent='0';
   countEl.textContent=tbody.children.length;
   if(rows[0]) lastTsEl.textContent=timeAgo(rows[0].ts);
 }
