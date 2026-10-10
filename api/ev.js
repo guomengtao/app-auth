@@ -2631,6 +2631,14 @@ module.exports = async (req, res) => {
         // 模型用量按天汇总（视图 v_evops_model_daily 现算，公开读）
         if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
         return await handleModelDaily(req, res);
+      case "message-list":
+        // 公开读：EvOps 对话记录实时页快照（evops_messages 最新 20 条，所有字段）
+        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
+        return await handleMessageList(req, res);
+      case "message-stream":
+        // 公开读 SSE 长连接：新记录增量推（evtask-D-evapp-auth-261010-ngjvew）
+        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
+        return await handleMessageStream(req, res);
       case "usage-log":
         // 钩子上报每会话用量（积分+Token）→ upsert evops_usage（Bearer EV_SYNC_TOKEN）
         if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
@@ -2911,6 +2919,98 @@ async function handleModelDaily(req, res) {
   } catch (e) {
     return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
   }
+}
+
+/* =====================================================================
+ * EvOps 对话记录实时页（evtask-D-evapp-auth-261010-ngjvew）
+ * 数据源：Supabase evops_messages（钩子事件流，append-only；用户口述的"message"表实际叫这名）。
+ *   message-list   GET（公开读）：快照，最新 20 条，所有字段。
+ *   message-stream GET（SSE 长连接）：连接即推 snapshot；之后每 3s 比对 id 增量，
+ *                  逐条推 message 事件；55s 收尾，客户端 EventSource 自动重连。
+ *   范式照抄 handleDashStream（api/ev.js:2513），复用 evTaskDb（service_role 只读）。
+ * ================================================================== */
+async function handleMessageList(req, res) {
+  var db = evTaskDb(req, res);
+  if (!db) return json(res, 502, { success: false, error: "supabase_unavailable" });
+  try {
+    var r = await fetch(db.sbUrl + "/rest/v1/evops_messages?select=*&order=id.desc&limit=20", { headers: db.headers() });
+    if (!r.ok) {
+      var txt = await r.text();
+      return json(res, 502, { success: false, error: "supabase_read_failed", detail: String(txt).slice(0, 200) });
+    }
+    var rows = await r.json();
+    return json(res, 200, { success: true, rows: Array.isArray(rows) ? rows : [] });
+  } catch (e) {
+    return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
+  }
+}
+
+async function handleMessageStream(req, res) {
+  function head() {
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      "Connection": "keep-alive",
+      "X-Accel-Buffering": "no"
+    });
+  }
+  var db = evTaskDb(req, res);
+  if (!db) {
+    head();
+    res.write("event: err\ndata: " + JSON.stringify({ error: "supabase_unavailable" }) + "\n\n");
+    try { res.end(); } catch (e) {}
+    return;
+  }
+  head();
+  var closed = false, start = Date.now(), lastMaxId = 0;
+  req.on("close", function () { closed = true; });
+
+  async function fetchLatest(limit) {
+    var r = await fetch(db.sbUrl + "/rest/v1/evops_messages?select=*&order=id.desc&limit=" + limit, { headers: db.headers() });
+    if (!r.ok) throw new Error("read_failed:" + r.status);
+    var rows = await r.json();
+    return Array.isArray(rows) ? rows : [];
+  }
+  async function fetchNewer(sinceId) {
+    var r = await fetch(db.sbUrl + "/rest/v1/evops_messages?select=*&id=gt." + sinceId + "&order=id.asc&limit=50", { headers: db.headers() });
+    if (!r.ok) throw new Error("read_failed:" + r.status);
+    var rows = await r.json();
+    return Array.isArray(rows) ? rows : [];
+  }
+
+  async function pushSnapshot() {
+    if (closed) return;
+    try {
+      var rows = await fetchLatest(20);
+      for (var i = 0; i < rows.length; i++) {
+        var id = Number(rows[i].id) || 0;
+        if (id > lastMaxId) lastMaxId = id;
+      }
+      res.write("event: snapshot\ndata: " + JSON.stringify({ rows: rows }) + "\n\n");
+    } catch (e) {
+      res.write("event: err\ndata: " + JSON.stringify({ error: String(e && e.message) }) + "\n\n");
+    }
+  }
+  async function pushNewer() {
+    if (closed) return;
+    try {
+      var rows = await fetchNewer(lastMaxId);
+      for (var i = 0; i < rows.length; i++) {
+        var id = Number(rows[i].id) || 0;
+        if (id > lastMaxId) lastMaxId = id;
+        res.write("event: message\ndata: " + JSON.stringify(rows[i]) + "\n\n");
+      }
+      if (rows.length === 0) res.write(": ping\n\n");
+    } catch (e) {
+      res.write("event: err\ndata: " + JSON.stringify({ error: String(e && e.message) }) + "\n\n");
+    }
+  }
+
+  await pushSnapshot();
+  var iv = setInterval(function () {
+    if (closed || Date.now() - start > 55000) { clearInterval(iv); try { res.end(); } catch (e) {} return; }
+    pushNewer();
+  }, 3000);
 }
 
 /* =====================================================================

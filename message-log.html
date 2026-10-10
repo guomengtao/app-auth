@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EvOps · 对话记录实时流</title>
+<style>
+  :root{
+    --bg0:#081020; --bg1:#0d1830; --card:#12203c; --card2:#0e1a33;
+    --line:#22375f; --ink:#edf3ff; --ink2:#9db0d6; --ink3:#5c6f96;
+    --indigo:#818cf8; --teal:#2dd4bf; --amber:#fbbf24; --rose:#fb7185; --green:#34d399; --violet:#a78bfa; --pink:#f472b6;
+    --mono:'SF Mono','JetBrains Mono',ui-monospace,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{
+    font-family:var(--sans);color:var(--ink);
+    background:
+      radial-gradient(1100px 520px at 88% -8%, rgba(129,140,248,.15), transparent 60%),
+      radial-gradient(900px 480px at -5% 106%, rgba(45,212,191,.11), transparent 55%),
+      linear-gradient(170deg,var(--bg0),var(--bg1));
+    min-height:100vh;padding:14px 22px 16px;
+  }
+  body::before{content:"";position:fixed;inset:0;background-image:
+      linear-gradient(rgba(120,150,220,.04) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(120,150,220,.04) 1px,transparent 1px);
+    background-size:44px 44px;pointer-events:none;z-index:0}
+  .wrap{position:relative;z-index:1;max-width:1760px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+
+  .topbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .topbar .logo{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;font-size:20px;
+    background:linear-gradient(135deg,#6366f1,#14b8a6);box-shadow:0 6px 18px rgba(99,102,241,.4)}
+  .topbar h1{font-size:1.18rem;font-weight:800}
+  .topbar .sub{font-size:.7rem;color:var(--ink2);margin-top:1px}
+  .topbar .spacer{flex:1}
+  .live{display:inline-flex;align-items:center;gap:6px;font-size:.72rem;color:var(--green);
+    background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25);padding:5px 12px;border-radius:18px;white-space:nowrap}
+  .live.warn{color:var(--amber);background:rgba(251,191,36,.08);border-color:rgba(251,191,36,.3)}
+  .live.warn .dot{background:var(--amber)}
+  .live .dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(52,211,153,.5)}70%{box-shadow:0 0 0 8px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}
+  .src{font-size:.68rem;color:var(--ink3)} .src b{color:var(--green)}
+  .btn{display:inline-flex;align-items:center;gap:6px;font-size:.74rem;color:var(--ink2);cursor:pointer;
+    background:var(--card);border:1px solid var(--line);padding:6px 13px;border-radius:9px;transition:all .15s}
+  .btn:hover{color:var(--ink);border-color:var(--indigo)}
+  .clock{font-family:var(--mono);font-size:.95rem;font-weight:700;letter-spacing:1px}
+  .ver{font-family:var(--mono);font-size:.66rem;color:var(--ink3);border:1px solid var(--line);
+    border-radius:8px;padding:4px 9px;white-space:nowrap}
+  .ver b{color:var(--teal)}
+
+  .panel{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);
+    border-radius:15px;padding:14px 16px;display:flex;flex-direction:column}
+
+  /* 状态条 */
+  .status{display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:.74rem;color:var(--ink2);margin-bottom:10px}
+  .status .pill{display:inline-flex;align-items:center;gap:6px;background:rgba(129,140,248,.08);
+    border:1px solid var(--line);border-radius:18px;padding:4px 11px}
+  .status .pill b{color:var(--ink);font-family:var(--mono)}
+  .status .hint{color:var(--ink3)}
+
+  /* 表格 */
+  .tablewrap{position:relative;border-radius:11px;border:1px solid var(--line);overflow:auto;max-height:74vh}
+  table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;font-size:.72rem}
+  thead th{position:sticky;top:0;z-index:3;background:linear-gradient(180deg,#16305a,#102344);
+    color:var(--ink2);font-weight:700;text-align:left;padding:9px 12px;white-space:nowrap;
+    border-bottom:1px solid var(--line);border-right:1px solid rgba(34,55,95,.5)}
+  thead th:first-child{position:sticky;left:0;z-index:4}
+  tbody td{padding:8px 12px;border-bottom:1px solid rgba(34,55,95,.45);border-right:1px solid rgba(34,55,95,.28);
+    color:var(--ink);vertical-align:top;max-width:340px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  tbody td:first-child{position:sticky;left:0;z-index:2;background:var(--card2);color:var(--teal);
+    font-family:var(--mono);font-weight:700}
+  tbody tr:nth-child(even) td{background:rgba(255,255,255,.012)}
+  tbody tr:hover td{background:rgba(129,140,248,.07)}
+  tbody tr:hover td:first-child{background:#16294a}
+  .cell-long{max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:inline-block;vertical-align:middle}
+  .expand{cursor:pointer;color:var(--indigo);font-size:.66rem;border:1px solid var(--line);border-radius:6px;
+    padding:1px 7px;margin-left:6px;background:rgba(129,140,248,.08);white-space:nowrap}
+  .expand:hover{color:var(--ink);border-color:var(--indigo)}
+
+  /* 徽标 */
+  .badge{display:inline-block;font-size:.64rem;font-weight:700;padding:2px 8px;border-radius:7px;white-space:nowrap}
+  .ev-UserPromptSubmit{background:rgba(45,212,191,.14);color:var(--teal);border:1px solid rgba(45,212,191,.35)}
+  .ev-SessionStart{background:rgba(129,140,248,.14);color:var(--indigo);border:1px solid rgba(129,140,248,.35)}
+  .ev-SessionEnd{background:rgba(251,113,133,.14);color:var(--rose);border:1px solid rgba(251,113,133,.35)}
+  .short-yes{color:var(--amber)} .short-no{color:var(--ink3)}
+  .tool-tag{font-family:var(--mono);color:var(--violet)}
+  .null{color:var(--ink3);font-style:italic}
+
+  /* 新行慢速进入 + 高亮 */
+  @keyframes slideIn{from{transform:translateY(-26px);opacity:0}to{transform:translateY(0);opacity:1}}
+  @keyframes glowFade{0%{background:linear-gradient(90deg,rgba(52,211,153,.30),rgba(45,212,191,.12));box-shadow:inset 3px 0 0 var(--green)}
+    100%{background:transparent;box-shadow:inset 3px 0 0 transparent}}
+  tr.row-new td{animation:slideIn .72s cubic-bezier(.22,1,.36,1), glowFade 2.6s ease-out}
+
+  /* 空 / 加载 */
+  .empty{padding:40px;text-align:center;color:var(--ink3);font-size:.82rem}
+
+  /* 弹层（展开 payload / prompt） */
+  .modal{position:fixed;inset:0;background:rgba(4,8,18,.66);display:none;align-items:center;justify-content:center;z-index:50;padding:24px}
+  .modal.show{display:flex}
+  .modal .box{background:linear-gradient(180deg,#102146,#0c1830);border:1px solid var(--line);border-radius:14px;
+    max-width:min(820px,92vw);max-height:82vh;overflow:auto;padding:18px 20px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  .modal .box h4{font-size:.86rem;margin-bottom:10px;color:var(--teal)}
+  .modal pre{font-family:var(--mono);font-size:.74rem;line-height:1.55;color:var(--ink);white-space:pre-wrap;word-break:break-all}
+  .modal .close{float:right;cursor:pointer;color:var(--ink3);font-size:1.1rem;border:1px solid var(--line);
+    border-radius:8px;width:28px;height:28px;display:grid;place-items:center}
+  .modal .close:hover{color:var(--ink);border-color:var(--indigo)}
+
+  .scrollhint{font-size:.64rem;color:var(--ink3);margin-top:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="logo">💬</div>
+    <div>
+      <h1>EvOps · 对话记录实时流</h1>
+      <div class="sub">Supabase <b style="color:var(--teal)">evops_messages</b> · 最新 20 条 · 全部字段</div>
+    </div>
+    <div class="spacer"></div>
+    <span class="ver">evtask-D-evapp-auth-261010-ngjvew</span>
+    <span class="live" id="live"><span class="dot"></span><span id="liveTxt">连接中…</span></span>
+    <span class="clock" id="clock">--:--:--</span>
+    <a class="btn" href="/dash5.html">← 返回大屏</a>
+    <button class="btn" id="fsBtn">⛶ 全屏</button>
+    <button class="btn" id="reloadBtn">↻ 重连</button>
+  </div>
+
+  <div class="panel">
+    <div class="status">
+      <span class="pill">显示 <b id="count">0</b> / 20 条</span>
+      <span class="pill">最新到达 <b id="lastTs">—</b></span>
+      <span class="pill">累计推送 <b id="pushed">0</b> 条</span>
+      <span class="hint" id="hint">通过 SSE 长连接实时接收新记录，新行将从顶部缓动滑入并高亮。</span>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead id="thead"></thead>
+        <tbody id="tbody">
+          <tr><td colspan="100" class="empty">正在加载最新记录…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="scrollhint">← 左右滚动查看全部字段 · 点击「展开」查看 prompt / payload 全文 · 表头与首列吸顶 →</div>
+  </div>
+</div>
+
+<!-- 展开弹层 -->
+<div class="modal" id="modal">
+  <div class="box">
+    <span class="close" id="modalClose">✕</span>
+    <h4 id="modalTitle">详情</h4>
+    <pre id="modalBody"></pre>
+  </div>
+</div>
+
+<script>
+/* ====== 字段定义（与 evops_messages 表一一对应，全部显示） ====== */
+var COLS = [
+  {k:'id',             label:'#',        type:'num'},
+  {k:'ts',             label:'落库时间',   type:'ts'},
+  {k:'hook_event',     label:'事件',     type:'ev'},
+  {k:'sid',            label:'会话(sid)', type:'txt'},
+  {k:'raw_sid',        label:'原生sid',   type:'txt'},
+  {k:'tool',           label:'工具',     type:'tool'},
+  {k:'task_id',        label:'任务单',    type:'txt'},
+  {k:'model',          label:'模型',     type:'txt'},
+  {k:'client',         label:'客户端',    type:'txt'},
+  {k:'version',        label:'版本',     type:'txt'},
+  {k:'generation_id',  label:'生成ID',    type:'txt'},
+  {k:'agent_type',     label:'智能体',    type:'txt'},
+  {k:'permission_mode',label:'权限模式',   type:'txt'},
+  {k:'prompt',         label:'指令',     type:'long'},
+  {k:'is_short',       label:'短消息',    type:'bool'},
+  {k:'transcript_path',label:'转录路径',  type:'txt'},
+  {k:'cwd',            label:'工作目录',   type:'txt'},
+  {k:'repo',           label:'仓库',     type:'txt'},
+  {k:'tok_in',         label:'Token入',   type:'num'},
+  {k:'tok_out',        label:'Token出',   type:'num'},
+  {k:'tok_total',      label:'Token总',   type:'num'},
+  {k:'payload',        label:'原始载荷',   type:'json'}
+];
+var MAX = 20;
+
+/* ====== DOM ====== */
+var thead=document.getElementById('thead'), tbody=document.getElementById('tbody');
+var live=document.getElementById('live'), liveTxt=document.getElementById('liveTxt');
+var countEl=document.getElementById('count'), lastTsEl=document.getElementById('lastTs');
+var pushedEl=document.getElementById('pushed'), hintEl=document.getElementById('hint');
+var knownIds={}, pushed=0, rowStore={};
+
+/* ====== 渲染表头 ====== */
+function renderHead(){
+  var h='<tr>';
+  COLS.forEach(function(c){ h+='<th>'+c.label+'</th>'; });
+  h+='</tr>'; thead.innerHTML=h;
+}
+
+/* ====== 工具函数 ====== */
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function fmtTs(v){
+  if(!v) return '—';
+  var d=new Date(v); if(isNaN(d)) return esc(v);
+  function p(n){return (n<10?'0':'')+n;}
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());
+}
+function timeAgo(v){
+  if(!v) return '—';
+  var d=new Date(v); if(isNaN(d)) return '—';
+  var s=Math.floor((Date.now()-d)/1000);
+  if(s<5) return '刚刚';
+  if(s<60) return s+'秒前';
+  if(s<3600) return Math.floor(s/60)+'分前';
+  if(s<86400) return Math.floor(s/3600)+'小时前';
+  return Math.floor(s/86400)+'天前';
+}
+
+/* ====== 单元格渲染 ====== */
+function cell(c, row){
+  var v=row[c.k];
+  if(v===null||v===undefined||v==='') {
+    if(c.type==='bool') return '<span class="short-no">否</span>';
+    return '<span class="null">∅</span>';
+  }
+  switch(c.type){
+    case 'num':   return esc(v);
+    case 'ts':    return fmtTs(v);
+    case 'ev':    return '<span class="badge ev-'+esc(v)+'">'+esc(v)+'</span>';
+    case 'tool':  return '<span class="tool-tag">'+esc(v)+'</span>';
+    case 'bool':  return v ? '<span class="short-yes">是 ⚡</span>' : '<span class="short-no">否</span>';
+    case 'long': {
+      var s=String(v);
+      if(s.length>120){ return '<span class="cell-long" title="'+esc(s)+'">'+esc(s.slice(0,120))+'…</span><span class="expand" data-kind="prompt" data-id="'+esc(row.id)+'">展开</span>'; }
+      return '<span class="cell-long" title="'+esc(s)+'">'+esc(s)+'</span>';
+    }
+    case 'json': {
+      var pretty; try{ pretty=JSON.stringify(v,null,2); }catch(e){ pretty=String(v); }
+      return '<span class="cell-long" title="'+esc(pretty)+'">'+esc(pretty.length>140?pretty.slice(0,140)+'…':pretty)+'</span><span class="expand" data-kind="payload" data-id="'+esc(row.id)+'">展开</span>';
+    }
+    default:     return '<span class="cell-long" title="'+esc(v)+'">'+esc(v)+'</span>';
+  }
+}
+
+/* ====== 新增一行到顶部 ====== */
+function addRow(row, animate){
+  if(knownIds[row.id]) return false;          // 去重：断线重连/重复推送都跳过
+  knownIds[row.id]=true;
+  rowStore[row.id]=row;                        // 存整行原始对象，供「展开」读取全文
+  var tr=document.createElement('tr');
+  if(animate) tr.className='row-new';
+  var html='';
+  COLS.forEach(function(c){ html+='<td data-k="'+c.k+'">'+cell(c,row)+'</td>'; });
+  tr.innerHTML=html;
+  // 插入顶部（若仍是初始空占位行则先清空）
+  if(tbody.querySelector('.empty')) tbody.innerHTML='';
+  tbody.insertBefore(tr, tbody.firstChild);
+  pushed++; pushedEl.textContent=pushed;
+  lastTsEl.textContent=timeAgo(row.ts);
+  // 裁剪到 MAX
+  while(tbody.children.length>MAX){
+    var last=tbody.lastChild; var lid=last && last.firstChild ? last.firstChild.textContent : null;
+    if(lid && knownIds[lid]) delete knownIds[lid];
+    tbody.removeChild(last);
+  }
+  countEl.textContent=tbody.children.length;
+  return true;
+}
+
+/* ====== 用快照整体替换 ====== */
+function loadSnapshot(rows){
+  tbody.innerHTML=''; knownIds={}; rowStore={}; pushed=0; pushedEl.textContent='0';
+  if(!rows || !rows.length){
+    tbody.innerHTML='<tr><td colspan="100" class="empty">暂无记录（evops_messages 为空）</td></tr>';
+    countEl.textContent='0'; lastTsEl.textContent='—'; return;
+  }
+  // rows 已按 id.desc（最新在前），逐行插入
+  rows.forEach(function(r){ addRow(r,false); });
+  countEl.textContent=tbody.children.length;
+  if(rows[0]) lastTsEl.textContent=timeAgo(rows[0].ts);
+}
+
+/* ====== 展开弹层 ====== */
+var modal=document.getElementById('modal'), modalBody=document.getElementById('modalBody'), modalTitle=document.getElementById('modalTitle');
+function showModal(title, text){ modalTitle.textContent=title; modalBody.textContent=text; modal.classList.add('show'); }
+document.getElementById('modalClose').onclick=function(){modal.classList.remove('show');};
+modal.onclick=function(e){ if(e.target===modal) modal.classList.remove('show'); };
+tbody.addEventListener('click', function(e){
+  var el=e.target.closest('.expand'); if(!el) return;
+  var id=el.getAttribute('data-id'), kind=el.getAttribute('data-kind');
+  var row=rowStore[id]; if(!row) return;
+  if(kind==='payload'){
+    var pretty; try{ pretty=JSON.stringify(row.payload,null,2); }catch(x){ pretty=String(row.payload); }
+    showModal('payload · #'+id, pretty);
+  } else {
+    showModal('prompt · #'+id, row.prompt!=null&&row.prompt!=='' ? String(row.prompt) : '(空)');
+  }
+});
+
+/* ====== 状态 ====== */
+function setLive(ok,txt){ live.className='live'+(ok?'':' warn'); liveTxt.textContent=txt; }
+
+/* ====== SSE 长连接（禁轮询；断线自动重连） ====== */
+var es=null;
+function connect(){
+  if(es){ try{es.close();}catch(e){} }
+  setLive(true,'连接中…');
+  es=new EventSource('/api/ev?action=message-stream');
+  es.onopen=function(){ setLive(true,'实时推送中'); hintEl.textContent='已建立 SSE 长连接，新记录到达将缓动滑入并高亮。'; };
+  es.addEventListener('snapshot', function(ev){
+    try{ var j=JSON.parse(ev.data); if(j&&j.rows){ loadSnapshot(j.rows); setLive(true,'实时推送中'); } }catch(e){}
+  });
+  es.addEventListener('message', function(ev){
+    try{ var row=JSON.parse(ev.data); if(row&&row.id!=null){ addRow(row,true); } }catch(e){}
+  });
+  es.addEventListener('err', function(ev){
+    try{ var j=JSON.parse(ev.data); setLive(false,'错误：'+(j.error||'未知')); }catch(e){ setLive(false,'连接异常'); }
+  });
+  es.onerror=function(){ setLive(false,'连接断开·自动重连'); if(es){try{es.close();}catch(e){}} setTimeout(connect,3000); };
+}
+connect();
+
+/* ====== 时钟 ====== */
+function tick(){ var d=new Date(); var p=function(n){return (n<10?'0':'')+n;};
+  document.getElementById('clock').textContent=p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds()); }
+tick(); setInterval(tick,1000);
+
+/* ====== 全屏 / 重连 ====== */
+document.getElementById('fsBtn').addEventListener('click',function(){
+  if(!document.fullscreenElement){document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen();this.textContent='✕ 退出全屏';}
+  else{document.exitFullscreen&&document.exitFullscreen();this.textContent='⛶ 全屏';}
+});
+document.addEventListener('fullscreenchange',function(){
+  document.getElementById('fsBtn').textContent=document.fullscreenElement?'✕ 退出全屏':'⛶ 全屏';
+});
+document.getElementById('reloadBtn').addEventListener('click',function(){ connect(); });
+
+renderHead();
+</script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 {
-  "version": "0.0.3",
-  "updated": "2026-10-09T19:48:17+0800",
+  "version": "0.0.4",
+  "updated": "2026-10-10T10:47:53+0800",
   "note": "Ev 数据大屏（dash*.html）独立版本号。第三位由 tools/hooks/pre-commit 在提交含 dash*.html 时自动 +1，勿手改。见 docs/数据大屏V5-AI开发者视角-升级方案.md §十五。"
 }
