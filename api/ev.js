@@ -1663,6 +1663,11 @@ async function handleTaskUpdate(req, res) {
     var fx = (typeof existing.extra === "object" && existing.extra) || {};
     fx.files = cfList;
     fx.files_ts = new Date().toISOString();
+    // files_owner = 占用者会话 id。不能靠 task.assignee 反推：
+    // register 用 sessA、claim 用 sessB 是常态，反推会把自己的文件判成别人的（2026-10-11 回归实测）。
+    if (body.files_owner != null) {
+      fx.files_owner = String(body.files_owner).trim().slice(0, 64) || null;
+    }
     patch.extra = fx; has = true;
   }
   patch.updated_at = new Date().toISOString();
@@ -1919,6 +1924,7 @@ async function handleTaskActivity(req, res) {
                   // B3-P3（2026-10-11）：文件级占用清单 —— ev-claim.sh 冲突热度的精确判据。
                   // files_stale=true 时消费方应忽略该清单（僵尸遗留），交给晨割收割，别拿来挡人。
                   session_files: filesOf(t),
+                  files_owner: (t.extra && typeof t.extra === "object" && t.extra.files_owner) || null,
                   files_stale: filesOf(t).length ? (act.activity === "orphan" ||
                                (act.idle_min != null && act.idle_min > FILES_STALE_MIN)) : false,
                   files_ts: (t.extra && typeof t.extra === "object" && t.extra.files_ts) || null });
