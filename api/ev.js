@@ -2077,12 +2077,37 @@ async function buildDashboard(req) {
         var rs = await fetch(db.sbUrl + "/rest/v1/" + SESSIONS_TABLE + "?select=sid,title,started_at,heartbeat_at,status&limit=500", { headers: db.headers() });
         if (rs.ok) { var sr = await rs.json(); if (Array.isArray(sr)) sr.forEach(function (s) { if (s && s.sid) sessMap[s.sid] = s; }); }
       } catch (e4) {}
-      var open = 0, active = 0, frozen = 0, blocked = 0;
-      var doneRecent = [], flow = [];
+      var open = 0, active = 0, frozen = 0, blocked = 0, blockedStale = 0;
+      var doneRecent = [], flow = [], blockedList = [];
+      // 《任务阻塞-blocked-口径与治理方案》（docs/ 同名 md，evtask-D-guomengtao-261012-wf6tpc）B 组：
+      //   blocked 是**终态**（CLOSE_STATUSES，见 1740 行附近），关单后状态永久停留 ⇒ 原写法对全量
+      //   历史窗口（order=updated_at.desc&limit=300）计数，**只进不出**。
+      //   实测 2026-10-11：blocked=9 / open=2，而 agents[].tasks_today 里 blocked 仅 1 ⇒ 8 条是跨天老账。
+      //   改：72h 时间窗 —— 窗内计 blocked（真·当前阻塞），窗外计 blocked_stale（历史沉淀，不进健康度 KPI）。
+      var BLOCK_FRESH_H = 72;
+      var hoursSince = function (v) {
+        var ms = (typeof v === "number") ? v : Date.parse(String(v || ""));
+        return isNaN(ms) ? 0 : Math.max(0, (Date.now() - ms) / 3600000);
+      };
+      var blockedAtOf = function (tt) {
+        var ex = (tt && tt.extra && typeof tt.extra === "object") ? tt.extra : null;
+        return (ex && ex.blocked_at) || (ex && ex.closed_at) || tt.updated_at || tt.created_at;
+      };
       rows.forEach(function (t) {
         if (!t || !t.id) return;
         var s = t.session_sid ? (sessMap[t.session_sid] || null) : null;
-        if (t.status === "blocked") blocked++;
+        if (t.status === "blocked") {
+          var bh = hoursSince(blockedAtOf(t));
+          if (bh <= BLOCK_FRESH_H) blocked++; else blockedStale++;
+          var bx = (t.extra && typeof t.extra === "object") ? t.extra : {};
+          blockedList.push({
+            id: String(t.id), title: String(t.title || "").slice(0, 40),
+            who: (s && s.title && String(s.title).trim()) ? String(s.title).trim()
+               : ((t.assignee && String(t.assignee)) || (t.session_sid ? "会话 ···" + String(t.session_sid).slice(-4) : "未绑定")),
+            blocked_h: Math.round(bh), stale: bh > BLOCK_FRESH_H,
+            kind: String(bx.block_kind || ""), reason: String(bx.close_reason || "").slice(0, 40)
+          });
+        }
         else if (t.status === "in_progress" || t.status === "planned") {
           open++;
           var a = taskActivity(t, s);
@@ -2154,7 +2179,10 @@ async function buildDashboard(req) {
       });
       // done_recent 上限 5 → 20（2026-10-10）：客户端「最近完成」已改固定高滚动容器（MAX_ROW=20），
       //   传 5 条滚不动；与服务端 300 条窗口内取 20 条一致。
-      out.dev = { open: open, active: active, frozen: frozen, blocked: blocked, flow: flow, devs: devs, done_recent: doneRecent.slice(0, 20),
+      blockedList.sort(function (a, b) { return b.blocked_h - a.blocked_h; });   // 卡最久的排最前
+      out.dev = { open: open, active: active, frozen: frozen, blocked: blocked,
+        blocked_stale: blockedStale, blocked_list: blockedList.slice(0, 20),
+        flow: flow, devs: devs, done_recent: doneRecent.slice(0, 20),
         done_today: doneToday, done_yesterday: doneYst, new_today: newToday, new_yesterday: newYst,
         diligence: diligence };
       // ── V4（evtask-fubd7v，用户 2026-10-09 指定）：dash_events(PG) per-task 文件/对话计数 +
@@ -2300,7 +2328,13 @@ async function buildDashboard(req) {
               id: String(t.id), title: String(t.title || "").slice(0, 40),
               status: st5, at: String(cl5b || t.created_at || ""),
               created_at: String(t.created_at || ""), closed_at: String(cl5b || ""),
-              is_new_today: bjDayOf(t.created_at) === todayKey
+              is_new_today: bjDayOf(t.created_at) === todayKey,
+              // 《阻塞口径治理》A 组：阻塞单在左栏/今日任务里必须能被认出来（客户端据此打红标 + 显示「阻塞 Nh」）
+              is_blocked: st5 === "blocked",
+              blocked_h: (st5 === "blocked") ? (function () {
+                var ms = Date.parse(String(cl5b || ""));
+                return isNaN(ms) ? 0 : Math.round(Math.max(0, (Date.now() - ms) / 3600000));
+              })() : 0
             });
           });
           Object.keys(taskMap).forEach(function (k5s) {
@@ -2328,7 +2362,10 @@ async function buildDashboard(req) {
             // 否则有快速通道留痕/对话/文件 → 快速通道(quick)；都不沾 → 待命('-')。
             // 修正：原写法只看 open_task_id，会把「做完单、现在闲着」的开发者误判为快速通道。
             var hasTaskToday = !!openTask || !!doneMap[sid5];
-            var mode5 = hasTaskToday ? "task" : ((quick5 || prompts5 || file5) ? "quick" : "-");
+            // 《阻塞口径治理》A 组：mode 增第 4 档 "blocked"。
+            //   仅当「无 in_progress 单 且 有 blocked 单」时才归阻塞档 —— 手上有活儿在干的人仍是 task（阻塞只是附带状态）。
+            var hasBlocked = !(openMap[sid5] > 0) && (taskMap[sid5] || []).some(function (x) { return x.status === "blocked"; });
+            var mode5 = hasBlocked ? "blocked" : (hasTaskToday ? "task" : ((quick5 || prompts5 || file5) ? "quick" : "-"));
             // 快速通道动作数（无任务单者的对话 + 文件；= 该开发者走快速通道的工作量）
             var quickActs5 = hasTaskToday ? 0 : (prompts5 + file5);
             agents.push({
