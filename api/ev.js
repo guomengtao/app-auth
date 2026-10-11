@@ -1647,6 +1647,20 @@ async function handleTaskUpdate(req, res) {
   if (!has) return json(res, 400, { success: false, error: "Nothing to update" });
   var existing = await db.readRow(id);
   if (!existing) return json(res, 404, { success: false, error: "not_found", detail: "任务 " + id + " 不存在" });
+  // ── EVTIDY B3-P3（2026-10-11）：认领文件清单自采集 → task-activity 的 session_files 数据源 ──
+  // 由来：2026-10-11 实测 task-activity 只吐任务级字段（id/title/status/assignee/activity/idle_min/effort），
+  //      零文件级数据 ⇒ ev-claim.sh 的文件级🔴冲突热度被迫降级成任务级🟡。
+  // 设计：服务端做唯一事实源（跨机器可读），本地钩子不再各存各的。传空数组 [] 即释放占用。
+  if (Array.isArray(body.claimed_files)) {
+    var cfList = body.claimed_files.map(String)
+      .map(function (s) { return String(s || "").trim(); })
+      .filter(function (s) { return s && s.length <= 300; })
+      .slice(0, 200);                                  // 上限护栏：一个任务认领 200 个文件已属异常
+    var fx = (typeof existing.extra === "object" && existing.extra) || {};
+    fx.files = cfList;
+    fx.files_ts = new Date().toISOString();
+    patch.extra = fx; has = true;
+  }
   patch.updated_at = new Date().toISOString();
   try {
     // 预检查：PATCH 对不存在的行静默返回成功（Supabase 行为），故先用 readRow 确认存在，避免「改了不存在的任务还报成功」。
@@ -1856,6 +1870,13 @@ function taskActivity(t, sess) {
 async function handleTaskActivity(req, res) {
   var db = evTaskDb(req, res);
   if (!db) return json(res, 502, { success: false, error: "supabase_unavailable" });
+  // B3-P3：文件清单保鲜窗（分钟）。超时不再可信 —— 会话崩了没人来清，
+  // 会造成「幽灵占用」：2026-10-10 那 142 个判定不了归属的脏文件就是这么来的。
+  var FILES_STALE_MIN = 360;
+  var filesOf = function (t) {
+    var fx = (t && t.extra && typeof t.extra === "object") ? t.extra.files : null;
+    return Array.isArray(fx) ? fx.slice(0, 200) : [];
+  };
   var q = (req && req.query) || {};
   var scope = String(q.scope || "").toLowerCase();
   var status = String(q.status || "in_progress");
@@ -1890,7 +1911,13 @@ async function handleTaskActivity(req, res) {
                   assignee: t.assignee || "", activity: act.activity, idle_min: act.idle_min,
                   effort: { wall_min: eff.wall_min, active_min: eff.active_min, evidenced_min: eff.evidenced_min,
                             confidence: eff.confidence, frozen: eff.frozen, capped: eff.capped },
-                  stale_since: act.stale_since, reason: act.reason, updated_at: t.updated_at });
+                  stale_since: act.stale_since, reason: act.reason, updated_at: t.updated_at,
+                  // B3-P3（2026-10-11）：文件级占用清单 —— ev-claim.sh 冲突热度的精确判据。
+                  // files_stale=true 时消费方应忽略该清单（僵尸遗留），交给晨割收割，别拿来挡人。
+                  session_files: filesOf(t),
+                  files_stale: filesOf(t).length ? (act.activity === "orphan" ||
+                               (act.idle_min != null && act.idle_min > FILES_STALE_MIN)) : false,
+                  files_ts: (t.extra && typeof t.extra === "object" && t.extra.files_ts) || null });
     });
     var counts = { active: 0, stale: 0, orphan: 0, unbound: 0 };
     rows.forEach(function (t) {
