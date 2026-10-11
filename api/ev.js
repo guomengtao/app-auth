@@ -2752,44 +2752,8 @@ async function handleTaskList(req, res) {
   }
 }
 
-/* ── V4（fubd7v）大屏 SSE 长连接：禁前端轮询 ──
- * 每 5s 服务端构建一帧并与上次比对，**有变化才推 data 帧**，无变化只发 ping 注释行；
- * 55s 主动收尾（Vercel 函数时长上限内），客户端 EventSource 内置自动重连。
- * 多客户端共享 4s 节流缓存，避免下游被打爆。 */
-var _streamCache = { at: 0, data: null };
-async function buildFresh(req) {
-  var now = Date.now();
-  if (_streamCache.data && now - _streamCache.at < 4000) return _streamCache.data;
-  _streamCache.data = await buildDashboard(req);
-  _streamCache.at = now;
-  return _streamCache.data;
-}
-async function handleDashStream(req, res) {
-  res.writeHead(200, {
-    "Content-Type": "text/event-stream; charset=utf-8",
-    "Cache-Control": "no-cache, no-transform",
-    "Connection": "keep-alive",
-    "X-Accel-Buffering": "no"
-  });
-  var last = "", closed = false, start = Date.now();
-  req.on("close", function () { closed = true; });
-  async function push(force) {
-    if (closed) return;
-    try {
-      var data = await buildFresh(req);
-      var s = JSON.stringify(data);
-      if (force || s !== last) { last = s; res.write("data: " + s + "\n\n"); }
-      else { res.write(": ping\n\n"); }
-    } catch (e) {
-      try { res.write("event: err\ndata: " + JSON.stringify({ error: String(e && e.message) }) + "\n\n"); } catch (e2) {}
-    }
-  }
-  await push(true);
-  var iv = setInterval(function () {
-    if (closed || Date.now() - start > 55000) { clearInterval(iv); try { res.end(); } catch (e) {} return; }
-    push(false);
-  }, 5000);
-}
+/* 2026-10-12：Web 大屏 dash*.html 已下线（真身＝安卓大屏），
+ * 原 dash-stream SSE 长连接及其节流缓存随之移除。 */
 
 module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
@@ -2860,10 +2824,6 @@ module.exports = async (req, res) => {
         // 数字大屏聚合（只读）：开发+运营一帧全量，60s 内存缓存
         if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
         return await handleDashboard(req, res);
-      case "dash-stream":
-        // V4（fubd7v）大屏 SSE 长连接：服务端每 5s 构建+比对，变化才推，禁前端轮询
-        if (req.method !== "GET") return json(res, 405, { success: false, error: "Use GET" });
-        return await handleDashStream(req, res);
       case "task-update":
         if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });
         return await handleTaskUpdate(req, res);
