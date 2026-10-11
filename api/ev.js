@@ -1251,6 +1251,11 @@ function countIn(list) {
 
 var TASK_TYPES = ["feature", "develop", "bug", "git", "docs", "infra", "refactor", "research"];
 var TASK_STATUSES = ["in_progress", "planned", "verifying", "paused", "done", "delivered_unverified", "blocked", "cancelled", "superseded"]; // EVTIDY 8 态 + planned（总纲 §3.17，2026-10-10 批准）
+// 《阻塞口径治理》C 组（evtask-D-guomengtao-261012-bbfbmt，2026-10-12）：
+//   真正终态 = 必须经 task-close 写入的状态（task-update 一律拒绝，见 handleTaskUpdate 处护栏）。
+//   ⚠️ paused **不在**本表：总纲 §3.17 明确 paused 是活动态、经 task-update 流转（与 handleTaskClose 的
+//   CLOSE_STATUSES 含 paused 是历史遗留的口径重叠，此处以「不破坏既有调用方」为准，暂不放行拦截）。
+var TASK_TERMINAL_VIA_CLOSE = ["done", "delivered_unverified", "blocked", "cancelled", "superseded"];
 // 任务详情描述最短字数（用户 2026-10-07 定：必填且 >=50 字，写清开发目标与验收）
 var TASK_DESC_MIN = 50;
 
@@ -1636,6 +1641,16 @@ async function handleTaskUpdate(req, res) {
     // EVTIDY（总纲 §3.17）：verifying/paused 等活动态经此处流转；终态仍应走 task-close（带证据/原因护栏）
     var stUpd = String(body.status).trim();
     if (TASK_STATUSES.indexOf(stUpd) < 0) return json(res, 400, { success: false, error: "bad_status", detail: "status 只接受 " + TASK_STATUSES.join("/") });
+    // ⛔《阻塞口径治理》C 组（evtask-D-guomengtao-261012-bbfbmt，2026-10-12）—— **堵住绕过护栏的口子**：
+    //   实测确证：2026-10-11 上午 ~9:45，9 条任务（跨 8 个项目/会话，单号全为 261010 批次）被同一时刻
+    //   批量改成 blocked，且 close_reason **全部为空**。task-close 有 close_reason 强制护栏，
+    //   能写出空原因的唯一路径就是这里 —— 旧代码只校状态名合法就写库，护栏形同虚设。
+    //   活动态（in_progress/planned/verifying/paused）仍自由流转；真终态一律引导走 task-close。
+    if (TASK_TERMINAL_VIA_CLOSE.indexOf(stUpd) >= 0) {
+      return json(res, 400, { success: false, error: "terminal_via_close",
+        detail: "终态（" + TASK_TERMINAL_VIA_CLOSE.join("/") + "）不允许经 task-update 直接写入 —— 这会绕过 evidence / close_reason 护栏。" +
+                "请改走：POST ?action=task-close，body { id, status, close_reason, [evidence|closed_note|resume_hint|block_kind|unblock_owner] }" });
+    }
     patch.status = stUpd; has = true;
   }
   if (body.eta_min != null) {
@@ -1765,6 +1780,23 @@ async function handleTaskClose(req, res) {
   if (status === "superseded" && !String(body.related_to || "").trim()) {
     return json(res, 400, { success: false, error: "related_to_required", detail: "superseded 必须带 related_to（指向接管本任务的新单号）" });
   }
+  // 《阻塞口径治理》C 组护栏②③（2026-10-12）：blocked 强制「分类 + 解除条件」。
+  //   由来：实测 9 条批量 blocked 全无分类/无解除条件，事后无人能判断该转 cancelled 还是该等人解。
+  //   kind 用 var 声明（var 是函数作用域），下面写 extra 时复用。
+  var kind = "", unblockOwner = body.unblock_owner != null ? String(body.unblock_owner).trim().slice(0, 64) : "";
+  if (status === "blocked") {
+    kind = String(body.block_kind || "").trim().toLowerCase();
+    var BLOCK_KINDS = ["dep", "info", "approval", "env", "preempt"];
+    if (BLOCK_KINDS.indexOf(kind) < 0) {
+      return json(res, 400, { success: false, error: "block_kind_required",
+        detail: "blocked 必须给分类（护栏②）：body 传 block_kind ∈ " + BLOCK_KINDS.join("/") +
+                " —— dep 外部依赖 / info 缺信息 / approval 等审批 / env 环境故障 / preempt 被抢占" });
+    }
+    if (!String(body.resume_hint || "").trim()) {
+      return json(res, 400, { success: false, error: "resume_hint_required",
+        detail: "blocked 必须给解除条件（护栏③）：body 传 resume_hint，写清「等谁 / 等到什么条件就能接」" });
+    }
+  }
   if (["blocked", "cancelled", "paused", "superseded"].indexOf(status) >= 0 && !reason) {
     // 2026-10-08：detail 明确指出字段名 close_reason——此前只说"必须给原因"，
     // 调用方拿 body.reason 盲试 6 次全失败（晨割-20261008 实测，正确字段见 L1702 注释）
@@ -1789,6 +1821,9 @@ async function handleTaskClose(req, res) {
   var relatedTo = String(body.related_to || "").trim().slice(0, 60) || null;
   if (resumeHint) extra.resume_hint = resumeHint;     // EVTIDY：paused/blocked 的「以后怎么接」
   if (relatedTo) extra.related_to = relatedTo;        // EVTIDY：superseded 指向新单 / blocked 关联老单
+  if (kind) extra.block_kind = kind;                  // C 组护栏②：阻塞分类（供大屏 blocked_list 展示）
+  if (unblockOwner) extra.unblock_owner = unblockOwner; // C 组护栏④：解铃人，不传默认就是关单人自己
+  if (status === "blocked") extra.blocked_at = new Date().toISOString(); // B 组 72h 窗的计时起点（不再靠 updated_at 猜）
   extra.closed_at = new Date().toISOString(); // 工时方案③：精确关闭时刻，墙钟终点不再靠 updated_at 猜
   patch.extra = extra;
   try {
