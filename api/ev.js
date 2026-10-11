@@ -3620,7 +3620,10 @@ async function handleTaskProgressList(req, res) {
 /**
  * 会话清单公开读 GET ?action=session-list（2026-10-07 运行态改造：AI 会话在线总览）
  * 返回 { success, sessions: [...] }，按 heartbeat_at 倒序取 100 条。
- * 字段：sid/raw_sid/tool/title/started_at/heartbeat_at/open_task_id/status（不含 tasks 大字段）。
+ * 字段：sid/raw_sid/tool/title/started_at/heartbeat_at/open_task_id/status（不含 tasks 大字段）
+ *   + 每条会话附 5 项累计统计（evtask-D-evapp-auth-261012-exz33f）：
+ *     credits_total（总积分）/ conv_count（对话次数）/ tasks_in_progress（进行中任务）
+ *     / tasks_done（已完成任务）/ files_total（文件改动总数）。
  * 在线判定由客户端按 heartbeat_at 算（≤5min 绿 / ≤30min 琥珀 / 更久灰）。
  */
 async function handleSessionList(req, res) {
@@ -3637,10 +3640,111 @@ async function handleSessionList(req, res) {
     }
     var rows = await r.json();
     if (!Array.isArray(rows)) rows = [];
+
+    // 2026-10-12（evtask-D-evapp-auth-261012-exz33f）：每条会话附 5 项累计统计，
+    // 后端按 sid 聚合三表，单一真源、客户端零计算。
+    var agg = await sessionAggregates(db);
+    for (var i = 0; i < rows.length; i++) {
+      var sid = rows[i].sid;
+      var a = agg[sid] || { credits: 0, conv: 0, inProgress: 0, done: 0, files: 0 };
+      rows[i].credits_total = a.credits;
+      rows[i].conv_count = a.conv;
+      rows[i].tasks_in_progress = a.inProgress;
+      rows[i].tasks_done = a.done;
+      rows[i].files_total = a.files;
+    }
     return json(res, 200, { success: true, sessions: rows, total: rows.length });
   } catch (e) {
     return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
   }
+}
+
+/**
+ * 按 sid 聚合「伙伴」名册所需的 5 项累计统计（evtask-D-evapp-auth-261012-exz33f）。
+ * 各聚合独立 try/catch：单表失败只让对应统计归零，不拖累整页。
+ *   · credits_total：evops_usage 按 sid 求和 credit_total（每会话一行，覆盖式 upsert）
+ *   · tasks_in_progress / tasks_done：evops_tasks 按 session_sid + status 计数
+ *   · files_total：dash_events t=files 全量时间线，按 (sid, 路径) 去重计数
+ *     （与任务详情 FILES 卡同源同口径；sessions.tasks 快照会被新任务冲掉历史，仅 3/52 有值，
+ *      evops_tasks 表又没有 file_count 列 —— 2026-10-12 实测定源）
+ *   · conv_count：evops_messages 按 sid 计数（过滤系统回注：prompt 以 <task 开头）
+ * ⚠️ 2026-10-12 实测：本 Supabase 的 PostgREST 禁用聚合函数（PGRST123，select 里
+ *   sum()/count() 直接 400）——故改为分页拉轻量列、Node 侧归并（每页 1000，≤20 页护栏）。
+ */
+async function sessionAggregates(db) {
+  var map = {};
+  function bucket(sid) {
+    if (!sid) return null;
+    if (!map[sid]) map[sid] = { credits: 0, conv: 0, inProgress: 0, done: 0, files: 0 };
+    return map[sid];
+  }
+  function num(v) { var n = Number(v); return isFinite(n) ? n : 0; }
+
+  // 分页拉全（PostgREST 单请求默认上限 1000；只选轻量列，20 页护栏够 2 万行）
+  async function paged(pathQuery) {
+    var out = [];
+    for (var p = 0; p < 20; p++) {
+      var url = db.sbUrl + "/rest/v1/" + pathQuery +
+        "&limit=1000&offset=" + (p * 1000);
+      var r = await fetch(url, { headers: db.headers() });
+      if (!r.ok) break;
+      var rows = await r.json();
+      if (!Array.isArray(rows) || rows.length === 0) break;
+      out = out.concat(rows);
+      if (rows.length < 1000) break;
+    }
+    return out;
+  }
+
+  // ① 积分：evops_usage 按 sid 求和 credit_total
+  try {
+    var us = await paged(USAGE_TABLE + "?select=sid,credit_total");
+    for (var i = 0; i < us.length; i++) {
+      var b = bucket(us[i].sid);
+      if (b) b.credits += num(us[i].credit_total);
+    }
+  } catch (e) { /* 积分归零 */ }
+
+  // ② 任务：evops_tasks 按 session_sid 计数（进行中/完成）
+  try {
+    var ts = await paged(TASKS_TABLE + "?select=session_sid,status&session_sid=not.is.null");
+    for (var j = 0; j < ts.length; j++) {
+      var t = ts[j];
+      var tb = bucket(t.session_sid);
+      if (!tb) continue;
+      var st = String(t.status || "");
+      if (st === "in_progress") tb.inProgress += 1;
+      else if (st === "done" || st === "completed" || st === "closed") tb.done += 1;
+    }
+  } catch (e) { /* 任务归零 */ }
+
+  // ③ 文件改动总数：dash_events t=files 全量时间线，按 (sid, 路径) 去重计数
+  try {
+    var fe = await paged("dash_events?select=payload&t=eq.files");
+    var seen = {};
+    for (var k2 = 0; k2 < fe.length; k2++) {
+      var pl = fe[k2].payload || {};
+      var fsid = pl.sid, fpath = pl.path;
+      if (!fsid || !fpath) continue;
+      var fkey = fsid + "\n" + fpath;
+      if (seen[fkey]) continue;
+      seen[fkey] = 1;
+      var fb = bucket(fsid);
+      if (fb) fb.files += 1;
+    }
+  } catch (e) { /* 文件归零 */ }
+
+  // ④ 对话次数：evops_messages 按 sid 计数（过滤系统回注 <task 前缀）
+  try {
+    var sysFilter = encodeURIComponent("<task");
+    var ms = await paged("evops_messages?select=sid&prompt=not.like." + sysFilter + "*");
+    for (var k = 0; k < ms.length; k++) {
+      var mb = bucket(ms[k].sid);
+      if (mb) mb.conv += 1;
+    }
+  } catch (e) { /* 对话归零 */ }
+
+  return map;
 }
 
 /**
