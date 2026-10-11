@@ -1644,6 +1644,10 @@ async function handleTaskUpdate(req, res) {
     patch.eta_min = eta; has = true;
   }
   if (body.type != null && TASK_TYPES.indexOf(patch.type) < 0) return json(res, 400, { success: false, error: "bad_type" });
+  // EVTIDY B3-P3：claimed_files 也算「有事可做」。坑（2026-10-11 实测）：
+  // 只传 claimed_files 时 has 仍为 false，会被下方守门判成 "Nothing to update" 400 掉，
+  // 而真正的写 extra 在 readRow 之后（要基于原 extra 合并）⇒ 必须先在此处登记。
+  if (Array.isArray(body.claimed_files)) has = true;
   if (!has) return json(res, 400, { success: false, error: "Nothing to update" });
   var existing = await db.readRow(id);
   if (!existing) return json(res, 404, { success: false, error: "not_found", detail: "任务 " + id + " 不存在" });
