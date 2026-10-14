@@ -35,3 +35,17 @@ docs/analytics/raw/
 *.log
 *.tmp
 logs/
+# --- 防长草补齐（总纲§3.19 标准模板，2026-10-14）---
+*.bak
+.bak-*
+tmp_*
+*.py[cod]
+node_modules/
+dist/
+.cache/
+*.local
+config.local.json
+.env.local
+tmp_*
+_*.js
+_*.sh
