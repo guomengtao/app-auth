@@ -1,0 +1,61 @@
+{
+ "updated": "2026-10-15",
+ "head": "f925c14",
+ "model": "soundmini",
+ "stats": {
+  "total": 67,
+  "done": 43,
+  "stale": 0,
+  "missing": 24,
+  "byEnd": {
+   "band": {
+    "total": 52,
+    "done": 43
+   },
+   "phone": {
+    "total": 15,
+    "done": 0
+   }
+  }
+ },
+ "missing": [
+  "band.feedback",
+  "band.countdown-manage",
+  "band.watch-face",
+  "band.watch-face-font",
+  "band.watch-face-background",
+  "band.watch-face-gradient",
+  "band.watch-face-functional",
+  "band.watch-face-landscape",
+  "band.watch-face-flip",
+  "phone.Band",
+  "phone.BatteryGuide",
+  "phone.ConnLog",
+  "phone.CourseEdit",
+  "phone.Donate",
+  "phone.FastActivate",
+  "phone.FindPhone",
+  "phone.Home",
+  "phone.HomepageSettings",
+  "phone.Message",
+  "phone.ScheduleList",
+  "phone.Settings",
+  "phone.ThemePicker",
+  "phone.Toolbox",
+  "phone.Transfer"
+ ],
+ "stale": [],
+ "policy": {
+  "onlyUserFacing": true,
+  "excluded": {
+   "band": [
+    "lab",
+    "phone-remote"
+   ],
+   "phone": [
+    "Debug",
+    "JsonEditor"
+   ]
+  }
+ }
+}
