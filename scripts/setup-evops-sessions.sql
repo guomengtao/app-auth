@@ -43,3 +43,13 @@ drop policy if exists "evops_sessions_svc_all"   on evops_sessions;
 create policy "evops_sessions_anon_read" on evops_sessions for select using (true);
 create policy "evops_sessions_svc_all"  on evops_sessions for all
   using (auth.role() = 'service_role') with check (auth.role() = 'service_role');
+
+-- ── SDR 生命周期修正（2026-10-15，evtask-D-evev-hooks-261015-6bkukm）：
+--    岗位/工作域显式列（替代只塞 extra 的妥协，管理界面可直接 select）+ 压缩/文件指标列。
+--    方案：guomengtao/docs/SDR生命周期修正-方案.md。幂等，可重复执行。
+alter table evops_sessions add column if not exists work_desc     text;                    -- 岗位描述（AI 自填 100-200 字，每轮可更新）
+alter table evops_sessions add column if not exists domain        varchar(120);            -- 工作域（与花名绑定的岗位，如 EV课程表同步域）
+alter table evops_sessions add column if not exists compress_count int not null default 0; -- 🗜️ 上下文被压缩次数（负跳变检测，不分大小）
+alter table evops_sessions add column if not exists compress_loss  bigint not null default 0; -- 💸 累计压缩损失（Σ被压掉的 token）
+alter table evops_sessions add column if not exists files_touched  int not null default 0; -- 📄 触碰文件去重数（专一度信号）
+alter table evops_sessions add column if not exists files_written  int not null default 0; -- 📄 写操作次数（Write/Edit/MultiEdit/NotebookEdit）

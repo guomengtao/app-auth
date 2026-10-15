@@ -1564,6 +1564,8 @@ async function handleTaskRegister(req, res) {
       if (sess.cwd) srow.cwd = sess.cwd;
       if (sess.repo) srow.repo = sess.repo;
       if (sess.title) srow.title = sess.title;
+      if (sess.work_desc) srow.work_desc = String(sess.work_desc).slice(0, 2000);   // SDR 生命周期修正：岗位描述
+      if (sess.domain) srow.domain = String(sess.domain).slice(0, 120);             // 工作域（与花名绑定）
       if (status === "in_progress") srow.open_task_id = id;
       await db.upsertSession(srow);
     }
@@ -1597,6 +1599,13 @@ async function handleSessionSync(req, res) {
     if (s.cwd) row.cwd = String(s.cwd).slice(0, 240);
     if (s.repo) row.repo = String(s.repo).slice(0, 240);
     if (s.title) row.title = String(s.title).slice(0, 240);
+    // SDR 生命周期修正（2026-10-15）：岗位/工作域 + 压缩/文件指标列
+    if (s.work_desc) row.work_desc = String(s.work_desc).slice(0, 2000);
+    if (s.domain) row.domain = String(s.domain).slice(0, 120);
+    if (s.compress_count != null) row.compress_count = Math.max(0, parseInt(s.compress_count, 10) || 0);
+    if (s.compress_loss != null) row.compress_loss = Math.max(0, parseInt(s.compress_loss, 10) || 0);
+    if (s.files_touched != null) row.files_touched = Math.max(0, parseInt(s.files_touched, 10) || 0);
+    if (s.files_written != null) row.files_written = Math.max(0, parseInt(s.files_written, 10) || 0);
     // 模型维度（2026-10-09）：会话当前模型 + 用过的模型集合 + 客户端/版本
     if (s.model) row.model = String(s.model).slice(0, 64);
     if (Array.isArray(s.models)) row.models = s.models;
