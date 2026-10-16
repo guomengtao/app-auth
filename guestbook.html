@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>留言板 · Ev课程表</title>
+<meta name="description" content="Ev课程表 留言板：匿名留言、支持图片、公开留言墙。">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --bg:#f3f4f8; --surface:#ffffff; --ink:#1a1a2e; --muted:#6b7280;
+  --line:#e7e9f0; --accent:#6c63ff; --ok:#2e7d32; --warn:#f0a000; --err:#e53935;
+}
+html { background:#f3f4f8; }
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+  color:var(--ink); line-height:1.6; background-color:#f3f4f8;
+  background-image:
+    radial-gradient(1100px 460px at 12% -40px, rgba(108,99,255,0.20), transparent 72%),
+    radial-gradient(820px 380px at 92% 0px, rgba(53,196,214,0.16), transparent 72%),
+    linear-gradient(180deg, rgba(238,241,251,0.90) 0%, rgba(244,245,250,0.35) 340px, rgba(243,244,248,0.85) 100%);
+  background-repeat:no-repeat; background-position:center top; background-size:auto,auto,auto,cover;
+  min-height:100vh; }
+.wrap { max-width:760px; margin:0 auto; padding:18px 20px 60px; }
+.topbar { position:sticky; top:0; z-index:20; background:rgba(243,244,248,0.86); border-bottom:1px solid var(--line); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
+.topbar-inner { max-width:760px; margin:0 auto; padding:12px 20px; display:flex; align-items:center; justify-content:space-between; }
+.t-title { font-size:1.15rem; font-weight:800; }
+.t-title small { font-weight:500; color:var(--muted); font-size:.75rem; margin-left:8px; }
+.t-links { font-size:.8rem; }
+.t-links a { color:var(--muted); text-decoration:none; margin-left:12px; }
+.t-links a:hover { color:var(--accent); }
+.card { background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:18px; margin-top:16px; }
+h2.sec { font-size:1.02rem; font-weight:800; margin-top:28px; display:flex; align-items:center; gap:8px; }
+h2.sec::before { content:""; width:4px; height:18px; background:var(--accent); border-radius:2px; }
+h2.sec small { font-weight:500; color:var(--muted); font-size:.75rem; }
+.field { margin-top:12px; }
+.field label { display:block; font-size:.8rem; font-weight:700; color:var(--muted); margin-bottom:4px; }
+.field label .opt { font-weight:500; }
+textarea, input[type=text] {
+  width:100%; border:1px solid var(--line); border-radius:10px; padding:10px 12px;
+  font-size:.92rem; font-family:inherit; background:var(--bg); color:var(--ink); resize:vertical; }
+textarea:focus, input:focus { outline:none; border-color:var(--accent); background:#fff; }
+.drop { border:2px dashed var(--line); border-radius:12px; padding:18px; text-align:center;
+  font-size:.82rem; color:var(--muted); cursor:pointer; margin-top:6px; }
+.drop.on { border-color:var(--accent); background:#f5f4ff; }
+.thumbs { display:flex; gap:10px; margin-top:8px; flex-wrap:wrap; }
+.thumbs .th { position:relative; width:76px; height:76px; border-radius:10px; overflow:hidden; border:1px solid var(--line); }
+.thumbs .th img { width:100%; height:100%; object-fit:cover; }
+.thumbs .th .rm { position:absolute; top:2px; right:2px; background:rgba(0,0,0,.6); color:#fff;
+  border:none; border-radius:50%; width:20px; height:20px; font-size:12px; cursor:pointer; line-height:20px; }
+.privacy { font-size:.75rem; color:var(--muted); margin-top:10px; line-height:1.7; }
+.submit-row { margin-top:14px; display:flex; gap:10px; align-items:center; }
+.btn { display:inline-block; background:var(--accent); color:#fff; text-decoration:none; font-weight:700;
+  font-size:.85rem; padding:8px 16px; border-radius:20px; border:none; cursor:pointer; }
+.btn:active { opacity:.8; }
+#gbMsg { font-size:.85rem; margin-left:4px; }
+#gbMsg.ok { color:var(--ok); } #gbMsg.err { color:var(--err); }
+/* 留言墙 */
+.gb-card { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:14px; margin-top:12px; }
+.gb-card .head { display:flex; gap:8px; align-items:center; font-size:.8rem; color:var(--muted); flex-wrap:wrap; }
+.gb-card .head .name { font-weight:800; color:var(--ink); font-size:.95rem; }
+.gb-card .content { margin-top:8px; font-size:.92rem; white-space:pre-wrap; word-break:break-word; }
+.gb-card .imgs { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+.gb-card .imgs img { width:96px; height:96px; object-fit:cover; border-radius:8px; border:1px solid var(--line); cursor:zoom-in; }
+.gb-meta { display:flex; justify-content:space-between; align-items:center; }
+.gb-refresh { font-size:.78rem; color:var(--accent); cursor:pointer; }
+.empty { text-align:center; color:var(--muted); padding:30px; font-size:.9rem; }
+@media (max-width:600px){ .wrap{padding:14px 14px 50px;} .card{padding:14px;} }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="t-title">留言板<small>Ev课程表</small></div>
+    <div class="t-links">
+      <a href="/">首页</a>
+      <a href="/admin/admin-guestbook.html">管理</a>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <!-- 投稿 -->
+  <h2 class="sec">写留言 <small>匿名可投 · 支持图片</small></h2>
+  <div class="card">
+    <div class="field">
+      <label>昵称 <span class="opt">（选填，留空显示为「匿名」）</span></label>
+      <input type="text" id="gbName" maxlength="40" placeholder="匿名">
+    </div>
+    <div class="field">
+      <label>留言内容 <span class="opt">（必填，最多 2000 字）</span></label>
+      <textarea id="gbText" rows="5" maxlength="2000" placeholder="说点什么吧～"></textarea>
+    </div>
+    <div class="field">
+      <label>图片 <span class="opt">（可选，最多 3 张；将自动压缩上传）</span></label>
+      <div class="drop" id="dropZone">点击选择 / 拖拽 / 直接 Ctrl+V 粘贴截图到这里</div>
+      <input type="file" id="fileInput" accept="image/*" multiple style="display:none">
+      <div class="thumbs" id="thumbs"></div>
+    </div>
+    <div class="privacy">
+      留言经管理员审核后公开上墙。匿名提交不会公开你的任何身份信息。请文明留言。
+    </div>
+    <div class="submit-row">
+      <input type="text" id="hpField" name="website" value="" style="position:absolute; left:-9999px; height:0;" tabindex="-1" autocomplete="off">
+      <button class="btn" id="gbSubmit" onclick="submitGuestbook()">提交留言</button>
+      <span id="gbMsg"></span>
+    </div>
+  </div>
+
+  <!-- 留言墙 -->
+  <h2 class="sec">留言墙 <small>已公开的留言</small></h2>
+  <div class="gb-meta">
+    <span class="gb-refresh" onclick="loadWall()">↻ 刷新</span>
+  </div>
+  <div class="wall" id="wall"><div class="empty">加载中…</div></div>
+</div>
+
+<script>
+/* ================= 图片处理（复用 feedback.html 的压缩逻辑） ================= */
+var images = [];
+var drop = document.getElementById("dropZone");
+var fileInput = document.getElementById("fileInput");
+drop.onclick = function(){ fileInput.click(); };
+drop.ondragover = function(e){ e.preventDefault(); drop.className = "drop on"; };
+drop.ondragleave = function(){ drop.className = "drop"; };
+drop.ondrop = function(e){
+  e.preventDefault(); drop.className = "drop";
+  for (var i=0;i<e.dataTransfer.files.length;i++) addImage(e.dataTransfer.files[i]);
+};
+fileInput.onchange = function(){
+  for (var i=0;i<fileInput.files.length;i++) addImage(fileInput.files[i]);
+  fileInput.value = "";
+};
+document.getElementById("gbText").addEventListener("paste", function(e){
+  var items = (e.clipboardData || {}).items || [];
+  for (var i=0;i<items.length;i++){
+    if (items[i].type && items[i].type.indexOf("image") === 0) addImage(items[i].getAsFile());
+  }
+});
+
+function addImage(file){
+  if (!file || file.type.indexOf("image") !== 0) return;
+  if (images.length >= 3) return setMsg("最多 3 张图片", "err");
+  var reader = new FileReader();
+  reader.onload = function(){
+    var img = new Image();
+    img.onload = function(){
+      var maxW = 960;
+      var scale = Math.min(1, maxW / img.width);
+      var cv = document.createElement("canvas");
+      cv.width = Math.round(img.width * scale);
+      cv.height = Math.round(img.height * scale);
+      cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+      var q = 0.7, out = cv.toDataURL("image/webp", q);
+      while (out.length > 150 * 1024 && q > 0.4) { q -= 0.1; out = cv.toDataURL("image/webp", q); }
+      images.push(out);
+      renderThumbs();
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function renderThumbs(){
+  var box = document.getElementById("thumbs");
+  box.innerHTML = "";
+  for (var i=0;i<images.length;i++){
+    (function(idx){
+      var d = document.createElement("div");
+      d.className = "th";
+      d.innerHTML = '<img src="'+images[idx]+'"><button class="rm" title="移除">×</button>';
+      d.querySelector(".rm").onclick = function(){ images.splice(idx,1); renderThumbs(); };
+      box.appendChild(d);
+    })(i);
+  }
+}
+
+function setMsg(t, cls){
+  var m = document.getElementById("gbMsg");
+  m.textContent = t; m.className = cls || "";
+}
+
+/* ================= 投稿 ================= */
+function submitGuestbook(){
+  var text = document.getElementById("gbText").value.trim();
+  if (!text) return setMsg("请先填写留言内容", "err");
+  setMsg("提交中…");
+  fetch("/api/guestbook", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: document.getElementById("gbName").value.trim(),
+      content: text,
+      images: images,
+      hp: document.getElementById("hpField").value
+    })
+  }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+  .then(function(res){
+    if (res.ok && res.j.ok) {
+      setMsg("✓ 提交成功，审核通过后会显示在留言墙", "ok");
+      document.getElementById("gbText").value = "";
+      document.getElementById("gbName").value = "";
+      images = []; renderThumbs();
+    } else {
+      setMsg("提交失败：" + ((res.j && res.j.error) || "请稍后再试"), "err");
+    }
+  }).catch(function(){
+    setMsg("网络异常，请稍后再试", "err");
+  });
+}
+
+/* ================= 留言墙 ================= */
+function esc(s){ return (s==null?"":String(s)).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+function loadWall(){
+  var wall = document.getElementById("wall");
+  wall.innerHTML = '<div class="empty">加载中…</div>';
+  fetch("/api/guestbook?limit=100")
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if (!j.success) throw new Error(j.error || "load failed");
+      if (!j.items.length) { wall.innerHTML = '<div class="empty">还没有公开留言，来抢沙发吧～</div>'; return; }
+      wall.innerHTML = "";
+      for (var i=0;i<j.items.length;i++) wall.appendChild(renderCard(j.items[i]));
+    })
+    .catch(function(e){ wall.innerHTML = '<div class="empty">加载失败：' + e.message + '</div>'; });
+}
+
+function renderCard(g){
+  var card = document.createElement("div");
+  card.className = "gb-card";
+  var d = new Date(g.created_at);
+  var when = isNaN(d) ? String(g.created_at) : d.toLocaleString("zh-CN");
+  var imgs = "";
+  for (var i=0;i<(g.images||[]).length;i++){
+    imgs += '<img src="'+g.images[i]+'" onclick="window.open(this.src)">';
+  }
+  card.innerHTML =
+    '<div class="head"><span class="name">'+esc(g.name || "匿名")+'</span><span>'+esc(when)+'</span></div>'
+    + '<div class="content">'+esc(g.content)+'</div>'
+    + (g.images && g.images.length ? '<div class="imgs">'+imgs+'</div>' : '');
+  return card;
+}
+
+loadWall();
+</script>
+</body>
+</html>
