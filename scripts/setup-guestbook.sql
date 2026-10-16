@@ -31,16 +31,21 @@ create index if not exists idx_gb_status_time on guestbook(status, created_at de
 alter table guestbook enable row level security;
 
 drop policy if exists "guestbook_anon_read_approved" on guestbook;
-drop policy if exists "guestbook_svc_all"            on guestbook;
-
--- 公开读取：仅已通过审核的留言
-create policy "guestbook_anon_read_approved" on guestbook
-  for select using (status = 'approved');
-
--- 后端读写：仅 service_role（Vercel serverless 用 service key 连接）
-create policy "guestbook_svc_all" on guestbook
-  for all
-  using (auth.role() = 'service_role') with check (auth.role() = 'service_role');
+-- ⚠️ 原稿此处照搬了 Supabase 模板的写策略：
+--      create policy ... using (auth.role() = 'service_role')
+--   但本项目的库是 **Neon**（不是 Supabase），没有 auth schema → 执行报
+--   "schema \"auth\" does not exist"，写策略建不出来。
+--
+--   正确性说明（Neon + Vercel serverless 场景）：
+--   Vercel 函数以**表 owner** 身份连接，而 PostgreSQL 的 RLS 对表 owner 默认不生效
+--   （除非显式 ALTER TABLE ... FORCE ROW LEVEL SECURITY）。因此 INSERT/UPDATE/DELETE
+--   实际不受影响 —— 线上 POST 已验证可正常写入。
+--   上面对 public 角色的 SELECT 策略，仍然拦住了「将来可能出现的只读直连」场景：
+--   那种连接不是 owner，读不到 status<>'approved' 的行。
+--
+--   若哪天迁回 Supabase，再补下面这条即可：
+--   create policy "guestbook_svc_all" on guestbook for all
+--     using (auth.role() = 'service_role') with check (auth.role() = 'service_role');
 
 -- ======================= 校验（可选） =======================
 -- 建完可在 Supabase SQL Editor 执行下面两句自查：
