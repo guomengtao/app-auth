@@ -78,12 +78,11 @@ export default async function middleware(request) {
   const ck = request.headers.get("cookie") || "";
   const token = (ck.match(/(?:^|;\s*)token=([^;]*)/) || [])[1];
 
-  if (token && (await verifyJwtEdge(token.value, secret))) {
+  if (token && (await verifyJwtEdge(token, secret))) {
     // 已登录：放行（fetch(request) 将请求继续发往原目标，静态/函数皆可）
     return fetch(request);
   }
 
-  const _h = new Headers({ Location: new URL("/login_aXs12.html", request.url).toString() });
-  _h.set("x-diag", (secret ? "set" : "unset") + "/" + (token ? "tok" : "notok"));
-  return new Response(null, { status: 307, headers: _h });
+  // 未登录或 token 无效：跳登录页
+  return Response.redirect(new URL("/login_aXs12.html", request.url), 307);
 }
