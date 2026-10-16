@@ -83,6 +83,7 @@ export default async function middleware(request) {
     return fetch(request);
   }
 
-  // 未登录或 token 无效：跳登录页
-  return Response.redirect(new URL("/login_aXs12.html", request.url), 307);
+  const _h = new Headers({ Location: new URL("/login_aXs12.html", request.url).toString() });
+  _h.set("x-diag", (secret ? "set" : "unset") + "/" + (token ? "tok" : "notok"));
+  return new Response(null, { status: 307, headers: _h });
 }
