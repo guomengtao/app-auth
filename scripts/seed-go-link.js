@@ -63,7 +63,7 @@ async function main() {
   console.log('✅ 已写入 slug=' + SLUG + (disable ? '（已停用）' : '（启用）'));
   console.log('   target_url = ' + entry.target_url);
   console.log('   对外链接   = https://app-auth.gudq.com/go/' + SLUG);
-  console.log('   后台查看   = /admin_Dx23.html?tab=purchase-logs');
+  console.log('   后台查看   = /admin/admin_Dx23.html?tab=purchase-logs');
 }
 
 main()

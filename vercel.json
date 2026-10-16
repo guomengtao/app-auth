@@ -47,6 +47,16 @@
   ],
   "redirects": [
     {
+      "source": "/admin_Dx23.html",
+      "destination": "/admin/admin_Dx23.html",
+      "permanent": false
+    },
+    {
+      "source": "/admin-feedback.html",
+      "destination": "/admin/admin-feedback.html",
+      "permanent": false
+    },
+    {
       "source": "/api/notify/ack",
       "destination": "/api/feedback?kind=ack",
       "permanent": false

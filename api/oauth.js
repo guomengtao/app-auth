@@ -148,7 +148,7 @@ async function handleCallback(req, res) {
     // 支持登录后回到原页面（设备授权页 /ev-login 会用）；没带 next 时行为与以前完全一致
     var nextPath = safeNext(parseCookies(req.headers.cookie || "")["oauth_next"]);
     res.writeHead(302, {
-      Location: nextPath || "/admin_Dx23.html",
+      Location: nextPath || "/admin/admin_Dx23.html",
       "Set-Cookie": [
         cookieValue,
         "oauth_next=; Path=/api/oauth; HttpOnly; Secure; SameSite=Lax; Max-Age=0"

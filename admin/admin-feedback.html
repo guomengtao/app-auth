@@ -43,7 +43,7 @@ body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Mi
 <body>
 <div class="topbar"><div class="topbar-inner">
   <div class="t-title">反馈管理</div>
-  <a href="/admin_Dx23.html" style="font-size:.8rem; color:var(--muted); text-decoration:none;">← 后台首页</a>
+  <a href="/admin/admin_Dx23.html" style="font-size:.8rem; color:var(--muted); text-decoration:none;">← 后台首页</a>
 </div></div>
 
 <div class="wrap">
@@ -80,7 +80,7 @@ function load() {
     .catch(function(e){
       if (e.message === "unauthorized") {
         app.innerHTML = '<div class="login-tip">未登录或登录已过期。请先到 '
-          + '<a href="/admin_Dx23.html">后台首页</a> 登录（管理员账号），再回到本页。</div>';
+          + '<a href="/admin/admin_Dx23.html">后台首页</a> 登录（管理员账号），再回到本页。</div>';
       } else {
         app.innerHTML = '<div class="empty">加载失败：' + e.message + '</div>';
       }

@@ -12,7 +12,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const FILE = path.resolve(__dirname, '..', 'admin_Dx23.html');
+const FILE = path.resolve(__dirname, '..', 'admin', 'admin_Dx23.html');
 const src = fs.readFileSync(FILE, 'utf8');
 
 let pass = 0;
