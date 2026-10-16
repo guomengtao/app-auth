@@ -73,7 +73,10 @@ async function verifyJwtEdge(token, secret) {
 
 export default async function middleware(request) {
   const secret = process.env.JWT_SECRET;
-  const token = request.cookies.get("token");
+  // 框架无关型 Edge 中间件拿到的是标准 Web Request，没有 NextRequest 的 .cookies，
+  // 需自行从 Cookie 头解析（否则 request.cookies 为 undefined → 500）。
+  const ck = request.headers.get("cookie") || "";
+  const token = (ck.match(/(?:^|;\s*)token=([^;]*)/) || [])[1];
 
   if (token && (await verifyJwtEdge(token.value, secret))) {
     // 已登录：放行（fetch(request) 将请求继续发往原目标，静态/函数皆可）
