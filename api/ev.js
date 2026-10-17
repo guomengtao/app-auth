@@ -1447,7 +1447,12 @@ async function handleTaskRegister(req, res) {
       tool: sessIn.tool ? String(sessIn.tool).slice(0, 32) : null,
       cwd: sessIn.cwd ? String(sessIn.cwd).slice(0, 240) : null,
       repo: sessIn.repo ? String(sessIn.repo).slice(0, 240) : null,
-      title: sessIn.title ? String(sessIn.title).slice(0, 240) : null
+      title: sessIn.title ? String(sessIn.title).slice(0, 240) : null,
+      // v0.5.7：聊天窗口 id（webview URL 的 ?id=）。为什么要有它：
+      //   assignee/session_sid 是 AI 会话 sid（workbuddy-…），和"用户眼前这个 Trae 聊天窗口"是两套 id，
+      //   没法互相映射 ⇒ 统计「本会话的任务」时只能退化成「今日全局」。
+      //   把窗口 id 一并写进 extra，前端（trae-hello 状态栏）就能按 extra->>url_session_id 精确统计。
+      url_session_id: sessIn.url_session_id ? String(sessIn.url_session_id).trim().slice(0, 120) : null
     };
     if (!sess.sid) sess = null;
   } else if (sessIn) {
@@ -1532,6 +1537,14 @@ async function handleTaskRegister(req, res) {
     }
   }
 
+  // v0.5.7：窗口 id 两个入口都收（顶层 body.url_session_id 优先，其次 body.session.url_session_id）——
+  // 顶层是给 curl/脚本的最小改动路径，session 里的是给 ev-add-task.js 的结构化路径。
+  var urlSidIn = (body.url_session_id != null && String(body.url_session_id).trim())
+    ? body.url_session_id
+    : ((sess && sess.url_session_id) || null);
+  var urlSid = urlSidIn ? String(urlSidIn).trim().slice(0, 120) : null;
+  if (urlSid === "") urlSid = null;
+
   var id = generateTaskId(type, body.project);
   var now = new Date().toISOString();
   var row = {
@@ -1544,7 +1557,10 @@ async function handleTaskRegister(req, res) {
     owner: deviceOwner || String(body.owner || sessionSid || "register").trim().slice(0, 120),
     session_sid: sessionSid,
     source: "register",
-    extra: { note: body.note ? String(body.note).slice(0, 500) : null },
+    extra: {
+      note: body.note ? String(body.note).slice(0, 500) : null,
+      url_session_id: urlSid   // v0.5.7：本单属于哪个 Trae 聊天窗口（供「本会话任务」统计）
+    },
     created_at: now, updated_at: now
   };
   try {
@@ -1569,7 +1585,10 @@ async function handleTaskRegister(req, res) {
       if (status === "in_progress") srow.open_task_id = id;
       await db.upsertSession(srow);
     }
-    return json(res, 201, { ok: true, id: id, status: status, assignee: sessionSid, store: "supabase" });
+    return json(res, 201, {
+      ok: true, id: id, status: status, assignee: sessionSid, store: "supabase",
+      url_session_id: urlSid || null   // v0.5.7：回显窗口 id，便于调用方确认「本会话任务」口径已生效
+    });
   } catch (e) {
     return json(res, 502, { success: false, error: "supabase_error", detail: String(e && e.message) });
   }
@@ -1672,6 +1691,8 @@ async function handleTaskUpdate(req, res) {
   // 只传 claimed_files 时 has 仍为 false，会被下方守门判成 "Nothing to update" 400 掉，
   // 而真正的写 extra 在 readRow 之后（要基于原 extra 合并）⇒ 必须先在此处登记。
   if (Array.isArray(body.claimed_files)) has = true;
+  // v0.5.7：只传 url_session_id 时也要算「有事可做」（同上坑：真正的写 extra 在 readRow 之后）
+  if (body.url_session_id != null) has = true;
   if (!has) return json(res, 400, { success: false, error: "Nothing to update" });
   var existing = await db.readRow(id);
   if (!existing) return json(res, 404, { success: false, error: "not_found", detail: "任务 " + id + " 不存在" });
@@ -1693,6 +1714,18 @@ async function handleTaskUpdate(req, res) {
       fx.files_owner = String(body.files_owner).trim().slice(0, 64) || null;
     }
     patch.extra = fx; has = true;
+  }
+  // ── v0.5.7：补写/改写「本任务属于哪个 Trae 聊天窗口」────────────────────────
+  // 为什么需要事后补：register 之前没有 url_session_id 字段，历史单（含当前进行中单）都缺这项，
+  // 导致按窗口统计恒为 0。补写后这些单立即进入「本会话任务」口径，不必等下次登记。
+  // 传空字符串 = 解绑（该单不再计入任何窗口）。
+  if (body.url_session_id != null) {
+    var ux = (typeof patch.extra === "object" && patch.extra)
+      ? patch.extra
+      : ((typeof existing.extra === "object" && existing.extra) ? Object.assign({}, existing.extra) : {});
+    var usv = String(body.url_session_id).trim().slice(0, 120);
+    ux.url_session_id = usv || null;
+    patch.extra = ux; has = true;
   }
   patch.updated_at = new Date().toISOString();
   try {
