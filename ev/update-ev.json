@@ -1,3 +1,9 @@
-{"versionCode":167,"versionName":"0.5.166","sha256":"52b1e3ce338c1ebfbccbbd4b7a43474ed8c9eb6cafe5339c8839870148cda458",
- "downloadUrlMirror":"https://ghproxy.net/https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.166/EVSyncProbe-v0.5.166.apk","downloadUrlOrigin":"https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.166/EVSyncProbe-v0.5.166.apk",
- "isForce":false,"updateLog":"首页「快速留言」弹窗美化：输入框新增 60 字上限与实时字数提示（接近上限变橙色），视觉与升级弹窗统一。"}
+{
+ "versionCode": 179,
+ "versionName": "0.5.178",
+ "sha256": "7f26c0e4e7e54f18024a6839ad9b3ae194b5d7331afe6d403aec6d316dc02dbc",
+ "downloadUrlMirror": "https://ghproxy.net/https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.178/EVSyncProbe-v0.5.178.apk",
+ "downloadUrlOrigin": "https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.178/EVSyncProbe-v0.5.178.apk",
+ "isForce": false,
+ "updateLog": "修复中文输入时按键盘黑屏、输入法「完成」键闪烁：已禁用输入法整屏提取模式，并修复窗口反复重建。建议所有中文输入用户体验此版。"
+}
