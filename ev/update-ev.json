@@ -1,9 +1,3 @@
-{
- "versionCode": 179,
- "versionName": "0.5.178",
- "sha256": "7f26c0e4e7e54f18024a6839ad9b3ae194b5d7331afe6d403aec6d316dc02dbc",
- "downloadUrlMirror": "https://ghproxy.net/https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.178/EVSyncProbe-v0.5.178.apk",
- "downloadUrlOrigin": "https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.178/EVSyncProbe-v0.5.178.apk",
- "isForce": false,
- "updateLog": "修复中文输入时按键盘黑屏、输入法「完成」键闪烁：已禁用输入法整屏提取模式，并修复窗口反复重建。建议所有中文输入用户体验此版。"
-}
+{"versionCode":180,"versionName":"0.5.179","sha256":"3d80770433f33cc10beb3a471b8a90be3da24cc4e7d7440ab3941a4fccd7801c",
+ "downloadUrlMirror":"https://ghproxy.net/https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.179/EVSyncProbe-v0.5.179.apk","downloadUrlOrigin":"https://github.com/guomengtao/ev-schedule-android/releases/download/v0.5.179/EVSyncProbe-v0.5.179.apk",
+ "isForce":false,"updateLog":""}
