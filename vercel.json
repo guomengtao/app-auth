@@ -110,10 +110,19 @@
       "permanent": false
     }
   ],
+  "functions": {
+    "api/afdian.js": {
+      "maxDuration": 60
+    }
+  },
   "crons": [
     {
       "path": "/api/afdian?kind=query",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/afdian?kind=dm-retry&cron=1",
+      "schedule": "15 * * * *"
     },
     {
       "path": "/api/admin/catalog?kind=health&section=backup&cron=1",

@@ -9,11 +9,14 @@
 
 var queryOrders = require("../lib/afdian-query-orders.js");
 var webhook = require("../lib/afdian-webhook.js");
+var afdianDm = require("../lib/afdian-dm.js");
 
 module.exports = async (req, res) => {
   var kind = (req.query && req.query.kind) || "";
   if (kind === "webhook") return webhook(req, res);
   if (kind === "query") return queryOrders(req, res);
+  // 待发私信队列重试：每小时 cron + 后台手工触发共用（lib/afdian-dm.js）
+  if (kind === "dm-retry") return afdianDm.handleRetry(req, res);
   if (req.method === "POST") return webhook(req, res);
   return queryOrders(req, res);
 };
