@@ -43,6 +43,14 @@
     {
       "source": "/evbox/",
       "destination": "/evbox.html"
+    },
+    {
+      "source": "/api/afdian/webhook",
+      "destination": "/api/afdian?kind=webhook"
+    },
+    {
+      "source": "/api/afdian/query-orders",
+      "destination": "/api/afdian?kind=query"
     }
   ],
   "redirects": [
@@ -74,16 +82,6 @@
     {
       "source": "/api/admin/health",
       "destination": "/api/admin/catalog?kind=health",
-      "permanent": false
-    },
-    {
-      "source": "/api/afdian/webhook",
-      "destination": "/api/afdian?kind=webhook",
-      "permanent": false
-    },
-    {
-      "source": "/api/afdian/query-orders",
-      "destination": "/api/afdian?kind=query",
       "permanent": false
     },
     {
