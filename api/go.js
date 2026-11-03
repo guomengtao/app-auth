@@ -113,6 +113,63 @@ function queryToParams(query) {
   return Object.keys(out).length ? out : null;
 }
 
+// --- 配置读取：三层降级（内存新鲜 → 内存陈旧 → Redis）------------------------
+//
+// 为什么需要：302 之前唯一的同步 IO 就是这一次 hget。函数实例在美东 iad1，
+// 中国用户每次点「购买」都要等这一趟跨洋往返（实测热态 0.58–0.75s 里的大头）。
+// 而 go:mapping 是低频变更配置（换价格/换链接才动），完全没必要每次点击都回源。
+//
+// 降级链（任何一层能给出 target_url 都必须跳过去，绝不让用户看到 500）：
+//   1. 内存新鲜（60s 内）      → 零网络，直接 302
+//   2. Redis 正常              → 回填内存
+//   3. Redis 超时/报错         → 用内存里的陈旧值（6h 内）
+//   4. 仍无值                  → 静态兜底表 GO_FALLBACK_MAP（环境变量 JSON）
+//   5. 全都没有                → 才 404（此时确实无从得知该跳哪）
+var CFG_FRESH_MS = 60 * 1000;           // 新鲜期：命中即零网络
+var CFG_STALE_MS = 6 * 60 * 60 * 1000;  // 陈旧兜底窗口：Redis 挂了也要跳
+var CFG_TIMEOUT_MS = 1500;              // hget 上限：绝不拖住跳转（原来最坏 20s 超时）
+var CFG_MAX_ENTRIES = 500;              // 缓存条目上限，防异常增长
+var cfgCache = new Map();               // slug -> { entry, ts }
+
+function cfgGet(slug, maxAge) {
+  var hit = cfgCache.get(slug);
+  if (!hit) return null;
+  if (Date.now() - hit.ts > maxAge) return null;
+  return hit.entry;
+}
+
+function cfgSet(slug, entry) {
+  if (cfgCache.size > CFG_MAX_ENTRIES && !cfgCache.has(slug)) cfgCache.clear();
+  cfgCache.set(slug, { entry: entry, ts: Date.now() });
+}
+
+var CFG_TIMEOUT = Symbol("cfg-timeout");
+
+function hgetWithTimeout(slug) {
+  return Promise.race([
+    redis.hget("go:mapping", slug),
+    new Promise(function (resolve) {
+      setTimeout(function () { resolve(CFG_TIMEOUT); }, CFG_TIMEOUT_MS);
+    }),
+  ]);
+}
+
+// 静态兜底：GO_FALLBACK_MAP='{"ev-timetable":"https://..."}' 或
+//            '{"ev-timetable":{"target_url":"https://...","enabled":true}}'
+// 用途：冷启动 + Redis 全挂时，已在外面流通的二维码/安装包短链仍可送达。
+function staticFallback(slug) {
+  var raw = process.env.GO_FALLBACK_MAP || "";
+  if (!raw) return null;
+  try {
+    var m = JSON.parse(raw);
+    var e = m && Object.prototype.hasOwnProperty.call(m, slug) ? m[slug] : null;
+    if (!e) return null;
+    return typeof e === "string" ? { target_url: e, enabled: true } : e;
+  } catch (err) {
+    return null;
+  }
+}
+
 function notFound(res, msg) {
   // 用户面向的简单 HTML（避免暴露技术细节）
   var safe = String(msg || "Not found").replace(/[<>&"']/g, function (c) {
@@ -320,16 +377,34 @@ module.exports = async (req, res) => {
       return res.status(400).json({ success: false, error: "Invalid slug format" });
     }
 
-    // 1) 查配置
-    var raw = await redis.hget("go:mapping", slug);
-    if (!raw) {
-      return notFound(res, "没有找到对应的下载链接。");
+    // 1) 查配置 —— 内存优先；Redis 失败/超时也不影响跳转（见 cfgGet 注释）
+    var entry = cfgGet(slug, CFG_FRESH_MS);
+    if (!entry) {
+      var raw = null;
+      var readFailed = false;
+      try {
+        raw = await hgetWithTimeout(slug);
+        if (raw === CFG_TIMEOUT) { readFailed = true; raw = null; }
+      } catch (e) {
+        readFailed = true;
+        raw = null;
+        console.error("[go] hget failed:", e && e.message ? e.message : e);
+      }
+      if (raw) {
+        try {
+          entry = JSON.parse(raw);
+          cfgSet(slug, entry);
+        } catch (e) {
+          return notFound(res, "链接配置已损坏，请联系管理员。");
+        }
+      } else if (readFailed) {
+        // 读失败 ≠ 不存在：先用陈旧缓存，再退到静态兜底表，都空才认输
+        entry = cfgGet(slug, CFG_STALE_MS) || staticFallback(slug);
+        if (entry) console.warn("[go] degraded redirect via stale/static fallback:", slug);
+      }
     }
-    var entry;
-    try {
-      entry = JSON.parse(raw);
-    } catch (e) {
-      return notFound(res, "链接配置已损坏，请联系管理员。");
+    if (!entry) {
+      return notFound(res, "没有找到对应的下载链接。");
     }
     if (!entry.target_url) {
       return notFound(res, "链接未配置目标地址。");
