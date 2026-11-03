@@ -263,7 +263,7 @@
         <div class="step-title" style="color:#666">购买高级版兑换码</div>
       </div>
       <div class="step-body">
-        <p><a href="https://app-auth.gudq.com/go/ev-timetable?c=ev-guide" class="link-btn" target="_blank" rel="noopener">前往爱发电购买</a></p>
+        <p><a id="buyLink" href="https://app-auth.gudq.com/go/ev-timetable?c=ev-guide" class="link-btn" target="_blank" rel="noopener">前往爱发电购买</a></p>
         <p>购买后会通过<strong>爱发电私信</strong>收到一条<strong>自动激活链接</strong>（形如 <code>app-auth.gudq.com/deep-link-test.html?code=ABCD</code>），链接页面里同时包含手工兜底用的 <strong>4 位兑换码</strong>：</p>
         <div class="code-box">激活链接示例：…/deep-link-test.html?code=ABCD</div>
         <p>如果没收到：请在爱发电 App 的「私信」里查收（链接长期有效，随时可找回）。</p>
@@ -409,5 +409,28 @@ function showTab(id, btn){
 </script>
 <!-- 全站统一访客埋点（P2/D1+D3）：替代原本本页手写的 XHR，避免双发 -->
 <script src="/js/track.js" data-group="guide"></script>
+<script>
+// 购买链接透传 deviceId（2026-11-03 修）：
+//   原先写死 ?c=ev-guide，导致该渠道 purchase_click 的 deviceId 携带率为 0%——
+//   既无法归因到具体手环，也无法和订单/激活串起来。
+//   deviceId 来源优先级：本页 URL 参数（从手环深链跳来时带）> localStorage（手环端或激活页存过）。
+//   取不到就保持原样，绝不编造：宁可空，也不要假数据。
+(function () {
+  try {
+    var a = document.getElementById('buyLink');
+    if (!a) return;
+    var id = '';
+    try {
+      id = new URLSearchParams(location.search).get('deviceId') || '';
+    } catch (e) {}
+    if (!id) {
+      try {
+        id = localStorage.getItem('ev_device_id') || localStorage.getItem('deviceId') || '';
+      } catch (e) {}
+    }
+    if (id) a.href = a.href + '&deviceId=' + encodeURIComponent(id);
+  } catch (e) {}
+})();
+</script>
 </body>
 </html>

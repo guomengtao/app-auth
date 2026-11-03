@@ -409,19 +409,14 @@ module.exports = async (req, res) => {
     var pushTask = pushPurchaseClick(entry, record, ts, dateKey).catch(function (e) {
       console.error("[go] pushPurchaseClick failed:", e && e.message ? e.message : e);
     });
-    try {
-      await Promise.race([
-        pushTask,
-        new Promise(function (resolve) {
-          setTimeout(function () {
-            console.warn("[go] purchase_click push 超过 5s，转为后台执行");
-            resolve();
-          }, 5000);
-        }),
-      ]);
-    } catch (pushErr) {
-      console.error("[go] purchase_click push error:", pushErr && pushErr.message ? pushErr.message : pushErr);
-    }
+    // ⚠️ 2026-11-03 改：原来是 await Promise.race([推送到此完成, 5s 上限])。
+    //    实测 /go/ev-timetable 首字节 1.79s / 5.12s / 20s 超时（TFFB = 总耗时，延迟全在服务端），
+    //    因为 pushPurchaseClick 串了腾讯 IP 定位 + 两次 Redis + 写库 + Pub/Sub。
+    //    移动端用户点「购买」后转圈 2–5 秒，以为没反应就退出了 —— 这是 W39 起
+    //    转化率 39%→16% 的根因（引入提交 4af5186，2026-09-23）。
+    //    改为 background.run() 注册到 waitUntil：既不阻塞 302，也不会像裸 fire-and-forget 那样
+    //    被平台冻结掐断（那才是 4af5186 当初要解决的问题）。同文件其余三处后台任务本就如此。
+    background.run(pushTask, "go-purchase-push");
     // ⚠️ 这里原来是裸 fire-and-forget：Vercel 在 res.end() 后会冻结函数实例，
     //    visitor_logs 的 INSERT 有被中途掐断的风险（整条访问记录丢失）。
     //    改成 background.run() 注册到 waitUntil，由平台保证跑完。
