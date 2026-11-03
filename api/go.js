@@ -127,7 +127,11 @@ function queryToParams(query) {
 //   5. 全都没有                → 才 404（此时确实无从得知该跳哪）
 var CFG_FRESH_MS = 60 * 1000;           // 新鲜期：命中即零网络
 var CFG_STALE_MS = 6 * 60 * 60 * 1000;  // 陈旧兜底窗口：Redis 挂了也要跳
-var CFG_TIMEOUT_MS = 1500;              // hget 上限：绝不拖住跳转（原来最坏 20s 超时）
+var CFG_TIMEOUT_MS = 2500;              // hget 上限：绝不拖住跳转（原来最坏 20s 超时）
+// ⚠️ 2026-11-03 事故：生产 redis 实际走 **Postgres proxy**（kv_hashes 表，Supabase 美东），
+//    不是 Upstash。当天把 region 迁到 hkg1 后，hget 变成「香港→美东跨洋查 pg」，
+//    超过 1.5s 上限被判读失败，又没有静态兜底 → 全部短链变 404（12:22 还正常，12:55 部署后挂）。
+//    已回滚 region 到 iad1。**在确认 redis 真正走 Upstash（东京）之前，不要迁 hkg1。**
 var CFG_MAX_ENTRIES = 500;              // 缓存条目上限，防异常增长
 var cfgCache = new Map();               // slug -> { entry, ts }
 
