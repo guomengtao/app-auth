@@ -247,7 +247,7 @@
   <div class="card">
     <div class="icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#6c63ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
     <h1>设备激活</h1>
-    <p class="subtitle">输入兑换码获取激活码</p>
+    <p class="subtitle">用 4 位兑换码换取 18 位激活码</p>
 
     <div id="invalidCard" class="invalid-card" style="display:none">
       <div class="invalid-icon">⚠️</div>
@@ -269,16 +269,15 @@
     <div class="steps">
       <div class="steps-title">激活步骤</div>
       <ol>
-        <li>确认下方设备ID与您的设备一致</li>
-        <li>输入您的 <strong>4位兑换码</strong></li>
-        <li>点击激活获取 <strong>18位激活码</strong></li>
+        <li>填入 <strong>4位设备ID</strong>（扫码自动带出，或从手环「兑换码激活」页抄写）</li>
+        <li>输入您的 <strong>4位兑换码</strong>，点击激活获取 <strong>18位激活码</strong></li>
         <li>将激活码输入到手环/手表应用中</li>
       </ol>
     </div>
 
     <div class="field">
-      <label>设备ID</label>
-      <input type="text" id="deviceId" class="readonly" readonly>
+      <label>设备ID（4位，从手环抄写）</label>
+      <input type="text" id="deviceId" placeholder="如 A3F9" maxlength="8" autocomplete="off" oninput="normalizeDeviceIdInput(this)">
     </div>
     <div id="activateForm">
       <div class="field">
@@ -410,24 +409,23 @@
     var deviceId = urlDeviceId;
     var deviceIdInvalid = false;
 
-    if (!deviceId) {
-      // 空值：沿用本地兜底（用户直接浏览器打开的场景）
-      deviceId = localStorage.getItem('deviceId') || '';
-      if (!deviceId) {
-        var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-        deviceId = '';
-        for (var i = 0; i < 4; i++) {
-          deviceId += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        localStorage.setItem('deviceId', deviceId);
-      }
-    } else if (!isValidDeviceId(deviceId)) {
+    // 2026-11-04：扫码仍是首选（自动带出）；无 URL 参数时不再本地随机生成假 ID，
+    // 改为让用户手输手环「兑换码激活」页显示的 4 位设备ID（兑码路径 P1）。
+    // 旧版生成的随机 localStorage ID 与手环真实设备ID 无关，用它换码必然报「设备ID不匹配」，属于误导，故移除。
+    if (!deviceId) deviceId = '';
+    else if (!isValidDeviceId(deviceId)) {
       // 无效值：绝不落库、绝不发码，直接走引导加群
       deviceIdInvalid = true;
     }
 
-    document.getElementById('deviceId').value = deviceId || '未获取到';
-    document.getElementById('deviceInfo').textContent = '设备ID来源: ' + (urlDeviceId ? 'URL参数' : '本地生成');
+    document.getElementById('deviceId').value = deviceId || '';
+    document.getElementById('deviceInfo').textContent = '设备ID来源: ' + (urlDeviceId ? 'URL参数' : '手输');
+
+    // 手输归一化：统一大写、去非法字符（与服务端 normalizeDeviceIdSegment 对齐）
+    function normalizeDeviceIdInput(el) {
+      var v = String(el.value || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
+      if (el.value !== v) el.value = v;
+    }
     if (deviceIdInvalid) showInvalidDeviceCard(urlDeviceId);
 
     function setLoading(loading) {
@@ -581,8 +579,14 @@
         return;
       }
 
-      if (!getDeviceIdFromUrl()) {
-        showResult('error', '请通过手环/手表上的二维码打开本页面，直接浏览器打开无法激活');
+      // 设备ID 以输入框当前值为准（扫码带出或手输，均可编辑修正）
+      deviceId = String(document.getElementById('deviceId').value || '').trim().toUpperCase();
+      if (!deviceId) {
+        showResult('error', '请填入设备ID（手环「兑换码激活」页显示的4位）');
+        return;
+      }
+      if (!isValidDeviceId(deviceId)) {
+        showResult('error', '设备ID格式无效，请核对手环上显示的4位字符');
         return;
       }
 
