@@ -1,5 +1,9 @@
 /**
- * api/admin/health.js 的 clientHasAccess() 单测
+ * lib/admin-health.js 的 clientHasAccess() 单测
+ *
+ * 被测实现原本在 api/admin/health.js，合并 Serverless 函数（Hobby 12 个上限）时
+ * 搬到 lib/admin-health.js，函数体与导出名都没变 —— 旧测试因此 require 不到而长期 FAIL。
+ * 2026-11-05 改为指向新位置，25 项全部恢复通过。
  *
  * 背景：delivery-callback / delivery-query / delivery-sync 会返回消息 payload 全文
  * （兑换码、激活码、用户昵称、IP）。它有三条合法通道：
@@ -54,7 +58,9 @@ for (const rel of Object.keys(STUBS)) {
   require.cache[p] = m;
 }
 
-const handler = require(path.join(ROOT, 'api/admin/health.js'));
+// 被测实现已从 api/admin/health.js 迁到 lib/admin-health.js（合并 Serverless 函数时搬的，
+// 函数体与导出名未变，lib/admin-health.js 末尾仍有 module.exports.clientHasAccess）。
+const handler = require(path.join(ROOT, 'lib/admin-health.js'));
 const clientHasAccess = handler.clientHasAccess;
 
 let pass = 0;
