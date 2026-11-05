@@ -63,16 +63,20 @@ async function fetchRedeemRecords(keys) {
   var records = [];
   if (!keys || keys.length === 0) return records;
 
-  var batchSize = 100;
+  // 批量读：redis.mget 在 Postgres 模拟模式下是一条 SELECT ... WHERE key IN (...)，
+  // Upstash 模式走原生 mget，两条路径都是单次往返。
+  // 旧实现走 pipeline().exec()，但 lib/redis.js 里该 pipeline 的 Postgres 实现是
+  // 「串行 for 循环逐条 await」，N 条兑换码会产生 N 次串行 SQL —— 2026-11-05 实测：
+  // 未登录 401 基线 0.70s，含查询的接口 1.38s，差额几乎全是这串串行往返。
+  // 这里用 apply 展开实参，同时兼容 pg 的 mget(...keys) 与 Upstash 原生 mget(...keys)。
+  var batchSize = 500;  // 控制单条 SQL 的占位符数量与长度，避免参数表过大
   for (var i = 0; i < keys.length; i += batchSize) {
     var batch = keys.slice(i, i + batchSize);
     var values;
     try {
-      var pipeline = redis.pipeline();
-      batch.forEach(function (code) {
-        pipeline.get("auth:redeem:" + code);
-      });
-      values = await pipeline.exec();
+      values = await redis.mget.apply(redis, batch.map(function (code) {
+        return "auth:redeem:" + code;
+      }));
     } catch (e) {
       console.error("fetchRedeemRecords batch failed:", e);
       throw e;
@@ -397,12 +401,13 @@ module.exports = async (req, res) => {
           guard++;
         } while (cursor !== "0" && guard < 500);
         var toDelete = [];
-        var batchSize = 100;
-        for (var i = 0; i < allCodes.length; i += batchSize) {
-          var batch = allCodes.slice(i, i + batchSize);
-          var pipeline = redis.pipeline();
-          batch.forEach(function (c) { pipeline.get("auth:redeem:" + c); });
-          var values = await pipeline.exec();
+        // 同 fetchRedeemRecords：改用 mget 批量读，避免 pipeline 在 Postgres 模式下逐条串行 SQL。
+        var purgeBatchSize = 500;
+        for (var i = 0; i < allCodes.length; i += purgeBatchSize) {
+          var batch = allCodes.slice(i, i + purgeBatchSize);
+          var values = await redis.mget.apply(redis, batch.map(function (c) {
+            return "auth:redeem:" + c;
+          }));
           if (!Array.isArray(values)) values = [];
           values.forEach(function (val, idx) {
             var data = val;
