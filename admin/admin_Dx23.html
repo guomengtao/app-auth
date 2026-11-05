@@ -5466,8 +5466,41 @@
         .catch(function() {});
     }
 
+    // 产品 ID 归一化：纯数字统一补零到 2 位（"1"/"0001"/"01" → "01"），非数字（prod-xxx）原样返回。
+    // 历史原因，同一产品在 auth:products 与兑换码记录里并存多种写法，严格相等会让同名产品各筛一半。
+    function normPid(v) {
+      var s = String(v == null ? '' : v).trim();
+      if (!/^[0-9]+$/.test(s)) return s;
+      var n = parseInt(s, 10);
+      if (!isFinite(n) || n < 0 || n > 99) return s;
+      return n < 10 ? '0' + n : String(n);
+    }
+
+    // 整理产品列表：丢掉脏数据（无名称 / 名称为空 / 名称等于 ID），
+    // 同一归一化 ID 只保留一条（取 created_at 较新的名称，空名不参与）。
+    function normalizeProductList(products) {
+      var byId = {};
+      var order = [];
+      (products || []).forEach(function (p) {
+        if (!p || p.id == null) return;
+        var rawName = (p.name == null ? '' : String(p.name)).trim();
+        var rawId = String(p.id).trim();
+        if (!rawId || !rawName || rawName === rawId) return;
+        var nid = normPid(rawId);
+        var prev = byId[nid];
+        if (!prev) {
+          byId[nid] = { id: nid, name: rawName, created_at: Number(p.created_at) || 0 };
+          order.push(nid);
+        } else if ((Number(p.created_at) || 0) > prev.created_at) {
+          prev.created_at = Number(p.created_at) || 0;
+          prev.name = rawName;
+        }
+      });
+      return order.map(function (id) { return byId[id]; });
+    }
+
     function matchCodeFilter(data, filterProductId, filterUsed, filterDuration, filterSearch) {
-      if (filterProductId && filterProductId !== '0000' && data.product_id !== filterProductId) return false;
+      if (filterProductId && normPid(data.product_id) !== normPid(filterProductId)) return false;
       if (filterUsed === '1' && !data.used) return false;
       if (filterUsed === '0' && data.used) return false;
       if (filterDuration && String(data.duration_months) !== filterDuration) return false;
@@ -5991,6 +6024,9 @@
     }
 
     function fillProductFilters(products) {
+      // 只渲染真实产品：过滤脏数据并按归一化 ID 合并同名项。
+      // 否则 chips 会出现两个「Ev课程表」（各只筛出一半码）以及点了必然空列表的空壳产品。
+      products = normalizeProductList(products);
       var codeSel = document.getElementById('codeProduct');
       var recordSel = document.getElementById('filterRecordProduct');
       var codeVal = codeSel.value;

@@ -6,7 +6,18 @@ var { validateCount, validateDuration, validateDeviceId } = require("../../lib/v
 var notify = require("../../lib/notify");
 
 function matchCode(data, filterProductId, filterUsed, filterDuration) {
-  if (filterProductId && data.product_id !== filterProductId) return false;
+  // 产品 ID 归一化比较：历史数据里同一产品并存 "01"/"1"/"0001" 多种写法，
+  // 严格相等会让同名产品各筛出一半（2026-11-05 修）。normalizeProductId2 对纯数字补零到 2 位、
+  // 非数字返回 null —— 两边都可归一才比较，否则退回字符串严格比较。
+  if (filterProductId) {
+    var wantPid = normalizeProductId2(filterProductId);
+    var havePid = normalizeProductId2(data.product_id);
+    if (wantPid !== null && havePid !== null) {
+      if (wantPid !== havePid) return false;
+    } else if (String(data.product_id || "") !== String(filterProductId)) {
+      return false;
+    }
+  }
   if (filterUsed === "1" && !data.used) return false;
   if (filterUsed === "0" && data.used) return false;
   if (filterDuration && String(data.duration_months) !== filterDuration) return false;
@@ -415,7 +426,17 @@ module.exports = async (req, res) => {
               try { data = JSON.parse(data); } catch (e) { data = null; break; }
             }
             if (!data || typeof data !== "object") return;
-            if (productId && data.product_id !== productId) return;
+            // 与 matchCode 保持同一套归一化口径：列表里看到的（如 Ev课程表 266 条）
+            // 就是这里会清掉的，避免出现「显示 266、实际只删 245」的残留。
+            if (productId) {
+              var purgeWant = normalizeProductId2(productId);
+              var purgeHave = normalizeProductId2(data.product_id);
+              if (purgeWant !== null && purgeHave !== null) {
+                if (purgeWant !== purgeHave) return;
+              } else if (String(data.product_id || "") !== String(productId)) {
+                return;
+              }
+            }
             if (scope === "used" && !data.used) return;
             if (scope === "unused" && data.used) return;
             toDelete.push(batch[idx]);

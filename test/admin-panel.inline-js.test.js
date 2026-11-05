@@ -85,6 +85,25 @@ check('私信模板：保存/恢复/加载函数已定义',
 check('私信模板：切 Tab 会触发加载', /else if \(sub === 'templates'\) loadAfdianTemplates\(\);/.test(src));
 check('私信模板：预览用 textContent 写入（防 XSS）', /pv\.textContent = rendered/.test(src));
 
+// ── 兑换码筛选：产品 ID 归一化（2026-11-05，evtask-D-evapp-auth-261105-fecxed）──
+// 背景：auth:products 与兑换码里同一产品并存 "01"/"1"/"0001"，严格相等会让
+// 两个同名「Ev课程表」各筛一半，另有 name 为 "0"/undefined 的空壳产品点了必空。
+check('兑换码筛选：定义了 normPid 归一化函数',
+  /function normPid\(v\)/.test(src), '缺少 normPid');
+check('兑换码筛选：纯数字补零到 2 位',
+  /return n < 10 \? '0' \+ n : String\(n\)/.test(src), 'normPid 未做补零');
+check('兑换码筛选：产品匹配走归一化而非严格相等',
+  /normPid\(data\.product_id\) !== normPid\(filterProductId\)/.test(src),
+  'matchCodeFilter 仍在用 data.product_id !== filterProductId');
+check('兑换码筛选：定义了 normalizeProductList 清洗产品列表',
+  /function normalizeProductList\(products\)/.test(src), '缺少 normalizeProductList');
+check('兑换码筛选：过滤脏产品（名称缺失或名称等于 ID）',
+  /!rawName \|\| rawName === rawId/.test(src), '未过滤脏产品');
+check('兑换码筛选：chips 渲染前先清洗列表',
+  /products = normalizeProductList\(products\);/.test(src), 'fillProductFilters 未清洗产品');
+check("兑换码筛选：不再保留 0000 硬编码特例",
+  !/filterProductId !== '0000'/.test(src), "仍存在 0000 硬编码特例");
+
 console.log('\n共检查 ' + checked + ' 个内联脚本，' + totalChars + ' 字符');
 console.log('PASS: ' + pass + '  FAILED: ' + fails.length);
 process.exit(fails.length ? 1 : 0);

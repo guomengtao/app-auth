@@ -64,6 +64,7 @@ for (var i = 1; i <= TOTAL; i++) {
 
 var calls = { mget: [], sscan: 0 };
 var missing = {};          // 阶段 2 才启用：指定这些 code 返回 null，模拟记录缺失
+var productIdMap = {};     // 阶段 3 才启用：code -> product_id，缺省 "01"（模拟同一产品的多种写法）
 
 var fakeRedis = {
   sscan: async function (key, cursor, options) {
@@ -82,7 +83,7 @@ var fakeRedis = {
       if (missing[code]) return null;
       return JSON.stringify({
         code: code,
-        product_id: "01",
+        product_id: productIdMap[code] || "01",
         used: false,
         duration_months: 12,
         created_at: 1700000000000 + parseInt(code.slice(4), 10),
@@ -162,6 +163,36 @@ function makeRes() {
   check("缺失场景仍是 3 次批量读", calls.mget.length === 3,
     "实际 " + calls.mget.length + " 次");
   delete missing["CODE00007"];
+
+  // ── 阶段 3：产品 ID 多种写法归一化 ────────────────────────────────
+  // 真实数据里同一产品并存 "01"/"1"/"0001"（Ev课程表），严格相等会各筛出一半。
+  // 这里让 1..10 号码用 "0001"、11..20 用 "1"、21..30 用 "02"，其余 "01"。
+  productIdMap = {};
+  for (var a = 1; a <= 10; a++) productIdMap["CODE" + String(a).padStart(5, "0")] = "0001";
+  for (var b = 11; b <= 20; b++) productIdMap["CODE" + String(b).padStart(5, "0")] = "1";
+  for (var c = 21; c <= 30; c++) productIdMap["CODE" + String(c).padStart(5, "0")] = "02";
+
+  var res3 = makeRes();
+  await handler({ method: "GET", query: { product_id: "01", limit: "500" }, headers: {} }, res3);
+  check("筛选 01 覆盖 01/1/0001 三种写法（total 1190）",
+    res3.body && res3.body.total === TOTAL - 10,
+    "total=" + (res3.body && res3.body.total));
+
+  var res4 = makeRes();
+  await handler({ method: "GET", query: { product_id: "0001", limit: "500" }, headers: {} }, res4);
+  check("筛选 0001 归一化到 01（total 同样 1190）",
+    res4.body && res4.body.total === TOTAL - 10,
+    "total=" + (res4.body && res4.body.total));
+
+  var res5 = makeRes();
+  await handler({ method: "GET", query: { product_id: "02", limit: "500" }, headers: {} }, res5);
+  check("筛选 02 只出 10 条", res5.body && res5.body.total === 10,
+    "total=" + (res5.body && res5.body.total));
+
+  var res6 = makeRes();
+  await handler({ method: "GET", query: { product_id: "prod-not-exist", limit: "500" }, headers: {} }, res6);
+  check("筛选不存在的非数字产品 → 空", res6.body && res6.body.total === 0,
+    "total=" + (res6.body && res6.body.total));
 
   console.log("\n共 " + (pass + fail) + " 项：" + pass + " PASS / " + fail + " FAIL");
   if (fail > 0) process.exit(1);
