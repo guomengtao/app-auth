@@ -1,0 +1,26 @@
+{
+  "schema": "ev-shot/1",
+  "tool": "ev-emubuddy/tools/dual_compare.py",
+  "created": "2026-11-05T08:45:31+08:00",
+  "title": "pages/index（课程表首页）",
+  "image": "home-index-cmp.png",
+  "size": [
+    744,
+    890
+  ],
+  "sha256": "c12e549325eb83190ccff1f794dd8c1d18e58e2f572f2b00b5735c96eb210b89",
+  "devices": [
+    {
+      "label": "手环9",
+      "serial": "emulator-11000",
+      "screen": "192x490",
+      "skin": "xiaomi_band"
+    },
+    {
+      "label": "手环10Pro",
+      "serial": "emulator-11002",
+      "screen": "336x480",
+      "skin": "xiaomi_band_9_pro"
+    }
+  ]
+}
