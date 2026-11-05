@@ -30,6 +30,8 @@ var visitorLog = require("../lib/visitor-log");
 var background = require("../lib/background");
 var ipWarmup = require("../lib/ip-warmup");
 var tracking = require("../lib/tracking");
+// 零操作激活通道（2026-11-05 追加）：只在带 deviceId 的购买点击上生成随机会话 sid
+var deviceKey = require("../lib/device-key");
 
 // 从渠道参数里取设备 ID（购买页链接上的 deviceId）
 function paramDeviceId(params) {
@@ -523,7 +525,32 @@ module.exports = async (req, res) => {
     }), "tracking");
 
     // 3) 302 跳转
-    res.setHeader("Location", entry.target_url);
+    // ── 零操作通道 B8（2026-11-05 追加，只加不改）────────────────────────
+    // APK 购买入口本来就把 deviceId 带在 URL 上（FastActivateActivity.java:616-625），
+    // pickQuery() 也已解析。这里把 CSPRNG 随机会话 sid 拼进真实商品页，付款后 webhook
+    // 从 remark 拿回 sid 即可完成「订单 ↔ 设备」归因。
+    // 无 deviceId / 总开关关闭 / 任何异常 → 原样跳 entry.target_url，行为逐字节不变。
+    var finalTarget = entry.target_url;
+    try {
+      var goDid = paramDeviceId(queryParams);
+      if (process.env.EV_ZERO_ACTIVATE !== "0" && goDid) {
+        var goSid = deviceKey.newSid();
+        // 会话写入不阻塞 302：付款在数十秒之后，异步写早已落库
+        background.run(deviceKey.saveSession(goSid, {
+          sid: goSid, deviceKey: "", nodeId: "",
+          deviceId: deviceKey.normalizeDeviceId(goDid),
+          status: "waiting", createdAt: Date.now(), origin: "go302"
+        }), "zero-session");
+        var sep = String(finalTarget).indexOf("?") >= 0 ? "&" : "?";
+        finalTarget = finalTarget + sep +
+          "remark=EV-" + encodeURIComponent(goSid) +
+          "&custom_order_id=" + encodeURIComponent(goSid);
+      }
+    } catch (ge) {
+      console.error("[go] zero-session non-blocking error:", ge && ge.message);
+      finalTarget = entry.target_url;
+    }
+    res.setHeader("Location", finalTarget);
     return res.status(302).end();
   } catch (e) {
     console.error("[go] handler error:", e && e.message ? e.message : e);
