@@ -17,6 +17,9 @@ module.exports = async (req, res) => {
   if (kind === "query") return queryOrders(req, res);
   // 待发私信队列重试：每小时 cron + 后台手工触发共用（lib/afdian-dm.js）
   if (kind === "dm-retry") return afdianDm.handleRetry(req, res);
+  // 订单私信模板读写/预览（后台「爱发电订单 → 私信模板」）：必须显式带 kind，
+  // 否则无 kind 的 POST 会被下面的 webhook 兜底吞掉
+  if (kind === "dm-templates") return afdianDm.handleTemplates(req, res);
   if (req.method === "POST") return webhook(req, res);
   return queryOrders(req, res);
 };

@@ -61,8 +61,29 @@ check('设备面板：调用了正确的接口',
   /\/api\/ev\?action=devices/.test(src) && /\/api\/ev\?action=device-revoke/.test(src));
 check('设备面板：表格有 tbody 挂载点', /id="devicesTable"/.test(src));
 check('设备面板：使用 escapeHtml 防注入', /escapeHtml\(d\.label/.test(src));
-check('设备面板：未用不存在的 CSS 变量',
-  !/panel-devices[\s\S]{0,4000}var\(--card\)/.test(src), '发现 var(--card)，该变量不存在');
+// 2026-11-05：`--card` 已在 :root 补成 `var(--card-bg)` 的兼容别名（见 :root 注释「曾有 7 处引用
+// 未定义的 --card，导致卡片背景透明」），原「出现 --card 即失败」的判断前提已不存在。
+// 改为守住这条兼容别名本身 —— 它被删掉才会真出问题。
+check('设备面板：--card 仍是已定义的兼容别名（勿删 :root 定义）',
+  /--card:\s*var\(--card-bg\)/.test(src), '未找到 --card 的 :root 定义，引用它的卡片会变透明');
+
+// ── 「爱发电订单 · 私信模板」子 Tab 四件套（2026-11-05，evtask-D-evapp-auth-261105-ta38xn）──
+check('私信模板：子 Tab 按钮存在', /id="afdianSubTabTemplates"/.test(src));
+check('私信模板：面板容器存在', /id="afdian-sub-templates"/.test(src));
+check('私信模板：switchAfdianSubTab 覆盖 templates 分支',
+  /templates: document\.getElementById\('afdian-sub-templates'\)/.test(src));
+check('私信模板：三条独立文本域由 JS 生成', /afdianTplTa/.test(src) && /AFDIAN_TPL_META/.test(src));
+check('私信模板：走正确的接口（GET + preview/save/reset 同源）',
+  /\/api\/afdian\?kind=dm-templates/.test(src)
+  && /kind=dm-templates&op=preview/.test(src)
+  && /kind=dm-templates&op=save/.test(src)
+  && /kind=dm-templates&op=reset/.test(src));
+check('私信模板：保存/恢复/加载函数已定义',
+  /function saveAfdianTemplates\(/.test(src)
+  && /function resetAfdianTemplates\(/.test(src)
+  && /function loadAfdianTemplates\(/.test(src));
+check('私信模板：切 Tab 会触发加载', /else if \(sub === 'templates'\) loadAfdianTemplates\(\);/.test(src));
+check('私信模板：预览用 textContent 写入（防 XSS）', /pv\.textContent = rendered/.test(src));
 
 console.log('\n共检查 ' + checked + ' 个内联脚本，' + totalChars + ' 字符');
 console.log('PASS: ' + pass + '  FAILED: ' + fails.length);

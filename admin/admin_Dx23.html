@@ -4827,13 +4827,14 @@
             <div style="display:flex;gap:4px;background:var(--line);padding: 4px;border-radius:10px" id="afdianSubTabs">
               <button id="afdianSubTabOrders" class="visitor-sub-tab active" onclick="switchAfdianSubTab('orders')">📋 订单列表</button>
               <button id="afdianSubTabPurchase" class="visitor-sub-tab" onclick="switchAfdianSubTab('purchase')">🔗 购买点击日志</button>
+              <button id="afdianSubTabTemplates" class="visitor-sub-tab" onclick="switchAfdianSubTab('templates')">💬 私信模板</button>
             </div>
             <span class="spacer"></span>
             <button class="btn btn-primary" onclick="syncAfdianOrders()" id="afdianSyncBtn">
               <span class="spinner" style="display:none"></span>
               <span class="btn-text">🔄 手动同步订单</span>
             </button>
-            <button class="btn btn-outline" onclick="loadAfdianOrders()">🔄 刷新列表</button>
+            <button class="btn btn-outline" id="afdianRefreshBtn" onclick="loadAfdianOrders()">🔄 刷新列表</button>
           </div>
 
           <!-- Sub-tab: Orders -->
@@ -4980,6 +4981,35 @@
             </div>
           </details>
           </div><!-- /afdian-sub-purchase -->
+
+          <!-- Sub-tab: DM Templates（购买后自动发送的 3 条私信，逐条可编辑） -->
+          <div id="afdian-sub-templates" style="display:none">
+            <div class="setting-block" style="margin-bottom:16px">
+              <h3 class="setting-title">可用变量</h3>
+              <p class="setting-desc">用 <code>{{变量名}}</code> 占位，发送时替换成该笔订单的真实数据。点击下面的变量可插入到当前编辑的文本域。</p>
+              <div id="afdianTplVarChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+              <div id="afdianTplMeta" class="muted" style="font-size:0.75rem;margin-top:10px">加载中...</div>
+            </div>
+
+            <div id="afdianTplCards"></div>
+
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px">
+              <button class="btn btn-primary" id="afdianTplSaveBtn" onclick="saveAfdianTemplates()">
+                <span class="spinner" style="display:none"></span>
+                <span class="btn-text">💾 保存模板</span>
+              </button>
+              <button class="btn btn-outline" onclick="resetAfdianTemplates()">↩️ 恢复默认</button>
+              <span id="afdianTplStatus" class="muted" style="font-size:0.8125rem"></span>
+            </div>
+
+            <details class="help-banner" style="margin-top:20px">
+              <summary>为什么固定 3 条，不能增删？</summary>
+              <div class="help-body">
+                <p>第 1 条 = 兑换码与激活方法，第 2 条 = 收尾语，第 3 条 = 安装指导。发送链按「已发条数」做断点续发与去重（<code>afdian:dm_sent:&lt;单号&gt;</code>），增删条数会导致重发或漏发，所以这里只改内容、不改条数。</p>
+                <p style="margin-top:8px">保存只影响之后产生的新订单；已在待发队列里的消息是入队时的快照，不会被改写。</p>
+              </div>
+            </details>
+          </div><!-- /afdian-sub-templates -->
         </div>
 
         <div class="panel" id="panel-devices">
@@ -11806,37 +11836,318 @@ function loadAppStats() {
       });
     }
 
+    // 子 Tab 三态：orders / purchase / templates（2026-11-05 新增私信模板）
     function switchAfdianSubTab(sub) {
-      var ordersDiv = document.getElementById('afdian-sub-orders');
-      var purchaseDiv = document.getElementById('afdian-sub-purchase');
-      var tabOrders = document.getElementById('afdianSubTabOrders');
-      var tabPurchase = document.getElementById('afdianSubTabPurchase');
+      var panels = {
+        orders: document.getElementById('afdian-sub-orders'),
+        purchase: document.getElementById('afdian-sub-purchase'),
+        templates: document.getElementById('afdian-sub-templates')
+      };
+      var tabs = {
+        orders: document.getElementById('afdianSubTabOrders'),
+        purchase: document.getElementById('afdianSubTabPurchase'),
+        templates: document.getElementById('afdianSubTabTemplates')
+      };
+      var META = {
+        orders: {
+          title: '💖 爱发电订单',
+          sub: '管理爱发电赞助订单，手动同步并查看激活码生成记录',
+          refresh: 'loadAfdianOrders()',
+          refreshText: '🔄 刷新列表',
+          sync: true
+        },
+        purchase: {
+          title: '🔗 购买点击日志',
+          sub: '管理 /go/<slug> 跳转短链，查看点击来源、时间分布与最近访客',
+          refresh: 'loadPurchaseLogs()',
+          refreshText: '🔄 刷新列表',
+          sync: false
+        },
+        templates: {
+          title: '💬 私信模板',
+          sub: '编辑购买后自动发送的 3 条私信；保存后对之后的新订单立即生效',
+          refresh: 'loadAfdianTemplates()',
+          refreshText: '🔄 重新加载',
+          sync: false
+        }
+      };
+      if (!META[sub]) sub = 'orders';
+
+      Object.keys(panels).forEach(function (k) {
+        if (panels[k]) panels[k].style.display = (k === sub) ? '' : 'none';
+        if (tabs[k]) {
+          if (k === sub) tabs[k].classList.add('active');
+          else tabs[k].classList.remove('active');
+        }
+      });
+
+      var m = META[sub];
       var titleEl = document.getElementById('afdianOrdersTitle');
       var subEl = document.getElementById('afdianOrdersSub');
       var syncBtn = document.getElementById('afdianSyncBtn');
-      var refreshBtn = document.querySelector('#panel-afdian-orders .btn-outline');
-
-      if (sub === 'purchase') {
-        if (ordersDiv) ordersDiv.style.display = 'none';
-        if (purchaseDiv) purchaseDiv.style.display = '';
-        if (tabOrders) tabOrders.classList.remove('active');
-        if (tabPurchase) tabPurchase.classList.add('active');
-        if (titleEl) titleEl.innerHTML = '🔗 购买点击日志';
-        if (subEl) subEl.textContent = '管理 /go/<slug> 跳转短链，查看点击来源、时间分布与最近访客';
-        if (syncBtn) syncBtn.style.display = 'none';
-        if (refreshBtn) refreshBtn.setAttribute('onclick', 'loadPurchaseLogs()');
-        loadPurchaseLogs();
-      } else {
-        if (ordersDiv) ordersDiv.style.display = '';
-        if (purchaseDiv) purchaseDiv.style.display = 'none';
-        if (tabOrders) tabOrders.classList.add('active');
-        if (tabPurchase) tabPurchase.classList.remove('active');
-        if (titleEl) titleEl.innerHTML = '💖 爱发电订单';
-        if (subEl) subEl.textContent = '管理爱发电赞助订单，手动同步并查看激活码生成记录';
-        if (syncBtn) syncBtn.style.display = '';
-        if (refreshBtn) refreshBtn.setAttribute('onclick', 'loadAfdianOrders()');
-        loadAfdianOrders();
+      var refreshBtn = document.getElementById('afdianRefreshBtn');
+      if (titleEl) titleEl.innerHTML = m.title;
+      if (subEl) subEl.textContent = m.sub;
+      if (syncBtn) syncBtn.style.display = m.sync ? '' : 'none';
+      if (refreshBtn) {
+        refreshBtn.setAttribute('onclick', m.refresh);
+        refreshBtn.textContent = m.refreshText;
       }
+
+      if (sub === 'purchase') loadPurchaseLogs();
+      else if (sub === 'templates') loadAfdianTemplates();
+      else loadAfdianOrders();
+    }
+
+    // ── 爱发电订单私信模板（2026-11-05，evtask-D-evapp-auth-261105-ta38xn）──────
+    // 三条文案固定，每条一个独立 textarea；预览一律由服务端渲染（与真实发送同一函数），
+    // 前端只负责收集 / 展示，避免出现「预览好看、发出去是另一个样」。
+    var afdianTpl = {
+      templates: [],
+      vars: [],
+      sample: {},
+      maxChars: 4000,
+      activeIndex: -1,
+      dirty: false,
+      loading: false,
+      previewTimer: null,
+      loadedOnce: false
+    };
+
+    var AFDIAN_TPL_META = [
+      { name: '激活与兑换码', desc: '兑换码 + 3 步激活 + 备选自动激活链接' },
+      { name: '收尾语', desc: '第 2 条，简短问候' },
+      { name: '安装指导', desc: '第 3 条，附安装指导链接' }
+    ];
+
+    var afdianTplRendered = [];
+    var afdianTplUnknown = [];
+
+    function afdianTplLoad(key) {
+      var ta = document.getElementById('afdianTplTa' + key);
+      return ta ? ta.value : ((afdianTpl.templates[key] || {}).content || '');
+    }
+
+    function afdianTplCollect() {
+      return [0, 1, 2].map(function (i) {
+        return { i: i + 1, content: afdianTplLoad(i) };
+      });
+    }
+
+    function afdianTplSetStatus(text, isError) {
+      var el = document.getElementById('afdianTplStatus');
+      if (!el) return;
+      el.textContent = text || '';
+      el.style.color = isError ? 'var(--err, #dc2626)' : '';
+    }
+
+    function afdianTplRenderChips() {
+      var box = document.getElementById('afdianTplVarChips');
+      if (!box) return;
+      box.innerHTML = '';
+      (afdianTpl.vars || []).forEach(function (k) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'btn btn-sm btn-outline';
+        b.style.fontFamily = 'ui-monospace,Menlo,Consolas,monospace';
+        b.style.fontSize = '0.75rem';
+        b.textContent = '{{' + k + '}}';
+        var sample = afdianTpl.sample && afdianTpl.sample[k];
+        b.title = sample ? String(sample) : k;
+        b.onclick = function () { afdianTplInsertVar(k); };
+        box.appendChild(b);
+      });
+    }
+
+    function afdianTplInsertVar(key) {
+      var i = afdianTpl.activeIndex;
+      var ta = document.getElementById('afdianTplTa' + i);
+      if (!ta) {
+        afdianTplSetStatus('先点一下要编辑的文本域，再插入变量', true);
+        return;
+      }
+      var token = '{{' + key + '}}';
+      var s = ta.selectionStart || 0;
+      var e = typeof ta.selectionEnd === 'number' ? ta.selectionEnd : s;
+      ta.value = ta.value.slice(0, s) + token + ta.value.slice(e);
+      ta.focus();
+      ta.selectionStart = ta.selectionEnd = s + token.length;
+      afdianTplOnInput(i);
+    }
+
+    function afdianTplRenderCards() {
+      var box = document.getElementById('afdianTplCards');
+      if (!box) return;
+      box.innerHTML = (afdianTpl.templates || []).map(function (t, idx) {
+        var meta = AFDIAN_TPL_META[idx] || { name: '第 ' + (idx + 1) + ' 条', desc: '' };
+        return '<div class="setting-block" style="margin-bottom:14px">' +
+            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">' +
+              '<span style="display:inline-flex;width:22px;height:22px;border-radius:6px;background:var(--line);align-items:center;justify-content:center;font-size:0.75rem;font-weight:600">' + (idx + 1) + '</span>' +
+              '<h3 class="setting-title" style="margin:0">第 ' + (idx + 1) + ' 条 · ' + meta.name + '</h3>' +
+              '<span class="muted" style="font-size:0.75rem">' + meta.desc + '</span>' +
+              '<span class="muted" id="afdianTplCount' + idx + '" style="margin-left:auto;font-size:0.75rem"></span>' +
+            '</div>' +
+            '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px">' +
+              '<div>' +
+                '<div class="muted" style="font-size:0.75rem;margin-bottom:6px">模板原文 · 可编辑</div>' +
+                '<textarea id="afdianTplTa' + idx + '" spellcheck="false" style="width:100%;height:190px;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);resize:vertical;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:0.75rem;line-height:1.6"></textarea>' +
+                '<div id="afdianTplWarn' + idx + '" style="font-size:0.75rem;color:#b45309;margin-top:6px;min-height:16px"></div>' +
+              '</div>' +
+              '<div>' +
+                '<div class="muted" style="font-size:0.75rem;margin-bottom:6px">预览 · 买家实际收到（示例数据）</div>' +
+                '<div id="afdianTplPv' + idx + '" style="height:190px;overflow:auto;white-space:pre-wrap;word-break:break-word;padding:9px;border:1px dashed var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:0.75rem;line-height:1.6"></div>' +
+              '</div>' +
+            '</div>' +
+          '</div>';
+      }).join('');
+
+      (afdianTpl.templates || []).forEach(function (t, idx) {
+        var ta = document.getElementById('afdianTplTa' + idx);
+        if (!ta) return;
+        ta.value = t.content || '';
+        ta.addEventListener('focus', function () { afdianTpl.activeIndex = idx; });
+        ta.addEventListener('input', function () { afdianTplOnInput(idx); });
+        afdianTplRefreshPreview(idx, (afdianTplRendered || [])[idx] || '', (afdianTplUnknown || [])[idx] || []);
+      });
+    }
+
+    function afdianTplRefreshPreview(idx, rendered, unknown) {
+      var pv = document.getElementById('afdianTplPv' + idx);
+      var cnt = document.getElementById('afdianTplCount' + idx);
+      var warn = document.getElementById('afdianTplWarn' + idx);
+      var raw = afdianTplLoad(idx);
+      if (pv) pv.textContent = rendered || '（空模板）';
+      if (cnt) cnt.textContent = raw.length + ' / ' + (afdianTpl.maxChars || 4000) + ' 字';
+      if (warn) {
+        warn.textContent = (unknown && unknown.length)
+          ? '未知变量：' + unknown.join('、') + '（会原样发给买家）'
+          : '';
+      }
+    }
+
+    function afdianTplOnInput(idx) {
+      afdianTpl.dirty = true;
+      afdianTplSetStatus('有未保存的修改');
+      var cnt = document.getElementById('afdianTplCount' + idx);
+      if (cnt) cnt.textContent = afdianTplLoad(idx).length + ' / ' + (afdianTpl.maxChars || 4000) + ' 字';
+      clearTimeout(afdianTpl.previewTimer);
+      afdianTpl.previewTimer = setTimeout(function () {
+        afdianTplRequestPreview();
+      }, 320);
+    }
+
+    function afdianTplRequestPreview() {
+      return api('/api/afdian?kind=dm-templates&op=preview', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ templates: afdianTplCollect() })
+      }).then(function (data) {
+        if (!data || !data.success) return;
+        afdianTplRendered = data.rendered || [];
+        afdianTplUnknown = data.unknown || [];
+        [0, 1, 2].forEach(function (i) {
+          afdianTplRefreshPreview(i, afdianTplRendered[i], afdianTplUnknown[i]);
+        });
+      }).catch(function () {
+        afdianTplSetStatus('预览失败（可继续编辑，保存时会再次校验）', true);
+      });
+    }
+
+    function loadAfdianTemplates() {
+      if (afdianTpl.loading) return Promise.resolve();
+      afdianTpl.loading = true;
+      afdianTplSetStatus('加载中...');
+      var meta = document.getElementById('afdianTplMeta');
+      if (meta) meta.textContent = '加载中...';
+      return api('/api/afdian?kind=dm-templates', { credentials: 'include' })
+        .then(function (data) {
+          if (!data || !data.success) throw new Error((data && data.error) || '加载失败');
+          afdianTpl.templates = data.templates || [];
+          afdianTpl.vars = data.vars || [];
+          afdianTpl.sample = data.sample || {};
+          afdianTpl.maxChars = data.max_chars || 4000;
+          afdianTplRendered = data.rendered || [];
+          afdianTplUnknown = data.unknown || [];
+          afdianTpl.dirty = false;
+          afdianTpl.activeIndex = -1;
+          afdianTpl.loadedOnce = true;
+          afdianTplRenderChips();
+          afdianTplRenderCards();
+          if (meta) {
+            meta.textContent = data.is_default
+              ? '当前使用内置默认文案（尚未保存过自定义模板）'
+              : ('上次保存：' + (data.updated_at ? new Date(data.updated_at).toLocaleString('zh-CN', { hour12: false }) : '未知'));
+          }
+          afdianTplSetStatus('');
+        })
+        .catch(function (e) {
+          if (meta) meta.textContent = '';
+          afdianTplSetStatus('加载失败：' + (e && e.message || '未知错误'), true);
+        })
+        .then(function () {
+          afdianTpl.loading = false;
+        });
+    }
+
+    function saveAfdianTemplates() {
+      var btn = document.getElementById('afdianTplSaveBtn');
+      var spinner = btn ? btn.querySelector('.spinner') : null;
+      var label = btn ? btn.querySelector('.btn-text') : null;
+      if (btn) btn.disabled = true;
+      if (spinner) spinner.style.display = 'inline-block';
+      if (label) label.textContent = '保存中...';
+      afdianTplSetStatus('保存中...');
+      return api('/api/afdian?kind=dm-templates&op=save', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ templates: afdianTplCollect() })
+      }).then(function (data) {
+        if (!data || !data.success) throw new Error((data && data.error) || '保存失败');
+        afdianTpl.dirty = false;
+        afdianTplRendered = data.rendered || [];
+        afdianTplUnknown = data.unknown || [];
+        [0, 1, 2].forEach(function (i) {
+          afdianTplRefreshPreview(i, afdianTplRendered[i], afdianTplUnknown[i]);
+        });
+        var meta = document.getElementById('afdianTplMeta');
+        if (meta && data.updated_at) {
+          meta.textContent = '上次保存：' + new Date(data.updated_at).toLocaleString('zh-CN', { hour12: false }) + ' · 已对之后的新订单生效';
+        }
+        afdianTplSetStatus('✓ 已保存，之后的订单会按新文案发送');
+        showToast('模板已保存', 'success');
+      }).catch(function (e) {
+        afdianTplSetStatus('保存失败：' + (e && e.message || '未知错误'), true);
+      }).then(function () {
+        if (btn) btn.disabled = false;
+        if (spinner) spinner.style.display = 'none';
+        if (label) label.textContent = '💾 保存模板';
+      });
+    }
+
+    function resetAfdianTemplates() {
+      if (!window.confirm('恢复为内置默认文案？当前未保存的修改会丢失（已保存的自定义模板也会被清除）。')) return;
+      afdianTplSetStatus('恢复中...');
+      return api('/api/afdian?kind=dm-templates&op=reset', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}'
+      }).then(function (data) {
+        if (!data || !data.success) throw new Error((data && data.error) || '恢复失败');
+        afdianTpl.templates = data.templates || [];
+        afdianTplRendered = data.rendered || [];
+        afdianTplUnknown = data.unknown || [];
+        afdianTpl.dirty = false;
+        afdianTplRenderCards();
+        var meta = document.getElementById('afdianTplMeta');
+        if (meta) meta.textContent = '当前使用内置默认文案（已清除自定义模板）';
+        afdianTplSetStatus('✓ 已恢复默认，可直接保存或继续编辑');
+        showToast('已恢复默认文案', 'success');
+      }).catch(function (e) {
+        afdianTplSetStatus('恢复失败：' + (e && e.message || '未知错误'), true);
+      });
     }
 
     // 通用复制（唯一 IP 列表的行内操作）
