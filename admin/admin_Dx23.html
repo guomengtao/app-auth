@@ -3561,6 +3561,43 @@
       font-size: 0.8125rem;
       margin-top: 6px;
     }
+
+    /* ============================================================
+       反馈管理 / 留言板（2026-11-08 并入后台 · evtask-D-app-auth-261108-74vzy3）
+       原为独立页 admin/admin-feedback.html 与 admin/admin-guestbook.html，
+       类名统一 mg- 前缀，全部走设计令牌，10 套主题自动跟随。
+    ============================================================ */
+    .mg-bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
+    .mg-fbtn { border:1px solid var(--line); background:var(--surface); color:var(--ink);
+      padding:5px 14px; border-radius:var(--r-pill); font-size:0.8125rem; cursor:pointer; font-family:inherit; transition:all .15s; }
+    .mg-fbtn:hover { border-color:var(--accent); color:var(--accent); }
+    .mg-fbtn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+    .mg-card { background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg);
+      padding:14px 16px; margin-bottom:12px; }
+    .mg-head { display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:0.75rem; color:var(--ink-2); }
+    .mg-id { font-weight:800; color:var(--ink); font-size:0.9375rem; }
+    .mg-badge { padding:2px 10px; border-radius:var(--r-pill); font-size:0.6875rem; font-weight:700; color:#fff; }
+    .mg-badge.pending, .mg-badge.new { background:var(--accent); }
+    .mg-badge.approved, .mg-badge.resolved { background:var(--ok); }
+    .mg-badge.processing { background:var(--warn); }
+    .mg-badge.hidden, .mg-badge.wontfix { background:var(--ink-2); }
+    .mg-body { margin-top:8px; font-size:0.875rem; white-space:pre-wrap; word-break:break-word; color:var(--ink); }
+    .mg-meta { margin-top:8px; font-size:0.75rem; color:var(--ink-2); }
+    .mg-imgs { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+    .mg-imgs img { width:110px; height:150px; object-fit:cover; border-radius:var(--r-sm);
+      border:1px solid var(--line); cursor:zoom-in; }
+    .mg-acts { display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; align-items:center; }
+    .mg-abtn { border:1px solid var(--line); background:var(--surface); color:var(--ink);
+      padding:4px 12px; border-radius:var(--r-pill); font-size:0.75rem; cursor:pointer; font-family:inherit; }
+    .mg-abtn:hover { border-color:var(--accent); color:var(--accent); }
+    .mg-abtn.ok { color:var(--ok); }
+    .mg-abtn.danger { color:var(--err); }
+    .mg-note { flex:1; min-width:180px; border:1px solid var(--line); border-radius:var(--r-sm);
+      padding:5px 10px; font-size:0.75rem; font-family:inherit; background:var(--surface); color:var(--ink); }
+    .mg-empty { text-align:center; color:var(--ink-2); padding:36px; font-size:0.875rem; }
+    .mg-tip { background:rgba(240,160,0,0.12); border:1px solid var(--warn); border-radius:var(--r-md);
+      padding:14px 16px; font-size:0.875rem; color:var(--ink); }
+    .mg-tip a { color:var(--accent); font-weight:700; }
   </style>
 </head>
 <body>
@@ -3583,6 +3620,8 @@
         <li><a href="javascript:void(0)" onclick="switchTab('logs')" data-tab="logs"><i data-lucide="scroll-text" class="menu-icon"></i><span class="menu-text">日志</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('devices')" data-tab="devices"><i data-lucide="shield-check" class="menu-icon"></i><span class="menu-text">已授权设备</span></a></li>
         <li class="menu-separator"><hr></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('feedback')" data-tab="feedback"><i data-lucide="inbox" class="menu-icon"></i><span class="menu-text">反馈管理</span></a></li>
+        <li><a href="javascript:void(0)" onclick="switchTab('guestbook')" data-tab="guestbook"><i data-lucide="message-circle" class="menu-icon"></i><span class="menu-text">留言板</span></a></li>
         <li class="menu-separator"><hr></li>
         <li><a href="javascript:void(0)" onclick="switchTab('bandbbs')" data-tab="bandbbs"><i data-lucide="message-square" class="menu-icon"></i><span class="menu-text">米坛运营</span></a></li>
         <li><a href="javascript:void(0)" onclick="switchTab('settings')" data-tab="settings"><i data-lucide="settings" class="menu-icon"></i><span class="menu-text">设置</span></a></li>
@@ -5312,6 +5351,45 @@
 
         </div>
 
+        <!-- 反馈管理（原 admin/admin-feedback.html，2026-11-08 并入后台） -->
+        <div class="panel" id="panel-feedback">
+          <div class="toolbar">
+            <div>
+              <h2 style="margin:0;display:flex;align-items:center;gap:8px"><i data-lucide="inbox" class="lucide-inline"></i> 反馈管理</h2>
+              <span class="muted" style="font-size:0.8125rem">用户问题与建议 · 状态流转 · 后台备注</span>
+            </div>
+            <span class="spacer"></span>
+            <button class="btn btn-outline" onclick="loadFbPanel()"><i data-lucide="refresh-cw" class="lucide-inline"></i> 刷新</button>
+          </div>
+          <div class="mg-bar" id="fbFilter">
+            <button class="mg-fbtn active" data-st="" onclick="mgFilter('feedback','')">全部</button>
+            <button class="mg-fbtn" data-st="new" onclick="mgFilter('feedback','new')">新</button>
+            <button class="mg-fbtn" data-st="processing" onclick="mgFilter('feedback','processing')">处理中</button>
+            <button class="mg-fbtn" data-st="resolved" onclick="mgFilter('feedback','resolved')">已解决</button>
+            <button class="mg-fbtn" data-st="wontfix" onclick="mgFilter('feedback','wontfix')">不予处理</button>
+          </div>
+          <div id="fbList"><div class="mg-empty">加载中…</div></div>
+        </div>
+
+        <!-- 留言板（原 admin/admin-guestbook.html，2026-11-08 并入后台） -->
+        <div class="panel" id="panel-guestbook">
+          <div class="toolbar">
+            <div>
+              <h2 style="margin:0;display:flex;align-items:center;gap:8px"><i data-lucide="message-circle" class="lucide-inline"></i> 留言板</h2>
+              <span class="muted" style="font-size:0.8125rem">留言墙审核 · 公开/隐藏 · 后台备注</span>
+            </div>
+            <span class="spacer"></span>
+            <button class="btn btn-outline" onclick="loadGbPanel()"><i data-lucide="refresh-cw" class="lucide-inline"></i> 刷新</button>
+          </div>
+          <div class="mg-bar" id="gbFilter">
+            <button class="mg-fbtn active" data-st="" onclick="mgFilter('guestbook','')">全部</button>
+            <button class="mg-fbtn" data-st="pending" onclick="mgFilter('guestbook','pending')">待审核</button>
+            <button class="mg-fbtn" data-st="approved" onclick="mgFilter('guestbook','approved')">已公开</button>
+            <button class="mg-fbtn" data-st="hidden" onclick="mgFilter('guestbook','hidden')">已隐藏</button>
+          </div>
+          <div id="gbList"><div class="mg-empty">加载中…</div></div>
+        </div>
+
 
       </main>
     </div>
@@ -5694,8 +5772,162 @@
       settings: { title: '设置', sub: '外观 · 数据 · 安全 · 邮件 · 备份恢复' },
       health: { title: '服务器状态', sub: '检测 Postgres / 鉴权 / 激活链路是否正常' },
       'vercel-logs': { title: 'Vercel日志', sub: '部署事件与函数运行日志（Vercel API）' },
-      'purchase-logs': { title: '购买点击日志', sub: '管理 /go/* 跳转短链，查看各链接点击来源与时间分布' }
+      'purchase-logs': { title: '购买点击日志', sub: '管理 /go/* 跳转短链，查看各链接点击来源与时间分布' },
+      feedback: { title: '反馈管理', sub: '用户问题与建议 · 状态流转 · 后台备注' },
+      guestbook: { title: '留言板', sub: '留言墙审核 · 公开/隐藏 · 后台备注' }
     };
+
+    /* ============================================================
+       反馈管理 / 留言板（2026-11-08 并入后台 · evtask-D-app-auth-261108-74vzy3）
+       原为独立页 admin/admin-feedback.html、admin/admin-guestbook.html，
+       入口只出现在 sitemap 与 guestbook 公网页的「管理」链接上，后台无任何入口。
+       并入后共用主后台同源 cookie 鉴权，接口与业务逻辑与独立页完全一致。
+       命名统一 mg- / Mg 前缀，避免与主后台既有的 esc()、card 等命名冲突。
+    ============================================================ */
+    var MG_STATUS_CN = {
+      guestbook: { pending: '待审核', approved: '已公开', hidden: '已隐藏' },
+      feedback: { 'new': '新', processing: '处理中', resolved: '已解决', wontfix: '不予处理' }
+    };
+    var mgCurStatus = { guestbook: '', feedback: '' };
+
+    function mgEsc(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function mgWhen(v) {
+      if (!v) return '';
+      var d = new Date(v);
+      return isNaN(d) ? String(v) : d.toLocaleString('zh-CN');
+    }
+    function mgImgs(list) {
+      var h = '';
+      for (var i = 0; i < (list || []).length; i++) {
+        h += '<img src="' + mgEsc(list[i]) + '" onclick="window.open(this.src)" loading="lazy" alt="">';
+      }
+      return h ? '<div class="mg-imgs">' + h + '</div>' : '';
+    }
+    function mgBadge(kind, st) {
+      var cn = (MG_STATUS_CN[kind] || {})[st] || st;
+      return '<span class="mg-badge ' + mgEsc(st) + '">' + mgEsc(cn) + '</span>';
+    }
+
+    function loadFbPanel() { mgLoad('feedback'); }
+    function loadGbPanel() { mgLoad('guestbook'); }
+
+    function mgFilter(kind, st) {
+      mgCurStatus[kind] = st;
+      var bar = document.getElementById(kind === 'guestbook' ? 'gbFilter' : 'fbFilter');
+      if (bar) {
+        var btns = bar.querySelectorAll('[data-st]');
+        for (var i = 0; i < btns.length; i++) {
+          btns[i].className = 'mg-fbtn' + (btns[i].getAttribute('data-st') === st ? ' active' : '');
+        }
+      }
+      mgLoad(kind);
+    }
+
+    function mgLoad(kind) {
+      var isGb = kind === 'guestbook';
+      var el = document.getElementById(isGb ? 'gbList' : 'fbList');
+      if (!el) return;
+      el.innerHTML = '<div class="mg-empty">加载中…</div>';
+      var st = mgCurStatus[kind];
+      var url = '/api/' + (isGb ? 'guestbook' : 'feedback') + (st ? '?status=' + encodeURIComponent(st) : '');
+      fetch(url, { credentials: 'same-origin' })
+        .then(function (r) {
+          if (r.status === 401) throw new Error('unauthorized');
+          return r.json();
+        })
+        .then(function (j) {
+          if (!j.success) throw new Error(j.error || 'load failed');
+          var items = j.items || [];
+          if (!items.length) {
+            el.innerHTML = '<div class="mg-empty">暂无' + (isGb ? '留言' : '反馈') + '</div>';
+            return;
+          }
+          var h = '';
+          for (var i = 0; i < items.length; i++) h += isGb ? mgGbCard(items[i]) : mgFbCard(items[i]);
+          el.innerHTML = h;
+        })
+        .catch(function (e) {
+          if (e.message === 'unauthorized') {
+            el.innerHTML = '<div class="mg-tip">未登录或登录已过期。请<a href="/admin/admin_Dx23.html">重新登录后台</a>后再试。</div>';
+            return;
+          }
+          el.innerHTML = '<div class="mg-empty">加载失败：' + mgEsc(e.message) + '</div>';
+        });
+    }
+
+    function mgGbCard(g) {
+      return '<div class="mg-card">'
+        + '<div class="mg-head">'
+        + '<span class="mg-id">#' + mgEsc(g.id) + '</span>'
+        + mgBadge('guestbook', g.status)
+        + '<span>' + mgEsc(g.name || '匿名') + '</span>'
+        + '<span style="margin-left:auto">' + mgEsc(mgWhen(g.created_at)) + '</span>'
+        + '</div>'
+        + '<div class="mg-body">' + mgEsc(g.content) + '</div>'
+        + mgImgs(g.images)
+        + '<div class="mg-acts">'
+        + '<button class="mg-abtn ok" onclick="mgSetStatus(\'guestbook\',' + parseInt(g.id, 10) + ',\'approved\')">通过公开</button>'
+        + '<button class="mg-abtn" onclick="mgSetStatus(\'guestbook\',' + parseInt(g.id, 10) + ',\'hidden\')">隐藏</button>'
+        + '<button class="mg-abtn" onclick="mgSetStatus(\'guestbook\',' + parseInt(g.id, 10) + ',\'pending\')">退回待审</button>'
+        + '<input class="mg-note" id="gbnote-' + mgEsc(g.id) + '" placeholder="备注（仅后台可见）" value="' + mgEsc(g.admin_note || '') + '">'
+        + '<button class="mg-abtn" onclick="mgSaveNote(\'guestbook\',' + parseInt(g.id, 10) + ')">存备注</button>'
+        + '<button class="mg-abtn danger" onclick="mgDelete(\'guestbook\',' + parseInt(g.id, 10) + ')">删除</button>'
+        + '</div></div>';
+    }
+
+    function mgFbCard(f) {
+      var meta = [f.src, f.app_version ? ('v' + f.app_version) : '', f.device_model, f.channel]
+        .filter(Boolean).map(mgEsc).join(' · ');
+      var contact = f.contact ? ((f.contact_type || '联系') + '：' + f.contact) : '匿名';
+      return '<div class="mg-card">'
+        + '<div class="mg-head">'
+        + '<span class="mg-id">#' + mgEsc(f.id) + '</span>'
+        + mgBadge('feedback', f.status)
+        + '<span>' + mgEsc(f.type) + '</span>'
+        + (meta ? '<span>' + meta + '</span>' : '')
+        + (f.page ? '<span>页面：' + mgEsc(f.page) + '</span>' : '')
+        + '<span style="margin-left:auto">' + mgEsc(mgWhen(f.created_at)) + '</span>'
+        + '</div>'
+        + '<div class="mg-body">' + mgEsc(f.content) + '</div>'
+        + mgImgs(f.images)
+        + '<div class="mg-meta">👤 ' + mgEsc(contact) + '</div>'
+        + '<div class="mg-acts">'
+        + '<button class="mg-abtn" onclick="mgSetStatus(\'feedback\',' + parseInt(f.id, 10) + ',\'processing\')">处理中</button>'
+        + '<button class="mg-abtn ok" onclick="mgSetStatus(\'feedback\',' + parseInt(f.id, 10) + ',\'resolved\')">已解决</button>'
+        + '<button class="mg-abtn" onclick="mgSetStatus(\'feedback\',' + parseInt(f.id, 10) + ',\'wontfix\')">不予处理</button>'
+        + '<input class="mg-note" id="fbnote-' + mgEsc(f.id) + '" placeholder="备注（仅后台可见）" value="' + mgEsc(f.admin_note || '') + '">'
+        + '<button class="mg-abtn" onclick="mgSaveNote(\'feedback\',' + parseInt(f.id, 10) + ')">存备注</button>'
+        + '<button class="mg-abtn danger" onclick="mgDelete(\'feedback\',' + parseInt(f.id, 10) + ')">删除</button>'
+        + '</div></div>';
+    }
+
+    function mgSetStatus(kind, id, st) { mgMutate(kind, 'PUT', { id: id, status: st }); }
+    function mgSaveNote(kind, id) {
+      var inp = document.getElementById((kind === 'guestbook' ? 'gbnote-' : 'fbnote-') + id);
+      mgMutate(kind, 'PUT', { id: id, admin_note: inp ? inp.value : '' });
+    }
+    function mgDelete(kind, id) {
+      if (!confirm('确认删除' + (kind === 'guestbook' ? '留言' : '反馈') + ' #' + id + '？（不可恢复）')) return;
+      mgMutate(kind, 'DELETE', null, '?id=' + encodeURIComponent(id));
+    }
+    function mgMutate(kind, method, body, qs) {
+      fetch('/api/' + (kind === 'guestbook' ? 'guestbook' : 'feedback') + (qs || ''), {
+        method: method,
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined
+      })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          if (!res.ok) { alert('操作失败：' + ((res.j && res.j.error) || ('HTTP ' + res.status))); return; }
+          mgLoad(kind);
+        })
+        .catch(function (e) { alert('请求异常：' + e.message); });
+    }
 
     function switchTab(tab) {
       // 深链兼容：appstats/delivery 已分别并入 访客统计 / 快捷激活 子页签
@@ -5758,6 +5990,8 @@
         }
       }
       if (tab === 'devices') loadDevices();
+      if (tab === 'feedback') loadFbPanel();
+      if (tab === 'guestbook') loadGbPanel();
       if (tab === 'bandbbs') { console.log('[bandbbs] switchTab: tab=bandbbs, _bbLastTab=' + (window._bbLastTab || 'ops') + ', loadBandBBS typeof=' + typeof loadBandBBS); switchBandBBSTab(bbSubFromUrl() || window._bbLastTab || 'ops'); if (typeof loadBandBBS === 'function') { console.log('[bandbbs] switchTab: loadBandBBS is function, calling'); loadBandBBS(); } else { console.log('[bandbbs] switchTab: loadBandBBS not yet defined, will be called by auto-init in admin-bandbbs.js'); } }
       
       try {
