@@ -156,21 +156,29 @@ ol.steps .tip{color:var(--muted);font-size:.78rem;display:block}
   //      原实现用的是 fetch —— 老 WebView（API<42）根本没有 fetch，这段等于静默失败，一并修掉。
 
   // ---- 版本信息（单一来源：/ev/update-ev.json） ----
-  // origin 支持 GitHub Release 与本站自托管两种；只有 GitHub origin 才拼镜像前缀
-  var FALLBACK_ORIGIN = 'https://app-auth.gudq.com/dl/EVSyncProbe-v0.5.98.apk';
-  var origin = FALLBACK_ORIGIN, ver = '';
+  // 主线路取 downloadUrlMirror（现在指向本站自托管 /dl/，国内可直连），
+  // GitHub Release 只作备用线路保留；清单里若仍是 GitHub，则退化为旧的镜像拼法。
+  var FALLBACK_ORIGIN = 'https://app-auth.gudq.com/dl/EVSyncProbe-v0.6.9.apk';
+  var origin = FALLBACK_ORIGIN, mirror = FALLBACK_ORIGIN, ver = '';
 
-  function buildMirrors(u){
-    if (u.indexOf('https://github.com/') === 0) {
-      return [
-        { name:'加速线路（国内推荐）', pre:'https://ghproxy.net/' },
-        { name:'备用加速线路',       pre:'https://gh-proxy.com/' },
-        { name:'GitHub 直连',        pre:'' }
-      ];
+  function buildMirrors(m, u){
+    var list = [];
+    // 本站自托管永远排第一（不走境外）
+    if (m && m.indexOf('https://app-auth.gudq.com/') === 0) {
+      list.push({ name:'官方直连（本站高速）', url:m });
     }
-    return [ { name:'官方直连（本站高速）', pre:'' } ];
+    if (u && u.indexOf('https://github.com/') === 0) {
+      if (m && m.indexOf('https://app-auth.gudq.com/') !== 0) {
+        list.push({ name:'加速线路（国内推荐）', url:'https://ghproxy.net/' + u });
+      }
+      list.push({ name:'加速线路（备用）', url:'https://gh-proxy.com/' + u });
+      list.push({ name:'GitHub 直连（境外）', url:u });
+    } else if (u && list.length === 0) {
+      list.push({ name:'官方直连（本站高速）', url:u });
+    }
+    return list;
   }
-  var MIRRORS = buildMirrors(origin);
+  var MIRRORS = buildMirrors(mirror, origin);
 
   function fileName(u){ return u.slice(u.lastIndexOf('/') + 1); }
 
@@ -178,10 +186,11 @@ ol.steps .tip{color:var(--muted);font-size:.78rem;display:block}
     return fetch('/ev/update-ev.json?v=' + Date.now())
       .then(function(r){ return r.json(); })
       .then(function(m){
-        if (m && m.downloadUrlOrigin) {
-          origin = m.downloadUrlOrigin;
+        if (m) {
+          if (m.downloadUrlMirror) mirror = m.downloadUrlMirror;
+          if (m.downloadUrlOrigin) origin = m.downloadUrlOrigin;
           ver = m.versionName || '';
-          MIRRORS = buildMirrors(origin);
+          MIRRORS = buildMirrors(mirror, origin);
         }
       }).catch(function(){});
   }
@@ -207,7 +216,7 @@ ol.steps .tip{color:var(--muted);font-size:.78rem;display:block}
       .catch(function(){ if (timer) clearTimeout(timer); return false; });
   }
 
-  function urlOf(line){ return line.pre + origin; }
+  function urlOf(line){ return line.url || (line.pre + origin); }
 
   function trackDownload(lineName){
     // 下载点击埋点（P2/D3）：复用全站统一脚本，不再自己拼 fetch（老 WebView 无 fetch）。
@@ -260,7 +269,7 @@ ol.steps .tip{color:var(--muted);font-size:.78rem;display:block}
     btn.textContent = '开始下载' + (ver ? ' v' + ver : '') +
                       '（' + MIRRORS[picked].name.replace(/（.*）/, '') + '）';
     btn.onclick = function(){ doDownload(picked); };
-    meta.innerHTML = '<span class="foot-meta">' + fileName(origin) + '</span>';
+    meta.innerHTML = '<span class="foot-meta">' + fileName(urlOf(MIRRORS[picked])) + '</span>';
   }
 
   function pickFastest(){
