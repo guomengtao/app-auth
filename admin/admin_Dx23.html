@@ -3802,9 +3802,15 @@
                 <input type="text" id="filterRecordRedeemCode" class="filter-input" placeholder="例如 1BZR" maxlength="16" onkeydown="if(event.key==='Enter')loadRecords()">
               </div>
               <div class="filter-group">
-                <label class="filter-label">型号</label>
+                <label class="filter-label">手环型号</label>
+                <select id="filterRecordWatchModel" onchange="applyRecordExtraFilter()" class="filter-select">
+                  <option value="">全部手环型号</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label class="filter-label">手机型号</label>
                 <select id="filterRecordModel" onchange="applyRecordExtraFilter()" class="filter-select">
-                  <option value="">全部型号</option>
+                  <option value="">全部手机型号</option>
                 </select>
               </div>
               <div class="filter-group">
@@ -6359,6 +6365,8 @@
       if (ipInp) ipInp.value = '';
       var modelSel = document.getElementById('filterRecordModel');
       if (modelSel) modelSel.value = '';
+      var watchSel = document.getElementById('filterRecordWatchModel');
+      if (watchSel) watchSel.value = '';
       var verSel = document.getElementById('filterRecordVersion');
       if (verSel) verSel.value = '';
       var srcSel = document.getElementById('filterRecordSource');
@@ -6374,37 +6382,76 @@
       loadRecords();
     }
 
+    // 版本号多源回退：访问参数 r（手环 EV 版本）→ 设备快照 watch_ev_version → 同步器 APK appVersion。
+    // 老逻辑只认 visitor_info.referer 的 r，失败记录 referer 为空，「版本号」列必然丢失。
     function getRecordVersion(rec) {
       var vi = rec.visitor_info || {};
       var refUrl = vi.referer || '';
       var m = refUrl.match(/[&?]r=([^&]+)/);
-      return m ? decodeURIComponent(m[1]) : '';
+      if (m) return decodeURIComponent(m[1]);
+      var wi = rec.watch_info || {};
+      var di = rec.device_info || {};
+      return String(wi.watch_ev_version || di.watch_ev_version || di.appVersion || rec.app_version || '').trim();
+    }
+
+    function getRecordVersionSource(rec) {
+      var vi = rec.visitor_info || {};
+      if ((vi.referer || '').match(/[&?]r=/)) return '访问参数 r';
+      var wi = rec.watch_info || {};
+      if (wi.watch_ev_version) return '设备快照（手环 EV）';
+      var di = rec.device_info || {};
+      if (di.watch_ev_version) return '手环端上报';
+      if (di.appVersion) return '同步器 APK';
+      return '';
+    }
+
+    // 手环型号与手机型号是两个命名空间：device_info.product/model 是手机侧（如 OPPO PHJ110），
+    // 真实手环型号来自 visitor_logs.device 快照（服务端附加的 watch_info.watch_model）。
+    function getRecordWatchModel(rec) {
+      var wi = rec.watch_info || {};
+      var di = rec.device_info || {};
+      return String(wi.watch_model || di.watch_model || '').trim();
     }
 
     function getRecordModel(rec) {
       var di = rec.device_info || {};
-      return di.product || di.model || '';
+      var wi = rec.watch_info || {};
+      return String(di.product || di.model || wi.phone_model || '').trim();
     }
 
     function populateModelVersionFilters(records) {
       var modelCounts = {};
+      var watchModelCounts = {};
       var versionCounts = {};
+      var okCount = records.filter(function(r) { return r.status !== 'failure'; }).length;
       records.forEach(function(r) {
         if (r.status === 'failure') return;
         var mdl = getRecordModel(r);
         if (mdl) modelCounts[mdl] = (modelCounts[mdl] || 0) + 1;
+        var wm = getRecordWatchModel(r);
+        if (wm) watchModelCounts[wm] = (watchModelCounts[wm] || 0) + 1;
         var ver = getRecordVersion(r);
         if (ver) versionCounts[ver] = (versionCounts[ver] || 0) + 1;
       });
 
       var modelSel = document.getElementById('filterRecordModel');
+      var watchSel = document.getElementById('filterRecordWatchModel');
       var verSel = document.getElementById('filterRecordVersion');
       var prevModel = modelSel ? modelSel.value : '';
+      var prevWatch = watchSel ? watchSel.value : '';
       var prevVer = verSel ? verSel.value : '';
 
+      if (watchSel) {
+        var wItems = Object.keys(watchModelCounts).sort();
+        watchSel.innerHTML = '<option value="">全部手环型号 (' + okCount + ')</option>';
+        wItems.forEach(function(m) {
+          watchSel.innerHTML += '<option value="' + escapeHtml(m) + '">' + escapeHtml(m) + ' (' + watchModelCounts[m] + ')</option>';
+        });
+        watchSel.value = prevWatch;
+      }
       if (modelSel) {
         var items = Object.keys(modelCounts).sort();
-        modelSel.innerHTML = '<option value="">全部型号 (' + records.filter(function(r) { return r.status !== 'failure'; }).length + ')</option>';
+        modelSel.innerHTML = '<option value="">全部手机型号 (' + okCount + ')</option>';
         items.forEach(function(m) {
           modelSel.innerHTML += '<option value="' + escapeHtml(m) + '">' + escapeHtml(m) + ' (' + modelCounts[m] + ')</option>';
         });
@@ -6423,13 +6470,19 @@
     function applyRecordExtraFilter() {
       if (!_lastLoadedRecords) return;
       var modelSel = document.getElementById('filterRecordModel');
+      var watchSel = document.getElementById('filterRecordWatchModel');
       var verSel = document.getElementById('filterRecordVersion');
       var srcSel = document.getElementById('filterRecordSource');
       var filterModel = modelSel ? modelSel.value : '';
+      var filterWatchModel = watchSel ? watchSel.value : '';
       var filterVer = verSel ? verSel.value : '';
       var filterSource = srcSel ? srcSel.value : '';
 
       var filtered = _lastLoadedRecords.filter(function(r) {
+        if (filterWatchModel) {
+          if (r.status === 'failure') return false;
+          if (getRecordWatchModel(r) !== filterWatchModel) return false;
+        }
         if (filterModel) {
           if (r.status === 'failure') return false;
           if (getRecordModel(r) !== filterModel) return false;
@@ -6465,6 +6518,8 @@
       if (sel) sel.value = '';
       var modelSel = document.getElementById('filterRecordModel');
       if (modelSel) modelSel.value = '';
+      var watchSel = document.getElementById('filterRecordWatchModel');
+      if (watchSel) watchSel.value = '';
       var verSel = document.getElementById('filterRecordVersion');
       if (verSel) verSel.value = '';
       var srcSelDeep = document.getElementById('filterRecordSource');
@@ -6561,12 +6616,18 @@
         populateModelVersionFilters(allRecords);
 
         var modelSel = document.getElementById('filterRecordModel');
+        var watchSel = document.getElementById('filterRecordWatchModel');
         var verSel = document.getElementById('filterRecordVersion');
         var srcSel = document.getElementById('filterRecordSource');
         var filterModel = modelSel ? modelSel.value : '';
+        var filterWatchModel = watchSel ? watchSel.value : '';
         var filterVer = verSel ? verSel.value : '';
         var filterSource = srcSel ? srcSel.value : '';
         var displayRecords = allRecords.filter(function(r) {
+          if (filterWatchModel) {
+            if (r.status === 'failure') return false;
+            if (getRecordWatchModel(r) !== filterWatchModel) return false;
+          }
           if (filterModel) {
             if (r.status === 'failure') return false;
             if (getRecordModel(r) !== filterModel) return false;
@@ -6583,7 +6644,7 @@
         });
 
         if (hint) {
-          var hasFilter = rc || deviceId || ip || (status && status !== 'all') || filterModel || filterVer || filterSource;
+          var hasFilter = rc || deviceId || ip || (status && status !== 'all') || filterWatchModel || filterModel || filterVer || filterSource;
           // 接口返回被裁剪时必须显式告知（历史 bug：静默少一截，页面看起来像"记录丢了"）
           var truncNote = '';
           if (_recordsMeta && _recordsMeta.truncated) {
@@ -6596,7 +6657,8 @@
             if (deviceId) parts.push('设备: <span class="mono" style="font-weight:700;color: var(--accent-text)">' + escapeHtml(deviceId) + '</span>');
             if (ip) parts.push('IP: <span class="mono" style="font-weight:700;color: var(--accent-text)">' + escapeHtml(ip) + '</span>');
             if (status && status !== 'all') parts.push('状态: <b>' + (status === 'failure' ? '失败' : '成功') + '</b>');
-            if (filterModel) parts.push('型号: <b>' + escapeHtml(filterModel) + '</b>');
+            if (filterWatchModel) parts.push('手环型号: <b>' + escapeHtml(filterWatchModel) + '</b>');
+            if (filterModel) parts.push('手机型号: <b>' + escapeHtml(filterModel) + '</b>');
             if (filterVer) parts.push('版本: <b>' + escapeHtml(filterVer) + '</b>');
             if (filterSource) {
               var srcLabel = { 'apk-deeplink': '同步器·深链', 'apk-manual': '同步器·手输', 'evapp': '手环/网页' }[filterSource] || filterSource;
@@ -6656,12 +6718,12 @@
 
     function renderRecordsTable(allRecords, highlightRc, highlightAc, rc) {
       allRecords = allRecords || [];
-      var tableHtml = '<table><thead><tr><th>状态</th><th>激活码</th><th>兑换码</th><th style="max-width:80px">设备ID</th><th>渠道</th><th>来源</th><th>产品</th><th>版本号</th><th>手环型号</th><th>激活时间</th><th>到期时间</th><th style="width:60px">操作</th></tr></thead><tbody>';
+      var tableHtml = '<table><thead><tr><th>状态</th><th>激活码</th><th>兑换码</th><th style="max-width:80px">设备ID</th><th>渠道</th><th>来源</th><th>产品</th><th>版本号</th><th>手环型号</th><th>手机型号</th><th>激活时间</th><th>到期时间</th><th style="width:60px">操作</th></tr></thead><tbody>';
       if (allRecords.length === 0) {
         var emptyReason = rc
           ? 'No records found for redeem code "' + rc + '".'
           : 'No activation records.';
-        tableHtml += '<tr><td colspan="12" class="empty">' + escapeHtml(emptyReason) + '</td></tr>';
+        tableHtml += '<tr><td colspan="13" class="empty">' + escapeHtml(emptyReason) + '</td></tr>';
       } else {
         allRecords.forEach(function(r, idx) {
           var isFailure = r.status === 'failure';
@@ -6720,14 +6782,19 @@
           }
 
           var di = r.device_info || {};
-          var vi = r.visitor_info || {};
-          var refUrl = vi.referer || '';
-          var rMatch = refUrl.match(/[&?]r=([^&]+)/);
-          var versionVal = rMatch ? decodeURIComponent(rMatch[1]) : '';
-          var versionCell = versionVal || '';
-          if (!versionCell) versionCell = '<span style="color: var(--ink-3)">-</span>';
-          var modelCell = di.product || di.model || '';
-          if (!modelCell) modelCell = '<span style="color: var(--ink-3)">-</span>';
+          var versionVal = getRecordVersion(r);
+          var versionSrc = getRecordVersionSource(r);
+          var versionCell = versionVal
+            ? '<span title="来源: ' + escapeHtml(versionSrc) + '">' + escapeHtml(versionVal) + '</span>'
+            : '<span style="color: var(--ink-3)">-</span>';
+          var watchModelVal = getRecordWatchModel(r);
+          var watchModelCell = watchModelVal
+            ? escapeHtml(watchModelVal)
+            : '<span style="color: var(--ink-3)">-</span>';
+          var phoneModelVal = getRecordModel(r);
+          var phoneModelCell = phoneModelVal
+            ? escapeHtml(phoneModelVal)
+            : '<span style="color: var(--ink-3)">-</span>';
 
           tableHtml += '<tr class="' + hl.trim() + '">';
           tableHtml += '<td>' + statusBadge + '</td>';
@@ -6754,7 +6821,8 @@
           tableHtml += '<td>' + actSourceBadge(r) + '</td>';
           tableHtml += '<td>' + escapeHtml(r.product_id || '') + '</td>';
           tableHtml += '<td style="font-size:0.8125rem">' + versionCell + '</td>';
-          tableHtml += '<td style="font-size:0.8125rem">' + modelCell + '</td>';
+          tableHtml += '<td style="font-size:0.8125rem">' + watchModelCell + '</td>';
+          tableHtml += '<td style="font-size:0.8125rem">' + phoneModelCell + '</td>';
           tableHtml += '<td>' + new Date(Number(r.generated_at) || 0).toLocaleString('zh-CN') + '</td>';
           tableHtml += '<td>' + expiresText + '</td>';
           var actionCell = '';
@@ -6765,7 +6833,7 @@
           }
           tableHtml += '<td>' + actionCell + '</td>';
           tableHtml += '</tr>';
-          tableHtml += '<tr class="record-detail-row" id="detailRow' + idx + '"><td colspan="12">' + renderRecordDetail(r) + '</td></tr>';
+          tableHtml += '<tr class="record-detail-row" id="detailRow' + idx + '"><td colspan="13">' + renderRecordDetail(r) + '</td></tr>';
         });
       }
       tableHtml += '</tbody></table>';
