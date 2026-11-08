@@ -61,3 +61,6 @@ _persist_*
 _dbe_backup/
 trae_verify*
 .trae/
+
+# 发布脚本裁剪下来的历史安装包（体积大、只在本地留档，不进 git）
+ev/_archive-apk/
