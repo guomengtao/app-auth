@@ -1,3 +1,9 @@
-{"versionCode":183,"versionName":"0.6.0","sha256":"87e1e4b76d75aee673c5f872c646932982509fe7f38ca96555531d61fae30edf",
- "downloadUrlMirror":"https://ghproxy.net/https://github.com/guomengtao/ev-schedule-android/releases/download/v0.6.0/EVSyncProbe-v0.6.0.apk","downloadUrlOrigin":"https://github.com/guomengtao/ev-schedule-android/releases/download/v0.6.0/EVSyncProbe-v0.6.0.apk",
- "isForce":false,"updateLog":"同步器支持了手环重置后，ev课程表的自动激活"}
+{
+ "versionCode": 191,
+ "versionName": "0.6.9",
+ "sha256": "7b2abfb677c7667f59604485baafa61d6702d6afd7aa9897fabef6fd9d0b29e9",
+ "downloadUrlMirror": "https://ghproxy.net/https://github.com/guomengtao/ev-schedule-android/releases/download/v0.6.9/EVSyncProbe-v0.6.9.apk",
+ "downloadUrlOrigin": "https://github.com/guomengtao/ev-schedule-android/releases/download/v0.6.9/EVSyncProbe-v0.6.9.apk",
+ "isForce": false,
+ "updateLog": "界面视觉提升（对比度/字重/圆角）；课表表头吸顶、节次时间归一，修课程错位与撞字；激活与连接页文案改大白话；记录手环标识，重装/多设备识别更准（不影响激活与使用）"
+}
