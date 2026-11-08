@@ -218,6 +218,10 @@ ol.steps .tip{color:var(--muted);font-size:.78rem;display:block}
 
   function urlOf(line){ return line.url || (line.pre + origin); }
 
+  // 测速专用地址：/dl/ 是计数入口（每次命中都写一条 download 埋点），
+  // 探测不能走它，否则开一次页面就虚增 3 次下载。改装成静态直链 /ev/。
+  function probeUrl(u){ return String(u).replace('/dl/', '/ev/'); }
+
   function trackDownload(lineName){
     // 下载点击埋点（P2/D3）：复用全站统一脚本，不再自己拼 fetch（老 WebView 无 fetch）。
     // query 保持原口径：dl=<线路名> + 页面自身的追踪参数 + src=apk-download
@@ -245,7 +249,7 @@ ol.steps .tip{color:var(--muted);font-size:.78rem;display:block}
       box.appendChild(row);
     })(i);
     MIRRORS.forEach(function(ln, i){
-      probe(urlOf(ln)).then(function(ok){
+      probe(probeUrl(urlOf(ln))).then(function(ok){
         var st = document.getElementById('st' + i);
         if (!st) return;
         st.textContent = ok ? '可用' : '不可达';
@@ -278,7 +282,7 @@ ol.steps .tip{color:var(--muted);font-size:.78rem;display:block}
     var next = function(){
       if (!order.length) return;
       var i = order.shift();
-      probe(urlOf(MIRRORS[i])).then(function(ok){
+      probe(probeUrl(urlOf(MIRRORS[i]))).then(function(ok){
         if (ok) {
           picked = i;
           updateMain();
