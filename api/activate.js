@@ -430,6 +430,12 @@ function sanitizeDevice(body) {
     watch_ev_code: clipInt(w.ev_code),
     watch_connected: w.connected === true || w.connected === 1,
     watch_node_id: clipStr(w.node_id, 64),
+    // 使用统计 P0：手环 BLE MAC = 跨重装/重置/换机**不变**的设备锚点（方案 §1）。
+    //   12 位大写 hex（APK 侧 DeviceProbe.normalizeMac 归一）；取不到时为空串。
+    //   mac_random=true 表示占位/随机地址（Android 未授权时的 0200…），服务端不得据此判同一台。
+    //   老 APK 不发这两个字段 → 空串 / 省略，行为与改造前一致。
+    watch_mac: clipStr(w.mac, 32),
+    watch_mac_random: w.mac_random === true ? true : undefined,
     // 手环真实 deviceId（与激活记录同一把钥匙 → 手机↔手环可合并）
     watch_device_id: watchDeviceId,
     watch_device_id4: watchDeviceId ? normalizeDeviceId(watchDeviceId) : "",
