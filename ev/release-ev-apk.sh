@@ -48,7 +48,9 @@ done
 
 die() { echo "❌ $*" >&2; exit 1; }
 say() { echo "── $*"; }
-run() { if [ "$DRY" = "1" ]; then echo "   [dry] $*"; else eval "$@"; fi; }
+# 2026-11-09：旧版 run() 不检查返回值，第 5 步提交被门禁拦下后脚本仍继续跑完
+# 线上校验，把「根本没 push」误报成「Vercel 仍在部署」。关键命令失败必须立即停。
+run() { if [ "$DRY" = "1" ]; then echo "   [dry] $*"; else eval "$@" || die "命令失败，已中止：$*"; fi; }
 
 case "$KEEP" in
   ''|*[!0-9]*) die "--keep 需要正整数（收到：$KEEP）" ;;
@@ -174,6 +176,38 @@ fi
 # ── 5. 提交推送 ────────────────────────────────────────────
 say "5/6 提交并推送"
 [ -n "$TASK" ] || die "缺少 --task 单号（提交门禁需要）；请先 ev-add-task.js 建单"
+
+# 裁剪旧包会 git rm 出「删除记录」，提交门禁要求被删文件也在本次认领里。
+# 2026-11-09 v0.6.54 首次发布就栽在这：认领只写了新包与清单，commit 被拦。
+# 这里按暂存区实际文件补一次认领（ev-claim 并入模式会去重，复用本单在途租约）。
+if [ "$DRY" = "0" ]; then
+  ( cd "$APP_AUTH" && git add -- "ev/$APK_NAME" ev/update-ev.json ) || die "git add 失败"
+  STAGED="$( cd "$APP_AUTH" && git diff --cached --name-only | paste -sd, - )"
+  if [ -n "$STAGED" ]; then
+    ROOT_DIR="$(cd "$APP_AUTH/../.." && pwd)"
+    CLAIM_SH="$ROOT_DIR/ev/ev-hooks/workbuddy-scripts/ev-claim.sh"
+    CLAIM_SID="$( TASK="$TASK" python3 - "$ROOT_DIR/.claims" <<'PY'
+import glob, json, os, sys
+d, task = sys.argv[1], os.environ.get("TASK", "")
+for f in glob.glob(os.path.join(d, "*.json")):
+    try:
+        j = json.load(open(f))
+    except Exception:
+        continue
+    if j.get("status") == "in_progress" and j.get("task_id") == task:
+        print(j.get("id", ""))
+        break
+PY
+)"
+    if [ -n "$CLAIM_SID" ] && [ -x "$CLAIM_SH" ]; then
+      EV_SESSION_ID="$CLAIM_SID" zsh "$CLAIM_SH" claim --topic "同步器发布 ${VER}" \
+        --task "$TASK" --files "$STAGED" --repo ev/app-auth >/dev/null 2>&1 \
+        || echo "   ⚠️ 补认领失败，提交门禁可能拦截；请手动 ev-claim.sh claim 后重试"
+    else
+      echo "   ⚠️ 未找到本单在途认领（${TASK}），裁剪掉的旧包可能触发提交门禁；请先手动认领"
+    fi
+  fi
+fi
 run "( cd '$APP_AUTH' && git add -- 'ev/$APK_NAME' ev/update-ev.json \
   && ~/.workbuddy/scripts/ev-commit.sh -m 'release: 同步器 ${VER}(code ${CODE}) 上线，主下载源改为 Vercel 自托管 (${TASK})' \
   && git push )"
