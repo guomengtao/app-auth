@@ -1,9 +1,9 @@
 {
- "versionCode": 234,
- "versionName": "0.6.52",
- "sha256": "1e780a7bcc9607b1d180a06195d39ed78e0e649fb3e4956bde7e5679557ed090",
- "downloadUrlMirror": "https://app-auth.gudq.com/dl/EVSyncProbe-v0.6.52.apk",
- "downloadUrlOrigin": "https://github.com/guomengtao/ev-schedule-android/releases/download/v0.6.52/EVSyncProbe-v0.6.52.apk",
+ "versionCode": 236,
+ "versionName": "0.6.54",
+ "sha256": "a1dd60cfaf82ca1cb33093a2606534fe754cdc6bd46a44062dec766eed10527d",
+ "downloadUrlMirror": "https://app-auth.gudq.com/dl/EVSyncProbe-v0.6.54.apk",
+ "downloadUrlOrigin": "https://github.com/guomengtao/ev-schedule-android/releases/download/v0.6.54/EVSyncProbe-v0.6.54.apk",
  "isForce": false,
- "updateLog": "首页按上午/下午/晚课分段，显示起止时间与时长；晚课按课表独立、周期1-6周可配；周课表支持左右滑切换；课表栏目修左竖条毛刺并加新建入口"
+ "updateLog": "课程数据导入/导出现已包含晚课，换机或备份不再丢晚课；导入时自动把当前周校准回 1~周期范围，手环、安卓、Rust 三端口径一致"
 }
