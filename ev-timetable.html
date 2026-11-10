@@ -159,6 +159,9 @@
   .dl-card h3{font-size:22px;font-weight:900;}
   .dl-card .price{font-size:34px;font-weight:900;margin:10px 0 16px;color:var(--green-bright);}
   .dl-card.pro .price{color:#fff;}
+  /* 价格刻意不在此页硬编码：套餐（季度/年度/永久）与金额随运营调整，
+     唯一可信来源是激活页 /activate（后端按爱发电 plan 实时展示）。 */
+  .dl-card .price-note{font-size:13px;line-height:1.5;opacity:.85;margin:-6px 0 14px;}
   .dl-card ul{list-style:none;font-size:14.5px;display:flex;flex-direction:column;gap:9px;}
   .dl-card li{display:flex;gap:10px;align-items:baseline;}
   .dl-card li::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--green-bright);flex-shrink:0;transform:translateY(-1px);}
@@ -366,7 +369,8 @@
       </div>
       <div class="dl-card pro">
         <h3>高级版 Pro</h3>
-        <div class="price">¥1 永久</div>
+        <div class="price">永久解锁</div>
+        <p class="price-note">一次性付费 · 永久有效<br>具体套餐与价格以下单页为准</p>
         <ul>
           <li>课程统计 · 数据备份</li>
           <li>多课表 · 首页自定义</li>
