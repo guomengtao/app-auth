@@ -1,0 +1,69 @@
+{
+  "schema": "ev-shot/1",
+  "tool": "ev-shapes §3.24（2026-11-09 20:33 机位回调）9 / 10Pro / 圆 同包 逐屏版本标注",
+  "created": "2026-11-09T20:48:04+08:00",
+  "title": "EV课程表 · 首页 · ev-shapes 三屏对照（手环 9 / 10 Pro / 圆屏）",
+  "page": "index",
+  "ticket": "T-000051",
+  "rpk": "/Users/Banner/Documents/guomengtao/ev/class-schedule/dist/com.application.watch.classschedule.release.1.9.160.rpk",
+  "rpk_sha256": "175a0e6c888c54f29aa4a470a81d26965425a3cc0672a0cc163ad686eab43780",
+  "rpk_sha8": "175a0e6c",
+  "versionName": "1.9.160",
+  "versionCode": "1624",
+  "version_tag_per_column": "版本 v1.9.160 (1624) · 175a0e6c",
+  "build": "npm run release（本次会话 2026-11-09 20:38 +0800 现构建，未复用 dist/ 旧包）",
+  "order": [
+    "pill",
+    "rect",
+    "circle"
+  ],
+  "devices": [
+    {
+      "shape": "pill",
+      "serial": "xiaomi_band-11002",
+      "screen": "192×490",
+      "skin": "xiaomi_band",
+      "versionName": "1.9.160",
+      "versionCode": "1624",
+      "version": "v1.9.160 (1624)",
+      "file": "index-pill.png"
+    },
+    {
+      "shape": "rect",
+      "serial": "xiaomi_band_pro-11004",
+      "screen": "336×480",
+      "skin": "xiaomi_band_pro",
+      "versionName": "1.9.160",
+      "versionCode": "1624",
+      "version": "v1.9.160 (1624)",
+      "file": "index-rect.png"
+    },
+    {
+      "shape": "circle",
+      "serial": "xiaomi_s4-11006",
+      "screen": "466×466",
+      "skin": "xiaomi_s4",
+      "versionName": "1.9.160",
+      "versionCode": "1624",
+      "version": "v1.9.160 (1624)",
+      "file": "index-circle.png"
+    }
+  ],
+  "version_check": {
+    "all_equal": true,
+    "method": "vela.adb 实读三台 guest 内 manifest.json 的 versionName/versionCode",
+    "note": "圆屏 watch5 先打印「首次安装：已推 rpk」但实读仍是 v1.9.158(1622)；用同一 rpk push + unzip -o 覆盖 /data/app/<pkg>/ 后重读，三台均为 v1.9.160(1624)"
+  },
+  "round_data_reset": {
+    "done": true,
+    "method": "am stop <pkg> → rm -f /data/quickapp/system/<pkg>/usr.db → am start <pkg> → vela tap 唤醒",
+    "verification": "usr.db 已由首次安装 seed 重建；首页显示 早自习 07:00-08:00 / 语文 08:00-08:40，无「205教室」「实验室B」等自定义教室信息",
+    "note": "与 src/data/schedule.js 的默认课表（八年级二班，教室/老师留空）一致"
+  },
+  "image": "index-cmp.png",
+  "size": [
+    1247,
+    1018
+  ],
+  "sha256": "bfd00ca0844a1d3bdfdfb1254d2aace30f322421084c64fd3f612e0b3bac85b7"
+}
