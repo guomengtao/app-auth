@@ -18,7 +18,7 @@
   }
   *{box-sizing:border-box}
   html{scroll-behavior:smooth}
-  body{margin:0;background:var(--paper);color:var(--txt);
+  body{margin:0;overflow-x:hidden;background:var(--paper);color:var(--txt);
     font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
     font-size:15px;line-height:1.65;-webkit-font-smoothing:antialiased}
   img{display:block;max-width:100%}
@@ -33,6 +33,7 @@
   .logo{display:flex;align-items:center;gap:8px;font-weight:700;color:#fff;letter-spacing:.2px;font-size:14px}
   .logo .dot{width:8px;height:8px;border-radius:50%;background:var(--amber);box-shadow:0 0 0 4px rgba(255,179,0,.16)}
   nav .links{margin-left:auto;display:flex;gap:16px;align-items:center;font-size:13px}
+  @media(max-width:640px){nav .links a{display:none}nav .links a.keep{display:inline}}
   nav .links a{color:#9AA4B2;text-decoration:none}
   nav .links a:hover{color:#fff}
   nav .links a.hide-sm{display:none}
@@ -265,7 +266,7 @@
       <a class="hide-sm" href="#how">怎么联动</a>
       <a href="#faces">4 款表盘</a>
       <a href="#start">使用步骤</a>
-      <a href="#download">下载</a>
+      <a class="keep" href="#download">下载</a>
       <a class="hide-sm" href="#faq">疑问</a>
     </div>
   </div>
