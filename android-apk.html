@@ -1,72 +1,240 @@
-<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>EvAPK</title><style>
-*{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#f3f4f8;--surface:#fff;--ink:#1a1a2e;--muted:#6b7280;--line:#e7e9f0;--accent:#6c63ff}
-body{font-family:-apple-system,'PingFang SC',sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;padding-bottom:40px}
-.topbar{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.92);border-bottom:1px solid var(--line)}
-.topbar-inner{max-width:1100px;margin:0 auto;padding:14px 20px 8px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
-.t-title{font-size:1.25rem;font-weight:800}
-.t-title small{font-weight:500;color:var(--muted);font-size:.78rem;margin-left:8px}
-.t-meta{display:flex;flex-wrap:wrap;gap:12px;align-items:center;font-size:.78rem;color:var(--muted)}
-.chip{background:var(--accent);color:#fff;padding:3px 10px;border-radius:20px;font-weight:700}
-.filterbar{max-width:1100px;margin:0 auto;padding:0 20px 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.fbtn{border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:6px 14px;border-radius:20px;font-size:.82rem;cursor:pointer}
-.fbtn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-.wrap{max-width:1100px;margin:0 auto;padding:18px 20px}
-.group{background:var(--surface);border:1px solid var(--line);border-radius:16px;margin-bottom:16px;overflow:hidden}
-.group-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer;user-select:none}
-.group-head h2{font-size:1.05rem;font-weight:700}
-.group-head .count{color:var(--muted);font-size:.8rem}
-.group-body{padding:0 18px 18px}
-.card{display:flex;gap:18px;padding:18px 0;border-top:1px solid var(--line);flex-wrap:wrap}
-.card:first-child{border-top:none}
-.device{width:170px;flex:0 0 auto;height:340px;border-radius:22px;background:#0b0b0f;padding:6px;overflow:hidden;display:flex;align-items:center;justify-content:center}
-.device img{width:100%;height:100%;object-fit:contain;border-radius:17px;display:block;cursor:zoom-in}
-.shots{display:flex;gap:10px;flex-wrap:wrap}
-.info{flex:1;min-width:260px}
-.p-name{font-size:1.05rem;font-weight:700}
-.row{margin-top:8px;font-size:.88rem}
-.row .k{color:var(--muted);font-weight:600;margin-right:4px}
-.pts{margin-top:6px;padding-left:18px;font-size:.86rem;color:#444}
-.pts li{margin-bottom:2px}
-.meta{margin-top:8px;font-size:.76rem;color:var(--muted);border-top:1px dashed var(--line);padding-top:6px}
-.footer{text-align:center;color:var(--muted);font-size:.8rem;padding:24px 20px;line-height:1.8}
-.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:50;cursor:zoom-out}
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="description" content="Ev课程表安卓同步器逐页截图档案：16 页真机实拍、排障索引与版本采集信息。"><title>安卓 APK 页面总览 · Ev课程表</title><style>
+/* ===== Design Tokens ===== */
+:root{
+--brand-50:#f2f1ff;--brand-100:#e5e3ff;--brand-600:#5b52e0;--brand-700:#4840bd;
+--ink-900:#14172b;--ink-700:#3a4058;--ink-500:#5f6577;--ink-400:#767d90;
+--line:#e6e8f0;--bg:#f7f8fc;--surface:#fff;
+--ok-50:#e9f8f0;--ok-700:#116b3f;--slate-100:#f1f3f7;--slate-600:#525a6b;
+--s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:32px;--s7:48px;--s8:64px;
+--r-sm:8px;--r-md:12px;--r-lg:16px;--r-xl:20px;--r-pill:999px;
+--sh-sm:0 1px 2px rgba(20,23,43,.05);--sh-md:0 6px 20px rgba(20,23,43,.08);--sh-lg:0 18px 48px rgba(20,23,43,.16);
+--t-fast:150ms ease;--t-normal:240ms ease;--container:1200px;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink-700);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans SC","Microsoft YaHei",system-ui,sans-serif;font-size:15px;line-height:1.65;-webkit-font-smoothing:antialiased}
+a{color:var(--brand-600)}
+a:hover{color:var(--brand-700)}
+img{display:block;max-width:100%}
+button{font:inherit}
+:focus-visible{outline:2px solid var(--brand-600);outline-offset:3px}
+.container{width:100%;max-width:var(--container);margin:0 auto;padding:0 var(--s5)}
+.skip{position:absolute;left:-9999px;top:0;z-index:100;background:var(--surface);padding:var(--s3) var(--s4);border-radius:var(--r-sm)}
+.skip:focus{left:var(--s4);top:var(--s4)}
+.section-kicker{margin:0 0 var(--s2);font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--brand-600)}
+.panel-head-title{margin:0;font-size:22px;line-height:1.3;color:var(--ink-900);font-weight:700}
+
+/* ===== Hero ===== */
+.hero{background:var(--surface);border-bottom:1px solid var(--line)}
+.hero-inner{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--s7);align-items:center;padding-top:var(--s7);padding-bottom:var(--s6)}
+.eyebrow{margin:0 0 var(--s3);font-size:12px;font-weight:700;letter-spacing:.14em;color:var(--brand-600);text-transform:uppercase}
+h1{margin:0;font-size:44px;line-height:1.2;letter-spacing:-.02em;color:var(--ink-900);font-weight:750}
+.lede{margin:var(--s4) 0 0;font-size:16px;color:var(--ink-500);max-width:54ch}
+.hero-actions{display:flex;gap:var(--s3);flex-wrap:wrap;margin-top:var(--s5)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--s2);min-height:44px;padding:0 var(--s5);border-radius:var(--r-md);font-size:14px;font-weight:650;border:1px solid transparent;cursor:pointer;text-decoration:none;transition:background var(--t-fast),box-shadow var(--t-fast),transform var(--t-fast),color var(--t-fast),border-color var(--t-fast)}
+.btn-primary{background:var(--brand-600);color:#fff;box-shadow:var(--sh-sm)}
+.btn-primary:hover{background:var(--brand-700);color:#fff;transform:translateY(-1px);box-shadow:var(--sh-md)}
+.btn-ghost{background:var(--surface);border-color:var(--line);color:var(--ink-700)}
+.btn-ghost:hover{border-color:var(--brand-100);background:var(--brand-50);color:var(--brand-700)}
+.ver-panel{min-width:252px;padding:var(--s5);border:1px solid var(--brand-100);background:linear-gradient(155deg,var(--brand-50),#fff 72%);border-radius:var(--r-xl)}
+.ver-label{font-size:12px;font-weight:650;color:var(--ink-500);letter-spacing:.04em}
+.ver-num{font-size:36px;font-weight:750;line-height:1.15;color:var(--ink-900);margin:var(--s2) 0 0;font-variant-numeric:tabular-nums}
+.ver-code{display:inline-block;margin-top:var(--s2);font-size:12px;font-weight:650;color:var(--brand-700);background:var(--surface);border:1px solid var(--brand-100);border-radius:var(--r-pill);padding:2px var(--s3)}
+.ver-sub{font-size:13px;color:var(--ink-500);margin:var(--s3) 0 0}
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--s3);padding-bottom:var(--s6)}
+.metric{background:var(--bg);border:1px solid var(--line);border-radius:var(--r-md);padding:var(--s3) var(--s4)}
+.m-label{display:block;font-size:12px;color:var(--ink-500);font-weight:600}
+.m-value{display:block;font-size:28px;line-height:1.25;font-weight:750;color:var(--ink-900);font-variant-numeric:tabular-nums;margin-top:var(--s1)}
+.m-value small{font-size:13px;font-weight:600;color:var(--ink-500);margin-left:var(--s1)}
+.m-hint{display:block;font-size:12px;color:var(--ink-400)}
+
+/* ===== Utility: notice + site nav ===== */
+.utility{padding-top:var(--s6)}
+.notice{display:flex;gap:var(--s3);align-items:flex-start;background:var(--brand-50);border:1px solid var(--brand-100);border-radius:var(--r-md);padding:var(--s3) var(--s4)}
+.notice-mark{flex:0 0 auto;width:20px;height:20px;border-radius:50%;background:var(--brand-600);color:#fff;font-size:12px;font-weight:700;line-height:20px;text-align:center;margin-top:2px}
+.notice-text{margin:0;font-size:13px;color:var(--ink-700);line-height:1.65}
+.site-nav{margin-top:var(--s3)}
+.filterbar{display:flex;flex-wrap:wrap;gap:var(--s2)}
+.fbtn{display:inline-flex;align-items:center;min-height:30px;padding:0 var(--s3);border:1px solid var(--line);border-radius:var(--r-pill);background:var(--surface);color:var(--ink-500);font-size:12px;line-height:1;text-decoration:none;transition:all var(--t-fast)}
+.fbtn:hover{border-color:var(--brand-100);background:var(--brand-50);color:var(--brand-700)}
+.fbtn.active{border-color:var(--brand-100);background:var(--brand-50);color:var(--brand-700);font-weight:700}
+
+/* ===== Panels ===== */
+main{padding-top:var(--s6)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:var(--s6);margin-bottom:var(--s7);box-shadow:var(--sh-sm)}
+.panel-head{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--s4);flex-wrap:wrap;margin-bottom:var(--s5)}
+.panel h2{margin:0;font-size:22px;line-height:1.3;color:var(--ink-900);font-weight:700}
+.panel-sub{margin:var(--s2) 0 0;font-size:13px;color:var(--ink-500)}
+.text-link{font-size:13px;font-weight:650;white-space:nowrap}
+.preview-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s4)}
+.preview-item{margin:0}
+.preview-btn{display:flex;align-items:center;justify-content:center;width:100%;height:300px;padding:0;border:1px solid var(--line);border-radius:var(--r-md);background:#f7f8fc;overflow:hidden;cursor:zoom-in;transition:border-color var(--t-fast),box-shadow var(--t-fast)}
+.preview-btn:hover{border-color:var(--brand-100);box-shadow:var(--sh-md)}
+.preview-btn img{width:100%;height:100%;object-fit:contain;padding:var(--s3)}
+.m-date{font-size:18px;letter-spacing:-.02em}
+.preview-item figcaption{font-size:12px;color:var(--ink-500);margin-top:var(--s2);text-align:center}
+.fineprint{margin:var(--s5) 0 0;font-size:12px;color:var(--ink-400);line-height:1.7}
+
+/* ===== Archive ===== */
+.archive{margin-bottom:var(--s7)}
+.archive-head{margin-bottom:var(--s4)}
+.seg-nav{position:sticky;top:0;z-index:12;display:flex;gap:var(--s2);overflow-x:auto;padding:var(--s3) 0;background:rgba(247,248,252,.95);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);margin-bottom:var(--s5);scrollbar-width:thin}
+.seg-btn{white-space:nowrap;min-height:36px;padding:0 var(--s4);border:1px solid var(--line);border-radius:var(--r-pill);background:var(--surface);color:var(--ink-500);font-size:13px;font-weight:600;cursor:pointer;transition:all var(--t-fast)}
+.seg-btn:hover{border-color:var(--brand-100);color:var(--brand-700)}
+.seg-btn.active{background:var(--brand-600);border-color:var(--brand-600);color:#fff}
+.seg-btn .n{margin-left:var(--s2);opacity:.75;font-variant-numeric:tabular-nums}
+.sec{margin-bottom:var(--s7)}
+.sec-head{display:flex;align-items:baseline;gap:var(--s3);flex-wrap:wrap;margin-bottom:var(--s4);padding-left:var(--s3);border-left:3px solid var(--brand-600)}
+.sec-head h3{margin:0;font-size:20px;line-height:1.3;color:var(--ink-900);font-weight:700}
+.sec-head p{margin:0;font-size:13px;color:var(--ink-400)}
+.sec-count{margin-left:auto;font-size:12px;color:var(--ink-400)}
+.shot-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--s5)}
+.shot-card{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;cursor:pointer;transition:box-shadow var(--t-normal),transform var(--t-normal),border-color var(--t-fast)}
+.shot-card:hover{box-shadow:var(--sh-md);transform:translateY(-2px);border-color:var(--brand-100)}
+.shot-media{height:300px;display:flex;align-items:center;justify-content:center;padding:var(--s4);background:linear-gradient(180deg,#fafbfe,#f0f2f8);border-bottom:1px solid var(--line);overflow:hidden}
+.device{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+.device img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;border-radius:10px;border:1px solid #dfe3ee;background:#fff;box-shadow:var(--sh-sm)}
+.img-missing{font-size:12px;color:var(--ink-400)}
+.shot-info{display:flex;flex-direction:column;gap:var(--s2);padding:var(--s4);flex:1}
+.shot-title{margin:0;font-size:16px;font-weight:700;color:var(--ink-900)}
+.shot-desc{margin:0;font-size:13px;color:var(--ink-500);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.9em}
+.badge{align-self:flex-start;margin-top:auto;display:inline-flex;align-items:center;height:22px;padding:0 var(--s3);border-radius:var(--r-pill);font-size:11px;font-weight:700;letter-spacing:.01em}
+.badge-new{background:var(--ok-50);color:var(--ok-700)}
+.badge-legacy{background:var(--slate-100);color:var(--slate-600)}
+
+/* ===== Capture info ===== */
+.capture-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s4);margin-top:var(--s5)}
+.capture-block{border:1px solid var(--line);border-radius:var(--r-md);padding:var(--s5);background:var(--bg)}
+.capture-block h3{margin:0 0 var(--s4);font-size:15px;font-weight:700;color:var(--ink-900)}
+.capture-block dl{margin:0;display:grid;grid-template-columns:64px minmax(0,1fr);gap:var(--s2) var(--s3);font-size:13px}
+.capture-block dt{color:var(--ink-400)}
+.capture-block dd{margin:0;color:var(--ink-700);font-weight:600;font-variant-numeric:tabular-nums}
+
+/* ===== Footer ===== */
+.footer{text-align:center;color:var(--ink-400);font-size:12px;padding:var(--s6) var(--s5) var(--s7);line-height:1.9;border-top:1px solid var(--line);margin-top:var(--s7)}
+
+/* ===== Lightbox ===== */
+.lightbox{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:var(--s5);background:rgba(12,14,28,.72);backdrop-filter:blur(4px)}
 .lightbox.show{display:flex}
-.lightbox img{max-width:90vw;max-height:90vh;border-radius:20px}
-@media(max-width:600px){.device{width:130px;height:260px}}
-.note{max-width:1100px;margin:14px auto 0;padding:10px 20px;font-size:.85rem;color:#8a6d00;background:#fff7e0;border:1px solid #f0dfa8;border-radius:12px}
-.showcase{max-width:1100px;margin:18px auto 0;padding:18px 20px;background:var(--surface);border:1px solid var(--line);border-radius:16px}
-.showcase h2{font-size:1.05rem;font-weight:700}
-.showcase .sub{font-size:.8rem;color:var(--muted);margin:4px 0 14px}
-.showcase-grid{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
-.showcase-item{width:200px;text-align:center}
-.showcase-item img{width:100%;border:1px solid var(--line);border-radius:14px;display:block;cursor:zoom-in}
-.showcase-item .cap{font-size:.78rem;color:var(--muted);margin-top:6px}
-.shot{position:relative}
-.badge{display:inline-block;font-size:.7rem;font-weight:700;padding:2px 10px;border-radius:20px;margin-top:6px}
-.badge-new{background:#e7f7ee;color:#137a45}
-.badge-legacy{background:#f1f1f5;color:#6b7280}
-.disclaimer{font-size:.75rem;color:#8a6d00;margin-top:12px;text-align:center}
-@media(max-width:600px){.showcase-item{width:150px}}
+.dialog{position:relative;display:grid;grid-template-columns:minmax(0,420px) minmax(0,380px);width:min(880px,100%);max-height:88vh;overflow:hidden;background:var(--surface);border-radius:var(--r-xl);box-shadow:var(--sh-lg)}
+.dialog-close{position:absolute;top:var(--s3);right:var(--s3);z-index:2;width:36px;height:36px;border:1px solid var(--line);border-radius:50%;background:var(--surface);color:var(--ink-700);font-size:20px;line-height:1;cursor:pointer;transition:background var(--t-fast)}
+.dialog-close:hover{background:var(--brand-50)}
+.dialog-media{display:flex;align-items:center;justify-content:center;padding:var(--s5);background:#f1f3f8}
+.dialog-media img{max-height:76vh;max-width:100%;object-fit:contain;border-radius:var(--r-md);border:1px solid var(--line);box-shadow:var(--sh-md)}
+.dialog-body{padding:var(--s6);overflow-y:auto}
+.d-eyebrow{margin:0 0 var(--s2);font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--brand-600)}
+.dialog-body h2{margin:0;font-size:24px;line-height:1.3;color:var(--ink-900);font-weight:700}
+.d-block{margin-top:var(--s5)}
+.d-label{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-400)}
+.d-text{margin-top:var(--s2);font-size:14px;color:var(--ink-700)}
+.d-list{margin:var(--s2) 0 0;padding-left:18px;font-size:13px;color:var(--ink-700)}
+.d-list li{margin-bottom:var(--s1)}
+.d-meta{margin-top:var(--s2);font-size:13px;color:var(--ink-500);line-height:1.8}
+
+/* ===== Responsive ===== */
+@media(max-width:1199px){.shot-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:899px){
+ .hero-inner{grid-template-columns:1fr;gap:var(--s5);padding-top:var(--s6)}
+ h1{font-size:36px}.ver-panel{min-width:0}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .shot-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .dialog{grid-template-columns:1fr;max-height:90vh;overflow-y:auto}
+ .dialog-media{padding:var(--s4)}.dialog-media img{max-height:38vh}
+ .dialog-body{padding:var(--s5)}
+}
+@media(max-width:639px){
+ .container{padding:0 var(--s4)}
+ h1{font-size:30px}.lede{font-size:14px}
+ .panel{padding:var(--s5);margin-bottom:var(--s6)}
+ .preview-grid{display:flex;gap:var(--s3);overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:var(--s2)}
+ .preview-item{flex:0 0 150px;scroll-snap-align:start}
+ .preview-btn{height:250px}.m-date{font-size:16px}
+ .preview-item figcaption{font-size:11px;line-height:1.4}
+ .capture-grid{grid-template-columns:1fr}
+ .shot-grid{gap:var(--s3)}.shot-media{height:230px;padding:var(--s3)}
+ .shot-info{padding:var(--s3)}.shot-title{font-size:14px}
+ .lightbox{padding:var(--s2)}
+ .sec{margin-bottom:var(--s6)}
+ .sec-count{margin-left:0}
+}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}.shot-card:hover,.btn-primary:hover{transform:none}}
 </style></head><body>
-<div class="topbar"><div class="topbar-inner">
-<div class="t-title">Ev课程表 · 安卓 APK 页面总览<small>逐页截图档案 · 排障索引</small>　<a href="/apk-download.html" style="background:var(--accent);color:#fff;padding:4px 14px;border-radius:20px;font-size:.8rem;text-decoration:none;margin-left:8px">⬇ 下载 APK</a></div>
-<div class="t-meta"><span class="chip" id="verChip"></span><span>截图时间 <b id="capTime"></b></span><span>页面更新 <b id="pageTime"></b></span></div>
-</div><div class="filterbar" id="filterbar"></div><div class="filterbar" id="siteNav"></div></div>
-<div class="note" id="stateNote"></div>
-<div class="showcase">
-<h2>新版界面速览 · EV-UI v1.3</h2>
-<div class="sub">2026-11-05 落地：课程块身份色条沿圆角收口、圆角 18/14/8、WCAG AA 配色；2026-11-12 又完成 12 页 v0.6.56 真机补采，下方 16 页卡片现全部为新版实拍。</div>
-<div class="showcase-grid">
-<div class="showcase-item"><img loading="lazy" src="/images/promo-2-0/apk-home.jpg?v=20261112" alt="新版首页" onclick="openLightboxImg(this)" onerror="imgError(this)"><div class="cap">首页 · 今日课程 + 本周课表矩阵</div></div>
-<div class="showcase-item"><img loading="lazy" src="/images/promo-2-0/apk-week.jpg?v=20261112" alt="新版课表库" onclick="openLightboxImg(this)" onerror="imgError(this)"><div class="cap">我的课表 · 手环课表 / 本地课表分区</div></div>
-<div class="showcase-item"><img loading="lazy" src="/images/promo-2-0/apk-band.jpg?v=20261112" alt="新版连接排查" onclick="openLightboxImg(this)" onerror="imgError(this)"><div class="cap">手环 · 连不上？查一查 4 步排查</div></div>
+<a class="skip" href="#archive">跳到截图档案</a>
+
+<header class="hero">
+ <div class="container hero-inner">
+  <div>
+   <p class="eyebrow">Ev Course Schedule · Android</p>
+   <h1>安卓 APK 页面总览</h1>
+   <p class="lede">16 页真机实拍档案与逐页排障索引。按功能分区浏览，点开任意卡片查看大图、入口与功能要点。</p>
+   <div class="hero-actions">
+    <a class="btn btn-primary" href="/apk-download.html">下载 APK <span aria-hidden="true">↗</span></a>
+    <a class="btn btn-ghost" href="#capture-info">采集说明</a>
+   </div>
+  </div>
+  <div class="ver-panel">
+   <div class="ver-label">当前线上发布版</div>
+   <div class="ver-num" id="verChip"></div>
+   <span class="ver-code" id="verCode"></span>
+   <p class="ver-sub">截图档案与发布版分别标注，排查时以手机实际版本为准。</p>
+  </div>
+ </div>
+ <div class="container">
+  <div class="metrics">
+   <div class="metric"><span class="m-label">真机实拍</span><strong class="m-value" id="mTotal">16<small>页</small></strong><span class="m-hint">全部为新版实拍</span></div>
+   <div class="metric"><span class="m-label">最新批次</span><strong class="m-value"><span id="mNew">12</span><small>页</small></strong><span class="m-hint">v0.6.56 · Redmi 6A</span></div>
+   <div class="metric"><span class="m-label">首批存档</span><strong class="m-value"><span id="mFirst">4</span><small>页</small></strong><span class="m-hint">v0.6.8 · 1080×1920</span></div>
+   <div class="metric"><span class="m-label">页面更新</span><strong class="m-value m-date" id="mDate"></strong><span class="m-hint">截图采集以卡片徽标为准</span></div>
+  </div>
+ </div>
+</header>
+
+<div class="container utility">
+ <div class="notice"><span class="notice-mark" aria-hidden="true">i</span><p class="notice-text" id="stateNote"></p></div>
+ <nav class="site-nav" id="siteNav" aria-label="全站导航"></nav>
 </div>
-<div class="disclaimer">以上 3 张为 2026-11-12 宣传裁切图（去掉系统栏），非排障实拍；下方 16 页卡片均为真机实拍：12 页 v0.6.56 / 720×1440（Redmi 6A）、首批 4 页 v0.6.8 / 1080×1920。</div>
-</div>
-<div class="wrap" id="app"></div>
+
+<main class="container">
+ <section class="panel" aria-labelledby="previewH">
+  <div class="panel-head">
+   <div><p class="section-kicker">界面速览</p><h2 id="previewH">新版界面 · EV-UI v1.3</h2><p class="panel-sub">课程块身份色条沿圆角收口、圆角 18 / 14 / 8、WCAG AA 配色。</p></div>
+   <a class="text-link" href="#archive">查看 16 页档案 ↓</a>
+  </div>
+  <div class="preview-grid">
+   <figure class="preview-item"><button class="preview-btn" type="button" aria-label="放大：首页" onclick="openLightboxImg(this.getElementsByTagName('img')[0])"><img loading="lazy" src="/images/promo-2-0/apk-home.jpg?v=20261112" alt="首页 · 今日课程 + 本周课表矩阵" onerror="imgError(this)"></button><figcaption>首页 · 今日课程 + 本周课表矩阵</figcaption></figure>
+   <figure class="preview-item"><button class="preview-btn" type="button" aria-label="放大：我的课表" onclick="openLightboxImg(this.getElementsByTagName('img')[0])"><img loading="lazy" src="/images/promo-2-0/apk-week.jpg?v=20261112" alt="我的课表 · 手环课表 / 本地课表分区" onerror="imgError(this)"></button><figcaption>我的课表 · 手环 / 本地课表分区</figcaption></figure>
+   <figure class="preview-item"><button class="preview-btn" type="button" aria-label="放大：连接排查" onclick="openLightboxImg(this.getElementsByTagName('img')[0])"><img loading="lazy" src="/images/promo-2-0/apk-band.jpg?v=20261112" alt="手环 · 连不上？查一查 4 步排查" onerror="imgError(this)"></button><figcaption>手环 · 连不上？查一查 4 步排查</figcaption></figure>
+  </div>
+  <p class="fineprint">以上 3 张为 2026-11-12 宣传裁切图（去掉系统栏），非排障实拍；下方 16 页卡片均为真机实拍：12 页 v0.6.56 / 720×1440（Redmi 6A）、首批 4 页 v0.6.8 / 1080×1920。</p>
+ </section>
+
+ <section class="archive" id="archive" aria-labelledby="archiveH">
+  <div class="archive-head"><p class="section-kicker">逐页档案</p><h2 id="archiveH" class="panel-head-title">16 页真机实拍</h2><p class="panel-sub">按功能分区浏览，点击卡片查看大图与完整说明。</p></div>
+  <nav class="seg-nav" id="filterbar" aria-label="按分区筛选"></nav>
+  <div id="app"></div>
+ </section>
+
+ <section class="panel" id="capture-info" aria-labelledby="captureH">
+  <p class="section-kicker">采集信息</p>
+  <h2 id="captureH">两批真机实拍，口径分开标注</h2>
+  <p class="panel-sub">每张卡片徽标标注自身版本；以下为批次级采集环境。</p>
+  <div class="capture-grid">
+   <div class="capture-block"><h3>批次一 · v0.6.56（12 页）</h3><dl><dt>设备</dt><dd>Redmi 6A · Android 9</dd><dt>尺寸</dt><dd>720×1440</dd><dt>时间</dt><dd id="capTime"></dd><dt>方式</dt><dd>adb screencap 真机实拍</dd></dl></div>
+   <div class="capture-block"><h3>批次二 · v0.6.8（首批 4 页）</h3><dl><dt>设备</dt><dd>2026-11-05 采集机</dd><dt>尺寸</dt><dd>1080×1920</dd><dt>时间</dt><dd>2026-11-05 19:45</dd><dt>方式</dt><dd>真机实拍</dd></dl></div>
+  </div>
+  <p class="fineprint">页面更新 <b id="pageTime"></b> · 线上发布版以顶部版本卡为准 · 两批采集设备与尺寸不同，已分开标注 · 页面随版本快速演进，排查时以手机实际版本为准。</p>
+ </section>
+</main>
+
 <div class="footer">Ev课程表 · 安卓 APK 页面总览 · 2026-11-12 更新<br>真机实拍 16 页：12 页 v0.6.56 / 2026-11-12 20:12 / 720×1440（Redmi 6A）＋ 首批 4 页 v0.6.8 / 2026-11-05 / 1080×1920<br>两批采集设备与尺寸不同，每张截图均标注版本；线上发布版见顶部版本 chip<br>页面随版本快速演进，排查时以手机实际版本为准</div>
-<div class="lightbox" id="lightbox" onclick="hideLightbox()"><img id="lightboxImg" src=""></div>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="页面截图详情" onclick="hideLightbox()">
+ <div class="dialog" onclick="if(event)event.stopPropagation()">
+  <button class="dialog-close" type="button" aria-label="关闭" onclick="hideLightbox()">×</button>
+  <div class="dialog-media"><img id="lightboxImg" src="" alt=""></div>
+  <div class="dialog-body" id="dialogBody"></div>
+ </div>
+</div>
+
 <script>
 var DATA={app:{name:"Ev课程表 APK",repo:"guomengtao/ev-schedule-android",version:"0.6.56",versionCode:238,updatedAt:"2026-11-12"},
 captureEnv:{device:"华为荣耀畅玩7X BLN-AL20",os:"EMUI 8 / Android 8.0",size:"1080x2160",adb:"BTF4C17222009588",state:"手环未连接",note:"历史采集环境存档；v0.5.166 旧版存档图已于 2026-11-12 全部被新版实拍替换"},
@@ -105,20 +273,32 @@ shots:[{file:"apk/battery-v0.6.56.png",state:"省电白名单 · 后台常驻",v
 {id:"find-phone",name:"找手机",group:"支持与激活",usage:"手环触发后手机响铃全屏提示，可一键关闭",entry:"工具箱 → 找手机（手环触发）",points:["固定深底，任何主题下都醒目","锁屏之上显示；不进最近任务","30 秒超时/通知栏可停"],
 shots:[{file:"apk/find-phone-v0.6.56.png",state:"找手机 · 全屏响铃",version:"0.6.56",at:"2026-11-12 20:10",fresh:1}]}
 ]};
-var cur='';function renderShots(p){var h='<div class="shots">';for(var i=0;i<p.shots.length;i++){var s=p.shots[i];var b=s.fresh?'<span class="badge badge-new">新版实拍 v'+s.version+'</span>':'<span class="badge badge-legacy">旧版存档 v'+s.version+'</span>';h+='<div class="shot" data-project="ev-schedule-android" data-page="'+p.id+'" data-file="'+s.file+'"><div class="device" onclick="openLightbox(this)"><img loading="lazy" src="/images/ev-schedule/'+s.file+'?v=20261112" alt="'+s.state+'" onerror="imgError(this)"></div>'+b+'</div>'}return h+'</div>'}
-function renderCard(p){var c=document.createElement('div');c.className='card';c.setAttribute('data-group',p.group);var l=document.createElement('div');l.innerHTML=renderShots(p);var f=document.createElement('div');f.className='info';var h='<div class="p-name">'+p.name+'</div>';h+='<div class="row"><span class="k">用途</span>'+p.usage+'</div>';h+='<div class="row"><span class="k">入口</span>'+p.entry+'</div>';if(p.points)h+='<ul class="pts"><li>'+p.points.join('</li><li>')+'</li></ul>';h+='<div class="meta">截图：';for(var i=0;i<p.shots.length;i++){var s=p.shots[i];h+='· '+s.state+' <b>v'+s.version+'</b> · '+s.at+(s.legacy?' · 待补采新版':' · 新版实拍')+'<br>'}f.innerHTML=h;c.appendChild(l);c.appendChild(f);return c}
-function groups(){var seen={},a=[];for(var i=0;i<DATA.pages.length;i++){var g=DATA.pages[i].group;if(!seen[g]){seen[g]=1;a.push(g)}}return a}
-function renderGroup(n,ps){var g=document.createElement('div');g.className='group';g.setAttribute('data-group',n);var h=document.createElement('div');h.className='group-head';h.innerHTML='<h2>'+n+'</h2><span class="count">'+ps.length+' 页</span>';h.setAttribute('onclick',"tog('"+n+"')");var b=document.createElement('div');b.className='group-body';b.id='gb-'+n;for(var i=0;i<ps.length;i++)b.appendChild(renderCard(ps[i]));g.appendChild(h);g.appendChild(b);return g}
-function tog(n){var b=document.getElementById('gb-'+n);b.style.display=b.style.display==='none'?'block':'none'}
-function setGroup(n){cur=n;applyF()}
-function applyF(){var gs=document.getElementsByClassName('group');for(var i=0;i<gs.length;i++){var g=gs[i],cs=g.getElementsByClassName('card'),any=false;for(var j=0;j<cs.length;j++){var s=cur===''||cs[j].getAttribute('data-group')===cur;cs[j].style.display=s?'flex':'none';if(s)any=true}g.style.display=any?'block':'none'}var bs=document.getElementsByClassName('fbtn');for(var k=0;k<bs.length;k++)bs[k].className='fbtn'+(bs[k].getAttribute('data-g')===cur?' active':'')}
-function imgError(im){im.parentNode.className='device';im.parentNode.innerHTML='<div style="color:#9aa;font-size:.75rem;display:flex;align-items:center;justify-content:center;height:100%">截图缺失</div>'}
-function openLightbox(el){var im=el.getElementsByTagName('img')[0];document.getElementById('lightboxImg').src=im?im.src:'';document.getElementById('lightbox').className='lightbox show'}
-function openLightboxImg(im){document.getElementById('lightboxImg').src=im.src;document.getElementById('lightbox').className='lightbox show'}
-function hideLightbox(){document.getElementById('lightbox').className='lightbox'}
-function render(){document.getElementById('verChip').textContent='v'+DATA.app.version+' ('+DATA.app.versionCode+') · 实拍 v'+DATA.shotSets.fresh.version;document.getElementById('capTime').textContent=DATA.capturedAt;document.getElementById('pageTime').textContent=DATA.pageUpdatedAt;document.getElementById('stateNote').textContent='📌 本页已更新：16 页全部为真机实拍——12 页 v0.6.56（2026-11-12 20:12 / 720×1440 / Redmi 6A）＋ 首批 4 页 v0.6.8（2026-11-05 / 1080×1920）。当前线上发布版 v'+DATA.app.version+'（code '+DATA.app.versionCode+'），排查时以手机实际版本为准。';
-var bar=document.getElementById('filterbar');var all=document.createElement('button');all.className='fbtn active';all.setAttribute('data-g','');all.textContent='全部';all.setAttribute('onclick',"setGroup('')");bar.appendChild(all);var gs=groups();for(var i=0;i<gs.length;i++){var b=document.createElement('button');b.className='fbtn';b.setAttribute('data-g',gs[i]);b.textContent=gs[i];b.setAttribute('onclick',"setGroup('"+gs[i]+"')");bar.appendChild(b)}
-var app=document.getElementById('app');var byG={};for(var i=0;i<DATA.pages.length;i++){var g=DATA.pages[i].group;(byG[g]=byG[g]||[]).push(DATA.pages[i])}var gs=groups();for(var j=0;j<gs.length;j++)app.appendChild(renderGroup(gs[j],byG[gs[j]]))}
+var cur='all';
+var SECTIONS=[
+{key:'all',name:'全部',groups:[],desc:''},
+{key:'core',name:'核心界面',groups:['底栏 4 页'],desc:'启动后最常停留的四个底栏页面'},
+{key:'course',name:'课程管理',groups:['导入导出','课程'],desc:'课表导入导出与单课、JSON 编辑'},
+{key:'personal',name:'手环与个性化',groups:['留言与个性化'],desc:'腕上留言、手环首页模板与主题'},
+{key:'tools',name:'工具与支持',groups:['工具箱','支持与激活'],desc:'实用工具、高级版激活与后台保活'}
+];
+var lastFocus=null;
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function pagesOf(sec){var out=[];for(var i=0;i<DATA.pages.length;i++){if(sec.groups.indexOf(DATA.pages[i].group)>=0)out.push(DATA.pages[i])}return out}
+function findPage(id){for(var i=0;i<DATA.pages.length;i++)if(DATA.pages[i].id===id)return DATA.pages[i];return null}
+function renderShots(p){var s=p.shots[0];var b=s.fresh?'<span class="badge badge-new">新版实拍 v'+s.version+'</span>':'<span class="badge badge-legacy">旧版存档 v'+s.version+'</span>';return '<div class="shot shot-media" data-project="ev-schedule-android" data-page="'+p.id+'" data-file="'+s.file+'"><div class="device"><img loading="lazy" src="/images/ev-schedule/'+s.file+'?v=20261112" alt="'+esc(s.state)+'" onerror="imgError(this)"></div></div><div class="shot-info"><h3 class="shot-title">'+esc(p.name)+'</h3><p class="shot-desc">'+esc(p.usage)+'</p>'+b+'</div>'}
+function renderCard(p,sec){var c=document.createElement('article');c.className='shot-card';c.setAttribute('data-group',p.group);c.setAttribute('data-section',sec);c.setAttribute('tabindex','0');c.setAttribute('role','button');c.setAttribute('aria-label','查看「'+p.name+'」大图与完整说明');c.innerHTML=renderShots(p);c.onclick=function(){openCard(p,c)};c.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();openCard(p,c)}};return c}
+function setSection(k){cur=k;var secs=document.getElementsByClassName('sec');for(var i=0;i<secs.length;i++)secs[i].style.display=(k==='all'||secs[i].getAttribute('data-section')===k)?'':'none';var bs=document.getElementsByClassName('seg-btn');for(var j=0;j<bs.length;j++)bs[j].className='seg-btn'+(bs[j].getAttribute('data-sec')===k?' active':'')}
+function imgError(im){if(!im.getAttribute('data-retried')){im.setAttribute('data-retried','1');im.src=im.src.split('?')[0]+'?v=20261112&r=1';return}var p=im.parentNode;p.className='device img-missing';p.innerHTML='<span>截图缺失</span>'}
+function showLightbox(){var lb=document.getElementById('lightbox');lb.className='lightbox show';document.body.style.overflow='hidden';var c=lb.querySelector('.dialog-close');if(c)c.focus()}
+function hideLightbox(){var lb=document.getElementById('lightbox');lb.className='lightbox';document.body.style.overflow='';if(lastFocus&&lastFocus.focus)lastFocus.focus()}
+function openCard(p,el){lastFocus=el||document.activeElement;var s=p.shots[0];var im=document.getElementById('lightboxImg');im.src='/images/ev-schedule/'+s.file+'?v=20261112';im.alt=s.state;var h='<p class="d-eyebrow">'+esc(p.group)+'</p><h2>'+esc(p.name)+'</h2>';h+='<div class="d-block"><div class="d-label">用途</div><div class="d-text">'+esc(p.usage)+'</div></div>';h+='<div class="d-block"><div class="d-label">入口</div><div class="d-text">'+esc(p.entry)+'</div></div>';if(p.points&&p.points.length)h+='<div class="d-block"><div class="d-label">功能要点</div><ul class="d-list"><li>'+p.points.map(esc).join('</li><li>')+'</li></ul></div>';h+='<div class="d-block"><div class="d-label">截图信息</div><div class="d-meta">'+esc(s.state)+'<br>版本 v'+s.version+' · '+s.at+'<br>'+(s.fresh?'新版实拍':'旧版存档')+'</div></div>';document.getElementById('dialogBody').innerHTML=h;showLightbox()}
+function openLightbox(el){var card=el.closest?el.closest('.shot-card'):null;if(card){var u=card.querySelector('.shot');var p=findPage(u.getAttribute('data-page'));if(p)return openCard(p,card)}var im=el.getElementsByTagName('img')[0];document.getElementById('lightboxImg').src=im?im.src:'';document.getElementById('dialogBody').innerHTML='';showLightbox()}
+function openLightboxImg(im){lastFocus=im;var big=document.getElementById('lightboxImg');big.src=im.src;big.alt=im.alt||'界面速览';document.getElementById('dialogBody').innerHTML='<p class="d-eyebrow">界面速览</p><h2>'+esc(im.alt||'新版界面')+'</h2><div class="d-block"><div class="d-label">说明</div><div class="d-text">宣传裁切图（已去除系统栏），用于展示新版视觉规范；排障请以下方真机实拍档案为准。</div></div>';showLightbox()}
+function render(){document.getElementById('verChip').textContent='v'+DATA.app.version;document.getElementById('verCode').textContent='code '+DATA.app.versionCode;document.getElementById('capTime').textContent=DATA.shotSets.fresh.at;document.getElementById('pageTime').textContent=DATA.pageUpdatedAt;document.getElementById('stateNote').textContent='📌 本页已更新：16 页全部为真机实拍——12 页 v0.6.56（2026-11-12 20:12 / 720×1440 / Redmi 6A）＋ 首批 4 页 v0.6.8（2026-11-05 / 1080×1920）。当前线上发布版 v'+DATA.app.version+'（code '+DATA.app.versionCode+'），排查时以手机实际版本为准。';
+var v56=0,v68=0;for(var i=0;i<DATA.pages.length;i++){var v=DATA.pages[i].shots[0].version;if(v==='0.6.56')v56++;else v68++}document.getElementById('mTotal').textContent=DATA.pages.length;document.getElementById('mNew').textContent=v56;document.getElementById('mFirst').textContent=v68;document.getElementById('mDate').textContent=DATA.pageUpdatedAt;
+var bar=document.getElementById('filterbar');for(var s=0;s<SECTIONS.length;s++){var sec=SECTIONS[s];var n=sec.key==='all'?DATA.pages.length:pagesOf(sec).length;var b=document.createElement('button');b.className='seg-btn'+(sec.key==='all'?' active':'');b.setAttribute('type','button');b.setAttribute('data-sec',sec.key);b.innerHTML=sec.name+'<span class="n">'+n+'</span>';b.onclick=(function(k){return function(){setSection(k)}})(sec.key);bar.appendChild(b)}
+var app=document.getElementById('app');for(var j=1;j<SECTIONS.length;j++){var sc=SECTIONS[j],ps=pagesOf(sc);var w=document.createElement('section');w.className='sec';w.setAttribute('data-section',sc.key);w.innerHTML='<div class="sec-head"><h3>'+sc.name+'</h3><p>'+sc.desc+'</p><span class="sec-count">'+ps.length+' 页</span></div>';var g=document.createElement('div');g.className='shot-grid';for(var k=0;k<ps.length;k++)g.appendChild(renderCard(ps[k],sc.key));w.appendChild(g);app.appendChild(w)}}
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){var lb=document.getElementById('lightbox');if(lb.className.indexOf('show')>=0)hideLightbox()}});
 render();
 </script>
 <script src="/js/review-widget.js"></script>
