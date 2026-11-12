@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EV课程表 1.9.200 · 2.0 之前，把根接上</title>
+<meta name="description" content="EV课程表 1.9.200：五款课程联动表盘、安卓同步器四项升级、八年级九年级真实数据与晚课模块、读 MAC + Node ID 的永久激活。">
+<meta name="theme-color" content="#0B0E13">
+<meta property="og:title" content="EV课程表 1.9.200 · 2.0 之前，把根接上">
+<meta property="og:description" content="同一张课表，手环表盘、手环课表、手机同步器、网页四端同步。五款联动表盘已上线。">
+<meta property="og:type" content="article">
+<script>document.documentElement.className += " js";</script>
+<style>
+  :root{
+    --ink:#0B0E13; --ink2:#141A23; --paper:#F4F2EC; --card:#FFFFFF;
+    --txt:#15181D; --sub:#5D6470; --line:#E2DED4; --line-d:rgba(255,255,255,.10);
+    --amber:#F0A32B; --amber-d:#8A5A00; --mint:#0E9F6E; --mint-bg:#E4F6EE;
+    --r:18px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+  body{margin:0;overflow-x:hidden;background:var(--paper);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+    font-size:15px;line-height:1.66;-webkit-font-smoothing:antialiased}
+  img{display:block;max-width:100%}
+  a{color:inherit}
+  .wrap{max-width:1040px;margin:0 auto;padding:0 20px}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
+
+  /* ── 顶栏 ── */
+  nav{position:sticky;top:0;z-index:60;background:rgba(11,14,19,.9);backdrop-filter:blur(14px);
+    border-bottom:1px solid var(--line-d)}
+  nav .in{max-width:1040px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;gap:12px}
+  .logo{display:flex;align-items:center;gap:8px;font-weight:700;color:#fff;font-size:14px;letter-spacing:.2px}
+  .logo .dot{width:7px;height:7px;border-radius:50%;background:var(--amber)}
+  .ver{font-size:11px;font-weight:700;color:var(--amber);border:1px solid rgba(240,163,43,.4);
+    border-radius:6px;padding:1px 7px;letter-spacing:.02em}
+  nav .r{margin-left:auto;display:flex;align-items:center;gap:10px}
+  nav .r a{font-size:13px;color:#9AA4B2;text-decoration:none}
+  nav .r a:hover{color:#fff}
+  nav .r a.cta{color:#0B0E13;background:var(--amber);padding:7px 13px;border-radius:9px;font-weight:700}
+
+  /* ── Hero ── */
+  header{position:relative;overflow:hidden;color:#fff;padding:40px 0 0;background:
+      radial-gradient(900px 420px at 84% -12%,rgba(240,163,43,.16),transparent 64%),
+      radial-gradient(700px 380px at 6% 4%,rgba(14,159,110,.14),transparent 62%),
+      linear-gradient(180deg,#0B0E13,#121821 62%,#0B0E13)}
+  header::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
+    background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px);
+    background-size:100% 34px}
+  header .in{position:relative;z-index:2;max-width:1040px;margin:0 auto;padding:0 20px}
+  .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:11px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--amber);font-weight:700}
+  .eyebrow i{width:6px;height:6px;border-radius:50%;background:var(--amber);display:block;
+    box-shadow:0 0 0 0 rgba(240,163,43,.6);animation:pulse 2.6s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(240,163,43,.55)}70%{box-shadow:0 0 0 9px rgba(240,163,43,0)}100%{box-shadow:0 0 0 0 rgba(240,163,43,0)}}
+  h1{margin:14px 0 16px;font-size:33px;line-height:1.24;letter-spacing:-.8px;font-weight:800}
+  @media(min-width:760px){h1{font-size:50px;line-height:1.14;letter-spacing:-1.4px}}
+  h1 em{font-style:normal;background:linear-gradient(94deg,#FFD07A,#F0A32B 46%,#5FD3A8 96%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .lead{color:#B4BDCB;font-size:15px;max-width:52ch;margin:0 0 22px}
+  .lead b{color:#fff;font-weight:600}
+  .meta{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:30px}
+  .chip{font-size:11.5px;font-weight:600;color:#C6CEDB;border:1px solid var(--line-d);
+    border-radius:999px;padding:4px 11px;background:rgba(255,255,255,.04)}
+  .chip.on{color:#0B0E13;background:var(--amber);border-color:var(--amber)}
+
+  /* 四端链路 */
+  .chain{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;position:relative;
+    padding-bottom:38px}
+  .chain>*{min-width:0}
+  @media(min-width:760px){.chain{gap:16px}}
+  .chain::before{content:"";position:absolute;left:6%;right:6%;top:42%;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(240,163,43,.55),rgba(95,211,168,.55),transparent)}
+  .chain::after{content:"";position:absolute;top:42%;left:6%;width:16px;height:16px;margin-top:-8px;
+    border-radius:50%;background:var(--amber);filter:blur(1px);opacity:0;
+    box-shadow:0 0 22px 6px rgba(240,163,43,.55)}
+  header.go .chain::after{animation:run 3.6s cubic-bezier(.4,0,.5,1) .25s 2}
+  @keyframes run{0%{left:6%;opacity:0}12%{opacity:1}88%{opacity:1}100%{left:92%;opacity:0}}
+  .node{position:relative;z-index:2;text-align:center}
+  .node .scr{border-radius:9px;overflow:hidden;background:#0E1219;
+    border:1px solid rgba(255,255,255,.14);box-shadow:0 10px 24px rgba(0,0,0,.45);
+    aspect-ratio:3/4}
+  .node .scr img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block}
+  .node .nm{font-size:10.5px;color:#9AA4B2;margin-top:7px;line-height:1.35}
+  @media(min-width:760px){.node .nm{font-size:12px;margin-top:9px}}
+  .node .nm b{display:block;color:#fff;font-size:11.5px;font-weight:600}
+  @media(min-width:760px){.node .nm b{font-size:13px}}
+
+  /* ── 通用区块 ── */
+  section{padding:52px 0}
+  @media(min-width:760px){section{padding:76px 0}}
+  .sec-h{display:flex;align-items:baseline;gap:12px;margin-bottom:10px}
+  .num{font-size:11px;font-weight:700;color:var(--amber);letter-spacing:.12em}
+  h2{margin:0;font-size:23px;line-height:1.3;letter-spacing:-.4px;font-weight:800}
+  @media(min-width:760px){h2{font-size:31px}}
+  .sec-p{color:var(--sub);font-size:14.5px;max-width:56ch;margin:0 0 26px}
+  .rule{height:1px;background:var(--line);margin:0}
+  /* 防止网格子项被图片固有宽度撑破 */
+  .phones>*,.screens>*,.split>*,.strip>*,.steps>*,.ba>*,.links>*{min-width:0}
+  .phones img,.strip img,.screens img{max-width:100%;height:auto}
+
+  /* 01 表盘 */
+  .strip{display:grid;grid-auto-flow:column;grid-auto-columns:132px;gap:12px;overflow-x:auto;
+    scroll-snap-type:x mandatory;padding:4px 0 16px;margin:0;max-width:100%;
+    scrollbar-width:none}
+  .strip::-webkit-scrollbar{display:none}
+  @media(min-width:760px){.strip{grid-auto-flow:row;grid-template-columns:repeat(5,1fr);
+    grid-auto-columns:auto;overflow:visible;padding:0;margin:0;gap:16px}}
+  .face{scroll-snap-align:start}
+  .face .bd{border-radius:16px;overflow:hidden;background:#000;border:1px solid rgba(21,24,29,.14);
+    box-shadow:0 6px 18px rgba(20,25,35,.10);transition:transform .25s ease}
+  .face:hover .bd{transform:translateY(-4px)}
+  .face .bd img{width:100%;height:auto}
+  .face h3{margin:10px 0 2px;font-size:14.5px;font-weight:700}
+  .face p{margin:0;font-size:12px;color:var(--sub);line-height:1.5}
+
+  /* 02 同步器 */
+  .phones{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:26px}
+  @media(min-width:760px){.phones{gap:18px}}
+  .ph{position:relative}
+  .ph .bd{border-radius:16px;overflow:hidden;border:1px solid var(--line);background:#fff;
+    box-shadow:0 8px 22px rgba(20,25,35,.08)}
+  .ph img{width:100%;height:auto}
+  .ph .cap{font-size:11.5px;color:var(--sub);margin-top:8px;text-align:center;line-height:1.4}
+  .ph .cap b{color:var(--txt);font-weight:600}
+  ul.feat{list-style:none;margin:0;padding:0;display:grid;gap:1px;background:var(--line);
+    border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+  @media(min-width:760px){ul.feat{grid-template-columns:1fr 1fr}}
+  ul.feat li{background:var(--card);padding:16px 18px}
+  ul.feat h4{margin:0 0 4px;font-size:14.5px;font-weight:700;display:flex;align-items:center;gap:8px}
+  ul.feat h4 span{font-size:10px;color:var(--amber-d);background:#FBF0DA;border-radius:5px;
+    padding:1px 6px;font-weight:700;letter-spacing:.04em}
+  ul.feat p{margin:0;font-size:13px;color:var(--sub);line-height:1.6}
+
+  /* 03 晚课环 */
+  .split{display:grid;gap:26px;align-items:center}
+  @media(min-width:760px){.split{grid-template-columns:.9fr 1.1fr;gap:42px}}
+  .cycle{position:relative;width:100%;max-width:300px;margin:0 auto;aspect-ratio:1}
+  .cycle svg{width:100%;height:100%}
+  .cycle .tag{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center}
+  .cycle .tag b{display:block;font-size:26px;font-weight:800;letter-spacing:-.5px}
+  .cycle .tag i{font-style:normal;font-size:11px;color:var(--sub);letter-spacing:.08em}
+  .datalist{margin:0;padding:0;list-style:none}
+  .datalist li{padding:13px 0;border-bottom:1px dashed var(--line);display:flex;gap:12px}
+  .datalist li:last-child{border-bottom:0}
+  .datalist .k{font-size:12px;font-weight:700;color:var(--amber-d);min-width:64px;padding-top:2px}
+  .datalist .v{font-size:14px;color:var(--txt)}
+  .datalist .v small{display:block;color:var(--sub);font-size:12.5px;margin-top:2px}
+
+  /* 04 激活对照 */
+  .ba{display:grid;gap:14px;margin-bottom:28px}
+  @media(min-width:760px){.ba{grid-template-columns:1fr 1fr;gap:18px}}
+  .bcard{border-radius:var(--r);padding:20px 20px 18px;border:1px solid var(--line);background:var(--card)}
+  .bcard .lb{font-size:11px;font-weight:800;letter-spacing:.1em;color:var(--sub);margin-bottom:10px}
+  .bcard.old{background:#EDEAE3;border-style:dashed}
+  .bcard.old .lb{color:#8B8578}
+  .bcard.new{background:#0B0E13;color:#fff;border-color:#0B0E13}
+  .bcard.new .lb{color:var(--mint)}
+  .bcard p{margin:0;font-size:13.5px;line-height:1.7}
+  .bcard.old p{color:#5D564A}
+  .bcard.new p{color:#C3CBD8}
+  .steps{display:grid;gap:10px;counter-reset:s}
+  @media(min-width:760px){.steps{grid-template-columns:repeat(3,1fr)}}
+  .step{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px 16px;
+    position:relative;counter-increment:s}
+  .step::before{content:"0" counter(s);position:absolute;right:14px;top:10px;font-size:11px;
+    font-weight:800;color:#C9C3B6;letter-spacing:.08em}
+  .step b{display:block;font-size:13.5px;margin-bottom:3px}
+  .step span{font-size:12.5px;color:var(--sub);line-height:1.55}
+
+  /* 05 屏型 */
+  .screens{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  @media(min-width:760px){.screens{grid-template-columns:repeat(6,1fr);gap:14px}}
+  .sc{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 8px;text-align:center}
+  .sc .box{height:92px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .sc img{max-height:100%;width:auto;border-radius:5px;background:#000}
+  .sc b{display:block;font-size:11.5px;margin-top:8px;line-height:1.3}
+  .sc span{display:block;font-size:10.5px;color:var(--sub);margin-top:2px}
+
+  /* 06 网页 */
+  .links{display:grid;gap:8px}
+  @media(min-width:760px){.links{grid-template-columns:repeat(3,1fr)}}
+  .lnk{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);
+    border-radius:12px;padding:13px 15px;text-decoration:none;transition:.16s}
+  .lnk:hover{border-color:var(--amber);transform:translateX(2px)}
+  .lnk b{font-size:13.5px;font-weight:600}
+  .lnk span{display:block;font-size:11.5px;color:var(--sub)}
+  .lnk .ar{margin-left:auto;color:#C9C3B6;font-size:15px}
+
+  /* 收尾 */
+  .end{background:var(--ink);color:#fff;padding:54px 0 40px}
+  .end h2{color:#fff}
+  .end .sec-p{color:#A9B2C1}
+  .cta{display:flex;gap:10px;flex-wrap:wrap;margin:22px 0 26px}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:13px 20px;border-radius:12px;
+    font-size:14px;font-weight:700;text-decoration:none;border:1px solid transparent}
+  .btn.p{background:var(--amber);color:#0B0E13}
+  .btn.s{background:rgba(255,255,255,.06);color:#fff;border-color:rgba(255,255,255,.18)}
+  .btn:hover{filter:brightness(1.06)}
+  .road{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;color:#8B95A5;
+    border-top:1px solid var(--line-d);padding-top:20px;margin-top:6px}
+  .road .r{display:inline-flex;align-items:center;gap:6px}
+  .road .r b{color:#fff;font-weight:700}
+  .road .r.now b{color:var(--amber)}
+  .road .r.next b{color:#5FD3A8}
+  .road .sep{color:#3A4453}
+  footer{background:var(--ink);color:#6B7686;font-size:11.5px;padding:0 0 34px;border-top:0}
+  footer .wrap{display:flex;gap:14px;flex-wrap:wrap;justify-content:space-between;line-height:1.7}
+
+  /* 滚动出现：默认可见，只有 JS 在场才启用动画，避免脚本失败时整页空白 */
+  html.js .rv{opacity:0;transform:translateY(14px);transition:opacity .6s ease,transform .6s ease}
+  html.js .rv.in{opacity:1;transform:none}
+  @media(prefers-reduced-motion:reduce){html.js .rv{opacity:1;transform:none;transition:none}}
+  .swipe{display:inline-block;margin-left:8px;color:var(--amber-d);font-weight:600;white-space:nowrap}
+  @media(min-width:760px){.swipe{display:none}}
+</style>
+</head>
+<body>
+
+<!-- EV课程表 1.9.200 · 发布页 · 线上地址 /ev20 · 数据与截图均为真机/模拟器实录 -->
+<nav>
+  <div class="in">
+    <div class="logo"><span class="dot"></span>EV课程表</div>
+    <span class="ver mono">1.9.200</span>
+    <div class="r">
+      <a href="/feedback.html" class="keep">反馈</a>
+      <a href="/apk-download.html" class="cta">下载同步器</a>
+    </div>
+  </div>
+</nav>
+
+<header id="top">
+  <div class="in">
+    <span class="eyebrow"><i></i>2.0 之前的最后一次整理</span>
+    <h1>这一版没换皮，<br><em>把四端接成了一条链。</em></h1>
+    <p class="lead">课程表、五款联动表盘、安卓同步器、网页端——以前是四个各干各的东西，现在<b>改一节课，四个地方一起动</b>。</p>
+    <div class="meta">
+      <span class="chip on mono">v1.9.200</span>
+      <span class="chip">5 款联动表盘</span>
+      <span class="chip">同步器 4 项升级</span>
+      <span class="chip">一次激活管终身</span>
+    </div>
+
+    <div class="chain" id="chain">
+      <div class="node"><div class="scr"><img src="/images/promo-2-0/face-class.png" alt="手环表盘显示当前课程" loading="eager"></div><div class="nm"><b>表盘</b>抬手就看见</div></div>
+      <div class="node"><div class="scr"><img src="/images/promo-2-0/ui-band9.png" alt="手环端课表页面" loading="lazy"></div><div class="nm"><b>手环课表</b>滑一下换天</div></div>
+      <div class="node"><div class="scr"><img src="/images/promo-2-0/apk-home.jpg" alt="安卓同步器首页显示今日课程" loading="lazy"></div><div class="nm"><b>手机同步器</b>改课的地方</div></div>
+      <div class="node"><div class="scr"><img src="/images/promo-2-0/ui-10pro.jpg" alt="网页与大屏端课程管理" loading="lazy"></div><div class="nm"><b>网页端</b>电脑上也能弄</div></div>
+    </div>
+  </div>
+</header>
+
+<!-- 01 -->
+<section id="faces">
+  <div class="wrap">
+    <div class="sec-h"><span class="num mono">01</span><h2>五款联动表盘，昨晚全部上线</h2></div>
+    <p class="sec-p">表盘不再是块玻璃——它读你的课表。现在上什么课、还有多少分钟下课、下一秒是什么，抬手就有。课程表里改了，表盘跟着改。</p>
+
+    <div class="strip rv">
+      <div class="face"><div class="bd"><img src="/images/promo-2-0/face-class.png" alt="课程版表盘" loading="lazy"></div><h3>课程版</h3><p>课名 + 教室 + 剩余分钟，信息最全的一款。</p></div>
+      <div class="face"><div class="bd"><img src="/images/promo-2-0/face-clock.png" alt="时钟版表盘" loading="lazy"></div><h3>时钟版</h3><p>大时间当主角，课程做副行，上课不看表也能掐点。</p></div>
+      <div class="face"><div class="bd"><img src="/images/promo-2-0/face-analog.png" alt="指针版表盘" loading="lazy"></div><h3>指针版</h3><p>习惯指针的人用它，课程挂在指针下面。</p></div>
+      <div class="face"><div class="bd"><img src="/images/promo-2-0/face-aurora.png" alt="极光版表盘" loading="lazy"></div><h3>极光版</h3><p>氛围优先，课程只留最要紧的一行。</p></div>
+      <div class="face"><div class="bd"><img src="/images/promo-2-0/face-oneline.png" alt="一行版表盘" loading="lazy"></div><h3>一行版</h3><p>极简到只有一行字，远看也清楚。</p></div>
+    </div>
+    <p class="sec-p" style="margin:14px 0 0;font-size:12.5px">适配小米手环 9 / 10 / 10 Pro。表盘在表盘市场安装，课程数据来自你手环里的 EV课程表。<span class="swipe">左右滑动看全部 5 款 →</span></p>
+  </div>
+</section>
+
+<div class="wrap"><div class="rule"></div></div>
+
+<!-- 02 -->
+<section id="sync">
+  <div class="wrap">
+    <div class="sec-h"><span class="num mono">02</span><h2>安卓同步器，从「能连上」变成「能用」</h2></div>
+    <p class="sec-p">同步器是手机那头管课表的地方。这几版都在补它——把课上完、课改完、课表对不上的事，一件件处理掉。</p>
+
+    <div class="phones rv">
+      <div class="ph"><div class="bd"><img src="/images/promo-2-0/apk-home.jpg" alt="同步器首页显示的今日课程" loading="lazy"></div><div class="cap"><b>首页</b><br>今天的课，一眼看完</div></div>
+      <div class="ph"><div class="bd"><img src="/images/promo-2-0/apk-week.jpg" alt="同步器周课表" loading="lazy"></div><div class="cap"><b>周课表</b><br>整周排布，跟手环一致</div></div>
+      <div class="ph"><div class="bd"><img src="/images/promo-2-0/apk-band.jpg" alt="同步器手环管理页" loading="lazy"></div><div class="cap"><b>手环管理</b><br>连接、推送、状态都在这里</div></div>
+    </div>
+
+    <ul class="feat rv">
+      <li><h4>今日课程同步 <span>首页</span></h4><p>首页跟着课程表显示当天的课，不用点进列表再翻。</p></li>
+      <li><h4>周课表 <span>新</span></h4><p>手机上一张表看全周，和手环里的排布是同一份数据。</p></li>
+      <li><h4>激活步骤升级 <span>深链 / 手输</span></h4><p>支持深链直接跳到激活，也能手输兑换码，老方法留着不走。</p></li>
+      <li><h4>读手环 MAC + Node ID <span>关键</span></h4><p>终于拿到了设备的唯一标识，激活从此认得你这块手环，见下一节。</p></li>
+    </ul>
+  </div>
+</section>
+
+<div class="wrap"><div class="rule"></div></div>
+
+<!-- 03 -->
+<section id="data">
+  <div class="wrap">
+    <div class="sec-h"><span class="num mono">03</span><h2>两套真实课表，和一个独立的晚课周期</h2></div>
+    <p class="sec-p">我们塞了两套真实的学校课表进去——八年级、九年级，不是编的样例。你打开就能看到一门课怎么从早排到晚，晚课又是怎么单独循环的。</p>
+
+    <div class="split rv">
+      <div class="cycle" aria-hidden="true">
+        <svg viewBox="0 0 300 300">
+          <circle cx="150" cy="150" r="112" fill="none" stroke="#E2DED4" stroke-width="1.5"/>
+          <circle cx="150" cy="150" r="112" fill="none" stroke="#F0A32B" stroke-width="2"
+                  stroke-dasharray="117 587" stroke-dashoffset="-7" transform="rotate(-90 150 150)" opacity=".9"/>
+          <g fill="#0B0E13">
+            <circle cx="150" cy="38"  r="7"/>
+            <circle cx="247" cy="94"  r="7"/>
+            <circle cx="247" cy="206" r="7"/>
+            <circle cx="150" cy="262" r="7"/>
+            <circle cx="53"  cy="206" r="7"/>
+            <circle cx="53"  cy="94"  r="7"/>
+          </g>
+          <g fill="#8A5A00" font-size="11" font-family="ui-monospace,Menlo,monospace" text-anchor="middle">
+            <text x="150" y="20">W1</text>
+            <text x="271" y="84">W2</text>
+            <text x="271" y="222">W3</text>
+            <text x="150" y="284">W4</text>
+            <text x="29"  y="222">W5</text>
+            <text x="29"  y="84">W6</text>
+          </g>
+        </svg>
+        <div class="tag"><b>6</b><i>周一轮回</i></div>
+      </div>
+      <ul class="datalist">
+        <li><span class="k">晚课</span><span class="v">独立模块，不挤进白天课表<small>它自己一套循环周期，和白天互不干扰，不会再出现晚上那节把白天排乱的情况。</small></span></li>
+        <li><span class="k">周期</span><span class="v">默认 6 周，自己也能改<small>两周一轮、四周一轮都行，按你学校实际来。</small></span></li>
+        <li><span class="k">数据</span><span class="v">八年级 / 九年级，真实学校课表<small>带真实班级、真实节次，方便你照着改，不用从空白开始。</small></span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<div class="wrap"><div class="rule"></div></div>
+
+<!-- 04 -->
+<section id="activate">
+  <div class="wrap">
+    <div class="sec-h"><span class="num mono">04</span><h2>激活这件事，这次彻底解决</h2></div>
+    <p class="sec-p">以前最烦的一步：手环删了、重装了、恢复了，高级版就没了，得找客服人工补一遍。现在不用了。</p>
+
+    <div class="ba rv">
+      <div class="bcard old">
+        <div class="lb">以前</div>
+        <p>激活信息跟着安装走。手环一重置、应用一删，记录就没了。用户得截图、找客服、报序列号，等人工重新开一遍——慢，而且每次都得来一遍。</p>
+      </div>
+      <div class="bcard new">
+        <div class="lb">现在</div>
+        <p>同步器直接读手环的 <b class="mono">MAC</b> 和 <b class="mono">Node ID</b>，生成一份只属于这块设备的识别记录。重装、删除、重置都不影响；装上同步器，自动就认回来。</p>
+      </div>
+    </div>
+
+    <div class="steps rv">
+      <div class="step"><b>读设备标识</b><span>接上手环，读 MAC 与 Node ID 两个硬件值。</span></div>
+      <div class="step"><b>生成唯一记录</b><span>两个值合成一条识别记录，跟你这块手环绑死。</span></div>
+      <div class="step"><b>自动认回</b><span>以后装同步器就行，不用再输码、不用再找客服。</span></div>
+    </div>
+  </div>
+</section>
+
+<div class="wrap"><div class="rule"></div></div>
+
+<!-- 05 -->
+<section id="screens">
+  <div class="wrap">
+    <div class="sec-h"><span class="num mono">05</span><h2>六种屏，一块一块调过</h2></div>
+    <p class="sec-p">胶囊屏、方屏、圆屏、横屏，尺寸和比例完全不同。同一套课表要在每一块上都排得下、看得清，这件事没有捷径。</p>
+    <div class="screens rv">
+      <div class="sc"><div class="box"><img src="/images/promo-2-0/ui-band9.png" alt="手环9 胶囊屏课表"></div><b>手环 9</b><span class="mono">192×490</span></div>
+      <div class="sc"><div class="box"><img src="/images/promo-2-0/ui-week.jpg" alt="周课表页"></div><b>周视图</b><span>矩阵排布</span></div>
+      <div class="sc"><div class="box"><img src="/images/promo-2-0/ui-10pro.jpg" alt="手环10 Pro 方屏页面"></div><b>手环 10 Pro</b><span class="mono">336×480</span></div>
+      <div class="sc"><div class="box"><img src="/images/promo-2-0/ui-watch4.jpg" alt="Watch S4 圆屏页面"></div><b>Watch S4</b><span>圆屏</span></div>
+      <div class="sc"><div class="box"><img src="/images/promo-2-0/face-clock.png" alt="表盘时钟版"></div><b>表盘</b><span>5 款</span></div>
+      <div class="sc"><div class="box"><img src="/images/promo-2-0/apk-home.jpg" alt="安卓同步器"></div><b>安卓同步器</b><span>全屏手机</span></div>
+    </div>
+  </div>
+</section>
+
+<div class="wrap"><div class="rule"></div></div>
+
+<!-- 06 -->
+<section id="web">
+  <div class="wrap">
+    <div class="sec-h"><span class="num mono">06</span><h2>网页端，该找的都能找到</h2></div>
+    <p class="sec-p">激活、教程、每一代手环的逐页截图、安卓 apk、问题反馈——以前散着，现在从这一页就能进去。</p>
+    <div class="links rv">
+      <a class="lnk" href="/activate.html"><b>设备激活<span>兑换码换激活码</span></b><span class="ar">→</span></a>
+      <a class="lnk" href="/activation-guide.html"><b>高级版流程<span>一步步图文教学</span></b><span class="ar">→</span></a>
+      <a class="lnk" href="/course-guide.html"><b>使用教程<span>添加 / 编辑课程</span></b><span class="ar">→</span></a>
+      <a class="lnk" href="/apk-download.html"><b>安卓同步器<span>下载最新 apk</span></b><span class="ar">→</span></a>
+      <a class="lnk" href="/ui-gallery-9.html"><b>逐页截图档案<span>手环 9 / 10 / 10 Pro / Watch</span></b><span class="ar">→</span></a>
+      <a class="lnk" href="/feedback.html"><b>帮助与反馈<span>有问题直接说</span></b><span class="ar">→</span></a>
+    </div>
+  </div>
+</section>
+
+<div class="end">
+  <div class="wrap">
+    <div class="sec-h"><span class="num mono">→</span><h2>下一步是 2.0</h2></div>
+    <p class="sec-p">1.9.200 是把地基补完的一版：四端联动通了，激活不再掉，课表数据是真的。再往上就是 1.10.0 与 2.0，那些我们还在做。</p>
+    <div class="cta">
+      <a class="btn p" href="/apk-download.html">下载安卓同步器</a>
+      <a class="btn s" href="/feedback.html">反馈问题</a>
+      <a class="btn s" href="/activate.html">激活高级版</a>
+    </div>
+    <div class="road">
+      <span class="r now"><b class="mono">1.9.200</b> 已发布</span><span class="sep">/</span>
+      <span class="r next"><b class="mono">1.10.0</b> 在做</span><span class="sep">/</span>
+      <span class="r"><b class="mono">2.0</b> 目标</span>
+    </div>
+    <p class="sec-p" style="margin:18px 0 0;font-size:12px;color:#7A8494">幕后：内部用 Ev Publisher 做版本分发与截图归档，不对外，只是让我们发版别再靠手动拷贝。</p>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap">
+    <div>EV课程表 · 小米手环快应用 · 本页仅作产品介绍，购买与激活请走站内页面</div>
+    <div>截图均为真机 / 模拟器实拍；课程数据含示例班级，以你手环内为准</div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var io = new IntersectionObserver(function(es){
+    es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, {threshold:.12, rootMargin:'0px 0px -8% 0px'});
+  var ns = document.querySelectorAll('.rv');
+  for (var i=0;i<ns.length;i++) io.observe(ns[i]);
+
+  var h = document.getElementById('top');
+  var co = new IntersectionObserver(function(es){
+    es.forEach(function(e){ if(e.isIntersecting){ h.classList.add('go'); co.disconnect(); } });
+  }, {threshold:.25});
+  if (h) co.observe(h);
+
+  // 表盘横向条：按宽度自动判断是否可滑
+  var strip = document.querySelector('.strip');
+  if (strip && strip.scrollWidth > strip.clientWidth + 8) {
+    strip.setAttribute('aria-label','五款联动表盘，可左右滑动');
+  }
+})();
+</script>
+</body>
+</html>

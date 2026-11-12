@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/ev20",
+      "destination": "/ev-class-2-0.html"
+    },
+    {
       "source": "/",
       "destination": "/index.html"
     },
