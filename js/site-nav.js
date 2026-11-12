@@ -46,6 +46,7 @@
     { id: "ev-apk-promo",     name: "同步器宣传页",    url: "/ev-apk-promo.html",  group: "product",  desc: "Ev课程表安装同步器 · 功能亮点与真机截图" },
     { id: "ev-schedule",      name: "产品介绍",        url: "/ev-schedule.html",   group: "product",  desc: "小米手环课程管理产品介绍" },
     { id: "ev-timetable",     name: "课程表介绍",      url: "/ev-timetable.html",  group: "product",  desc: "手环智能课程管理介绍" },
+    { id: "import-formats",  name: "多格式导入介绍",  url: "/import-formats.html", group: "product",  desc: "EV/拾光/WakeUp/星链/CSES/ICS 一键导入演示与教程" },
 
     { id: "my-ip",            name: "我的 IP 信息",    url: "/my-ip.html",         group: "tool",     desc: "查看公网 IP 与归属地" },
     { id: "feedback",         name: "帮助与反馈",      url: "/feedback.html",      group: "tool",     desc: "问题反馈与帮助" },

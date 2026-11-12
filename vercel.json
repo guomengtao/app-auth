@@ -49,6 +49,10 @@
       "destination": "/evbox.html"
     },
     {
+      "source": "/import-formats",
+      "destination": "/import-formats.html"
+    },
+    {
       "source": "/evbox/",
       "destination": "/evbox.html"
     },
