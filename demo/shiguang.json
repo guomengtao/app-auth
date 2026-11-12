@@ -1,0 +1,21 @@
+{
+  "courses": [
+    {"id":"sg-demo-1","name":"线性代数","teacher":"陈老师","position":"理科楼A203","day":0,"startSection":1,"endSection":2,"color":1,"weeks":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]},
+    {"id":"sg-demo-2","name":"大学物理","teacher":"赵老师","position":"理科楼B105","day":2,"startSection":3,"endSection":4,"color":2,"weeks":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]},
+    {"id":"sg-demo-3","name":"程序设计","teacher":"孙老师","position":"软件楼302","day":4,"startSection":5,"endSection":6,"color":3,"weeks":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]}
+  ],
+  "timeSlots": [
+    {"number":1,"startTime":"08:00","endTime":"08:45"},
+    {"number":2,"startTime":"08:55","endTime":"09:40"},
+    {"number":3,"startTime":"10:00","endTime":"10:45"},
+    {"number":4,"startTime":"10:55","endTime":"11:40"},
+    {"number":5,"startTime":"14:00","endTime":"14:45"},
+    {"number":6,"startTime":"14:55","endTime":"15:40"}
+  ],
+  "config": {
+    "semesterStartDate":"2026-09-01",
+    "semesterTotalWeeks":18,
+    "defaultClassDuration":45,
+    "defaultBreakDuration":10
+  }
+}

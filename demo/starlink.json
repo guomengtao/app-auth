@@ -1,0 +1,8 @@
+{
+  "semester": "2026 春季学期",
+  "subjects": [
+    {"subjectName":"马克思主义原理","weekday":0,"beginTime":"08:00","finishTime":"08:45","place":"教学楼101","instructor":"周老师","weekRange":"1-18","oddEven":0,"color":"#E91E63","credit":3},
+    {"subjectName":"概率论与数理统计","weekday":2,"beginTime":"10:00","finishTime":"10:45","place":"理科楼210","instructor":"吴老师","weekRange":"1-18","oddEven":0,"color":"#9C27B0","credit":3},
+    {"subjectName":"计算机网络","weekday":4,"beginTime":"14:00","finishTime":"14:45","place":"软件楼305","instructor":"郑老师","weekRange":"1-18","oddEven":0,"color":"#009688","credit":4}
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "version": "2.1",
+  "appName": "EV Schedule",
+  "exportTime": 1762000000000,
+  "schedules": [
+    {
+      "id": "demo-ev-1",
+      "name": "示例课表 · 大二上",
+      "courses": [
+        {"name":"高等数学","day":0,"startTime":"08:00","endTime":"08:45","teacher":"张教授","location":"教三-201","weeks":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]},
+        {"name":"大学英语","day":1,"startTime":"10:15","endTime":"11:00","teacher":"李老师","location":"外院-305","weeks":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]},
+        {"name":"数据结构","day":2,"startTime":"14:05","endTime":"14:50","teacher":"王教授","location":"计科-401","weeks":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]}
+      ],
+      "rotation": {"enabled":false,"cycle":6,"time":"17:10 - 18:00","calibDate":"","calibWeek":1,"cells":[]}
+    }
+  ]
+}

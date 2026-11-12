@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ev课程表 · 多格式课程表导入</title>
+<style>
+  :root{
+    --bg:#0f1226; --card:#171a33; --ink:#eef1ff; --sub:#aab0d6;
+    --accent:#4c8dff; --accent2:#7c5cff; --ok:#34d399; --line:#2a2f55;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:linear-gradient(180deg,#0c0f22,#131736 60%,#0c0f22);color:var(--ink);line-height:1.6;padding:0 16px 64px}
+  .wrap{max-width:980px;margin:0 auto}
+  header{padding:56px 8px 28px;text-align:center}
+  .badge{display:inline-block;font-size:13px;letter-spacing:.5px;color:#bcd0ff;background:rgba(76,141,255,.14);
+    border:1px solid rgba(76,141,255,.35);padding:6px 14px;border-radius:999px;margin-bottom:18px}
+  h1{font-size:34px;font-weight:800;background:linear-gradient(90deg,#9cc2ff,#c7b3ff);-webkit-background-clip:text;
+    background-clip:text;-webkit-text-fill-color:transparent}
+  header p{color:var(--sub);margin-top:12px;font-size:16px;max-width:680px;margin-left:auto;margin-right:auto}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;margin-top:34px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px;position:relative;overflow:hidden}
+  .card::before{content:"";position:absolute;inset:0 0 auto 0;height:4px;
+    background:linear-gradient(90deg,var(--accent),var(--accent2))}
+  .card h3{font-size:19px;display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .tag{font-size:11px;color:#cdd6ff;background:rgba(124,92,255,.18);border:1px solid rgba(124,92,255,.4);
+    padding:2px 8px;border-radius:6px;font-weight:600}
+  .card p{color:var(--sub);font-size:14px;margin:10px 0 14px;min-height:62px}
+  .dl{display:inline-flex;align-items:center;gap:8px;text-decoration:none;color:#fff;font-weight:600;font-size:14px;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));padding:10px 16px;border-radius:10px}
+  .dl small{font-weight:400;opacity:.85}
+  .steps{margin-top:40px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:28px}
+  .steps h2{font-size:22px;margin-bottom:18px}
+  .step{display:flex;gap:14px;padding:12px 0;border-bottom:1px dashed var(--line)}
+  .step:last-child{border-bottom:none}
+  .num{flex:0 0 32px;height:32px;border-radius:50%;background:rgba(76,141,255,.18);color:#9cc2ff;
+    display:flex;align-items:center;justify-content:center;font-weight:700}
+  .step b{color:#fff}
+  .step span{color:var(--sub);font-size:14px}
+  .link4{margin-top:30px;text-align:center;color:var(--sub);font-size:14px}
+  .link4 b{color:#c7b3ff}
+  .shots{margin-top:36px}
+  .shots h2{font-size:22px;margin-bottom:6px}
+  .shots .hint{color:var(--sub);font-size:14px;margin-bottom:16px}
+  .slot{background:repeating-linear-gradient(45deg,#1a1e3b,#1a1e3b 12px,#161a35 12px,#161a35 24px);
+    border:1px dashed #3a3f6e;border-radius:14px;height:200px;display:flex;align-items:center;justify-content:center;
+    color:#7e85b8;font-size:14px;text-align:center;padding:16px}
+  .slotrow{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  footer{margin-top:48px;text-align:center;color:#6b71a0;font-size:13px}
+  @media(max-width:720px){.grid,.slotrow{grid-template-columns:1fr}h1{font-size:27px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="badge">四端联动 · 改一节课，四处同步</div>
+    <h1>多格式课程表一键导入</h1>
+    <p>无论是自家导出、还是从拾光 / WakeUp / 星链 / CSES / 日历(ICS) 等主流课表 App 迁移，
+       Ev课程表 都能识别并导入。下面每种格式都提供了<b style="color:#c7b3ff">真实示例文件</b>，可直接下载体验。</p>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <h3>EV Schedule <span class="tag">自家标准</span></h3>
+      <p>EV课程表导出的统一格式，是跨端同步的首选。支持课表名、晚课轮转等完整字段。</p>
+      <a class="dl" href="./demo/ev.json" download>下载示例 <small>ev.json</small></a>
+    </div>
+    <div class="card">
+      <h3>拾光课程表 <span class="tag">ShiGuang</span></h3>
+      <p>识别 timeSlots + startSection 结构，课程跨多节时自动拼出起止时间。</p>
+      <a class="dl" href="./demo/shiguang.json" download>下载示例 <small>shiguang.json</small></a>
+    </div>
+    <div class="card">
+      <h3>WakeUp <span class="tag">课程表</span></h3>
+      <p>识别 scheduleName + courseList，星期与起止时间直接映射，含单双周类型。</p>
+      <a class="dl" href="./demo/wakeup.json" download>下载示例 <small>wakeup.json</small></a>
+    </div>
+    <div class="card">
+      <h3>星链课表 <span class="tag">StarLink</span></h3>
+      <p>识别 subjectName + weekRange，按周次区间展开，支持单双周标记。</p>
+      <a class="dl" href="./demo/starlink.json" download>下载示例 <small>starlink.json</small></a>
+    </div>
+    <div class="card">
+      <h3>CSES 标准 <span class="tag">通用</span></h3>
+      <p>高校/通用标准格式（cses_version + day_of_week），适合教务系统对接导出。</p>
+      <a class="dl" href="./demo/cses.json" download>下载示例 <small>cses.json</small></a>
+    </div>
+    <div class="card">
+      <h3>ICS / iCalendar <span class="tag">日历</span></h3>
+      <p>识别 VEVENT + RRULE 每周重复，按 BYDAY 拆分课程；通用日历格式，Outlook/Google 日历均可导出。</p>
+      <a class="dl" href="./demo/sample.ics" download>下载示例 <small>sample.ics</small></a>
+    </div>
+  </div>
+
+  <div class="steps">
+    <h2>如何使用</h2>
+    <div class="step"><div class="num">1</div><div><b>打开 EV 同步器</b><br><span>在安卓同步器 App 或网页端，进入「导入课表」。</span></div></div>
+    <div class="step"><div class="num">2</div><div><b>选择来源格式</b><br><span>从列表选择你的课表来源（EV / 拾光 / WakeUp / 星链 / CSES / ICS），或先点「载入示例数据」体验。</span></div></div>
+    <div class="step"><div class="num">3</div><div><b>载入或选择文件</b><br><span>粘贴/选择对应格式的文件，或一键载入我们提供的示例，即时预览解析结果。</span></div></div>
+    <div class="step"><div class="num">4</div><div><b>导入到手环</b><br><span>确认无误后「导入到手环」，课程即刻同步到腕上课程表。</span></div></div>
+  </div>
+
+  <div class="link4">以上六种格式均经 <b>真实解析测试</b>：每种示例文件都能被导入引擎正确识别并解析为课程数据，可放心迁移。</div>
+
+  <div class="shots">
+    <h2>功能实拍</h2>
+    <div class="hint">下方为同步器「导入课表 / 载入示例数据」界面的实拍位（请在真机/模拟器截图上传统一替换）。</div>
+    <div class="slotrow">
+      <div class="slot">同步器「导入课表」界面实拍<br>（选格式 → 载入示例 → 预览）</div>
+      <div class="slot">腕上课程表导入后效果实拍<br>（抬腕即见课）</div>
+    </div>
+  </div>
+
+  <footer>Ev课程表 · 四端联动（腕上课程表 + 联动表盘 + 安卓同步器 + 网页端）· 示例文件仅用于功能演示</footer>
+</div>
+</body>
+</html>
