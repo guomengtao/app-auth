@@ -19,9 +19,9 @@ capture-apk-page.py — android-apk.html 旧版存档截图的补采半自动脚
 用法：
   python3 scripts/capture-apk-page.py --status
   python3 scripts/capture-apk-page.py --verify
-  python3 scripts/capture-apk-page.py --page message --version 0.6.54 --dry-run
-  python3 scripts/capture-apk-page.py --page message --version 0.6.54
-  python3 scripts/capture-apk-page.py --interactive --version 0.6.54
+  python3 scripts/capture-apk-page.py --page message --version 0.6.56 --dry-run
+  python3 scripts/capture-apk-page.py --page message --version 0.6.56
+  python3 scripts/capture-apk-page.py --interactive --version 0.6.56
   python3 scripts/capture-apk-page.py --status --root /tmp/app-auth-rehearsal   # 演练副本
 
  --simulate 仅供脚本自测：跳过 adb，用 --source 指定一张已有图冒充截图，
@@ -271,7 +271,7 @@ def main():
     ap.add_argument("--status", action="store_true", help="只读：列出 16 页状态")
     ap.add_argument("--verify", action="store_true", help="只读：结构校验")
     ap.add_argument("--page", help="要补采的页面 id")
-    ap.add_argument("--version", help="手机上实际安装的 APK 版本，如 0.6.54")
+    ap.add_argument("--version", help="手机上实际安装的 APK 版本，如 0.6.56")
     ap.add_argument("--state", help="覆盖该页 state 文案（默认沿用原值）")
     ap.add_argument("--device", help="指定 adb serial（默认取第一台在线设备）")
     ap.add_argument("--interactive", action="store_true", help="逐页提示翻页，一条命令补完 12 页")
