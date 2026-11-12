@@ -208,7 +208,8 @@ def rewrite(s, page, ver, state, at, size):
 
     s = re.sub(r'capturedAt:"[^"]*"',
                lambda m: 'capturedAt:"%s（最新批次 v%s）%s"' %
-               (at, ver, "" if l == 0 else " · 2026-10-05 15:00（旧版存档）"),
+               (at, ver, " · 2026-11-05 19:45（v0.6.8 首批 4 页）" if l == 0
+                else " · 2026-10-05 15:00（旧版存档）"),
                s, count=1)
     s = re.sub(r'pageUpdatedAt:"[^"]*"',
                lambda m: 'pageUpdatedAt:"%s"' % today(), s, count=1)
@@ -220,7 +221,8 @@ def rewrite(s, page, ver, state, at, size):
                 "设备恢复后补采。当前线上发布版 v'+DATA.app.version+'（code '+DATA.app.versionCode+'），"
                 "排查时以手机实际版本为准。';" % (f, ver, at, size, l))
     else:
-        note = ("'📌 本页已更新：16 页全部为真机实拍新版（最新 v%s / %s / %s）。"
+        note = ("'📌 本页已更新：16 页全部为真机实拍——12 页 v%s（%s / %s / Redmi 6A）"
+                "＋ 首批 4 页 v0.6.8（2026-11-05 / 1080×1920）。"
                 "当前线上发布版 v'+DATA.app.version+'（code '+DATA.app.versionCode+'），"
                 "排查时以手机实际版本为准。';" % (ver, at, size))
     s, n = re.subn(r"document\.getElementById\('stateNote'\)\.textContent='[^;]*';",
@@ -229,12 +231,20 @@ def rewrite(s, page, ver, state, at, size):
         raise RuntimeError("stateNote 定位失败")
 
     # footer：按当前计数重写双版本口径
-    foot = ('<div class="footer">Ev课程表 · 安卓 APK 页面总览 · %s 更新<br>'
-            '新版实拍：%d 页（最新 v%s / %s / %s）；旧版存档：%d 页'
-            '（v0.5.166 / 2026-10-05 15:00 / 荣耀畅玩7X 1080×2160）<br>'
-            '两套截图采集环境不同，已分开标注；线上发布版见顶部版本 chip<br>'
-            '页面随版本快速演进，每张截图都标注采集时版本，排查时以手机实际版本为准</div>'
-            % (today(), f, ver, at, size, l))
+    if l:
+        foot = ('<div class="footer">Ev课程表 · 安卓 APK 页面总览 · %s 更新<br>'
+                '新版实拍：%d 页（最新 v%s / %s / %s）；旧版存档：%d 页'
+                '（v0.5.166 / 2026-10-05 15:00 / 荣耀畅玩7X 1080×2160）<br>'
+                '两套截图采集环境不同，已分开标注；线上发布版见顶部版本 chip<br>'
+                '页面随版本快速演进，每张截图都标注采集时版本，排查时以手机实际版本为准</div>'
+                % (today(), f, ver, at, size, l))
+    else:
+        foot = ('<div class="footer">Ev课程表 · 安卓 APK 页面总览 · %s 更新<br>'
+                '真机实拍 16 页：12 页 v%s / %s / %s（Redmi 6A）＋ 首批 4 页 '
+                'v0.6.8 / 2026-11-05 / 1080×1920<br>'
+                '两批采集设备与尺寸不同，每张截图均标注版本；线上发布版见顶部版本 chip<br>'
+                '页面随版本快速演进，排查时以手机实际版本为准</div>'
+                % (today(), ver, at, size))
     s, n = re.subn(r'<div class="footer">.*?</div>', foot, s, count=1, flags=re.S)
     if n != 1:
         raise RuntimeError("footer 定位失败")
