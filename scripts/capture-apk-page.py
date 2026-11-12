@@ -56,16 +56,24 @@ def today():
 
 def read_pages(s):
     """从 HTML 的 DATA 里解析 16 页的 id / name / entry / shots。"""
+    # 2026-11-12 源码核对：新版底栏与入口已变，页面 DATA 里 5 条 entry 仍是旧文案。
+    # 只覆盖脚本展示用的入口提示，不改线上 HTML（补采时避免照旧描述扑空）。
+    ENTRY_FIX = {"message": "首页快捷按钮 / 手环页腕聊入口",
+                 "toolbox": "手环页 → 工具箱（找手机 / 静音）",
+                 "homepage-settings": "手环页 → 手环首页（挑模板、调字号）",
+                 "transfer-import": "首页 → 导入课程表（EV 变体专属）",
+                 "transfer-export": "首页 → 导出课程表（EV 变体专属）"}
     out = []
     for m in PAGE_RE.finditer(s):
         seg = s[m.start():m.start() + 1800]
         entry = re.search(r'entry:"([^"]*)"', seg)
+        raw_entry = entry.group(1) if entry else ""
         sh = SHOT_RE.search(seg)
         if not sh:
             continue
         out.append({
             "id": m.group(1), "name": m.group(2), "group": m.group(3),
-            "entry": entry.group(1) if entry else "",
+            "entry": ENTRY_FIX.get(m.group(1), raw_entry),
             "file": sh.group(1), "state": sh.group(2),
             "version": sh.group(3), "at": sh.group(4),
             "fresh": sh.group(5) == "fresh",
