@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/evboard",
+      "destination": "/evboard.html"
+    },
+    {
       "source": "/ev20",
       "destination": "/ev-class-2-0.html"
     },

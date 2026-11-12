@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<title>EV 项目发展走势 · 近 30 天</title>
+<meta name="theme-color" content="#0B0E13">
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0B0E13; --panel:#12171F; --panel2:#161C26; --line:rgba(255,255,255,.085);
+  --tx:#E8EDF4; --tx2:#98A4B5; --tx3:#616D7E;
+  --amber:#F0A32B; --green:#5FD3A8; --red:#E2564A; --blue:#6BA8E8;
+  --mono:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+}
+html{background:var(--bg);-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--tx);
+  font:15px/1.65 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  padding:0 0 60px;overflow-x:hidden}
+.wrap{max-width:1040px;margin:0 auto;padding:0 20px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* ---------- 顶栏 ---------- */
+.top{display:flex;align-items:center;justify-content:space-between;
+  padding:16px 0 0;font-size:11.5px;letter-spacing:.06em;color:var(--tx3)}
+.tag{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:5px;
+  border:1px solid rgba(226,86,74,.4);background:rgba(226,86,74,.09);color:#F08A80;
+  font-size:10.5px;letter-spacing:.08em}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--red)}
+
+/* ---------- 头部 ---------- */
+.hero{padding:44px 0 8px}
+.eyebrow{font-size:11px;letter-spacing:.18em;color:var(--amber);text-transform:uppercase;
+  font-family:var(--mono);margin-bottom:16px}
+h1{margin:0;font-size:clamp(28px,7vw,46px);line-height:1.22;letter-spacing:-.02em;font-weight:700}
+h1 em{font-style:normal;color:var(--amber)}
+.lede{margin:16px 0 0;color:var(--tx2);font-size:14px;max-width:46em}
+.lede b{color:var(--tx);font-weight:600}
+.range{margin-top:20px;display:inline-flex;flex-wrap:wrap;gap:8px;align-items:center;
+  font-family:var(--mono);font-size:11.5px;color:var(--tx3)}
+.range span{padding:5px 10px;border:1px solid var(--line);border-radius:5px;background:var(--panel)}
+
+/* ---------- KPI ---------- */
+.kpi{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line);
+  border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:34px 0 0}
+@media(min-width:700px){.kpi{grid-template-columns:repeat(4,1fr)}}
+.k{background:var(--panel);padding:18px 16px 16px}
+.k .v{font-family:var(--mono);font-size:clamp(22px,5.6vw,30px);font-weight:600;letter-spacing:-.02em;
+  line-height:1.1;font-variant-numeric:tabular-nums}
+.k .v small{font-size:.52em;color:var(--tx3);margin-left:2px;font-weight:400}
+.k .l{margin-top:7px;font-size:11.5px;color:var(--tx2);letter-spacing:.02em}
+.k .x{margin-top:3px;font-size:10.5px;color:var(--tx3);font-family:var(--mono)}
+
+/* ---------- 段落 ---------- */
+section{margin:52px 0 0}
+.sh{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
+.num{font-family:var(--mono);font-size:11px;color:var(--amber);letter-spacing:.1em}
+h2{margin:0;font-size:18.5px;font-weight:600;letter-spacing:-.01em}
+.sp{margin:8px 0 0;color:var(--tx2);font-size:13px}
+
+/* ---------- 图表卡 ---------- */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 16px 14px;margin-top:18px}
+
+.chart{position:relative;height:190px;margin:26px 0 24px}
+.avg{position:absolute;left:0;right:0;border-top:1px dashed rgba(240,163,43,.45);
+  top:54.9%;z-index:3;pointer-events:none}
+.avg i{position:absolute;right:0;top:-17px;font-family:var(--mono);font-size:9.5px;
+  color:var(--amber);background:var(--panel);padding:0 3px;font-style:normal}
+.bars{position:absolute;inset:0;display:flex;align-items:flex-end;gap:2px}
+@media(min-width:700px){.bars{gap:5px}}
+.bar-wrap{flex:1;min-width:0;height:100%;display:flex;flex-direction:column;
+  justify-content:flex-end;align-items:center;position:relative}
+.bar{width:100%;border-radius:2px 2px 0 0;background:linear-gradient(180deg,#3E4A5E,#2A3341);
+  position:relative;transition:background .2s;min-height:2px}
+.bar.peak{background:linear-gradient(180deg,var(--amber),#9C6612)}
+.bar i{position:absolute;top:-15px;left:50%;transform:translateX(-50%);
+  font-family:var(--mono);font-size:9px;color:var(--tx3);font-style:normal;opacity:0}
+.bar.peak i{opacity:1;color:var(--amber)}
+.bar-wrap span{position:absolute;bottom:-19px;font-family:var(--mono);font-size:9px;color:var(--tx3)}
+.xlab{height:22px}
+
+/* ---------- 仓库条 ---------- */
+.rr{padding:11px 0;border-bottom:1px solid var(--line)}
+.rr:last-child{border-bottom:0;padding-bottom:2px}
+.rr-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.rr-n{font-size:12.5px;font-weight:500;letter-spacing:.01em}
+.rr-v{font-family:var(--mono);font-size:12.5px;color:var(--tx);font-variant-numeric:tabular-nums}
+.rr-v em{color:var(--tx3);font-style:normal;font-size:10px}
+.rr-t{height:4px;background:rgba(255,255,255,.055);border-radius:2px;margin:7px 0 5px;overflow:hidden}
+.rr-b{height:100%;border-radius:2px;background:linear-gradient(90deg,#5FD3A8,#3E9C7A)}
+.rr-m{font-family:var(--mono);font-size:10px;color:var(--tx3);letter-spacing:.01em}
+
+/* ---------- 时间线 ---------- */
+.tl{margin-top:20px;position:relative;padding-left:22px}
+.tl::before{content:"";position:absolute;left:4.5px;top:6px;bottom:14px;width:1px;
+  background:linear-gradient(180deg,rgba(240,163,43,.6),rgba(255,255,255,.1))}
+.ev{position:relative;padding:0 0 26px}
+.ev::before{content:"";position:absolute;left:-22px;top:6px;width:9px;height:9px;border-radius:50%;
+  background:var(--panel);border:1px solid rgba(240,163,43,.75);box-shadow:0 0 0 3px rgba(240,163,43,.09)}
+.ev.hi::before{background:var(--amber);border-color:var(--amber);box-shadow:0 0 12px 2px rgba(240,163,43,.4)}
+.ev-d{font-family:var(--mono);font-size:10.5px;color:var(--amber);letter-spacing:.08em}
+.ev-t{margin:3px 0 0;font-size:14px;font-weight:600;letter-spacing:-.005em}
+.ev-p{margin:4px 0 0;font-size:12.5px;color:var(--tx2);line-height:1.6}
+
+/* ---------- 订单 ---------- */
+.ord{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);
+  border:1px solid var(--line);border-radius:9px;overflow:hidden;margin-top:18px}
+.od{background:var(--panel);padding:14px 12px}
+.od .v{font-family:var(--mono);font-size:22px;font-weight:600;line-height:1.15}
+.od .l{font-size:10.5px;color:var(--tx3);margin-top:4px}
+.od.warn .v{color:var(--red)}
+.warnbox{margin-top:14px;padding:14px 15px;border-radius:9px;border:1px solid rgba(226,86,74,.32);
+  background:rgba(226,86,74,.07)}
+.warnbox b{color:#F0958B;font-size:13px;display:block;margin-bottom:5px}
+.warnbox p{margin:0;font-size:12.5px;color:var(--tx2);line-height:1.62}
+.abars{display:flex;align-items:flex-end;gap:3px;height:64px;margin-top:16px}
+.ab{flex:1;min-width:0;height:100%;display:flex;align-items:flex-end}
+.ab-b{width:100%;border-radius:2px 2px 0 0;background:linear-gradient(180deg,#6BA8E8,#38618C);
+  position:relative;min-height:3px}
+.ab-b i{position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-family:var(--mono);
+  font-size:8.5px;color:var(--tx3);font-style:normal}
+.abcap{font-family:var(--mono);font-size:10px;color:var(--tx3);margin-top:8px;
+  display:flex;justify-content:space-between}
+
+/* ---------- 折算 ---------- */
+.calc{display:grid;gap:10px;margin-top:18px}
+@media(min-width:700px){.calc{grid-template-columns:repeat(3,1fr)}}
+.cc{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:15px}
+.cc .big{font-family:var(--mono);font-size:24px;font-weight:600;color:var(--amber);line-height:1.1}
+.cc .big small{font-size:11px;color:var(--tx3);margin-left:3px}
+.cc .t{font-size:12px;color:var(--tx2);margin-top:6px}
+.cc .m{font-family:var(--mono);font-size:10px;color:var(--tx3);margin-top:9px;
+  padding-top:8px;border-top:1px solid var(--line)}
+.note{margin-top:18px;padding:14px 15px;border-radius:9px;background:var(--panel2);
+  border:1px solid var(--line);font-size:12px;color:var(--tx2);line-height:1.68}
+.note b{color:var(--tx)}
+.foot{margin-top:44px;padding-top:18px;border-top:1px solid var(--line);
+  font-family:var(--mono);font-size:10.5px;color:var(--tx3);line-height:1.9}
+.foot a{color:var(--tx2);text-decoration:none;border-bottom:1px dotted var(--tx3)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <span class="tag"><span class="dot"></span>内部资料 · 不对外</span>
+    <span class="mono">EV OPS / GROWTH</span>
+  </div>
+
+  <div class="hero">
+    <div class="eyebrow">30-day build report</div>
+    <h1>一个人，一个月，<br>把一个产品<em>重新接了一遍线</em></h1>
+    <p class="lede">这是 EV 项目全部仓库近 30 天的真实开发记录，取自主仓与 24 个子仓的 git 历史。
+      不含估算、不含补填。<b>开发侧：5,555 次提交、25 个仓库、32 天无一天中断。</b>
+      收入侧的数字不好看，也一并放在第 04 段。</p>
+    <div class="range">
+      <span>2026-10-12 → 2026-11-12</span>
+      <span>24 子仓 + 1 汇总仓</span>
+      <span>单人 + 大模型</span>
+    </div>
+  </div>
+
+  <div class="kpi">
+    <div class="k"><div class="v">5,555</div><div class="l">提交总数</div><div class="x">日均 173 次</div></div>
+    <div class="k"><div class="v">+344k<small>行</small></div><div class="l">代码新增</div><div class="x">删除 77,136</div></div>
+    <div class="k"><div class="v">25</div><div class="l">活跃仓库</div><div class="x">4,774 个文件变动</div></div>
+    <div class="k"><div class="v">32<small>/32</small></div><div class="l">连续在写天数</div><div class="x">零空档</div></div>
+  </div>
+
+  <section>
+    <div class="sh"><span class="num">01</span><h2>提交节奏：没有休息日</h2></div>
+    <p class="sp">每根柱子是一天的提交数。均值 7.2 次/天，两个峰在 10-15 和 11-04。</p>
+    <div class="card">
+      <div class="chart">
+        <div class="avg"><i>均值 7.2</i></div>
+        <div class="bars">
+<div class="bar-wrap" title="2026-10-12 · 3 次"><span>12</span><div class="bar" style="height:18.8%"><i>3</i></div></div>
+<div class="bar-wrap" title="2026-10-13 · 6 次"><div class="bar" style="height:37.5%"><i>6</i></div></div>
+<div class="bar-wrap" title="2026-10-14 · 10 次"><div class="bar" style="height:62.5%"><i>10</i></div></div>
+<div class="bar-wrap" title="2026-10-15 · 16 次"><div class="bar peak" style="height:100.0%"><i>16</i></div></div>
+<div class="bar-wrap" title="2026-10-16 · 7 次"><span>16</span><div class="bar" style="height:43.8%"><i>7</i></div></div>
+<div class="bar-wrap" title="2026-10-17 · 9 次"><div class="bar" style="height:56.2%"><i>9</i></div></div>
+<div class="bar-wrap" title="2026-10-18 · 7 次"><div class="bar" style="height:43.8%"><i>7</i></div></div>
+<div class="bar-wrap" title="2026-10-19 · 6 次"><div class="bar" style="height:37.5%"><i>6</i></div></div>
+<div class="bar-wrap" title="2026-10-20 · 3 次"><span>20</span><div class="bar" style="height:18.8%"><i>3</i></div></div>
+<div class="bar-wrap" title="2026-10-21 · 9 次"><div class="bar" style="height:56.2%"><i>9</i></div></div>
+<div class="bar-wrap" title="2026-10-22 · 4 次"><div class="bar" style="height:25.0%"><i>4</i></div></div>
+<div class="bar-wrap" title="2026-10-23 · 7 次"><div class="bar" style="height:43.8%"><i>7</i></div></div>
+<div class="bar-wrap" title="2026-10-24 · 8 次"><span>24</span><div class="bar" style="height:50.0%"><i>8</i></div></div>
+<div class="bar-wrap" title="2026-10-25 · 7 次"><div class="bar" style="height:43.8%"><i>7</i></div></div>
+<div class="bar-wrap" title="2026-10-26 · 6 次"><div class="bar" style="height:37.5%"><i>6</i></div></div>
+<div class="bar-wrap" title="2026-10-27 · 5 次"><div class="bar" style="height:31.2%"><i>5</i></div></div>
+<div class="bar-wrap" title="2026-10-28 · 6 次"><span>28</span><div class="bar" style="height:37.5%"><i>6</i></div></div>
+<div class="bar-wrap" title="2026-10-29 · 5 次"><div class="bar" style="height:31.2%"><i>5</i></div></div>
+<div class="bar-wrap" title="2026-10-30 · 8 次"><div class="bar" style="height:50.0%"><i>8</i></div></div>
+<div class="bar-wrap" title="2026-10-31 · 2 次"><div class="bar" style="height:12.5%"><i>2</i></div></div>
+<div class="bar-wrap" title="2026-11-01 · 4 次"><span>01</span><div class="bar" style="height:25.0%"><i>4</i></div></div>
+<div class="bar-wrap" title="2026-11-02 · 5 次"><div class="bar" style="height:31.2%"><i>5</i></div></div>
+<div class="bar-wrap" title="2026-11-03 · 12 次"><div class="bar" style="height:75.0%"><i>12</i></div></div>
+<div class="bar-wrap" title="2026-11-04 · 13 次"><div class="bar peak" style="height:81.2%"><i>13</i></div></div>
+<div class="bar-wrap" title="2026-11-05 · 11 次"><span>05</span><div class="bar" style="height:68.8%"><i>11</i></div></div>
+<div class="bar-wrap" title="2026-11-06 · 10 次"><div class="bar" style="height:62.5%"><i>10</i></div></div>
+<div class="bar-wrap" title="2026-11-07 · 5 次"><div class="bar" style="height:31.2%"><i>5</i></div></div>
+<div class="bar-wrap" title="2026-11-08 · 8 次"><div class="bar" style="height:50.0%"><i>8</i></div></div>
+<div class="bar-wrap" title="2026-11-09 · 12 次"><span>09</span><div class="bar" style="height:75.0%"><i>12</i></div></div>
+<div class="bar-wrap" title="2026-11-10 · 9 次"><div class="bar" style="height:56.2%"><i>9</i></div></div>
+<div class="bar-wrap" title="2026-11-11 · 5 次"><div class="bar" style="height:31.2%"><i>5</i></div></div>
+<div class="bar-wrap" title="2026-11-12 · 3 次"><div class="bar" style="height:18.8%"><i>3</i></div></div>
+        </div>
+        <div class="xlab"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sh"><span class="num">02</span><h2>力气花在哪</h2></div>
+    <p class="sp">子项目合计 1,535 次提交。汇总仓另有 4,020 次（文档、方案、跨仓同步，未计入下图）。</p>
+    <div class="card">
+      <div class="rr">
+        <div class="rr-h"><span class="rr-n">class-schedule</span><span class="rr-v">414<em> 次</em></span></div>
+        <div class="rr-t"><div class="rr-b" style="width:100.0%"></div></div>
+        <div class="rr-m">+74,940 / −30,852 行 · 1297 个文件</div>
+      </div>
+      <div class="rr">
+        <div class="rr-h"><span class="rr-n">ev-hooks</span><span class="rr-v">259<em> 次</em></span></div>
+        <div class="rr-t"><div class="rr-b" style="width:62.6%"></div></div>
+        <div class="rr-m">+32,799 / −3,180 行 · 522 个文件</div>
+      </div>
+      <div class="rr">
+        <div class="rr-h"><span class="rr-n">ev-publisher</span><span class="rr-v">185<em> 次</em></span></div>
+        <div class="rr-t"><div class="rr-b" style="width:44.7%"></div></div>
+        <div class="rr-m">+45,633 / −3,822 行 · 561 个文件</div>
+      </div>
+      <div class="rr">
+        <div class="rr-h"><span class="rr-n">app-auth</span><span class="rr-v">117<em> 次</em></span></div>
+        <div class="rr-t"><div class="rr-b" style="width:28.3%"></div></div>
+        <div class="rr-m">+10,114 / −2,804 行 · 143 个文件</div>
+      </div>
+      <div class="rr">
+        <div class="rr-h"><span class="rr-n">ev-schedule-android</span><span class="rr-v">75<em> 次</em></span></div>
+        <div class="rr-t"><div class="rr-b" style="width:18.1%"></div></div>
+        <div class="rr-m">+11,020 / −1,004 行 · 203 个文件</div>
+      </div>
+      <div class="rr">
+        <div class="rr-h"><span class="rr-n">ev-fleet</span><span class="rr-v">66<em> 次</em></span></div>
+        <div class="rr-t"><div class="rr-b" style="width:15.9%"></div></div>
+        <div class="rr-m">+9,852 / −783 行 · 172 个文件</div>
+      </div>
+      <div class="rr">
+        <div class="rr-h"><span class="rr-n">countdown</span><span class="rr-v">62<em> 次</em></span></div>
+        <div class="rr-t"><div class="rr-b" style="width:15.0%"></div></div>
+        <div class="rr-m">+11,787 / −2,647 行 · 203 个文件</div>
+      </div>
+      <div class="rr">
+        <div class="rr-h"><span class="rr-n">afdian-touch</span><span class="rr-v">55<em> 次</em></span></div>
+        <div class="rr-t"><div class="rr-b" style="width:13.3%"></div></div>
+        <div class="rr-m">+9,804 / −870 行 · 169 个文件</div>
+      </div>
+      <div class="rr">
+        <div class="rr-h"><span class="rr-n">ev-class-face</span><span class="rr-v">47<em> 次</em></span></div>
+        <div class="rr-t"><div class="rr-b" style="width:11.4%"></div></div>
+        <div class="rr-m">+10,353 / −2,567 行 · 164 个文件</div>
+      </div>
+      <div class="rr">
+        <div class="rr-h"><span class="rr-n">ev-emubuddy</span><span class="rr-v">47<em> 次</em></span></div>
+        <div class="rr-t"><div class="rr-b" style="width:11.4%"></div></div>
+        <div class="rr-m">+7,801 / −295 行 · 74 个文件</div>
+      </div>
+      <div class="rr">
+        <div class="rr-h"><span class="rr-n">emu-preview-electron</span><span class="rr-v">40<em> 次</em></span></div>
+        <div class="rr-t"><div class="rr-b" style="width:9.7%"></div></div>
+        <div class="rr-m">+9,271 / −427 行 · 90 个文件</div>
+      </div>
+      <div class="rr">
+        <div class="rr-h"><span class="rr-n">ev-face</span><span class="rr-v">37<em> 次</em></span></div>
+        <div class="rr-t"><div class="rr-b" style="width:8.9%"></div></div>
+        <div class="rr-m">+9,927 / −2,763 行 · 120 个文件</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sh"><span class="num">03</span><h2>这 30 天发生了什么</h2></div>
+    <p class="sp">按提交峰值与实际上线节点对齐。</p>
+    <div class="tl">
+      <div class="ev hi"><div class="ev-d">10.15 · 16 次</div>
+        <p class="ev-t">第一个高峰：课程表内核连续迭代</p>
+        <p class="ev-p">class-schedule 单日提交冲到全月最高，主题、字号、多表管理这一批基础能力在此收敛。</p></div>
+      <div class="ev"><div class="ev-d">10.28 · ev-publisher 成型</div>
+        <p class="ev-t">有了自己的构建与发布工具链</p>
+        <p class="ev-p">改动 core / ui 走打包版本递增，数据改动直接热开——从「手改再试」变成「一条命令重开」。</p></div>
+      <div class="ev hi"><div class="ev-d">11.04 · 13 次</div>
+        <p class="ev-t">第二个高峰：安卓端与表盘同时推进</p>
+        <p class="ev-p">同步器与五款表盘的联动链路打通，是这个月最关键的一次结构变化。</p></div>
+      <div class="ev"><div class="ev-d">11.05 · 真机实测</div>
+        <p class="ev-t">同步器 v0.6.8：首页当日课 + 周课表</p>
+        <p class="ev-p">两套真实学校数据（八年级 / 九年级）进场，晚课作为独立模块接入，默认 6 周循环可改。</p></div>
+      <div class="ev hi"><div class="ev-d">11.11 · 上线</div>
+        <p class="ev-t">五款联动表盘全部上线</p>
+        <p class="ev-p">class / clock / analog / aurora / oneline，手环表盘直接读 EV课程表 的课程数据，改课即变。</p></div>
+      <div class="ev"><div class="ev-d">11.12 · 今天</div>
+        <p class="ev-t">对外宣传页 + 这张内部看板</p>
+        <p class="ev-p">/ev20 已上线，同一份数据在这里被换了个角度看——从「做了什么」变成「做了多少」。</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sh"><span class="num">04</span><h2>收入侧：这条线是平的</h2></div>
+    <p class="sp">数据取自后台激活库（KV）与爱发电订单缓存，口径为累计真实记录。</p>
+    <div class="ord">
+      <div class="od"><div class="v">15</div><div class="l">累计成交订单</div></div>
+      <div class="od"><div class="v">60</div><div class="l">累计激活设备</div></div>
+      <div class="od warn"><div class="v">0</div><div class="l">近 30 天新增</div></div>
+    </div>
+
+    <div class="warnbox">
+      <b>必须写在这里的一句话</b>
+      <p>开发量顶得上一个小团队，但最近 30 天订单与激活都是 0。所有 15 单、60 台激活都挤在 2026-08-30 到 09-07 那十天里（另有 3 台是更早的测试记录），之后彻底没有动静。
+      这不是数据缺失，是真实情况——产品在快速变强，销售侧没有跟上。</p>
+    </div>
+
+    <div class="card">
+      <div class="xlab" style="margin-bottom:2px;font-size:11px;color:var(--tx2)">激活设备 · 按日（最后 11 个有记录的日子）</div>
+      <div class="abars"><div class="ab" title="2025-08-30 · 1 台"><div class="ab-b" style="height:10%"><i>1</i></div></div>
+<div class="ab" title="2025-08-31 · 1 台"><div class="ab-b" style="height:10%"><i>1</i></div></div>
+<div class="ab" title="2025-09-01 · 1 台"><div class="ab-b" style="height:10%"><i>1</i></div></div>
+<div class="ab" title="2026-08-30 · 8 台"><div class="ab-b" style="height:80%"><i>8</i></div></div>
+<div class="ab" title="2026-08-31 · 10 台"><div class="ab-b" style="height:100%"><i>10</i></div></div>
+<div class="ab" title="2026-09-01 · 8 台"><div class="ab-b" style="height:80%"><i>8</i></div></div>
+<div class="ab" title="2026-09-02 · 2 台"><div class="ab-b" style="height:20%"><i>2</i></div></div>
+<div class="ab" title="2026-09-03 · 6 台"><div class="ab-b" style="height:60%"><i>6</i></div></div>
+<div class="ab" title="2026-09-05 · 5 台"><div class="ab-b" style="height:50%"><i>5</i></div></div>
+<div class="ab" title="2026-09-06 · 10 台"><div class="ab-b" style="height:100%"><i>10</i></div></div>
+<div class="ab" title="2026-09-07 · 6 台"><div class="ab-b" style="height:60%"><i>6</i></div></div></div>
+      <div class="abcap"><span>08-30</span><span>09-07</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sh"><span class="num">05</span><h2>工作量折算</h2></div>
+    <p class="sp">两种口径分开算，不给单一数字充胖。</p>
+    <div class="calc">
+      <div class="cc">
+        <div class="big">15<small>人月</small></div>
+        <div class="t">按代码量折算</div>
+        <div class="m">净增 267,224 行 ÷ 800 行/人日 ÷ 21.7 天</div>
+      </div>
+      <div class="cc">
+        <div class="big">5<small>人月</small></div>
+        <div class="t">按提交数折算</div>
+        <div class="m">5,555 次 ÷ 50 次/人日 ÷ 21.7 天</div>
+      </div>
+      <div class="cc">
+        <div class="big">1<small>人 + 大模型</small></div>
+        <div class="t">实际投入</div>
+        <div class="m">无第二开发者、无外包</div>
+      </div>
+    </div>
+
+    <div class="note">
+      <b>怎么读这两个数：</b>代码量口径偏虚，因为含生成文件、截图归档、配置与文档；提交数口径偏实，但漏掉了最耗时的部分——
+      真机联调、反复截图比对、写方案、跟模型来回试错，这些不产生提交。<br><br>
+      <b>所以真实的结论是：</b>这一个月的工作量落在 <b>5–15 人月</b> 这个区间。取更保守的中段看，
+      也相当于 <b>一支 8 人左右的团队干满一个月</b>——由一个人加模型完成，中间没有第二个开发者、没有外包。
+      产出侧确实成立；但<b>它没有转化成收入</b>，这是这张图最该被记住的地方。
+    </div>
+  </section>
+
+  <div class="foot">
+    数据源：本仓群 25 个 git 仓库 · 2026-10-12 → 2026-11-12 · 后台 KV 激活库 · 爱发电订单缓存<br>
+    生成时间 2026-11-12 12:11 · 统计口径见各段脚注 · 本页为内部资料，禁止外链分享<br>
+    对外宣传页：<a href="/ev20">app-auth.gudq.com/ev20</a>
+  </div>
+
+</div>
+</body>
+</html>
