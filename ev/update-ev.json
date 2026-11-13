@@ -1,9 +1,9 @@
 {
- "versionCode": 236,
- "versionName": "0.6.54",
- "sha256": "a1dd60cfaf82ca1cb33093a2606534fe754cdc6bd46a44062dec766eed10527d",
- "downloadUrlMirror": "https://app-auth.gudq.com/dl/EVSyncProbe-v0.6.54.apk",
- "downloadUrlOrigin": "https://github.com/guomengtao/ev-schedule-android/releases/download/v0.6.54/EVSyncProbe-v0.6.54.apk",
+ "versionCode": 242,
+ "versionName": "0.6.60",
+ "sha256": "84831ace11b4e6d40949b9bb3ecf6106f29e448c33f5d6bb3d48e42f7c938581",
+ "downloadUrlMirror": "https://app-auth.gudq.com/dl/EVSyncProbe-v0.6.60.apk",
+ "downloadUrlOrigin": "https://github.com/guomengtao/ev-schedule-android/releases/download/v0.6.60/EVSyncProbe-v0.6.60.apk",
  "isForce": false,
- "updateLog": "课程数据导入/导出现已包含晚课，换机或备份不再丢晚课；导入时自动把当前周校准回 1~周期范围，手环、安卓、Rust 三端口径一致"
+ "updateLog": "新增「表盘外观」独立页面：可一键更换手环表盘背景色，也能从相册选图自动裁成 192×490 并压缩后传到手环。传图结果改为弹窗提示，并明确写完后需切一次表盘才生效。使用前提：需安装 EV 课程表表盘、课程表快应用 1.9.222 及以上。"
 }
