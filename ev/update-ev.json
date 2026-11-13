@@ -1,9 +1,9 @@
 {
- "versionCode": 244,
- "versionName": "0.6.62",
- "sha256": "e9d59243e73ddaa9ba46acec7b3351b1b9d58f153ec31766d073181314e79b17",
- "downloadUrlMirror": "https://app-auth.gudq.com/dl/EVSyncProbe-v0.6.62.apk",
- "downloadUrlOrigin": "https://github.com/guomengtao/ev-schedule-android/releases/download/v0.6.62/EVSyncProbe-v0.6.62.apk",
+ "versionCode": 245,
+ "versionName": "0.6.63",
+ "sha256": "7e7b2348815f6064be9ee556d7736881cffab69cf77691c138acc44b3add9186",
+ "downloadUrlMirror": "https://app-auth.gudq.com/dl/EVSyncProbe-v0.6.63.apk",
+ "downloadUrlOrigin": "https://github.com/guomengtao/ev-schedule-android/releases/download/v0.6.63/EVSyncProbe-v0.6.63.apk",
  "isForce": false,
- "updateLog": "选图增加取景预览：拖动/双指缩放调整范围，虚线框内清晰、框外模糊，右下角实时显示手环实际效果，不用再单独截图。另修复超大图片 OOM。"
+ "updateLog": "传图失败、未连接、回包异常等改为弹窗提示，不再只有底部小字；结果弹窗换成与升级提示同款圆角卡样式（成功蓝 / 失败红、长文可滚动）"
 }
