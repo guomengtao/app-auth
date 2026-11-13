@@ -1,9 +1,9 @@
 {
- "versionCode": 242,
- "versionName": "0.6.60",
- "sha256": "84831ace11b4e6d40949b9bb3ecf6106f29e448c33f5d6bb3d48e42f7c938581",
- "downloadUrlMirror": "https://app-auth.gudq.com/dl/EVSyncProbe-v0.6.60.apk",
- "downloadUrlOrigin": "https://github.com/guomengtao/ev-schedule-android/releases/download/v0.6.60/EVSyncProbe-v0.6.60.apk",
+ "versionCode": 244,
+ "versionName": "0.6.62",
+ "sha256": "e9d59243e73ddaa9ba46acec7b3351b1b9d58f153ec31766d073181314e79b17",
+ "downloadUrlMirror": "https://app-auth.gudq.com/dl/EVSyncProbe-v0.6.62.apk",
+ "downloadUrlOrigin": "https://github.com/guomengtao/ev-schedule-android/releases/download/v0.6.62/EVSyncProbe-v0.6.62.apk",
  "isForce": false,
- "updateLog": "新增「表盘外观」独立页面：可一键更换手环表盘背景色，也能从相册选图自动裁成 192×490 并压缩后传到手环。传图结果改为弹窗提示，并明确写完后需切一次表盘才生效。使用前提：需安装 EV 课程表表盘、课程表快应用 1.9.222 及以上。"
+ "updateLog": "选图增加取景预览：拖动/双指缩放调整范围，虚线框内清晰、框外模糊，右下角实时显示手环实际效果，不用再单独截图。另修复超大图片 OOM。"
 }
