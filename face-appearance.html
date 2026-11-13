@@ -6,6 +6,24 @@
 <title>表盘外观 · 给课表换一张自己的背景 | EV 课程表</title>
 <meta name="description" content="把手环课表表盘的背景换成自己的照片或喜欢的颜色。这是 EV 课程表独有的一项能力。">
 <style>
+  /* ---------- 先装这一款表盘 ---------- */
+  .getface{background:linear-gradient(135deg,rgba(93,202,165,.10),rgba(126,200,227,.05));
+    border:1px solid rgba(93,202,165,.32);border-radius:var(--r);padding:26px 28px;margin:0 0 8px}
+  .gf-tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.08em;
+    color:var(--accent);background:rgba(93,202,165,.12);border:1px solid rgba(93,202,165,.3);
+    border-radius:999px;padding:5px 12px;margin-bottom:14px}
+  .getface h2{margin:0 0 10px;font-size:20px}
+  .gf-meta{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 20px}
+  .gf-meta span{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--sub);
+    border:1px solid var(--line2);border-radius:6px;padding:5px 10px}
+  .gf-actions{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+  .gf-btn{display:inline-block;background:var(--accent);color:#08110D;font-weight:700;
+    font-size:14px;text-decoration:none;border-radius:10px;padding:12px 22px}
+  .gf-link{font-size:13px;color:var(--blue);text-decoration:none}
+  .gf-note{margin:18px 0 0;font-size:12.5px;color:var(--sub);line-height:1.75}
+  .gf-note a{color:var(--blue)}
+  .req-row a{color:var(--blue)}
+
   :root{
     --bg:#070A0F; --bg2:#0C1118; --card:#111823; --card2:#16202D;
     --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
@@ -158,7 +176,7 @@
     <div class="hero-grid">
       <div>
         <h1>给课表<em>换一张</em><br>自己的背景</h1>
-        <p class="sub">手环表盘千千万，能换背景的只有这一款。换背景色一秒生效，换背景图直接从手机相册里挑 —— 不用刷机、不用改包、不用连数据线。</p>
+        <p class="sub">手环表盘千千万，能换背景的只有「EV 课程提醒」这一款。换背景色一秒生效，换背景图直接从手机相册里挑 —— 不用刷机、不用改包、不用连数据线。</p>
       </div>
       <div>
         <div class="band">
@@ -181,9 +199,21 @@
     </div>
   </section>
 
+  <section class="getface">
+    <div class="gf-tag">唯一支持换背景的表盘 · 请先装它</div>
+    <h2>EV 课程提醒 <span style="font-size:14px;color:var(--sub);font-weight:400">/ EV Class</span></h2>
+    <p class="lead">这是表盘的确切名字（包名 <span class="tag">class</span>，表盘 ID <span class="tag">882610318</span>）。适配小米手环 9 与 10 Pro。<strong>必须装 v1.0.23 或更新版本</strong>才带换背景能力 —— 表盘库里那个 v1.0.15 是旧包，装了不会有任何变化。</p>
+    <div class="gf-meta"><span>版本 v1.0.23</span><span>192 × 490</span><span>124 KB</span><span>Band9 / Band10 Pro</span></div>
+    <div class="gf-actions">
+      <a class="gf-btn" href="https://app-auth.gudq.com/ev/class-band9-v1.0.23.face" download>↓ 下载表盘 · .face</a>
+      <a class="gf-link" href="https://app-auth.gudq.com/face-gallery.html">去表盘库看全部表盘 →</a>
+    </div>
+    <p class="gf-note">下载后按手环表盘安装流程导入，并在表盘列表里把它设为当前表盘。手机端同步器请更新到 <span class="tag">v0.6.62+</span>（<a href="https://app-auth.gudq.com/dl/EVSyncProbe-v0.6.62.apk">直接下载 APK</a>），再到「设置 → 外观 → 表盘外观」使用本功能。<br>装完还要满足下面三个条件才会生效。</p>
+  </section>
+
   <section>
     <h2>为什么只有这款表盘能做到</h2>
-    <p class="lead">表盘本身只是外壳，真正决定背景的是「EV 课程表」这个快应用。它会在启动时读取手环里的一份配置，把你的颜色或图片画到表盘上。</p>
+    <p class="lead">表盘本身只是外壳，真正决定背景的是「课程表快应用」。它会在启动时读取手环里的一份配置，把你的颜色或图片画到表盘上。</p>
     <div class="grid g3">
       <div class="card">
         <h3><span class="num">1</span>快应用掌权</h3>
@@ -207,8 +237,8 @@
       <div class="req-row">
         <div class="ico">⌚</div>
         <div>
-          <strong>手环表盘必须选「EV 课程表」</strong>
-          <span>手环里的表盘可以有很多，但只有「EV 课程表」这一款会读本功能写入的背景。选成其他表盘，背景不会有任何变化。</span>
+          <strong>表盘必须是「EV 课程提醒」v1.0.23+</strong>
+          <span>表盘的名字是「EV 课程提醒」（EV Class，ID 882610318），不是泛指的「课程表」。只有它会读本功能写入的背景，其他表盘（包括旧版 v1.0.15）装了也不会有变化。<a href="https://app-auth.gudq.com/ev/class-band9-v1.0.23.face" download>点此下载 v1.0.23 →</a></span>
         </div>
       </div>
       <div class="req-row">
@@ -249,7 +279,7 @@
     <h2>常见问题</h2>
     <details open>
       <summary>为什么我换完背景，表盘没变？</summary>
-      <p>最常见的原因是没切表盘。表盘只在启动时读取一次配置，写入成功但屏幕不会立即刷新。另外请确认当前表盘确实是「EV 课程表」，而不是其他表盘样式。</p>
+      <p>最常见的原因是没切表盘。表盘只在启动时读取一次配置，写入成功但屏幕不会立即刷新。另外请确认当前表盘确实是「EV 课程提醒」v1.0.23 以上，而不是其他表盘或旧版。</p>
     </details>
     <details>
       <summary>可以用自己的照片吗？会不会传很久？</summary>
@@ -271,7 +301,7 @@
 
   <footer>
     <span>EV 课程表 · 表盘外观</span>
-    <span>快应用 1.9.222+ · 同步器 v0.6.57+</span>
+    <span>表盘 EV 课程提醒 v1.0.23+ · 快应用 1.9.222+ · 同步器 v0.6.57+</span>
   </footer>
 
 </div>
