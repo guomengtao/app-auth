@@ -4,169 +4,217 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>帮助与反馈 · Ev课程表</title>
-<meta name="description" content="Ev课程表 帮助与反馈：常见问题自助解答、QQ 群交流、问题与建议提交（支持截图）。">
+<meta name="description" content="Ev课程表 帮助与反馈：写留言即时上墙、看别人的问题与回复、常见问题自助解答。">
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
   --bg:#f3f4f8; --surface:#ffffff; --ink:#1a1a2e; --muted:#6b7280;
-  --line:#e7e9f0; --accent:#6c63ff; --ok:#2e7d32; --warn:#f0a000; --err:#e53935;
+  --line:#e7e9f0; --accent:#6c63ff; --accent-soft:#f3f2ff;
+  --ok:#2e7d32; --warn:#f0a000; --err:#e53935;
 }
-/* html 给底色，避免 body 背景被提升到画布后定位/尺寸错乱 */
 html { background:#f3f4f8; }
 body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
-  color:var(--ink); line-height:1.6;
-  /* 兜底纯色：老 WebView / 多层背景不支持时至少不是白的 */
-  background-color:#f3f4f8;
-  /* 图层顺序 = 从上往下叠：紫色光晕 / 青色光晕 / 柔和不透明过渡层 / 背景图（最底）
-     背景图用绝对路径：本页有 /feedback 与 /feedback/ 两个入口，相对路径在后者会解析成 /feedback/images/... 而 404。
-     图缺失时该层自动被忽略，前面几层照常显示，不会变白屏。 */
+  color:var(--ink); line-height:1.6; background-color:#f3f4f8;
   background-image:
     radial-gradient(1100px 460px at 12% -40px, rgba(108,99,255,0.20), transparent 72%),
     radial-gradient(820px 380px at 92% 0px, rgba(53,196,214,0.16), transparent 72%),
     linear-gradient(180deg, rgba(238,241,251,0.90) 0%, rgba(244,245,250,0.35) 340px, rgba(243,244,248,0.85) 100%),
     url("/images/feedback-bg.webp");
-  background-repeat:no-repeat;
-  background-position:center top;
+  background-repeat:no-repeat; background-position:center top;
   background-size:auto, auto, auto, cover;
-  background-attachment: scroll; min-height:100vh; }
-.wrap { max-width:760px; margin:0 auto; padding:18px 20px 60px; }
-.topbar { position:sticky; top:0; z-index:20; background:rgba(243,244,248,0.86); border-bottom:1px solid var(--line); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
-.topbar-inner { max-width:760px; margin:0 auto; padding:12px 20px; display:flex; align-items:center; justify-content:space-between; }
+  background-attachment:scroll; min-height:100vh; }
+.wrap { max-width:760px; margin:0 auto; padding:18px 20px 70px; }
+.topbar { position:sticky; top:0; z-index:20; background:rgba(243,244,248,0.86);
+  border-bottom:1px solid var(--line); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
+.topbar-inner { max-width:760px; margin:0 auto; padding:12px 20px; display:flex;
+  align-items:center; justify-content:space-between; }
 .t-title { font-size:1.15rem; font-weight:800; }
 .t-title small { font-weight:500; color:var(--muted); font-size:.75rem; margin-left:8px; }
 .t-links { font-size:.8rem; }
 .t-links a { color:var(--muted); text-decoration:none; margin-left:12px; }
 .t-links a:hover { color:var(--accent); }
-/* 版本提示条 */
-.verbar { display:none; background:#fff8e6; border:1px solid #f2dfa8; border-radius:12px; padding:10px 14px; margin:14px 0 0; font-size:.88rem; }
+.hero { margin-top:18px; padding:22px 20px; border-radius:18px; position:relative; overflow:hidden;
+  background:linear-gradient(135deg, rgba(108,99,255,0.10), rgba(53,196,214,0.10));
+  border:1px solid rgba(108,99,255,0.18); }
+.hero h1 { font-size:1.42rem; font-weight:800; letter-spacing:-.01em; }
+.hero p { font-size:.9rem; color:#4b5563; margin-top:6px; }
+.hero p b { color:var(--accent); }
+.hero-acts { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
+.verbar { display:none; background:#fff8e6; border:1px solid #f2dfa8; border-radius:12px;
+  padding:10px 14px; margin:14px 0 0; font-size:.88rem; }
 .verbar.show { display:block; }
 .verbar b { color:#92400e; }
 .verbar a { color:var(--accent); font-weight:700; text-decoration:none; }
-/* 通用卡片/标题 */
-.card { background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:18px; margin-top:16px; }
-h2.sec { font-size:1.02rem; font-weight:800; margin-top:28px; display:flex; align-items:center; gap:8px; }
+.card { background:var(--surface); border:1px solid var(--line); border-radius:16px;
+  padding:18px; margin-top:16px; box-shadow:0 1px 2px rgba(16,24,40,.04); }
+h2.sec { font-size:1.02rem; font-weight:800; margin-top:30px; display:flex; align-items:center; gap:8px; }
 h2.sec::before { content:""; width:4px; height:18px; background:var(--accent); border-radius:2px; }
 h2.sec small { font-weight:500; color:var(--muted); font-size:.75rem; }
-/* FAQ 折叠（纯 JS 驱动，不用 details/summary —— 老 WebView 的 flex summary 点击切换不可靠） */
-.faq-item { border:1px solid var(--line); border-radius:12px; margin-top:10px; overflow:hidden; background:var(--surface); transition:border-color .15s; }
-.faq-item.open { border-color:var(--accent); }
-.faq-q { padding:12px 14px; cursor:pointer; font-weight:700; font-size:.92rem; display:flex; justify-content:space-between; align-items:center; user-select:none; }
-.faq-q .arrow { color:var(--muted); font-size:.8rem; transition:transform .15s; flex:0 0 auto; margin-left:10px; }
-.faq-item.open .faq-q .arrow { transform:rotate(90deg); color:var(--accent); }
-.faq-q .tag { font-weight:700; font-size:.68rem; padding:2px 8px; border-radius:10px; color:#fff; flex:0 0 auto; margin-left:10px; }
-.tag-ok { background:var(--ok); } .tag-fixing { background:var(--warn); } .tag-info { background:var(--muted); } .tag-gather { background:#b8860b; }
-.faq-a { padding:0 14px 12px; font-size:.88rem; color:#374151; display:none; }
-.faq-item.open .faq-a { display:block; padding-top:10px; border-top:1px dashed var(--line); }
-.faq-item.open .faq-q { padding-bottom:10px; }
-.faq-a a { color:var(--accent); }
-/* QQ 群 */
-.group-row { display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
-.group-num { font-size:1.3rem; font-weight:800; letter-spacing:1px; }
 .btn { display:inline-block; background:var(--accent); color:#fff; text-decoration:none; font-weight:700;
-  font-size:.85rem; padding:8px 16px; border-radius:20px; border:none; cursor:pointer; }
+  font-size:.85rem; padding:9px 18px; border-radius:22px; border:none; cursor:pointer;
+  transition:opacity .15s, transform .1s; }
+.btn:active { opacity:.82; transform:translateY(1px); }
+.btn[disabled] { opacity:.6; cursor:default; }
 .btn.ghost { background:var(--surface); color:var(--accent); border:1px solid var(--accent); }
-.btn:active { opacity:.8; }
-.qr-note { font-size:.78rem; color:var(--muted); }
-/* 留言板表单 */
-.field { margin-top:12px; }
-.field label { display:block; font-size:.8rem; font-weight:700; color:var(--muted); margin-bottom:4px; }
+.btn.sm { padding:6px 14px; font-size:.8rem; }
+.field { margin-top:14px; }
+.field label { display:block; font-size:.8rem; font-weight:700; color:var(--muted); margin-bottom:5px; }
 .field label .opt { font-weight:500; }
-textarea, input[type=text], input[type=email], input[type=tel] {
-  width:100%; border:1px solid var(--line); border-radius:10px; padding:10px 12px;
-  font-size:.92rem; font-family:inherit; background:var(--bg); color:var(--ink); resize:vertical;
-}
+textarea, input[type=text] { width:100%; border:1px solid var(--line); border-radius:10px;
+  padding:11px 13px; font-size:.92rem; font-family:inherit; background:var(--bg); color:var(--ink);
+  resize:vertical; transition:border-color .15s, background .15s; }
 textarea:focus, input:focus { outline:none; border-color:var(--accent); background:#fff; }
 .chips { display:flex; flex-wrap:wrap; gap:8px; }
 .chip-btn { border:1px solid var(--line); background:var(--surface); color:var(--ink);
-  padding:6px 14px; border-radius:18px; font-size:.85rem; cursor:pointer; }
+  padding:6px 14px; border-radius:18px; font-size:.85rem; cursor:pointer; transition:all .15s; }
 .chip-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
 .drop { border:2px dashed var(--line); border-radius:12px; padding:18px; text-align:center;
-  font-size:.82rem; color:var(--muted); cursor:pointer; margin-top:6px; }
-.drop.on { border-color:var(--accent); background:#f5f4ff; }
+  font-size:.82rem; color:var(--muted); cursor:pointer; margin-top:6px; transition:all .15s; }
+.drop.on { border-color:var(--accent); background:var(--accent-soft); }
 .thumbs { display:flex; gap:10px; margin-top:8px; flex-wrap:wrap; }
-.thumbs .th { position:relative; width:76px; height:76px; border-radius:10px; overflow:hidden; border:1px solid var(--line); }
+.thumbs .th { position:relative; width:76px; height:76px; border-radius:10px; overflow:hidden;
+  border:1px solid var(--line); }
 .thumbs .th img { width:100%; height:100%; object-fit:cover; }
 .thumbs .th .rm { position:absolute; top:2px; right:2px; background:rgba(0,0,0,.6); color:#fff;
   border:none; border-radius:50%; width:20px; height:20px; font-size:12px; cursor:pointer; line-height:20px; }
 .contact-row { display:flex; gap:8px; flex-wrap:wrap; }
-.contact-row input { flex:1; min-width:160px; }
-.privacy { font-size:.75rem; color:var(--muted); margin-top:10px; line-height:1.7; }
-.submit-row { margin-top:14px; display:flex; gap:10px; align-items:center; }
-#fbMsg { font-size:.85rem; margin-left:4px; }
-#fbMsg.ok { color:var(--ok); } #fbMsg.err { color:var(--err); }
-.known-list { font-size:.85rem; padding-left:18px; }
-.known-list li { margin-bottom:6px; }
+.contact-row input { flex:1; min-width:150px; }
+.contact-row input.k { flex:0 0 132px; }
+.privacy { font-size:.75rem; color:var(--muted); margin-top:12px; line-height:1.75;
+  background:var(--accent-soft); border-radius:10px; padding:9px 12px; }
+.privacy b { color:var(--accent); }
+.submit-row { margin-top:16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+#gbMsg { font-size:.86rem; }
+#gbMsg.ok { color:var(--ok); } #gbMsg.err { color:var(--err); }
+#gbMsg.info { color:var(--muted); }
+.wall-head { display:flex; justify-content:space-between; align-items:center; margin-top:10px; }
+.wall-count { font-size:.78rem; color:var(--muted); }
+.wall-count b { color:var(--accent); }
+.gb-refresh { font-size:.78rem; color:var(--accent); cursor:pointer; user-select:none; }
+.gb-card { background:var(--surface); border:1px solid var(--line); border-radius:14px;
+  padding:15px 16px; margin-top:11px; position:relative; }
+.gb-card.fresh { border-color:var(--accent); box-shadow:0 0 0 3px rgba(108,99,255,.14);
+  animation:flash .9s ease-out; }
+@keyframes flash { from { background:var(--accent-soft); } to { background:var(--surface); } }
+.gb-card .head { display:flex; gap:8px; align-items:center; font-size:.79rem; color:var(--muted);
+  flex-wrap:wrap; }
+.gb-avatar { width:26px; height:26px; border-radius:50%; background:var(--accent-soft);
+  color:var(--accent); font-weight:800; font-size:.75rem; display:flex; align-items:center;
+  justify-content:center; flex:0 0 auto; }
+.gb-card .head .name { font-weight:800; color:var(--ink); font-size:.92rem; }
+.gb-kind { font-size:.68rem; font-weight:700; padding:1px 8px; border-radius:10px;
+  background:var(--accent-soft); color:var(--accent); }
+.gb-you { font-size:.68rem; font-weight:700; padding:1px 8px; border-radius:10px;
+  background:#e8f5e9; color:var(--ok); }
+.gb-card .content { margin-top:9px; font-size:.93rem; white-space:pre-wrap; word-break:break-word; }
+.gb-card .imgs { display:flex; gap:8px; margin-top:9px; flex-wrap:wrap; }
+.gb-card .imgs img { width:92px; height:92px; object-fit:cover; border-radius:8px;
+  border:1px solid var(--line); cursor:zoom-in; }
+.empty { text-align:center; color:var(--muted); padding:34px 16px; font-size:.9rem; }
+.lb { display:none; position:fixed; inset:0; z-index:99; background:rgba(12,12,20,.88);
+  align-items:center; justify-content:center; padding:20px; cursor:zoom-out; }
+.lb.show { display:flex; }
+.lb img { max-width:100%; max-height:100%; border-radius:8px; }
+.known-list { font-size:.86rem; padding-left:18px; }
+.known-list li { margin-bottom:7px; }
 .known-list .v { color:var(--accent); font-weight:700; }
-@media (max-width:600px){ .wrap{padding:14px 14px 50px;} .card{padding:14px;} }
+.faq-item { border:1px solid var(--line); border-radius:12px; margin-top:10px; overflow:hidden;
+  background:var(--surface); transition:border-color .15s; }
+.faq-item.open { border-color:var(--accent); }
+.faq-q { padding:12px 14px; cursor:pointer; font-weight:700; font-size:.92rem; display:flex;
+  justify-content:space-between; align-items:center; user-select:none; }
+.faq-q .arrow { color:var(--muted); font-size:.8rem; transition:transform .15s; flex:0 0 auto; margin-left:10px; }
+.faq-item.open .faq-q .arrow { transform:rotate(90deg); color:var(--accent); }
+.faq-q .tag { font-weight:700; font-size:.68rem; padding:2px 8px; border-radius:10px;
+  color:#fff; flex:0 0 auto; margin-left:10px; }
+.tag-ok { background:var(--ok); } .tag-fixing { background:var(--warn); }
+.tag-info { background:var(--muted); } .tag-gather { background:#b8860b; }
+.faq-a { padding:0 14px 12px; font-size:.88rem; color:#374151; display:none; }
+.faq-item.open .faq-a { display:block; padding-top:10px; border-top:1px dashed var(--line); }
+.faq-item.open .faq-q { padding-bottom:10px; }
+.faq-a a { color:var(--accent); }
+.group-row { display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+.group-num { font-size:1.3rem; font-weight:800; letter-spacing:1px; }
+.qr-note { font-size:.78rem; color:var(--muted); }
+@media (max-width:600px){
+  .wrap { padding:14px 14px 60px; }
+  .card { padding:15px; }
+  .hero { padding:18px 16px; }
+  .hero h1 { font-size:1.24rem; }
+}
 </style>
 </head>
 <body>
+
 <div class="topbar">
   <div class="topbar-inner">
     <div class="t-title">帮助与反馈<small>Ev课程表</small></div>
     <div class="t-links">
       <a href="/ui-gallery-9.html">UI 截图档案</a>
+      <a href="/guestbook.html">留言墙</a>
       <a href="/">首页</a>
     </div>
   </div>
 </div>
 
 <div class="wrap">
-  <!-- ① 版本提示条 -->
-  <div class="verbar" id="verbar"></div>
 
-  <!-- ③ QQ 群 -->
-  <h2 class="sec">QQ 群交流 <small>讨论、反馈、第一时间获取更新</small></h2>
-  <div class="card">
-    <div class="group-row">
-      <div>
-        <div class="group-num">936886288</div>
-        <div class="qr-note">Ev课程表 用户群 · 加群需回答问题：本群讨论的软件名称（3 个字）</div>
-      </div>
-      <div style="margin-left:auto; display:flex; gap:8px; flex-wrap:wrap;">
-        <button class="btn ghost" onclick="copyGroup()">复制群号</button>
-        <a class="btn" href="https://qm.qq.com/q/zgHwj70bUQ"
-           target="_blank" rel="noopener">一键加群</a>
-      </div>
+  <div class="hero">
+    <h1>有问题？写下来就好</h1>
+    <p>留言<b>提交后立即公开上墙</b>，不用等审核。写下你遇到的问题，别人也可能正遇到同一个。</p>
+    <div class="hero-acts">
+      <button class="btn" onclick="focusForm()">✍️ 写留言</button>
+      <button class="btn ghost" onclick="scrollWall()">👀 看大家的留言</button>
     </div>
   </div>
 
-  <!-- ④ 留言板 -->
-  <h2 class="sec">留言板 <small>问题与建议 · 支持粘贴/拖拽截图</small></h2>
+  <div class="verbar" id="verbar"></div>
+
+  <h2 class="sec" id="formSec">写留言 <small>提交即公开 · 支持粘贴/拖拽截图</small></h2>
   <div class="card">
     <div class="field">
-      <label>反馈类型</label>
+      <label>这是什么类型 <span class="opt">（选填）</span></label>
       <div class="chips" id="typeChips"></div>
     </div>
     <div class="field">
-      <label>问题描述 <span class="opt">（越具体越快解决：做了什么、期望什么、实际发生什么）</span></label>
-      <textarea id="fbText" rows="5" maxlength="2000" placeholder="例如：打开 工具-加载动画 页面后黑屏，手环 9 Pro，v1.7.6"></textarea>
+      <label>昵称 <span class="opt">（选填，留空显示为「匿名」）</span></label>
+      <input type="text" id="gbName" maxlength="40" placeholder="匿名">
     </div>
     <div class="field">
-      <label>截图 <span class="opt">（可选，最多 3 张；将自动压缩上传，请自行遮挡隐私信息）</span></label>
+      <label>留言内容 <span class="opt">（必填 · 越具体越好：做了什么、期望什么、实际发生什么）</span></label>
+      <textarea id="gbText" rows="5" maxlength="2000" placeholder="例如：打开 工具-加载动画 页面后黑屏，手环 9 Pro，v1.7.6"></textarea>
+    </div>
+    <div class="field">
+      <label>截图 <span class="opt">（可选，最多 3 张；自动压缩，请自行遮挡隐私信息）</span></label>
       <div class="drop" id="dropZone">点击选择 / 拖拽 / 直接 Ctrl+V 粘贴截图到这里</div>
       <input type="file" id="fileInput" accept="image/*" multiple style="display:none">
       <div class="thumbs" id="thumbs"></div>
     </div>
     <div class="field">
-      <label>联系方式 <span class="opt">（选填，需回复请留一种：QQ / 邮箱 / 手机）</span></label>
+      <label>联系方式 <span class="opt">（选填 · 只给作者看，不会公开）</span></label>
       <div class="contact-row">
-        <input type="text" id="ctType" placeholder="类型：QQ/邮箱/手机" style="flex:0 0 130px;">
-        <input type="text" id="ctValue" placeholder="联系方式（匿名可留空）">
+        <input type="text" id="ctType" class="k" placeholder="QQ / 邮箱 / 手机">
+        <input type="text" id="ctValue" placeholder="需要单独回复就留一个">
       </div>
     </div>
     <div class="privacy">
-      提交即表示同意以上信息仅用于本次反馈的处理与回复，不公开、不作其他用途。
-      想即时讨论请加上方 QQ 群。匿名提交将无法获得单独回复。
+      <b>公开范围</b>：昵称、留言内容、截图会在提交后<b>立即公开</b>显示在下方留言墙，所有人都能看到。
+      联系方式不公开，仅作者可见；不想留就空着。
     </div>
     <div class="submit-row">
       <input type="text" id="hpField" name="website" value="" style="position:absolute; left:-9999px; height:0;" tabindex="-1" autocomplete="off">
-      <button class="btn" id="fbSubmit" onclick="submitFeedback()">提交反馈</button>
-      <span id="fbMsg"></span>
+      <button class="btn" id="gbSubmit" onclick="submitGuestbook()">发表留言</button>
+      <span id="gbMsg"></span>
     </div>
   </div>
 
-  <!-- ⑤ 已知问题与修复记录（数据就绪后开放） -->
+  <h2 class="sec" id="wallSec">留言墙 <small>最新在前 · 提交后立即可见</small></h2>
+  <div class="wall-head">
+    <span class="wall-count" id="wallCount"></span>
+    <span class="gb-refresh" onclick="loadWall()">↻ 刷新</span>
+  </div>
+  <div id="wall"><div class="empty">加载中…</div></div>
+
   <h2 class="sec">已知问题与修复记录 <small>你的反馈我们都在处理</small></h2>
   <div class="card">
     <ul class="known-list">
@@ -175,38 +223,68 @@ textarea:focus, input:focus { outline:none; border-color:var(--accent); backgrou
     </ul>
   </div>
 
-  <!-- ⑥ 常见问题（自助兜底参考，置于页尾） -->
+  <h2 class="sec">QQ 群交流 <small>想即时讨论就来这里</small></h2>
+  <div class="card">
+    <div class="group-row">
+      <div>
+        <div class="group-num">936886288</div>
+        <div class="qr-note">Ev课程表 用户群 · 加群需回答问题：本群讨论的软件名称（3 个字）</div>
+      </div>
+      <div style="margin-left:auto; display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn ghost sm" onclick="copyGroup()">复制群号</button>
+        <a class="btn sm" href="https://qm.qq.com/q/zgHwj70bUQ" target="_blank" rel="noopener">一键加群</a>
+      </div>
+    </div>
+  </div>
+
   <h2 class="sec">常见问题 <small>点开看答案 · 大部分问题这里就能解决</small></h2>
   <div id="faqBox"></div>
 </div>
 
+<div class="lb" id="lightbox" onclick="closeLb()"><img id="lbImg" alt=""></div>
+
 <script>
-/* ================= 追踪参数（向下兼容：缺省容忍，全部可选） ================= */
 var QP = (function(){
   var p = {};
   try {
-    var q = location.search.substring(1);
-    var kv = q.split("&");
+    var kv = location.search.substring(1).split("&");
     for (var i=0;i<kv.length;i++){
       var j = kv[i].indexOf("=");
       if (j > 0) p[decodeURIComponent(kv[i].substring(0,j))] = decodeURIComponent(kv[i].substring(j+1));
     }
   } catch(e){}
-  return {
-    src: p.src || "web",
-    v: p.v || "unknown",
-    m: p.m || "unknown",
-    ch: p.ch || "unknown",
-    page: p.page || "",
-    type: p.type || ""
-  };
+  return { src:p.src||"web", v:p.v||"unknown", m:p.m||"unknown",
+           ch:p.ch||"unknown", page:p.page||"", type:p.type||"" };
 })();
 
-/* ================= FAQ ================= */
+function $(id){ return document.getElementById(id); }
+function esc(s){ return (s==null?"":String(s)).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function timeAgo(iso){
+  var t = new Date(iso).getTime();
+  if (isNaN(t)) return String(iso || "");
+  var d = (Date.now() - t) / 1000;
+  if (d < 60) return "刚刚";
+  if (d < 3600) return Math.floor(d/60) + " 分钟前";
+  if (d < 86400) return Math.floor(d/3600) + " 小时前";
+  if (d < 86400*7) return Math.floor(d/86400) + " 天前";
+  return new Date(t).toLocaleDateString("zh-CN");
+}
+function focusForm(){
+  try {
+    $("formSec").scrollIntoView({ behavior:"smooth", block:"start" });
+    $("gbText").focus({ preventScroll:true });
+  } catch(e){ $("gbText").focus(); }
+}
+function scrollWall(){
+  try { $("wallSec").scrollIntoView({ behavior:"smooth", block:"start" }); } catch(e){}
+}
+function openLb(src){ $("lbImg").src = src; $("lightbox").className = "lb show"; }
+function closeLb(){ $("lightbox").className = "lb"; $("lbImg").src = ""; }
+
 fetch("/data/faq.json").then(function(r){ return r.json(); }).then(function(data){
-  var box = document.getElementById("faqBox");
-  var html = "";
-  var tagCls = { "已解决":"tag-ok", "修复中":"tag-fixing", "收集信息中":"tag-gather", "指引":"tag-info", "已有设置":"tag-info" };
+  var box = $("faqBox"), html = "";
+  var tagCls = { "已解决":"tag-ok", "修复中":"tag-fixing", "收集信息中":"tag-gather",
+                 "指引":"tag-info", "已有设置":"tag-info" };
   for (var i=0;i<data.items.length;i++){
     var it = data.items[i];
     html += '<div class="faq-item" id="faq-'+it.id+'">'
@@ -219,24 +297,20 @@ fetch("/data/faq.json").then(function(r){ return r.json(); }).then(function(data
   box.innerHTML = html;
   if (QP.type === "ui") openFaq("ui-issue");
   if (QP.v && QP.v !== "unknown") openFaq("exit-app");
-}).catch(function(){ document.getElementById("faqBox").innerHTML =
-  '<div class="card">FAQ 加载失败，请刷新重试；或直接在下方留言。</div>'; });
+}).catch(function(){ $("faqBox").innerHTML =
+  '<div class="card">FAQ 加载失败，请刷新重试；或直接在上方留言。</div>'; });
 
 function toggleFaq(item){
   if (item) item.className = item.className.indexOf(" open") >= 0 ? "faq-item" : "faq-item open";
 }
-
 function openFaq(id){
-  var el = document.getElementById("faq-"+id);
+  var el = $("faq-"+id);
   if (el) el.className = "faq-item open";
 }
 
-/* ================= 版本提示条（静态数据，无需后端） ================= */
 fetch("/data/releases.json").then(function(r){ return r.json(); }).then(function(d){
   if (!d || !d.watch) return;
-  var bar = document.getElementById("verbar");
-  var uv = (QP.src === "app") ? QP.v : "";
-  var lines = [];
+  var bar = $("verbar"), uv = (QP.src === "app") ? QP.v : "", lines = [];
   if (d.watch && d.watch.notes) lines.push("手环端 v"+d.watch.version+"："+d.watch.notes);
   if (d.apk && d.apk.notes) lines.push("App v"+d.apk.version+"："+d.apk.notes);
   if (!lines.length) return;
@@ -245,51 +319,45 @@ fetch("/data/releases.json").then(function(r){ return r.json(); }).then(function
     + '　<a href="'+(d.apk ? d.apk.url : "/")+'">获取最新版 →</a>'
     + (needUpdate ? "<br><b>你当前使用 v"+uv+"，建议更新体验最新版（可能已修复你遇到的问题）</b>" : "");
   bar.className = "verbar show";
-}).catch(function(){ /* 版本条失败静默，不打扰 */ });
+}).catch(function(){});
 
-/* ================= QQ 群号复制 ================= */
 function copyGroup(){
-  var done = function(){ var m = msg("群号已复制：936886288", true); };
+  var done = function(){ var m = $("gbMsg"); m.textContent = "群号已复制：936886288"; m.className = "ok"; };
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText("936886288").then(done).catch(fallbackCopy);
-  } else { fallbackCopy(); }
-  function fallbackCopy(){
+    navigator.clipboard.writeText("936886288").then(done).catch(fallback);
+  } else { fallback(); }
+  function fallback(){
     var i = document.createElement("input");
     i.value = "936886288"; document.body.appendChild(i); i.select();
     try { document.execCommand("copy"); } catch(e){}
     document.body.removeChild(i); done();
   }
-  function msg(t){ var m = document.getElementById("fbMsg"); m.textContent = t; m.className = "ok"; }
 }
 
-/* ================= 留言板 ================= */
 var TYPES = ["界面问题","功能异常","功能建议","字体/显示","同步问题","其他"];
 var selType = (QP.type === "ui") ? "界面问题" : "";
-var images = []; // {dataUrl, w, h}
+var images = [];
 
 (function initType(){
-  var box = document.getElementById("typeChips");
+  var box = $("typeChips");
   for (var i=0;i<TYPES.length;i++){
     (function(t){
       var b = document.createElement("button");
       b.className = "chip-btn" + (t === selType ? " active" : "");
       b.textContent = t;
       b.onclick = function(){
-        selType = t;
+        selType = (selType === t) ? "" : t;
         var all = box.querySelectorAll(".chip-btn");
         for (var k=0;k<all.length;k++) all[k].className = "chip-btn";
-        b.className = "chip-btn active";
+        if (selType) b.className = "chip-btn active";
       };
       box.appendChild(b);
     })(TYPES[i]);
   }
-  if (QP.page) {
-    document.getElementById("fbText").value = "【页面】" + QP.page + "：";
-  }
+  if (QP.page) $("gbText").value = "【页面】" + QP.page + "：";
 })();
 
-var drop = document.getElementById("dropZone");
-var fileInput = document.getElementById("fileInput");
+var drop = $("dropZone"), fileInput = $("fileInput");
 drop.onclick = function(){ fileInput.click(); };
 drop.ondragover = function(e){ e.preventDefault(); drop.className = "drop on"; };
 drop.ondragleave = function(){ drop.className = "drop"; };
@@ -301,23 +369,20 @@ fileInput.onchange = function(){
   for (var i=0;i<fileInput.files.length;i++) addImage(fileInput.files[i]);
   fileInput.value = "";
 };
-document.getElementById("fbText").addEventListener("paste", function(e){
+$("gbText").addEventListener("paste", function(e){
   var items = (e.clipboardData || {}).items || [];
   for (var i=0;i<items.length;i++){
-    if (items[i].type && items[i].type.indexOf("image") === 0) {
-      addImage(items[i].getAsFile());
-    }
+    if (items[i].type && items[i].type.indexOf("image") === 0) addImage(items[i].getAsFile());
   }
 });
 
 function addImage(file){
-  if (!file || file.type.indexOf("image") !== 0) return;
+  if (!file || String(file.type).indexOf("image") !== 0) return;
   if (images.length >= 3) return setMsg("最多 3 张截图", "err");
   var reader = new FileReader();
   reader.onload = function(){
     var img = new Image();
     img.onload = function(){
-      // 压缩：≤960px、webp q70、目标 ≤80KB（超了降质量重压，够看清问题即可）
       var maxW = 960;
       var scale = Math.min(1, maxW / img.width);
       var cv = document.createElement("canvas");
@@ -335,7 +400,7 @@ function addImage(file){
 }
 
 function renderThumbs(){
-  var box = document.getElementById("thumbs");
+  var box = $("thumbs");
   box.innerHTML = "";
   for (var i=0;i<images.length;i++){
     (function(idx){
@@ -349,42 +414,135 @@ function renderThumbs(){
 }
 
 function setMsg(t, cls){
-  var m = document.getElementById("fbMsg");
+  var m = $("gbMsg");
   m.textContent = t; m.className = cls || "";
 }
 
-function submitFeedback(){
-  var text = document.getElementById("fbText").value.trim();
-  if (!text) return setMsg("请先填写问题描述", "err");
-  var contact = document.getElementById("ctValue").value.trim();
-  var ctType = document.getElementById("ctType").value.trim();
-  if (contact && !ctType) return setMsg("请同时填写联系方式类型（QQ/邮箱/手机）", "err");
-  setMsg("提交中…");
-  fetch("/api/feedback", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+function submitGuestbook(){
+  var text = $("gbText").value.trim();
+  if (!text) return setMsg("请先写点什么再发表～", "err");
+  var contact = $("ctValue").value.trim();
+  var ctType = $("ctType").value.trim();
+  if (contact && !ctType) return setMsg("留了联系方式，请补一下类型（QQ / 邮箱 / 手机）", "err");
+
+  var btn = $("gbSubmit");
+  btn.disabled = true; btn.textContent = "发表中…";
+  setMsg("", "info");
+
+  fetch("/api/guestbook", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
     body: JSON.stringify({
-      src: QP.src, app_version: QP.v, device_model: QP.m, channel: QP.ch,
-      page: QP.page, type: selType || "其他", content: text,
-      contact_type: contact ? ctType : "", contact: contact,
+      name: $("gbName").value.trim(),
+      content: text,
       images: images,
-      hp: document.getElementById("hpField").value
+      kind: selType || "",
+      contact_type: contact ? ctType : "",
+      contact: contact,
+      hp: $("hpField").value
     })
-  }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+  })
+  .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, j:j }; }); })
   .then(function(res){
+    btn.disabled = false; btn.textContent = "发表留言";
     if (res.ok && res.j.ok) {
-      setMsg("✓ 提交成功，感谢反馈！" + (contact ? "我们会通过你留下的方式回复。" : "可加 QQ 群关注处理进度。"), "ok");
-      document.getElementById("fbText").value = "";
+      var item = res.j.item || null;
+      var isPublic = (res.j.status === "approved");
+      $("gbText").value = ""; $("gbName").value = "";
+      $("ctType").value = ""; $("ctValue").value = "";
       images = []; renderThumbs();
-    } else if (res.status === 404) {
-      setMsg("留言通道即将开放，请先加 QQ 群反馈", "err");
+
+      if (item && isPublic) {
+        prependCard(item);
+        setMsg("✓ 已发表，就在下面第一条", "ok");
+        setTimeout(function(){
+          var first = document.querySelector("#wall .gb-card");
+          if (first) { try { first.scrollIntoView({ behavior:"smooth", block:"center" }); } catch(e){} }
+        }, 120);
+      } else {
+        setMsg("✓ 提交成功，审核通过后显示在留言墙", "ok");
+      }
+    } else if (res.status === 429) {
+      setMsg((res.j && res.j.error) || "太频繁了，歇一会儿再发", "err");
     } else {
       setMsg("提交失败：" + ((res.j && res.j.error) || "请稍后再试"), "err");
     }
-  }).catch(function(){
+  })
+  .catch(function(){
+    btn.disabled = false; btn.textContent = "发表留言";
     setMsg("网络异常，请稍后再试；紧急问题请加 QQ 群", "err");
   });
 }
+
+var wallCount = 0;
+var myLatestId = null;
+
+function loadWall(){
+  var wall = $("wall");
+  wall.innerHTML = '<div class="empty">加载中…</div>';
+  fetch("/api/guestbook?limit=100")
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if (!j.success) throw new Error(j.error || "加载失败");
+      wall.innerHTML = "";
+      if (!j.items || !j.items.length) {
+        wall.innerHTML = '<div class="empty">还没有人留言，来抢第一条 👀</div>';
+        updateCount(0);
+        return;
+      }
+      for (var i=0;i<j.items.length;i++) wall.appendChild(renderCard(j.items[i], false));
+      updateCount(j.items.length);
+    })
+    .catch(function(e){
+      wall.innerHTML = '<div class="empty">加载失败：' + esc(e.message) + '（点右上角刷新重试）</div>';
+    });
+}
+
+function updateCount(n){
+  wallCount = n;
+  $("wallCount").innerHTML = n ? '共 <b>' + n + '</b> 条留言' : '';
+}
+
+function renderCard(g, fresh){
+  var card = document.createElement("div");
+  card.className = "gb-card" + (fresh ? " fresh" : "");
+  if (g.id != null) card.setAttribute("data-id", g.id);
+
+  var initial = (g.name && g.name !== "匿名") ? String(g.name).slice(0,1).toUpperCase() : "匿";
+  var badge = "";
+  if (myLatestId != null && String(g.id) === String(myLatestId)) {
+    badge = '<span class="gb-you">你刚发的</span>';
+  } else if (g.kind) {
+    badge = '<span class="gb-kind">' + esc(g.kind) + '</span>';
+  }
+
+  var imgs = "", arr = g.images || [];
+  for (var i=0;i<arr.length;i++){
+    imgs += '<img src="'+arr[i]+'" onclick="openLb(this.src)" alt="留言图片">';
+  }
+
+  card.innerHTML =
+      '<div class="head">'
+    +   '<span class="gb-avatar">'+esc(initial)+'</span>'
+    +   '<span class="name">'+esc(g.name || "匿名")+'</span>'
+    +   '<span>'+esc(timeAgo(g.created_at))+'</span>'
+    +   badge
+    + '</div>'
+    + '<div class="content">'+esc(g.content)+'</div>'
+    + (imgs ? '<div class="imgs">'+imgs+'</div>' : '');
+  return card;
+}
+
+function prependCard(item){
+  var wall = $("wall");
+  if (wall.querySelector(".empty")) wall.innerHTML = "";
+  myLatestId = item.id;
+  if (item.created_at == null) item.created_at = new Date().toISOString();
+  wall.insertBefore(renderCard(item, true), wall.firstChild);
+  updateCount(wallCount + 1);
+}
+
+loadWall();
 </script>
 </body>
 </html>

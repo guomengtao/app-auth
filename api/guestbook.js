@@ -20,6 +20,8 @@ var MAX_CONTENT = 2000;
 var MAX_IMAGES = 3;
 var MAX_IMG_DATAURL = 200 * 1024;
 var ALLOWED_STATUS = ["pending", "approved", "hidden"];
+// 提交即上墙：true = 新留言直接 approved（立即可见）；false = 回到人工审核（pending）
+var AUTO_APPROVE = true;
 
 function str(v, max) {
   var s = (v == null ? "" : String(v)).trim();
@@ -35,8 +37,8 @@ function parseBody(req) {
   return body;
 }
 
-function ensureTable(client) {
-  return client.query(
+async function ensureTable(client) {
+  await client.query(
     "CREATE TABLE IF NOT EXISTS guestbook (" +
     "id BIGSERIAL PRIMARY KEY," +
     "created_at TIMESTAMPTZ NOT NULL DEFAULT now()," +
@@ -47,6 +49,14 @@ function ensureTable(client) {
     "admin_note TEXT," +
     "ip_hash TEXT)"
   );
+  // 复用反馈表单的字段：联系方式只给管理员看，公开列表永不返回
+  try {
+    await client.query(
+      "ALTER TABLE guestbook ADD COLUMN IF NOT EXISTS contact_type TEXT, " +
+      "ADD COLUMN IF NOT EXISTS contact TEXT, " +
+      "ADD COLUMN IF NOT EXISTS kind TEXT"
+    );
+  } catch (e) { /* 老库只读权限时忽略，写入侧有兜底 */ }
 }
 
 // ======================= POST：投稿（公开） =======================
@@ -85,6 +95,10 @@ async function submit(req, res) {
   var content = str(body.content, MAX_CONTENT);
   if (!content) { res.status(400).json({ ok: false, error: "请填写留言内容" }); return; }
   var name = str(body.name, MAX_NAME) || "匿名";
+  // 反馈类型 / 联系方式：仅落库，不进公开列表
+  var kind = str(body.kind, 20);
+  var contactType = str(body.contact_type, 20);
+  var contact = str(body.contact, 120);
 
   var images = Array.isArray(body.images) ? body.images : [];
   if (images.length > MAX_IMAGES) {
@@ -108,12 +122,16 @@ async function submit(req, res) {
 
   try {
     await ensureTable(postgres);
+    var st = AUTO_APPROVE ? "approved" : "pending";
     var r = await postgres.query(
-      "INSERT INTO guestbook (name, content, images, ip_hash) VALUES ($1,$2,$3::jsonb,$4) RETURNING id",
-      [name, content, JSON.stringify(cleanImages), ipHash]
+      "INSERT INTO guestbook (name, content, images, ip_hash, status, contact_type, contact, kind) " +
+      "VALUES ($1,$2,$3::jsonb,$4,$5,$6,$7,$8) " +
+      "RETURNING id, created_at, name, content, images, status",
+      [name, content, JSON.stringify(cleanImages), ipHash, st, contactType || null, contact || null, kind || null]
     );
-    var id = (r.rows && r.rows[0] && r.rows[0].id) || null;
-    res.status(200).json({ ok: true, id: id });
+    var row = (r.rows && r.rows[0]) || null;
+    // 直接把落库结果回给前端 → 留言墙可以立刻插入，无需二次请求
+    res.status(200).json({ ok: true, id: row ? row.id : null, item: row, status: st });
   } catch (e) {
     console.error("[guestbook] insert failed:", e && e.message);
     res.status(500).json({ ok: false, error: "提交失败，请稍后再试" });
@@ -161,7 +179,7 @@ async function adminList(req, res) {
   params.push(limit);
   try {
     var r = await postgres.query(
-      "SELECT id, created_at, name, content, images, status, admin_note FROM guestbook" + where +
+      "SELECT id, created_at, name, content, images, status, admin_note, kind, contact_type, contact FROM guestbook" + where +
       " ORDER BY id DESC LIMIT $" + params.length,
       params
     );
