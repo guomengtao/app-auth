@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "updatedAt": "2026-11-14T23:30+0800",
+  "minAutoActivate": {
+    "versionName": "1.9.143",
+    "versionCode": 1611,
+    "note": "1.9.129 起统一设备取号口径（修设备号末位漂移）；1.9.133~1.9.143 补齐激活成功态回显与轮询。低于此版本会出现「已激活但界面停在输入引导」，用户易误判为失败而重复购买——2026-11-14 实测工单：同一用户连买三笔，三笔其实全部激活成功。"
+  },
+  "latest": {
+    "versionName": "1.9.210",
+    "versionCode": 1681,
+    "page": "https://www.bandbbs.cn/resources/7829/",
+    "release": "https://github.com/guomengtao/class-schedule/releases/tag/v1.9.210"
+  },
+  "channels": {
+    "band10pro": "https://github.com/guomengtao/class-schedule/releases/download/v1.9.210/ev-v1.9.210-t-10p-d.rpk",
+    "band10": "https://github.com/guomengtao/class-schedule/releases/download/v1.9.210/ev-v1.9.210-t-10-d.rpk",
+    "band9pro": "https://github.com/guomengtao/class-schedule/releases/download/v1.9.210/ev-v1.9.210-t-9p-d.rpk",
+    "band9": "https://github.com/guomengtao/class-schedule/releases/download/v1.9.210/ev-v1.9.210-t-9-d.rpk",
+    "band11": "https://github.com/guomengtao/class-schedule/releases/download/v1.9.210/ev-v1.9.210-t-b11-r.rpk",
+    "watchs4": "https://github.com/guomengtao/class-schedule/releases/download/v1.9.210/ev-v1.9.210-t-s4-d.rpk",
+    "watch": "https://github.com/guomengtao/class-schedule/releases/download/v1.9.210/ev-v1.9.210-t-w-d.rpk"
+  },
+  "installHint": "下载后请用 AstroBox / Notify 等工具把 .rpk 安装到手环；若分不清型号，直接去米坛资源页按手环型号选包。"
+}
