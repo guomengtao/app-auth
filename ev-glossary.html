@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EV 术语地图 · ev* 沟通词语总表</title>
+<style>
+:root{
+  --bg:#f5f7fa; --surface:#ffffff; --text:#1a2230; --muted:#68758a;
+  --line:#e2e7ef; --line-soft:#eef1f6; --accent:#2f5bd7; --accent-soft:#e9efff;
+  --mark:#fff0a8; --shadow:0 1px 2px rgba(20,30,50,.04), 0 8px 24px rgba(20,30,50,.05);
+  --radius:12px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1280px;margin:0 auto;padding:0 24px 64px}
+
+/* ---------- header ---------- */
+header{padding:38px 0 22px}
+.eyebrow{font-size:12px;letter-spacing:.14em;color:var(--accent);font-weight:700;text-transform:uppercase;margin:0 0 10px}
+h1{font-size:30px;line-height:1.25;margin:0 0 10px;letter-spacing:-.02em;font-weight:750}
+h1 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--accent)}
+.sub{margin:0;color:var(--muted);max-width:860px;font-size:14px}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.meta span{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:5px 12px}
+.meta b{color:var(--text);font-weight:650}
+
+/* ---------- sticky control bar ---------- */
+.controls{
+  position:sticky; top:0; z-index:20; background:rgba(245,247,250,.94);
+  backdrop-filter:saturate(180%) blur(12px); -webkit-backdrop-filter:saturate(180%) blur(12px);
+  padding:14px 0 12px; margin-bottom:4px; border-bottom:1px solid var(--line);
+}
+.searchrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.searchbox{position:relative;flex:1 1 340px;min-width:240px}
+.searchbox svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);width:17px;height:17px;stroke:var(--muted);fill:none;stroke-width:2}
+#q{
+  width:100%;padding:12px 40px 12px 42px;font-size:15px;color:var(--text);
+  background:var(--surface);border:1px solid var(--line);border-radius:10px;outline:none;
+  transition:border-color .15s,box-shadow .15s;font-family:inherit;
+}
+#q:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+#q::placeholder{color:#9aa6b8}
+.kbd{position:absolute;right:12px;top:50%;transform:translateY(-50%);font:11px ui-monospace,SFMono-Regular,Menlo,monospace;color:#a4aec0;background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:2px 6px;pointer-events:none}
+.btn{
+  font:inherit;font-size:13px;color:var(--text);background:var(--surface);border:1px solid var(--line);
+  border-radius:9px;padding:10px 14px;cursor:pointer;white-space:nowrap;transition:all .15s;
+}
+.btn:hover{border-color:#c3cddd;background:#fbfcff}
+.btn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.ghost{background:transparent}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--surface)}
+.seg .btn{border:0;border-radius:0;padding:10px 13px}
+.seg .btn+.btn{border-left:1px solid var(--line)}
+.seg .btn.on{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+.countline{display:flex;align-items:center;gap:10px;margin:12px 0 10px;font-size:13px;color:var(--muted)}
+.countline strong{color:var(--text);font-size:14px}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{
+  --c:var(--accent);
+  display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--text);
+  background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:7px 13px;cursor:pointer;
+  transition:all .15s;user-select:none;
+}
+.chip:hover{border-color:var(--c);transform:translateY(-1px)}
+.chip .dot{width:8px;height:8px;border-radius:50%;background:var(--c);flex:none}
+.chip .n{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);background:var(--bg);border-radius:999px;padding:1px 7px}
+.chip.on{background:var(--c);border-color:var(--c);color:#fff;box-shadow:0 3px 10px rgba(30,50,90,.14)}
+.chip.on .dot{background:#fff}
+.chip.on .n{background:rgba(255,255,255,.22);color:#fff}
+
+/* ---------- groups ---------- */
+.group{margin-top:34px;scroll-margin-top:190px}
+.grouphead{display:flex;align-items:baseline;gap:12px;padding:0 0 12px;border-bottom:1px solid var(--line);margin-bottom:16px;flex-wrap:wrap}
+.grouphead .bar{width:4px;height:19px;border-radius:3px;background:var(--c);align-self:center}
+.grouphead h2{font-size:18px;margin:0;font-weight:700;letter-spacing:-.01em}
+.grouphead .gdesc{font-size:13px;color:var(--muted);flex:1}
+.grouphead .gnum{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:2px 9px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.card{
+  --c:var(--accent);
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:15px 16px 13px;
+  box-shadow:var(--shadow);position:relative;transition:transform .15s,box-shadow .15s,border-color .15s;
+  border-left:3px solid var(--c);min-width:0;
+}
+.card:hover{transform:translateY(-2px);box-shadow:0 4px 18px rgba(20,30,50,.10);border-color:#cfd7e5;border-left-color:var(--c)}
+.cardtop{display:flex;align-items:flex-start;gap:8px;justify-content:space-between}
+.term{
+  font:600 14px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color:#16305e;word-break:break-all;letter-spacing:-.01em;
+}
+.copy{
+  flex:none;font-size:11px;color:var(--muted);background:var(--bg);border:1px solid var(--line);
+  border-radius:6px;padding:3px 7px;cursor:pointer;opacity:0;transition:opacity .15s;
+}
+.card:hover .copy,.copy:focus{opacity:1}
+.copy:hover{color:var(--accent);border-color:var(--accent)}
+.desc{margin:9px 0 0;font-size:13px;color:#3c4759;line-height:1.62}
+.aliasrow{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
+.alias{font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--c);background:#f7f9fc;border:1px solid #e6ebf2;border-radius:5px;padding:2px 6px;word-break:break-all;background:color-mix(in srgb,var(--c) 8%,#fff);border-color:color-mix(in srgb,var(--c) 22%,#fff)}
+.src{margin-top:10px;font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#8a95a7;word-break:break-all}
+.flatcat{font-size:11px;color:var(--c);font-weight:650;letter-spacing:.02em;margin-bottom:6px;display:block}
+mark{background:var(--mark);color:#4a3800;border-radius:3px;padding:0 1px;font-weight:600}
+
+.empty{text-align:center;padding:70px 20px;color:var(--muted);background:var(--surface);border:1px dashed var(--line);border-radius:var(--radius);margin-top:30px}
+.empty .big{font-size:34px;margin-bottom:10px;opacity:.5}
+.empty h3{margin:0 0 8px;color:var(--text);font-size:17px}
+.empty p{margin:0 0 18px;font-size:13px}
+
+footer{margin-top:44px;padding-top:20px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;line-height:1.8}
+footer b{color:var(--text);font-weight:650}
+footer code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+
+@media(max-width:640px){
+  .wrap{padding:0 14px 48px}
+  header{padding:26px 0 16px}
+  h1{font-size:23px}
+  .controls{padding:10px 0}
+  .chips{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+  .chip{flex:none}
+  .grid{grid-template-columns:1fr}
+  .group{scroll-margin-top:210px}
+  .copy{opacity:1}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">guomengtao / EV 生态 · 术语地图</p>
+  <h1><span class="mono">ev*</span> 沟通词语总表</h1>
+  <p class="sub">把仓库群对话里实际在用的 <b>ev 开头的词</b>——项目名、命令脚本、会话纪律、单号体系、截图验收、表盘渠道、页面资产与口语别名——一次性归册。分类点选筛选，输入即搜，全程不使用下拉菜单。</p>
+  <div class="meta">
+    <span>收录 <b id="m-total">—</b> 条</span>
+    <span><b id="m-cats">—</b> 个分类</span>
+    <span>扫描候选 <b>2651</b> 个 ev* 词形</span>
+    <span>登记项目 <b>25</b> 个 · 来源 <b>~/Documents/guomengtao</b></span>
+    <span>口径时间 <b>2026-11-14 09:29 +0800</b></span>
+  </div>
+</header>
+
+<div class="controls">
+  <div class="searchrow">
+    <div class="searchbox">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      <input id="q" type="text" autocomplete="off" spellcheck="false" placeholder="输入词、别名或说明，边输边筛…  例：install / 表盘 / 单号">
+      <span class="kbd">/</span>
+    </div>
+    <div class="seg" aria-label="视图切换">
+      <button class="btn on" id="v-group" type="button">按分类</button>
+      <button class="btn" id="v-flat" type="button">按字母</button>
+    </div>
+    <button class="btn" id="t-alias" type="button" title="只显示带别名的词条">仅别名</button>
+    <button class="btn ghost" id="b-clear" type="button">清除</button>
+    <button class="btn ghost" id="b-copy" type="button">复制结果</button>
+  </div>
+  <div class="countline">
+    <span>当前显示 <strong id="c-shown">—</strong> 条 / <span id="c-pool">—</span> 条命中搜索 / 共 <span id="c-total">—</span> 条</span>
+    <span id="c-state"></span>
+  </div>
+  <div class="chips" id="chips"></div>
+</div>
+
+<main id="main"></main>
+
+<footer>
+  <b>口径说明</b>：词条由 <code>registry/projects.json</code>（ev map 机读权威）、钩子脚本目录 <code>ev/ev-hooks/workbuddy-scripts/</code> 与 <code>~/.workbuddy/scripts/</code>、总纲章节标题、docs 文档名、派单编号与全仓文本扫描结果人工归并；已剔除单号实例、版本号、数据库字段等噪声。<br>
+  说明为摘要，权威定义以各仓 README、<code>RULES.md</code> 与《多人多AI统一协调开发总纲》为准；<code>alias</code> 类收录口语连写与别名，搜索时可反查主词条。本页面为纯静态单文件，无外部依赖，可离线打开。<br>
+  <b>快捷键</b>：<code>/</code> 或 <code>⌘/Ctrl + K</code> 聚焦搜索 · <code>Esc</code> 清空搜索 · 筛选状态写入 URL hash，可直接分享链接。
+</footer>
+
+</div>
+
+<script type="application/json" id="terms-data">
+[
+ {"t":"ev-ready","c":"proj","d":"托举工程：ev CLI + registry 三件套（projects.json / pits.jsonl / rules.json）。总纲 §3.23 定为「定位 / 查坑 / 增量重读」唯一入口，只托举不替代领单与上报。","a":["ev CLI","ev-ready 工程"],"s":"ev/ev-ready/README.md"},
+ {"t":"ev-hooks","c":"proj","d":"钩子系统正本仓。会话署名、领单、上报、门禁脚本的真源都在 workbuddy-scripts/，各仓 ~/.githooks 从这里装机。","a":["workbuddy-scripts"],"s":"ev/ev-hooks/workbuddy-scripts/"},
+ {"t":"ev-mcp","c":"proj","d":"MCP 服务仓，也是 Trae 侧 evm-* 任务体系的载体；ev-mcp-report / ev-mcp-logs 是会话存档报告与日志表。","a":["ev-mcp-report","ev-mcp-logs"],"s":"ev/ev-mcp/"},
+ {"t":"evbox","c":"proj","d":"手环快应用工具箱：倒数日、震动、二维码、输入法等栏目，独立仓；签名密钥在 sign/。","a":["EvBox"],"s":"ev/evbox/"},
+ {"t":"evdb","c":"proj","d":"node 数据层子项目，收编在 ev-docs 远端；registry 登记 kind=node。","a":["ev DB"],"s":"ev/evdb/ · registry/projects.json"},
+ {"t":"ev-face","c":"proj","d":"Vite 表盘工程 / 表盘展示站，独立私有仓。口语常连写 evface；注意与 ev-eye 截图档案系统不是一回事。","a":["evface","EvFace"],"s":"ev/ev-face/"},
+ {"t":"ev-class-face","c":"proj","d":"小米手环 Lua 表盘工程：多款表盘 × 多机型，唯一构建入口 build.py，RULES.md 为规则权威。2026-11-11 独立成 PUBLIC 仓。","a":["EV 课程表盘工程"],"s":"ev/ev-class-face/"},
+ {"t":"ev-lua-class","c":"proj","d":"Lua 真表盘 PoC：把 EV 课程表上课提醒接进手环真表盘，含 AstroBox 投喂版与 Band9 共享文件版。","a":[],"s":"ev/ev-lua-class/"},
+ {"t":"ev-emubuddy","c":"proj","d":"macOS 菜单栏模拟器部署器：安装快应用、多开管理，v0.4.36 起内置模拟器名称牌。","a":["EvEmuBuddy","evemubuddy"],"s":"ev/ev-emubuddy/"},
+ {"t":"ev-emu-cli","c":"proj","d":"模拟器命令行 vela：独立模式多开、必须显式指定机型、7 层防僵尸。总纲 §3.8 定为手环模拟器默认唯一入口。","a":["vela"],"s":"ev/ev-emu-cli/"},
+ {"t":"ev-fleet","c":"proj","d":"EvFleet 模拟器队列与票据系统（票据有 5 分钟硬性持有上限）。总纲 §3.8e 裁定起机统一走队列。","a":["EvFleet","evfleet"],"s":"ev/ev-fleet/"},
+ {"t":"ev-notifier","c":"proj","d":"Mac 通知中枢：ev_notifier.py + android_bridge + 手册，运行副本在 /Applications/EvNotifier.app。","a":["EvNotifier","evnotifier","ev_notifier"],"s":"ev/ev-notifier/"},
+ {"t":"ev-android","c":"proj","d":"EvNotifier 安卓端，包名 com.evnotifier.mobile，纯 Java 无 GMS，TLS 直连 Upstash。","a":[],"s":"ev/ev-android/"},
+ {"t":"ev-ops-android","c":"proj","d":"EvOps 安卓端：项目管理平台与运行态监控，与 EvNotifier 独立并存。","a":["EvOps","evops"],"s":"ev/ev-ops-android/"},
+ {"t":"ev-schedule-android","c":"proj","d":"安卓同步器 APK，手工构建链不走 Gradle，版本在 apk/version.env。","a":[],"s":"ev/ev-schedule-android/"},
+ {"t":"ev-schedule-sync","c":"proj","d":"Rust 同步引擎 + astrobox-build 插件，发布物为 EVSyncProbe 探针 APK。","a":["EVSyncProbe"],"s":"ev/ev-schedule-sync/"},
+ {"t":"ev-publisher","c":"proj","d":"米坛多平台发布器（Electron），CLI 名 bbs；所有请求走 core/net.js 的分域限速与熔断。","a":["EV Publisher","bbs"],"s":"ev/ev-publisher/"},
+ {"t":"ev-flow","c":"proj","d":"人机共编流程图：canvas 手拖画布版 + text 文本即图版，磁盘文件为唯一真相。","a":["EvFlow","evflow"],"s":"ev/ev-flow/"},
+ {"t":"ev-voice","c":"proj","d":"语音子项目，收编在 ev-docs 远端。","a":[],"s":"ev/ev-voice/"},
+ {"t":"ev-docs","c":"proj","d":"全局文档仓：父仓 remote 即 guomengtao/ev-docs，ev-flow / ev-voice / evdb / trae 插件等共用此远端。","a":[],"s":"ev/docs/ · 父仓 remote"},
+ {"t":"ev-ops-scripts","c":"proj","d":"EvOps 侧上报脚本集：ev-report.js / collect-status.js / gen-projects.js，构建快照与会话动态层分离。","a":["ev-report.js"],"s":"ev/ev-ops-scripts/"},
+ {"t":"ev-tank-battle","c":"proj","d":"lab 下的坦克大战实验仓。","a":[],"s":"lab/ev-tank-battle/"},
+ {"t":"ev-countdown","c":"proj","d":"倒数日项目与多渠道发布代号（ev-countdown-4 等）。","a":["ev-countdown-4"],"s":"ev/countdown/ · 派单记录"},
+ {"t":"ev-class-schedule","c":"proj","d":"早期对 EV 课程表手环主项目的称呼，现正式目录名是 class-schedule。","a":["EV 课程表","class-schedule"],"s":"总纲 §6.3"},
+ {"t":"ev-schedule","c":"proj","d":"课程表相关页面与图片资产的统称（ev-schedule.html 及 images/ev-schedule-* 目录族）。","a":["EV 课程表"],"s":"ev/app-auth/ev-schedule.html"},
+
+ {"t":"ev map","c":"cli","d":"定位项目：查路径、远端、构建、测试命令；命中单个项目时出详情卡。","a":["ev map --json","ev map --build"],"s":"registry/projects.json"},
+ {"t":"ev pit","c":"cli","d":"坑索引检索（症状→根因→修法）；新坑必须用 ev pit add 追加，只写在会话里等于没写。","a":["ev pit add"],"s":"registry/pits.jsonl"},
+ {"t":"ev rules","c":"cli","d":"总纲增量重读：--since 看变更、--diff 检测漂移、--regen 重算章节 hash 快照。","a":["ev rules --since","ev rules --diff","ev rules --regen"],"s":"registry/rules.json"},
+ {"t":"ev show","c":"cli","d":"按章节号展开总纲某一节正文，替代全量重读 542 行。","a":["ev show 3.20"],"s":"ev/ev-ready/lib/"},
+ {"t":"ev doctor","c":"cli","d":"环境自检：registry 可解析、项目目录可达、CLI 安装与冒烟命令，当前 14 项全绿。","a":[],"s":"ev doctor"},
+ {"t":"ev start","c":"cli","d":"批2 规划命令：差分规则→领单→环境体检→该读哪 3 篇（尚未实现）。","a":[],"s":"ev/ev-ready/README.md 批次表"},
+ {"t":"ev test","c":"cli","d":"批2 规划的测试命令（尚未实现）。","a":[],"s":"ev/ev-ready/README.md 批次表"},
+ {"t":"ev done","c":"cli","d":"批2 规划的收尾命令（尚未实现）。","a":[],"s":"ev/ev-ready/README.md 批次表"},
+ {"t":"ev lint","c":"cli","d":"批3 规划：Lucide 图标与 ev-six 六位准则的静态检查（尚未实现）。","a":[],"s":"ev/ev-ready/README.md 批次表"},
+ {"t":"ev doc sync","c":"cli","d":"批3 规划：按总纲 §3.22 同步栏目详情页文档（尚未实现）。","a":[],"s":"ev/ev-ready/README.md 批次表"},
+ {"t":"ev-install","c":"cli","d":"AstroBox 蓝牙投喂装机：默认只筛 .rpk，装 .face 必须 --force；-r 读回执需 Mac 解锁。","a":["ev-install.sh","ev-install --force","ev-install -r"],"s":"ev/ev-hooks/workbuddy-scripts/ev-install.sh"},
+ {"t":"ev-claim","c":"cli","d":"开工认领：写 .claims/*.json（权威）+ PROJECT-MAP-claims.md（人读视图）；开工静默不发横幅。","a":["claim","ev-claim.sh release","ev-claim.sh list"],"s":"~/.workbuddy/scripts/ev-claim.sh"},
+ {"t":"ev-commit","c":"cli","d":"会话署名提交包装：author/committer = 本会话花名，邮箱 = 会话 SID，裸 git commit 会被署名门拦。","a":["ev-commit.sh"],"s":"ev/ev-hooks/workbuddy-scripts/ev-commit.sh"},
+ {"t":"ev-add-task","c":"cli","d":"领正式单号（develop / project / priority，description 必填且不少于 50 字）。","a":["task-register"],"s":"ev/ev-ops-android/scripts/ev-add-task.js"},
+ {"t":"ev-task-close","c":"cli","d":"关单一条龙：直连 Supabase 关单 + 会话标题打 ✅ + 带 evidence，失败按类型决定是否降级。","a":["task-close"],"s":"ev/ev-hooks/workbuddy-scripts/ev-task-close.sh"},
+ {"t":"ev-session-name","c":"cli","d":"会话起名与花名注入，花名是提交署名与 SDR 记录的身份来源。","a":["ev-session-autoname","ev-session-label"],"s":"workbuddy-scripts/ev-session-name.sh"},
+ {"t":"ev-session-author","c":"cli","d":"把会话花名/SID 注入提交 author 与 committer。","a":[],"s":"workbuddy-scripts/ev-session-author.sh"},
+ {"t":"ev-session-title","c":"cli","d":"会话标题同步：🔄 任务名 / ✅ 收尾，侧栏据此分辨在跑与已完。","a":[],"s":"workbuddy-scripts/ev-session-title.sh"},
+ {"t":"ev-name-gate","c":"cli","d":"花名门：会话必须先有花名，否则编辑/提交链路不放行。","a":["花名门"],"s":"workbuddy-scripts/ev-name-gate.sh"},
+ {"t":"ev-morning-cut","c":"cli","d":"晨割：日切归零、接管超时无人负责的认领与僵尸任务。","a":["晨割"],"s":"workbuddy-scripts/ev-morning-cut.sh"},
+ {"t":"ev-sls","c":"cli","d":"会话存档与「退休俱乐部」全生命周期打分方案，产出 ev-sls-会话存档-*.md。","a":["ev-sls.sh"],"s":"workbuddy-scripts/ev-sls.sh · docs/ev-sls-*.md"},
+ {"t":"ev-sweeper","c":"cli","d":"仓库卫生清扫与 100 分评分（总纲 §3.19 防长草）：只扫描/评分/出清理单，禁止删除。","a":["ev-sweeper-评分历史"],"s":"docs/ev-sweeper-项目目录整理规范.md"},
+ {"t":"ev-shot","c":"cli","d":"截图脚本；与 ev-snapshot.sh 是同源别名，也是 ev-eye 档案系统的别名之一。","a":["ev-shot.sh","ev-snapshot.sh","ev-shot/1"],"s":"~/.workbuddy/scripts/ev-shot.sh"},
+ {"t":"ev-rsh","c":"cli","d":"远端/会话辅助脚本（remote shell 工具）。","a":[],"s":"workbuddy-scripts/ev-rsh.sh"},
+ {"t":"ev-lucide-icon","c":"cli","d":"图标统一走 Lucide 的检查与生成脚本（总纲 §3.7 / §3.14 跨项目铁律）。","a":[],"s":"workbuddy-scripts/ev-lucide-icon.sh"},
+ {"t":"ev-agent-guard","c":"cli","d":"AI 会话护栏脚本，约束高风险动作。","a":[],"s":"workbuddy-scripts/ev-agent-guard.sh"},
+ {"t":"ev-git-author-sync","c":"cli","d":"把 git author 同步成当前会话花名，避免署名漂移。","a":[],"s":"~/.workbuddy/scripts/ev-git-author-sync.sh"},
+
+ {"t":"ev-tidy","c":"flow","d":"任务完工与收尾协议（总纲 §3.17，6 问全过）：状态说真话 / 完工必清场 / 接手有门禁；只允许「有证据地完成」或「有交代地停下」。","a":["EVTIDY","evtidy","ev-tidy-hint-reconcile.py"],"s":"总纲 §3.17 · docs/EVTIDY-任务完工与收尾协议-方案.md"},
+ {"t":"ev-report","c":"flow","d":"钩子自动上报：prompt、工具调用、任务与 SDR 状态 → 黑板 data/active/<sid>.json → Supabase。","a":["ev-report.js","[ev-report]"],"s":"ev/ev-ops-scripts/ev-report.js"},
+ {"t":"ev-collect","c":"flow","d":"会话动态层采集（ev-collect.sh → Supabase → App 实时读，不存 Redis），与构建快照静态清单分开。","a":["ev-collect.sh"],"s":"总纲 §6.1"},
+ {"t":"ev-claim-guard","c":"flow","d":"编辑门：文件有活跃认领且认领带 evtask-/evm- 正式单号才放行；未认领第 1 个文件放行观察，第 2 个起拦。","a":["claim_guard.py","编辑门","三道门"],"s":"tools/hooks/claim_guard.py"},
+ {"t":"ev-cred","c":"flow","d":"积分/凭据模块：SDR 单轮档 warn3/stop8、会话总兜底 50 无条件停止。","a":["credit-gate.sh"],"s":"scripts/lib/ev-cred.js"},
+ {"t":"ev-paths","c":"flow","d":"路径解析模块，统一仓库群各路径口径。","a":[],"s":"scripts/lib/ev-paths.js"},
+ {"t":"ev-sb","c":"flow","d":"直连 Supabase 库（lib/ev-sb.js），关单与上报的优先通道，app-auth 只做兜底。","a":["EV_SB_DIRECT=0"],"s":"lib/ev-sb.js"},
+ {"t":"ev-sdr-stop-guard","c":"flow","d":"SDR 积分兜底守卫：单轮档与会话总量双限，触顶即停。","a":["SDR"],"s":"会话钩子"},
+ {"t":"ev-sunset-guard","c":"flow","d":"日落守卫：会话临近结束时的收尾提示与升级判定。","a":["ev-sunset-prompt-guard","Sunset"],"s":"会话钩子"},
+ {"t":"ev-session-end-notify","c":"flow","d":"会话结束通知钩子；2026-10-12 起弹窗全面废除，收尾改为静默落盘 + 对话内文字汇报。","a":[],"s":"tools/dotfiles/claude-hooks/"},
+ {"t":"ev-retire","c":"flow","d":"会话退休打分与清理单，配套 scripts/setup-ev-retirement-scores.sql。","a":["ev-retirement-scores"],"s":"docs/ev-sls-退休俱乐部-方案.md"},
+ {"t":"ev-leader","c":"flow","d":"会话牵头 / 领队标记，用于多人多 AI 分工时的责任归属。","a":[],"s":"会话纪律记录"},
+ {"t":"ev-status","c":"flow","d":"运行状态快照 ev-status.json（app-auth 对外状态）与 evops_status 数据表。","a":["ev-status.json","ev_status"],"s":"ev/app-auth/ev-status.json"},
+ {"t":"ev-page-job","c":"flow","d":"页面验收闭环：改动栏目先写详情页文档、截图归档、再验收（总纲 §3.22）。","a":[],"s":"docs/ev-page-job-页面验收闭环.md"},
+ {"t":"ev-ops","c":"flow","d":"EvOps 平台与运行态数据层统称，含 evops_tasks / evops_messages / evops_sessions / evops_usage_items 等数据表。","a":["evops","evops_tasks","evops_messages","evops_sessions","evops_usage_items"],"s":"ev/app-auth/api/ev.js"},
+
+ {"t":"evtask-*","c":"id","d":"WorkBuddy / CodeBuddy 侧正式单号（如 evtask-D-evev-ready-261114-dua8s2）；领单、编辑门、关单、交付证据都认它。","a":["evtask-D-","evtask-X-","evtask-F-","evtask-B-"],"s":"总纲 §3.10 / §3.11"},
+ {"t":"evm-*","c":"id","d":"Trae / ev-mcp 侧任务单号，与 evtask-* 各走各的体系，禁止混用。","a":["evm-trae-*"],"s":"总纲 §3.10"},
+ {"t":"evc-*","c":"id","d":"模拟器 AVD 实例名。evc-xiaomi_band-buddy-1 是 Tom 手工专用，AI 绝不操作；AI 只用默认 xiaomi_band。","a":["evc-xiaomi_band-buddy-1"],"s":"总纲 §3.8d"},
+ {"t":"ev-sid","c":"id","d":"会话 ID（EV_SESSION_SID / CODEBUDDY_SESSION_ID）：署名邮箱、黑板文件名与任务负责人都用它。","a":["EV_SESSION_SID","ev_session_sid","sid"],"s":"会话纪律"},
+ {"t":"EV_GMT_ROOT","c":"id","d":"仓库群根路径环境变量，默认 ~/Documents/guomengtao；ev-claim.sh 等脚本据此定位。","a":["ev_gmt_root"],"s":"~/.workbuddy/scripts/ev-claim.sh"},
+ {"t":"EV_SYNC_TOKEN","c":"id","d":"云端同步令牌，用于 task-register / task-close 等写接口。","a":["ev_sync_token"],"s":"ev/app-auth/.env"},
+ {"t":"ev-v1","c":"id","d":"rpk 发布包命名前缀：ev-v1.9.210-t-b9-d.rpk = 版本 + 渠道 + 机型 + 包型。","a":["ev-v1.*.rpk"],"s":"ev/class-schedule/release/"},
+ {"t":"evff-*","c":"id","d":"EV Face Faster 派单短码：evff-course / evff-find-a1..a5 / evff-mod-monika / evff-preview / evff-gallery 等。","a":["evff-course-261111","evff-find-a1-261111","evff-mod-monika-261111","evff-preview-261111","evff-gallery-261111","evff-bigcircle-261111"],"s":"data/dispatch/"},
+ {"t":"evtest","c":"id","d":"测试任务 / 测试单号前缀（evtest002 等）。","a":["evtest002"],"s":"派单记录"},
+ {"t":"ev-schedule-band9","c":"id","d":"按机型归档的截图目录：小米手环 9 页面截图，是全仓出现频次最高的 ev* 词（3272 次 / 139 文件）。","a":[],"s":"ev/app-auth/images/ev-schedule-band9/"},
+ {"t":"ev-schedule-10pro","c":"id","d":"10 Pro 机型截图归档目录；同族还有 watch10 / 9pro / watch6 / soundmini / watch-s4。","a":["ev-schedule-watch10","ev-schedule-9pro","ev-schedule-watch6","ev-schedule-soundmini","ev-schedule-watch-s4"],"s":"ev/app-auth/images/"},
+ {"t":"ev-schedule-soundmini","c":"id","d":"Soundmini 机型截图归档目录与渠道版命名。","a":[],"s":"ev/app-auth/images/"},
+ {"t":"ev-ui-android","c":"id","d":"安卓 UI 截图归档目录（ev-ui-android-v1）。","a":["ev-ui-android-v1"],"s":"images/"},
+ {"t":"ev-class-face-band9","c":"id","d":"表盘成品包命名族：Band9-Class-vX.Y.Z.face，版本号四处同源（构建器 / 包名 / lua / 台账）。","a":["Band9-Class-*","Band9-Sonoma-*"],"s":"ev/ev-class-face/dist/Band9/"},
+ {"t":"ev-keys","c":"id","d":"键位 / 快捷键配置（会话钩子与模拟器输入通道相关）。","a":[],"s":"ev-hooks"},
+
+ {"t":"ev-eye","c":"shot","d":"截图采集与档案系统（Ev之眼）：采集器 + ui-capture-manifest.json 白名单主数据 + 发布页；别名 ev-screen / ev-capture / ev-shot / ev-snapshot，口语提任一别号都指它。","a":["ev-screen","ev-capture","ev-shot","ev-snapshot","Ev之眼","ev-eye-first"],"s":"PROJECT-MAP §二 7b"},
+ {"t":"ev-shot-cli","c":"shot","d":"ev-emu-cli 下的截图 CLI：可指定设备与尺寸，出图默认带机身外壳（2026-11-03 起给 Tom 看的图一律带壳）。","a":[],"s":"ev/ev-emu-cli/ev-shot-cli"},
+ {"t":"ev-shapes","c":"shot","d":"EV 屏形对照法（总纲 §3.24）：一页多机同拍并排、跨屏形版式适配；2026-11-06 由 ev-twins 更名，三屏标配。","a":["ev-twins","屏形对照法","三屏"],"s":"总纲 §3.24"},
+ {"t":"ev-twins","c":"shot","d":"旧名：双屏 / 三屏对照截图法，已更名为 ev-shapes；images/ev-twins/ 下仍存大量历史归档。","a":["ev-shapes"],"s":"images/ev-twins/"},
+ {"t":"ev-six","c":"shot","d":"六位开发准则（总纲 §3.21，手环端可读性铁律）：一行六位置、四档字号、留白只从高度买。","a":["ev-six 六位准则"],"s":"总纲 §3.21"},
+ {"t":"ev-eye-first","c":"shot","d":"ev-eye 一期子目标「首屏速通」：每项目 × 每机型 × 每用户端页面先只截 1 张首屏即发布，开关 SWEEP_FIRST_ONLY=1。","a":["SWEEP_FIRST_ONLY=1"],"s":"docs/ev-eye-first-首屏速通-目标.md"},
+ {"t":"ev-shot/1","c":"shot","d":"截图产物 provenance schema 名；Mac 侧合成渲染帧必须标 manual-synthetic-frame/1 + deviceReal=false 才能过截图闸。","a":["manual-synthetic-frame/1","provenance"],"s":"pit-20261111-164"},
+ {"t":"ev-mac-standard","c":"shot","d":"多屏 / Mac 端对照标准文档，EvFleet 看台与主题对标依据。","a":[],"s":"ev/afdian-touch/docs/ev-mac-standard.md"},
+
+ {"t":"evff","c":"face","d":"EV Face Faster：开源 Band9 表盘快速复制 / 改造流程（找装、改造包、预览块修复、真机对照），派单前缀 evff-*。","a":["EVFF","evff-*"],"s":"ev/ev-class-face/docs/EV-Face-Faster-开源表盘快速复制方案.md"},
+ {"t":"ev-template-min","c":"face","d":"Lua 表盘最小模板，用于验证 miwear 镜像里的通用 Lua 解释器。","a":[],"s":"ev/ev-face/lua-poc/"},
+ {"t":"ev-lua-time","c":"face","d":"Lua 表盘 PoC 样例（时间盘）。","a":[],"s":"ev/ev-face/lua-poc/"},
+ {"t":"ev-lua-mini-demo","c":"face","d":"Lua 最小演示盘，S0-P PoC 真跑用的骨架。","a":[],"s":"ev/ev-face/lua-poc/"},
+ {"t":"evpointer","c":"face","d":"EV 指针仿古金属指针表盘（class-schedule 内表盘栏目，独立页面 watch-face-evpointer）。","a":["EV指针表盘"],"s":"ev/class-schedule/src/pages/watch-face-evpointer/"},
+ {"t":"ev-face-promo","c":"face","d":"表盘宣传页（app-auth 静态页）。","a":[],"s":"ev/app-auth/ev-face-promo.html"},
+ {"t":"ev-apk-promo","c":"face","d":"APK 宣传页（app-auth 静态页）。","a":[],"s":"ev/app-auth/ev-apk-promo.html"},
+ {"t":"EVSyncProbe","c":"face","d":"同步器探针 APK（ev-schedule-sync 的发布物），版本号如 v0.6.63。","a":["evsyncprobe","EVSyncProbe-v0.6.63.apk"],"s":"ev/ev-schedule-sync/"},
+ {"t":"ev-class-2-0","c":"face","d":"EV 课程表 2.0 宣传页与内部发展看板配套页面。","a":[],"s":"ev/app-auth/ev-class-2-0.html"},
+
+ {"t":"evboard","c":"page","d":"EV 内部发展看板（app-auth），展示项目矩阵、发布与运行态。","a":["evboard.html"],"s":"ev/app-auth/evboard.html"},
+ {"t":"ev-login","c":"page","d":"登录页（app-auth 静态页）。","a":[],"s":"ev/app-auth/ev-login.html"},
+ {"t":"ev-timetable","c":"page","d":"课表展示页（app-auth 静态页）。","a":[],"s":"ev/app-auth/ev-timetable.html"},
+ {"t":"ev-edit-page","c":"page","d":"页面编辑入口 / 文档目录，配套栏目改动时的详情页路径约定。","a":[],"s":"docs/ev-edit-page"},
+ {"t":"ev-mcp-report","c":"page","d":"会话存档报告（docs/ev-mcp-report-*.md）与入库链路方案。","a":[],"s":"docs/"},
+ {"t":"ev-mcp-logs","c":"page","d":"MCP 日志表与「写入方混淆」根因修复记录。","a":[],"s":"docs/ev-mcp-logs-写入方混淆-根因与修复.md"},
+ {"t":"ev_chat_inbox","c":"page","d":"会话收件箱数据表（app-auth 运行态数据层）。","a":["ev_log_message","ev_messages"],"s":"app-auth 数据表"},
+ {"t":"ev_mcp_tasks","c":"page","d":"MCP 任务表，与 ev_mcp_sessions / ev_mcp_logs 同族。","a":["ev_mcp_sessions","ev_mcp_logs"],"s":"app-auth 数据表"},
+ {"t":"ev_schedule","c":"page","d":"课表数据表 / 字段命名前缀（app-auth 与数据层）。","a":[],"s":"app-auth 数据表"},
+ {"t":"evtaskdb","c":"page","d":"任务库表名（任务系统与本地台账对齐用）。","a":[],"s":"任务系统"},
+
+ {"t":"evface","c":"alias","d":"ev-face 的口语连写形式，指 Vite 表盘工程；用户举例词之一。","a":["ev-face"],"s":"口语写法"},
+ {"t":"evtidy","c":"alias","d":"ev-tidy / EVTIDY 的连写形式，指任务完工与收尾协议；用户举例词之一。","a":["ev-tidy","EVTIDY"],"s":"口语写法"},
+ {"t":"evops","c":"alias","d":"EvOps 平台连写，泛指 ev-ops-android 与 evops_* 运行态数据表。","a":["EvOps","ev-ops-android"],"s":"口语写法"},
+ {"t":"evemubuddy","c":"alias","d":"EvEmuBuddy 连写形式，指菜单栏模拟器部署器。","a":["EvEmuBuddy","ev-emubuddy"],"s":"口语写法"},
+ {"t":"evemupreview","c":"alias","d":"EvEmuPreview 连写形式，指截图预览 Electron 应用。","a":["EvEmuPreview","emu-preview-electron"],"s":"口语写法"},
+ {"t":"evnotifier","c":"alias","d":"EvNotifier 连写形式（另有下划线写法 ev_notifier），指 Mac 通知中枢。","a":["EvNotifier","ev_notifier","ev-notifier"],"s":"口语写法"},
+ {"t":"evfleet","c":"alias","d":"EvFleet 连写形式，指模拟器队列与票据系统。","a":["EvFleet","ev-fleet"],"s":"口语写法"},
+ {"t":"evflow","c":"alias","d":"EvFlow 连写形式，指人机共编流程图。","a":["EvFlow","ev-flow"],"s":"口语写法"},
+ {"t":"evsyncprobe","c":"alias","d":"EVSyncProbe 连写形式，指同步器探针 APK。","a":["EVSyncProbe"],"s":"口语写法"},
+ {"t":"ev-screen","c":"alias","d":"ev-eye 截图档案系统的别名之一；口语提 ev-screen 即指 ev-eye。","a":["ev-eye"],"s":"PROJECT-MAP §二 7b"},
+ {"t":"ev-capture","c":"alias","d":"ev-eye 的别名之一（采集），对应 ui-capture-manifest.json 白名单主数据。","a":["ev-eye","ui-capture-manifest.json"],"s":"PROJECT-MAP §二 7b"},
+ {"t":"ev-snapshot","c":"alias","d":"ev-eye 的别名之一（快照），也是 ~/.workbuddy/scripts 下的脚本名。","a":["ev-eye","ev-shot"],"s":"workbuddy-scripts/ev-snapshot.sh"}
+]
+</script>
+
+<script>
+(function(){
+  "use strict";
+  var DATA = JSON.parse(document.getElementById("terms-data").textContent);
+  var CATS = [
+    {k:"proj",  n:"项目与仓库",   d:"独立仓、子项目与共用远端",              c:"#2f5bd7"},
+    {k:"cli",   n:"命令与脚本",   d:"ev CLI 子命令、钩子脚本与执行入口",     c:"#0f8a72"},
+    {k:"flow",  n:"会话纪律与流程", d:"领单、署名、上报、收尾、门禁与守卫",   c:"#b5651d"},
+    {k:"id",    n:"编号与实例",   d:"单号、会话 ID、AVD 实例与发布包命名",   c:"#7a4fc0"},
+    {k:"shot",  n:"截图与验收",   d:"采集档案、屏形对照、可读性准则",        c:"#c2456b"},
+    {k:"face",  n:"表盘与渠道",   d:"Lua 表盘、改造流程、宣传页与发布物",    c:"#1c7fa8"},
+    {k:"page",  n:"页面与数据资产", d:"app-auth 页面、数据表与文档命名",      c:"#4a6b35"},
+    {k:"alias", n:"别名与口语写法", d:"连写形式、别号与主词条反查",          c:"#8a6a1f"}
+  ];
+  var CATMAP = {}; CATS.forEach(function(x){ CATMAP[x.k]=x; });
+
+  var state = { q:"", cats:new Set(), aliasOnly:false, view:"group" };
+  var $ = function(id){ return document.getElementById(id); };
+
+  function esc(s){
+    return String(s==null?"":s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+  function hl(s, qs){
+    var out = esc(s);
+    if(!qs.length) return out;
+    var parts = qs.map(function(q){ return q.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"); });
+    try { return out.replace(new RegExp("("+parts.join("|")+")","gi"), "<mark>$1</mark>"); }
+    catch(e){ return out; }
+  }
+  function hay(t){
+    return [t.t,t.d,t.s||""].concat(t.a||[]).join(" ").toLowerCase();
+  }
+  function catOf(t){ return CATMAP[t.c] || CATS[0]; }
+
+  /* ---- URL hash ---- */
+  function readHash(){
+    var p = new URLSearchParams((location.hash||"").replace(/^#/,""));
+    state.q = p.get("q")||"";
+    state.cats = new Set((p.get("cat")||"").split(",").filter(function(k){ return CATMAP[k]; }));
+    state.aliasOnly = p.get("alias")==="1";
+    state.view = p.get("view")==="flat" ? "flat" : "group";
+    $("q").value = state.q;
+  }
+  function writeHash(){
+    var p = new URLSearchParams();
+    if(state.q) p.set("q", state.q);
+    if(state.cats.size) p.set("cat", Array.from(state.cats).join(","));
+    if(state.aliasOnly) p.set("alias","1");
+    if(state.view!=="group") p.set("view", state.view);
+    var h = p.toString();
+    try { history.replaceState(null,"", h ? "#"+h : "#"); } catch(e) { /* file:// 下可能受限，忽略 */ }
+  }
+
+  /* ---- chips ---- */
+  function renderChips(pool){
+    var byCat = {}; pool.forEach(function(t){ byCat[t.c]=(byCat[t.c]||0)+1; });
+    var html = '<button class="chip'+(state.cats.size===0?" on":"")+'" data-k="__all__" style="--c:#2f5bd7" type="button">'+
+               '<span class="dot"></span>全部<span class="n">'+pool.length+'</span></button>';
+    CATS.forEach(function(c){
+      html += '<button class="chip'+(state.cats.has(c.k)?" on":"")+'" data-k="'+c.k+'" style="--c:'+c.c+'" type="button">'+
+              '<span class="dot"></span>'+esc(c.n)+'<span class="n">'+(byCat[c.k]||0)+'</span></button>';
+    });
+    $("chips").innerHTML = html;
+  }
+
+  /* ---- cards ---- */
+  function cardHTML(t, qs){
+    var c = catOf(t);
+    var aliases = (t.a||[]).map(function(a){ return '<span class="alias">'+hl(a,qs)+'</span>'; }).join("");
+    return '<article class="card" style="--c:'+c.c+'" data-term="'+esc(t.t)+'">'+
+      (state.view==="flat" ? '<span class="flatcat">'+esc(c.n)+'</span>' : "")+
+      '<div class="cardtop"><code class="term">'+hl(t.t,qs)+'</code>'+
+      '<button class="copy" type="button" data-copy="'+esc(t.t)+'" title="复制词条">复制</button></div>'+
+      '<p class="desc">'+hl(t.d,qs)+'</p>'+
+      (aliases ? '<div class="aliasrow">'+aliases+'</div>' : "")+
+      (t.s ? '<div class="src">'+hl(t.s,qs)+'</div>' : "")+
+    '</article>';
+  }
+
+  function render(){
+    var raw = $("q").value.trim().toLowerCase();
+    var qs = raw ? raw.split(/\s+/).filter(Boolean) : [];
+    state.q = $("q").value.trim();
+
+    var pool = DATA.filter(function(t){
+      if(state.aliasOnly && !(t.a && t.a.length)) return false;
+      if(!qs.length) return true;
+      var h = hay(t);
+      return qs.every(function(q){ return h.indexOf(q) !== -1; });
+    });
+    var shown = pool.filter(function(t){ return state.cats.size===0 || state.cats.has(t.c); });
+
+    renderChips(pool);
+    $("c-shown").textContent = shown.length;
+    $("c-pool").textContent = pool.length;
+    $("c-total").textContent = DATA.length;
+    $("m-total").textContent = DATA.length;
+    $("m-cats").textContent = CATS.length;
+    var flags = [];
+    if(state.cats.size) flags.push("已选 "+state.cats.size+" 类");
+    if(state.aliasOnly) flags.push("仅别名");
+    if(qs.length) flags.push("搜索 "+qs.length+" 个词");
+    $("c-state").textContent = flags.length ? "· " + flags.join(" · ") : "";
+
+    $("v-group").classList.toggle("on", state.view==="group");
+    $("v-flat").classList.toggle("on", state.view==="flat");
+    $("t-alias").classList.toggle("on", state.aliasOnly);
+
+    if(!shown.length){
+      $("main").innerHTML = '<div class="empty"><div class="big">⌕</div><h3>没有匹配的词条</h3>'+
+        '<p>换个关键词，或清除分类筛选与「仅别名」条件。</p>'+
+        '<button class="btn" id="e-clear" type="button">清除全部筛选</button></div>';
+      var ec = $("e-clear");
+      if(ec) ec.addEventListener("click", clearAll);
+      writeHash();
+      return;
+    }
+
+    var html = "";
+    if(state.view==="group"){
+      CATS.forEach(function(c){
+        var list = shown.filter(function(t){ return t.c===c.k; });
+        if(!list.length) return;
+        list.sort(function(a,b){ return a.t.localeCompare(b.t,"en"); });
+        html += '<section class="group" style="--c:'+c.c+'">'+
+          '<div class="grouphead"><span class="bar"></span><h2>'+esc(c.n)+'</h2>'+
+          '<span class="gdesc">'+esc(c.d)+'</span><span class="gnum">'+list.length+' 条</span></div>'+
+          '<div class="grid">'+list.map(function(t){ return cardHTML(t,qs); }).join("")+'</div></section>';
+      });
+    } else {
+      var flat = shown.slice().sort(function(a,b){ return a.t.localeCompare(b.t,"en"); });
+      html = '<section class="group" style="--c:#2f5bd7">'+
+        '<div class="grouphead"><span class="bar"></span><h2>按字母顺序</h2>'+
+        '<span class="gdesc">共 '+flat.length+' 条，卡片左上角标注所属分类</span></div>'+
+        '<div class="grid">'+flat.map(function(t){ return cardHTML(t,qs); }).join("")+'</div></section>';
+    }
+    $("main").innerHTML = html;
+    writeHash();
+  }
+
+  function clearAll(){
+    $("q").value = "";
+    state.cats = new Set();
+    state.aliasOnly = false;
+    render();
+  }
+
+  function copyText(txt, btn){
+    var done = function(){
+      if(!btn) return;
+      var old = btn.textContent; btn.textContent = "已复制";
+      setTimeout(function(){ btn.textContent = old; }, 1200);
+    };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(txt).then(done, function(){ fallbackCopy(txt, done); });
+    } else fallbackCopy(txt, done);
+  }
+  function fallbackCopy(txt, done){
+    var ta = document.createElement("textarea");
+    ta.value = txt; ta.style.position="fixed"; ta.style.opacity="0";
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); done(); } catch(e){}
+    document.body.removeChild(ta);
+  }
+
+  /* ---- events ---- */
+  $("q").addEventListener("input", render);
+  $("chips").addEventListener("click", function(e){
+    var b = e.target.closest(".chip"); if(!b) return;
+    var k = b.getAttribute("data-k");
+    if(k==="__all__") state.cats = new Set();
+    else if(state.cats.has(k)) state.cats.delete(k);
+    else state.cats.add(k);
+    render();
+  });
+  $("v-group").addEventListener("click", function(){ state.view="group"; render(); });
+  $("v-flat").addEventListener("click", function(){ state.view="flat"; render(); });
+  $("t-alias").addEventListener("click", function(){ state.aliasOnly=!state.aliasOnly; render(); });
+  $("b-clear").addEventListener("click", clearAll);
+  $("b-copy").addEventListener("click", function(e){
+    var raw = $("q").value.trim().toLowerCase();
+    var qs = raw ? raw.split(/\s+/).filter(Boolean) : [];
+    var pool = DATA.filter(function(t){
+      if(state.aliasOnly && !(t.a && t.a.length)) return false;
+      if(!qs.length) return true;
+      var h = hay(t); return qs.every(function(q){ return h.indexOf(q)!==-1; });
+    }).filter(function(t){ return state.cats.size===0 || state.cats.has(t.c); });
+    var lines = pool.map(function(t){
+      return "["+catOf(t).n+"] "+t.t+" — "+t.d + (t.s ? "  （"+t.s+"）" : "");
+    });
+    copyText("EV 术语地图 · 当前结果 "+pool.length+" 条\n\n"+lines.join("\n"), e.currentTarget);
+  });
+  document.addEventListener("click", function(e){
+    var b = e.target.closest(".copy");
+    if(b) copyText(b.getAttribute("data-copy"), b);
+  });
+  document.addEventListener("keydown", function(e){
+    var tag = (e.target.tagName||"").toLowerCase();
+    var inField = tag==="input" || tag==="textarea";
+    if((e.key==="/" && !inField) || ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==="k")){
+      e.preventDefault(); $("q").focus(); $("q").select();
+    } else if(e.key==="Escape" && inField){
+      $("q").value=""; render(); $("q").blur();
+    }
+  });
+  window.addEventListener("hashchange", function(){ readHash(); render(); });
+
+  readHash();
+  render();
+})();
+</script>
+</body>
+</html>
