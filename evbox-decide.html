@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EvBox 帮助抉择 · 逐页模拟器验收（PAGES-v2）</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--line:#30363d;--txt:#e6edf3;--dim:#8b949e;--ok:#3fb950;--warn:#d29922;--accent:#58a6ff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+header{padding:32px 40px 24px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#161b22,#0d1117)}
+h1{margin:0 0 8px;font-size:26px;letter-spacing:.5px}
+.sub{color:var(--dim);font-size:13px}
+.kpis{display:flex;gap:14px;flex-wrap:wrap;margin-top:22px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 18px;min-width:150px}
+.kpi b{display:block;font-size:22px;color:var(--accent)}
+.kpi span{color:var(--dim);font-size:12px}
+main{padding:28px 40px 60px;max-width:1500px;margin:0 auto}
+h2{font-size:17px;margin:32px 0 16px;padding-left:10px;border-left:3px solid var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(268px,1fr));gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.card.pending{opacity:.72;border-style:dashed}
+.shot{background:#05070a;display:flex;align-items:center;justify-content:center;min-height:300px}
+.shot img{display:block;width:100%;height:auto;max-height:390px;object-fit:contain}
+.shot.empty{flex-direction:column;gap:8px;color:var(--dim);font-size:13px;background:repeating-linear-gradient(45deg,#0d1117,#0d1117 10px,#11161d 10px,#11161d 20px)}
+.shot.empty .ph{font-size:15px;color:var(--warn)}
+.meta{padding:14px 16px 16px;border-top:1px solid var(--line)}
+.row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.badge{font-size:11px;padding:2px 9px;border-radius:20px;font-weight:600}
+.b-ok{background:rgba(63,185,80,.15);color:var(--ok);border:1px solid rgba(63,185,80,.4)}
+.b-pend{background:rgba(210,153,34,.12);color:var(--warn);border:1px solid rgba(210,153,34,.35)}
+.phase{font-size:11px;color:var(--dim)}
+h3{margin:0 0 4px;font-size:15px}
+.spec{margin:0 0 8px;color:var(--dim);font-size:12px;min-height:32px}
+.ocr{margin:0 0 10px;font-size:12px;color:#b7c3d0;background:#0d1117;border-radius:6px;padding:7px 9px;word-break:break-all}
+.tech{display:flex;gap:12px;flex-wrap:wrap;color:var(--dim);font-size:11px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+ul.block{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 18px 18px 36px}
+ul.block li{margin-bottom:12px}
+ul.block span{color:var(--dim);font-size:12.5px}
+footer{border-top:1px solid var(--line);padding:20px 40px;color:var(--dim);font-size:12px}
+</style></head><body>
+<header>
+  <h1>EvBox 帮助抉择 · 逐页模拟器验收（PAGES-v2）</h1>
+  <div class="sub">批次 evbox-decide-261115 ｜ Leader: Nova ｜ 协议：PAGES-v2（18 页，适配 2×2 主屏 + 工具分组 IA）｜ 生成于 2026-11-16 23:26 +0800</div>
+  <div class="kpis">
+    <div class="kpi"><b>17/18 · 94%</b><span>页面已截图核实</span></div>
+    <div class="kpi"><b>17</b><span>有效带外壳截图</span></div>
+    <div class="kpi"><b>33e175f</b><span>验收基准 ref（工具页单行紧凑列表）</span></div>
+    <div class="kpi"><b>xiaomi_band</b><span>192×490 胶囊屏 · 默认实例</span></div>
+    <div class="kpi"><b>≥17/18</b><span>达标线（90%）</span></div>
+  </div>
+</header>
+<main>
+  <h2>页面清单 · 按新 IA 栏目分组</h2>
+  <div class="grid">
+      <article class="card ok">
+        <div class="shot"><img src="images/evbox-decide/01.png" alt="01-首页" loading="lazy"></div>
+        <div class="meta">
+          <div class="row"><span class="badge b-ok">已核实</span><span class="phase">入口</span></div>
+          <h3>01-首页</h3>
+          <p class="spec">冷启动首页：倒数日/农历/下拉查看</p>
+          <p class="ocr">22:53 113168 倒数 日 28% BR 随机 抽签 农历 TAM 下 滑 查 看</p>
+          <div class="tech"><span>冷启动</span><span>281×820</span><span>75 KB</span><span>md5 4cfccda4</span></div>
+          <div class="tech"><span>2026-11-16 22:54:34 +0800</span></div>
+        </div>
+      </article>
+      <article class="card ok">
+        <div class="shot"><img src="images/evbox-decide/02.png" alt="02-工具页-三组" loading="lazy"></div>
+        <div class="meta">
+          <div class="row"><span class="badge b-ok">已核实</span><span class="phase">入口</span></div>
+          <h3>02-工具页-三组</h3>
+          <p class="spec">工具页三组：抉择 / 时间 / 实用</p>
+          <p class="ocr">&lt; 工具 抽 选 抉择 吃 什 么 搭配 抽 钉 抉择 时 间 倒数 日 农历</p>
+          <div class="tech"><span>QA-ENTRY 直达</span><span>281×820</span><span>74 KB</span><span>md5 a1ea01a1</span></div>
+          <div class="tech"><span>2026-11-16 22:55:12 +0800</span></div>
+        </div>
+      </article>
+      <article class="card ok">
+        <div class="shot"><img src="images/evbox-decide/03.png" alt="03-抉择主屏-2x2" loading="lazy"></div>
+        <div class="meta">
+          <div class="row"><span class="badge b-ok">已核实</span><span class="phase">主视图</span></div>
+          <h3>03-抉择主屏-2x2</h3>
+          <p class="spec">主屏底部 2×2 四入口：换卡组/我的组/历史/动画</p>
+          <p class="ocr">&lt; 抉择 要 不 要 要 点 下 面 抽取 换 卡 组 我 的 组 历史 动画</p>
+          <div class="tech"><span>真实触摸</span><span>281×820</span><span>72 KB</span><span>md5 8505287b</span></div>
+          <div class="tech"><span>2026-11-16 22:17:27 +0800</span></div>
+        </div>
+      </article>
+      <article class="card ok">
+        <div class="shot"><img src="images/evbox-decide/04.png" alt="04-抽取动画" loading="lazy"></div>
+        <div class="meta">
+          <div class="row"><span class="badge b-ok">已核实</span><span class="phase">抽取动画</span></div>
+          <h3>04-抽取动画</h3>
+          <p class="spec">抽取中过程帧</p>
+          <p class="ocr">“抉择 要 不 要 要 正在 抽取 。 抽取 中 换 卡 组 我 的 组 历史 ”动画</p>
+          <div class="tech"><span>QA 注入</span><span>281×820</span><span>72 KB</span><span>md5 404d899a</span></div>
+          <div class="tech"><span>2026-11-16 22:18:00 +0800</span></div>
+        </div>
+      </article>
+      <article class="card ok">
+        <div class="shot"><img src="images/evbox-decide/05.png" alt="05-结果卡" loading="lazy"></div>
+        <div class="meta">
+          <div class="row"><span class="badge b-ok">已核实</span><span class="phase">抽取动画</span></div>
+          <h3>05-结果卡</h3>
+          <p class="spec">揭晓态结果大字</p>
+          <p class="ocr">&lt; 抉择 要 不 要 不 要 已 出 结果 换 卡 组 我 的 组 历史 动画</p>
+          <div class="tech"><span>QA 注入</span><span>281×820</span><span>73 KB</span><span>md5 44e6b4e7</span></div>
+          <div class="tech"><span>2026-11-16 22:33:16 +0800</span></div>
+        </div>
+      </article>
+      <article class="card ok">
+        <div class="shot"><img src="images/evbox-decide/06.png" alt="06-卡组列表-12分类" loading="lazy"></div>
+        <div class="meta">
+          <div class="row"><span class="badge b-ok">已核实</span><span class="phase">卡组与数据</span></div>
+          <h3>06-卡组列表-12分类</h3>
+          <p class="spec">12 个 CAT_SHORT 分类</p>
+          <p class="ocr">&lt; 卡 组 最 近 收藏 二 元 方位 学 科</p>
+          <div class="tech"><span>QA 注入</span><span>281×820</span><span>67 KB</span><span>md5 265961a6</span></div>
+          <div class="tech"><span>2026-11-16 22:19:10 +0800</span></div>
+        </div>
+      </article>
+      <article class="card ok">
+        <div class="shot"><img src="images/evbox-decide/07.png" alt="07-卡组列表二级-方位" loading="lazy"></div>
+        <div class="meta">
+          <div class="row"><span class="badge b-ok">已核实</span><span class="phase">卡组与数据</span></div>
+          <h3>07-卡组列表二级-方位</h3>
+          <p class="spec">方位分类下的卡组列表</p>
+          <p class="ocr">&lt; 卡 组 上 中 下 左右 上 下 东南 西北 前 后 左右 八方</p>
+          <div class="tech"><span>QA 注入</span><span>281×820</span><span>68 KB</span><span>md5 dece9b36</span></div>
+          <div class="tech"><span>2026-11-16 23:12:45 +0800</span></div>
+        </div>
+      </article>
+      <article class="card ok">
+        <div class="shot"><img src="images/evbox-decide/08.png" alt="08-餐饮卡组列表" loading="lazy"></div>
+        <div class="meta">
+          <div class="row"><span class="badge b-ok">已核实</span><span class="phase">卡组与数据</span></div>
+          <h3>08-餐饮卡组列表</h3>
+          <p class="spec">「随便吃一道」L1 大类</p>
+          <p class="ocr">&lt; 吃 什么 面食 家 常 米饭 小 吃 粉 汤 西餐</p>
+          <div class="tech"><span>QA 注入</span><span>281×820</span><span>71 KB</span><span>md5 009eb8f3</span></div>
+          <div class="tech"><span>2026-11-16 22:20:43 +0800</span></div>
+        </div>
+      </article>
+      <article class="card ok">
+        <div class="shot"><img src="images/evbox-decide/09.png" alt="09-我的组" loading="lazy"></div>
+        <div class="meta">
+          <div class="row"><span class="badge b-ok">已核实</span><span class="phase">自定义</span></div>
+          <h3>09-我的组</h3>
+          <p class="spec">自定义槽位页</p>
+          <p class="ocr">&lt; 自 定 已 加 选项 保存 并 抽 清空 重 来 点 加 一 项</p>
+          <div class="tech"><span>QA 注入</span><span>281×820</span><span>69 KB</span><span>md5 b42abdec</span></div>
+          <div class="tech"><span>2026-11-16 22:21:18 +0800</span></div>
+        </div>
+      </article>
+      <article class="card ok">
+        <div class="shot"><img src="images/evbox-decide/10.png" alt="10-历史" loading="lazy"></div>
+        <div class="meta">
+          <div class="row"><span class="badge b-ok">已核实</span><span class="phase">历史</span></div>
+          <h3>10-历史</h3>
+          <p class="spec">抽取历史与清空</p>
+          <p class="ocr">&lt; 历史 最 近 抽取 要 不 要 不 要 清空 记录 返回</p>
+          <div class="tech"><span>QA 注入</span><span>281×820</span><span>68 KB</span><span>md5 b0c851f7</span></div>
+          <div class="tech"><span>2026-11-16 22:21:53 +0800</span></div>
+        </div>
+      </article>
+      <article class="card ok">
+        <div class="shot"><img src="images/evbox-decide/11.png" alt="11-简化动画态" loading="lazy"></div>
+        <div class="meta">
+          <div class="row"><span class="badge b-ok">已核实</span><span class="phase">设置</span></div>
+          <h3>11-简化动画态</h3>
+          <p class="spec">简化 / 完整动画切换态</p>
+          <p class="ocr">&lt; 抉择 要 不 要 要 已 开 简化 换 卡 组 我 的 组 历史 动画</p>
+          <div class="tech"><span>QA 注入</span><span>281×820</span><span>71 KB</span><span>md5 1df149ab</span></div>
+          <div class="tech"><span>2026-11-16 23:14:50 +0800</span></div>
+        </div>
+      </article>
+      <article class="card ok">
+        <div class="shot"><img src="images/evbox-decide/12.png" alt="12-组合抽取" loading="lazy"></div>
+        <div class="meta">
+          <div class="row"><span class="badge b-ok">已核实</span><span class="phase">组合</span></div>
+          <h3>12-组合抽取</h3>
+          <p class="spec">搭配抽三槽滚动</p>
+          <p class="ocr">&lt; 搭配 午饭 搭配 点 卡片 换 一 道 蔬菜 SRB KR 芒果 器 INA 整套 重 抽</p>
+          <div class="tech"><span>QA 注入</span><span>281×820</span><span>78 KB</span><span>md5 db817eec</span></div>
+          <div class="tech"><span>2026-11-16 22:40:41 +0800</span></div>
+        </div>
+      </article>
+      <article class="card ok">
+        <div class="shot"><img src="images/evbox-decide/13.png" alt="13-组合结果卡" loading="lazy"></div>
+        <div class="meta">
+          <div class="row"><span class="badge b-ok">已核实</span><span class="phase">组合</span></div>
+          <h3>13-组合结果卡</h3>
+          <p class="spec">整套重抽汇总卡</p>
+          <p class="ocr">HR 午饭 搭配 点 卡片 换 一 道 蔬菜 nee KR a 器 5038 整套 重 抽</p>
+          <div class="tech"><span>QA 注入</span><span>281×820</span><span>78 KB</span><span>md5 4a7628b5</span></div>
+          <div class="tech"><span>2026-11-16 23:13:25 +0800</span></div>
+        </div>
+      </article>
+      <article class="card ok">
+        <div class="shot"><img src="images/evbox-decide/14.png" alt="14-中文输入页" loading="lazy"></div>
+        <div class="meta">
+          <div class="row"><span class="badge b-ok">已核实</span><span class="phase">自定义</span></div>
+          <h3>14-中文输入页</h3>
+          <p class="spec">chinese-input 回传协议</p>
+          <p class="ocr">&lt; “加 一 项 Gz» 123 名 en A S [ N X</p>
+          <div class="tech"><span>QA 注入</span><span>281×820</span><span>73 KB</span><span>md5 64c360c0</span></div>
+          <div class="tech"><span>2026-11-16 23:15:30 +0800</span></div>
+        </div>
+      </article>
+      <article class="card ok">
+        <div class="shot"><img src="images/evbox-decide/15.png" alt="15-分组结果卡" loading="lazy"></div>
+        <div class="meta">
+          <div class="row"><span class="badge b-ok">已核实</span><span class="phase">P2</span></div>
+          <h3>15-分组结果卡</h3>
+          <p class="spec">分组模板三槽结果</p>
+          <p class="ocr">&lt; 抉择 分 好 组 了 第 一 组 七 十 一 返回 卡 组</p>
+          <div class="tech"><span>QA 注入</span><span>281×820</span><span>69 KB</span><span>md5 accf56d6</span></div>
+          <div class="tech"><span>2026-11-16 23:14:05 +0800</span></div>
+        </div>
+      </article>
+      <article class="card ok">
+        <div class="shot"><img src="images/evbox-decide/16.png" alt="16-槽级筛选UI" loading="lazy"></div>
+        <div class="meta">
+          <div class="row"><span class="badge b-ok">已核实</span><span class="phase">P2</span></div>
+          <h3>16-槽级筛选UI</h3>
+          <p class="spec">抽前筛选：口味/冷热/场景</p>
+          <p class="ocr">&lt; 筛选 teh WA fee Se 口味 都 行 =z 都 行 冷 热 都 行 场景 都 行 返回</p>
+          <div class="tech"><span>QA 注入</span><span>281×820</span><span>77 KB</span><span>md5 3c3733cb</span></div>
+          <div class="tech"><span>2026-11-16 22:48:37 +0800</span></div>
+        </div>
+      </article>
+      <article class="card ok">
+        <div class="shot"><img src="images/evbox-decide/17.png" alt="17-更多浮层" loading="lazy"></div>
+        <div class="meta">
+          <div class="row"><span class="badge b-ok">已核实</span><span class="phase">P2</span></div>
+          <h3>17-更多浮层</h3>
+          <p class="spec">C11–C13 常驻浮层</p>
+          <p class="ocr">“工具 工具 导出 卡 组 导入 卡 组 返回</p>
+          <div class="tech"><span>QA 注入</span><span>281×820</span><span>65 KB</span><span>md5 8112245a</span></div>
+          <div class="tech"><span>2026-11-16 23:21:18 +0800</span></div>
+        </div>
+      </article>
+      <article class="card pending">
+        <div class="shot empty"><div class="ph">P2 / INFEASIBLE</div><span>无可采页面</span></div>
+        <div class="meta">
+          <div class="row"><span class="badge b-pend">INFEASIBLE</span><span class="phase">P2 / INFEASIBLE</span></div>
+          <h3>18-钉抉择-桌面卡</h3>
+          <p class="spec">钉抉择是工具页动作（pin:decide → slotStore.pinDecideShortcuts），只写首页槽位存储、不产生独立路由页面；结果态已由 01-首页覆盖</p>
+          <p class="ocr">源码证据 src/pages/tools/tools.ux:62 {id:&quot;pin-decide&quot;,uri:&quot;pin:decide&quot;} → :206 pinDecide() → :213 slotStore.pinDecideShortcuts()，仅写首页槽位存储，不产生路由页面；结果态已由 01-首页 覆盖，按协议记 INFEASIBLE</p>
+        </div>
+      </article></div>
+  <h2>验收环境限制与处置（如实标注，不假报通过）</h2>
+  <ul class="block"><li><strong>模拟器 vibrator 崩溃 · 已绕开</strong><br><span>VIBRATE_ENABLED=true 时点击抽取触发 @system.vibrator，guest 内 native 崩溃 → vapp 退出 / qemu 失联（真机不受影响）。验收一律用从当前 HEAD 导出的隔离快照，仅把该常量改 false 构建 QA 包；真机安装包仍用主仓正常包（震动开启）。</span></li><li><strong>overlay / 动画期吞触摸 · 已绕开</strong><br><span>卡组列表是绝对定位覆盖层，spinning 期间按钮触摸被吞。处置：每页 vela down+up 冷启动 + QA 在 onInit 注入目标视图。注入后**不再追加点击**——实证 07 曾因多点一次中心坐标被点回上一级，与 06 字节完全相同（判 DUPLICATE）。</span></li><li><strong>QA 验收入口 · 证据口径</strong><br><span>QA 包 = HEAD 只读快照（仅关震动 + 可选初始视图注入），不改任何渲染逻辑，页面仍由真实产品代码渲染，逐张标注采集方式。</span></li><li><strong>EvFleet 票据</strong><br><span>截图须持票（fleet run 一票一命令）。同机存在并行会话时会出现票据争抢与僵尸票（holder 进程退出即回收），处置：fleet run 包裹、owner 显式对齐、僵尸票 cancel --force 回收。</span></li></ul>
+  <h2>验收口径</h2>
+  <ul class="block">
+    <li><strong>截图铁律</strong><br><span>一律带机身外壳（--frame，281×820）；只操作默认实例 xiaomi_band；逐张非空/尺寸校验 + md5 去重；OCR 文本入库可追溯。</span></li>
+    <li><strong>特征词硬闸门</strong><br><span>OCR 分词拼接后必须命中该页 expect，否则判 MISMATCH，不计入完成度。仅凭 md5 唯一不足以证明到了目标页。</span></li>
+    <li><strong>旧 17 页作废</strong><br><span>2026-11-16 21:23 / 21:32 两笔重构（主屏 2×2 入口、工具页分组）改变了信息架构，19:52 采集的 17 页全部作废，本画廊为 v2 重拍结果。</span></li>
+  </ul>
+</main>
+<footer>EvBox 帮助抉择验收画廊 · 由 build_gallery_v2.py 从 screenshots-v2/manifest.json 生成 · 时间口径北京时间 +0800</footer>
+</body></html>
