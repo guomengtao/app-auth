@@ -21,6 +21,7 @@ var redis = require("../lib/redis");
 var deviceToken = require("../lib/device-token");
 var messageDelivery = require("../lib/message-delivery");
 var { requireAuth } = require("../lib/auth");
+var sched = require("../lib/sched");   // 课程表云同步；逻辑在 lib/ 里，不占 Serverless 函数名额
 var fs = require("fs");
 var path = require("path");
 var https = require("https");   // GitHub Release 查询（线上版本事实源，见 PROJECT_REPOS）
@@ -2803,6 +2804,11 @@ module.exports = async (req, res) => {
   var query = req.query || {};
 
   try {
+    // 课程表云同步：/api/sched/:op → ?action=sched-:op（见 vercel.json）
+    // 2026-11-20：Vercel 函数文件数已到上限，故复用本文件转发，不再新增 api/*.js
+    if (action.indexOf("sched-") === 0) {
+      return await sched.handle(req, res, action.slice(6));
+    }
     switch (action) {
       case "device-start":
         if (req.method !== "POST") return json(res, 405, { success: false, error: "Use POST" });

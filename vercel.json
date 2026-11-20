@@ -63,6 +63,14 @@
     {
       "source": "/api/afdian/query-orders",
       "destination": "/api/afdian?kind=query"
+    },
+    {
+      "source": "/api/sched/:op",
+      "destination": "/api/ev?action=sched-:op"
+    },
+    {
+      "source": "/api/sched/:op/",
+      "destination": "/api/ev?action=sched-:op"
     }
   ],
   "redirects": [
