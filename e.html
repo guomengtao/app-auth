@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>课表 · 网页查看</title>
+<title>课表 · 网页编辑</title>
 <style>
   :root{
     --bg:#0f1115; --card:#171a21; --line:#252a34; --text:#e8ebf0; --muted:#8b93a3;
-    --accent:#4c8dff; --warn:#e6a23c;
+    --accent:#4c8dff; --warn:#e6a23c; --danger:#e05a5a; --ok:#3ecf8e;
   }
   @media (prefers-color-scheme: light){
     :root{ --bg:#f5f7fa; --card:#fff; --line:#e5e8ee; --text:#1b1f26; --muted:#6b7280; }
@@ -15,16 +15,24 @@
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);
     font:15px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
-    padding:24px 16px 64px}
+    padding:24px 16px 96px}
   .wrap{max-width:760px;margin:0 auto}
   header{display:flex;align-items:center;gap:10px;margin-bottom:6px}
-  h1{font-size:20px;margin:0;font-weight:600}
-  .badge{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}
+  h1{font-size:20px;margin:0;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .badge{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+  .badge.on{color:var(--ok);border-color:rgba(62,207,142,.45)}
+  .btn{font:inherit;font-size:13px;padding:5px 12px;border-radius:9px;border:1px solid var(--line);
+    background:transparent;color:var(--text);cursor:pointer}
+  .btn:hover{border-color:var(--accent)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.ghost{color:var(--muted)}
   .sub{color:var(--muted);font-size:13px;margin:2px 0 18px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:14px}
   .day{font-size:13px;color:var(--muted);margin:0 0 8px;letter-spacing:.04em}
   .row{display:flex;gap:12px;padding:9px 0;border-top:1px solid var(--line);align-items:baseline}
   .row:first-of-type{border-top:0}
+  .row.tap{cursor:pointer;border-radius:8px;margin:0 -8px;padding:9px 8px}
+  .row.tap:hover{background:rgba(127,127,127,.08)}
   .time{font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px;min-width:96px}
   .name{font-weight:500}
   .meta{color:var(--muted);font-size:13px}
@@ -32,24 +40,93 @@
   .err{border-color:var(--warn)}
   .foot{color:var(--muted);font-size:12px;text-align:center;margin-top:22px;line-height:1.8}
   code{background:rgba(127,127,127,.14);padding:1px 5px;border-radius:5px;font-size:12px}
+  /* 底部操作条 */
+  .bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);
+    padding:10px 16px;display:none;gap:10px;align-items:center;justify-content:flex-end}
+  .bar.show{display:flex}
+  .bar .hint{flex:1;font-size:12px;color:var(--muted)}
+  /* 表单浮层 */
+  .mask{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;justify-content:center;z-index:20}
+  .mask.show{display:flex}
+  .sheet{background:var(--card);border:1px solid var(--line);border-radius:16px 16px 0 0;width:100%;max-width:520px;padding:18px 18px 24px}
+  .sheet h3{margin:0 0 14px;font-size:16px;font-weight:600}
+  .field{margin-bottom:12px}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+  .field input,.field select{width:100%;font:inherit;padding:8px 10px;border-radius:9px;
+    border:1px solid var(--line);background:var(--bg);color:var(--text)}
+  .two{display:flex;gap:10px}
+  .two .field{flex:1}
+  .sheet .acts{display:flex;gap:10px;margin-top:6px}
+  .sheet .acts .btn{flex:1;padding:9px}
+  .toast{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);background:var(--card);
+    border:1px solid var(--line);border-radius:10px;padding:8px 14px;font-size:13px;opacity:0;
+    transition:opacity .2s;pointer-events:none;z-index:30;max-width:90vw;text-align:center}
+  .toast.show{opacity:1}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header><h1 id="title">课表</h1><span class="badge">只读</span></header>
+  <header>
+    <h1 id="title">课表</h1>
+    <span class="badge" id="badge">只读</span>
+    <button class="btn" id="editBtn" style="display:none">编辑</button>
+  </header>
   <div class="sub" id="sub">正在读取…</div>
   <div id="list"></div>
-  <div class="foot">
-    只读视图 · 数据由手机同步至云端<br>
-    网页编辑功能尚未开放；手环上的课表仍需在手机上点一次同步
+  <div class="foot" id="foot">
+    数据由手机同步至云端 · 网页改动会写回云端，手环下次同步时更新
   </div>
 </div>
+
+<div class="bar" id="bar">
+  <span class="hint" id="barHint">编辑中</span>
+  <button class="btn" id="addBtn">+ 加课程</button>
+  <button class="btn primary" id="saveBtn">保存</button>
+</div>
+
+<div class="mask" id="mask">
+  <div class="sheet">
+    <h3 id="sheetTitle">课程</h3>
+    <div class="field"><label>课程名</label><input id="fName" maxlength="40" placeholder="例如 高等数学"></div>
+    <div class="two">
+      <div class="field"><label>星期</label>
+        <select id="fDay">
+          <option value="1">周一</option><option value="2">周二</option><option value="3">周三</option>
+          <option value="4">周四</option><option value="5">周五</option><option value="6">周六</option>
+          <option value="7">周日</option>
+        </select>
+      </div>
+      <div class="field"><label>教室</label><input id="fRoom" maxlength="30" placeholder="选填"></div>
+    </div>
+    <div class="two">
+      <div class="field"><label>开始</label><input id="fStart" type="time"></div>
+      <div class="field"><label>结束</label><input id="fEnd" type="time"></div>
+    </div>
+    <div class="field"><label>教师</label><input id="fTeacher" maxlength="20" placeholder="选填"></div>
+    <div class="acts">
+      <button class="btn" id="cancelBtn">取消</button>
+      <button class="btn" id="delBtn" style="display:none;color:var(--danger);border-color:rgba(224,90,90,.5)">删除</button>
+      <button class="btn primary" id="okBtn">确定</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
 <script>
 (function(){
   var DAYS = ["周一","周二","周三","周四","周五","周六","周日"];
   var elTitle = document.getElementById("title");
   var elSub   = document.getElementById("sub");
   var elList  = document.getElementById("list");
+  var elBadge = document.getElementById("badge");
+  var elEdit  = document.getElementById("editBtn");
+  var elBar   = document.getElementById("bar");
+  var elBarHint = document.getElementById("barHint");
+  var elFoot  = document.getElementById("foot");
+
+  var S = { guid:"", code:"", token:"", editToken:"", editUntil:null,
+            rev:0, name:"", courses:[], editing:false, editingIdx:-1 };
 
   // 两种地址都支持：
   //   新：/e/<10位短码>                     ← 推荐，短码即读凭据
@@ -62,15 +139,19 @@
     return { guid: guid, token: q.get("t") || "" };
   }
 
-  function fail(msg, hint){
-    elSub.textContent = msg;
-    elList.innerHTML = '<div class="card err"><div class="empty">' + (hint || "") + '</div></div>';
-  }
-
   function esc(s){
     return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
       return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
     });
+  }
+  function toast(msg){
+    var t = document.getElementById("toast");
+    t.textContent = msg; t.classList.add("show");
+    clearTimeout(t._h); t._h = setTimeout(function(){ t.classList.remove("show"); }, 2200);
+  }
+  function fail(msg, hint){
+    elSub.textContent = msg;
+    elList.innerHTML = '<div class="card err"><div class="empty">' + (hint || "") + '</div></div>';
   }
 
   function hhmm(v){
@@ -82,36 +163,47 @@
     var h = Math.floor(n / 60), m = n % 60;
     return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
   }
+  function toMin(s){
+    if (!s) return 0;
+    var p = String(s).split(":");
+    return (parseInt(p[0],10) || 0) * 60 + (parseInt(p[1],10) || 0);
+  }
+  function dayOf(c){
+    var d = Number(c.day != null ? c.day : c.weekday);
+    if (isNaN(d)) d = 0;
+    return (d >= 1 && d <= 7) ? d : 1;
+  }
+  function timeText(c){
+    var s = hhmm(c.start != null ? c.start : c.begin);
+    var e = hhmm(c.end != null ? c.end : c.finish);
+    return (s || e) ? (s + (e ? "–" + e : "")) : "";
+  }
 
-  function render(name, courses){
-    if (name) elTitle.textContent = name;
+  function render(){
     var byDay = {};
-    courses.forEach(function(c){
-      var d = Number(c.day != null ? c.day : c.weekday);
-      if (isNaN(d)) d = 0;
-      d = (d >= 1 && d <= 7) ? d : 1;
-      (byDay[d] = byDay[d] || []).push(c);
+    S.courses.forEach(function(c, i){
+      (byDay[dayOf(c)] = byDay[dayOf(c)] || []).push({ c:c, i:i });
     });
     var days = Object.keys(byDay).map(Number).sort(function(a,b){ return a-b; });
     if (!days.length){
-      elList.innerHTML = '<div class="card"><div class="empty">这张课表还没有课程</div></div>';
-      elSub.textContent = "共 0 门课";
+      elList.innerHTML = '<div class="card"><div class="empty">这张课表还没有课程'
+        + (S.editing ? '，点下面「+ 加课程」开始' : '') + '</div></div>';
+      elSub.textContent = "共 0 门课 · 云端 rev " + S.rev + (S.editToken ? " · 可编辑" : " · 只读");
       return;
     }
     var html = "";
     days.forEach(function(d){
       var arr = byDay[d].slice().sort(function(a,b){
-        return String(a.start != null ? a.start : (a.begin || ""))
-          .localeCompare(String(b.start != null ? b.start : (b.begin || "")));
+        return String(a.c.start != null ? a.c.start : (a.c.begin || ""))
+          .localeCompare(String(b.c.start != null ? b.c.start : (b.c.begin || "")));
       });
       html += '<div class="card"><p class="day">' + (DAYS[d-1] || ("第" + d + "天"))
             + ' · ' + arr.length + ' 节</p>';
-      arr.forEach(function(c){
-        var s = hhmm(c.start != null ? c.start : c.begin);
-        var e = hhmm(c.end != null ? c.end : c.finish);
-        var time = (s || e) ? (s + (e ? "–" + e : "")) : "";
+      arr.forEach(function(o){
+        var c = o.c;
         var meta = [c.room || c.place || "", c.teacher || ""].filter(Boolean).join(" · ");
-        html += '<div class="row"><div class="time">' + esc(time) + '</div><div>'
+        html += '<div class="row' + (S.editing ? ' tap' : '') + '" data-i="' + o.i + '">'
+              + '<div class="time">' + esc(timeText(c)) + '</div><div>'
               + '<div class="name">' + esc(c.name || c.title || "未命名") + '</div>'
               + (meta ? '<div class="meta">' + esc(meta) + '</div>' : '')
               + '</div></div>';
@@ -119,8 +211,117 @@
       html += '</div>';
     });
     elList.innerHTML = html;
+    if (S.editing){
+      Array.prototype.forEach.call(elList.querySelectorAll(".row.tap"), function(el){
+        el.addEventListener("click", function(){ openSheet(parseInt(el.getAttribute("data-i"), 10)); });
+      });
+    }
+    elSub.textContent = "共 " + S.courses.length + " 门课 · 云端 rev " + S.rev
+      + (S.editToken ? " · 可编辑" : " · 只读");
   }
 
+  function setEditing(on){
+    S.editing = on;
+    elBadge.textContent = on ? "编辑中" : (S.editToken ? "可编辑" : "只读");
+    elBadge.className = "badge" + (on ? " on" : "");
+    elBar.classList.toggle("show", on);
+    elEdit.textContent = on ? "完成" : "编辑";
+    if (!on) S.editingIdx = -1;
+    render();
+  }
+
+  // ---------- 表单 ----------
+  function openSheet(i){
+    var c = i >= 0 ? S.courses[i] : {};
+    S.editingIdx = i;
+    document.getElementById("sheetTitle").textContent = i >= 0 ? "改课程" : "加课程";
+    document.getElementById("fName").value = c.name || c.title || "";
+    document.getElementById("fDay").value = String(dayOf(c));
+    document.getElementById("fRoom").value = c.room || c.place || "";
+    document.getElementById("fStart").value = hhmm(c.start != null ? c.start : c.begin);
+    document.getElementById("fEnd").value = hhmm(c.end != null ? c.end : c.finish);
+    document.getElementById("fTeacher").value = c.teacher || "";
+    document.getElementById("delBtn").style.display = i >= 0 ? "" : "none";
+    document.getElementById("mask").classList.add("show");
+  }
+  function closeSheet(){ document.getElementById("mask").classList.remove("show"); }
+
+  function submitSheet(){
+    var name = document.getElementById("fName").value.trim();
+    if (!name){ toast("课程名不能为空"); return; }
+    var s = document.getElementById("fStart").value;
+    var e = document.getElementById("fEnd").value;
+    if (s && e && toMin(e) <= toMin(s)){ toast("结束时间要晚于开始时间"); return; }
+    var base = S.editingIdx >= 0 ? S.courses[S.editingIdx] : {};
+    var out = {};
+    // 保留原对象里我们不认识的字段，避免把扩展字段洗掉
+    for (var k in base) if (Object.prototype.hasOwnProperty.call(base, k)) out[k] = base[k];
+    out.name = name;
+    out.day = parseInt(document.getElementById("fDay").value, 10);
+    var room = document.getElementById("fRoom").value.trim();
+    var teacher = document.getElementById("fTeacher").value.trim();
+    out.start = s || null;
+    out.end = e || null;
+    out.room = room;
+    out.teacher = teacher;
+    // 老字段名一并同步，手环端两种读法都能拿到
+    if ("begin" in base || !("start" in base)) out.begin = s || null;
+    if ("finish" in base || !("end" in base)) out.finish = e || null;
+    if ("place" in base || !("room" in base)) out.place = room;
+
+    if (S.editingIdx >= 0) S.courses[S.editingIdx] = out;
+    else S.courses.push(out);
+    closeSheet(); render();
+  }
+
+  function deleteCurrent(){
+    if (S.editingIdx < 0) return;
+    S.courses.splice(S.editingIdx, 1);
+    closeSheet(); render();
+  }
+
+  // ---------- 保存 ----------
+  function save(){
+    if (!S.editToken){ toast("没有编辑权限，请在手机上开通"); return; }
+    var btn = document.getElementById("saveBtn");
+    btn.disabled = true; btn.textContent = "保存中…";
+    var payload = { name: S.name || elTitle.textContent, courses: S.courses };
+    fetch("/api/sched/push?guid=" + encodeURIComponent(S.guid), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + S.editToken },
+      body: JSON.stringify({
+        guid: S.guid, op: "upsert", baseRev: S.rev,
+        name: S.name || elTitle.textContent, payload: payload
+      })
+    })
+    .then(function(r){ return r.json().then(function(j){ return { code:r.status, j:j }; }); })
+    .then(function(o){
+      btn.disabled = false; btn.textContent = "保存";
+      if (o.code === 409){
+        // 云端 rev 被别人推进了：以云端为准刷新，绝不覆盖
+        S.rev = o.j.rev || S.rev;
+        if (o.j.payload) adopt(o.j.payload);
+        toast("手机上也有改动，已刷新到最新版本，请重新调整");
+        render();
+        return;
+      }
+      if (o.code === 401){ S.editToken = ""; toast("编辑权限已过期，请在手机上重新开通"); setEditing(false); return; }
+      if (o.j.success === false){ toast("保存失败：" + (o.j.error || "未知错误")); return; }
+      S.rev = o.j.rev || (S.rev + 1);
+      toast("已保存 · 云端 rev " + S.rev);
+      setEditing(false);
+    })
+    .catch(function(){ btn.disabled = false; btn.textContent = "保存"; toast("网络不通，稍后再试"); });
+  }
+
+  function adopt(payload){
+    var p = payload || {};
+    S.name = p.name || S.name;
+    S.courses = p.courses || (Array.isArray(p) ? p.slice() : []);
+    elTitle.textContent = S.name || "课表";
+  }
+
+  // ---------- 加载 ----------
   var p = parse();
   if (!p.code && !p.guid){ fail("链接不完整", "请从手机 App 的「网页大屏编辑」重新获取链接。"); return; }
   if (!p.code && !p.token){ fail("这个链接缺少访问凭据",
@@ -148,14 +349,44 @@
         fail("这张课表已被删除", "如需恢复，请在手机 App 的云端版本里回滚。");
         return;
       }
-      var payload = j.payload || {};
-      var courses = payload.courses || (Array.isArray(payload) ? payload : []);
-      render(payload.name || "", courses);
-      elSub.textContent = "共 " + courses.length + " 门课 · 云端 rev " + (j.rev || 0) + " · 只读";
+      S.guid = j.guid || p.guid;
+      S.code = p.code;
+      S.rev = j.rev || 0;
+      adopt(j.payload || {});
+      S.editToken = j.editToken || (p.code ? "" : p.token);
+      S.editUntil = j.editUntil || null;
+      if (S.editToken && !p.code) S.editToken = p.token;   // 旧长链：链接里的 token 即写权限
+      render();
+      if (S.editToken){
+        elEdit.style.display = "";
+        elBadge.textContent = "可编辑";
+        elEdit.addEventListener("click", function(){ setEditing(!S.editing); });
+        document.getElementById("addBtn").addEventListener("click", function(){ openSheet(-1); });
+        document.getElementById("saveBtn").addEventListener("click", save);
+        document.getElementById("cancelBtn").addEventListener("click", closeSheet);
+        document.getElementById("okBtn").addEventListener("click", submitSheet);
+        document.getElementById("delBtn").addEventListener("click", deleteCurrent);
+        document.getElementById("mask").addEventListener("click", function(e){
+          if (e.target === this) closeSheet();
+        });
+        if (S.editUntil){
+          var d = new Date(S.editUntil);
+          if (!isNaN(d.getTime())){
+            elFoot.innerHTML = '网页编辑已开启至 ' + d.toLocaleDateString("zh-CN")
+              + ' · 到期后自动转只读，手机上可再次开通';
+          }
+        }
+      } else {
+        elEdit.style.display = "";
+        elEdit.classList.add("ghost");
+        elEdit.addEventListener("click", function(){
+          toast("请在手机上开通：设备页 → 网页大屏编辑 → 允许网页编辑");
+        });
+      }
     })
     .catch(function(err){
       if (err.message === "unauthorized")       fail("链接无效或已失效", "请从手机 App 重新复制链接（旧链接可能已被撤销）。");
-      else if (err.message === "notfound")      fail("链接格式不对", "地址应形如 <code>/e/手环ID/课表ID?t=…</code>。");
+      else if (err.message === "notfound")      fail("链接格式不对", "地址应形如 <code>/e/10位短码</code>。");
       else                                      fail("读取失败", "网络不通或服务暂时不可用，稍后再试。");
     });
 })();
