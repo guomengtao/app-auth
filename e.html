@@ -328,7 +328,7 @@
       "链接里的 <code>t=</code> 参数不能丢；请从手机 App 重新复制完整网址。"); return; }
 
   var load = p.code
-      ? fetch("/api/sched/open?c=" + encodeURIComponent(p.code))
+      ? fetch("/api/sched/open?c=" + encodeURIComponent(p.code) + "&k=" + encodeURIComponent(new URLSearchParams(location.search).get("k") || ""))
       : fetch("/api/sched/pull?guid=" + encodeURIComponent(p.guid), {
           headers: { "Authorization": "Bearer " + p.token }
         });
