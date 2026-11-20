@@ -51,11 +51,14 @@
   var elSub   = document.getElementById("sub");
   var elList  = document.getElementById("list");
 
-  // 地址形如 /e/<watchKey>/<guid>?t=<token>
+  // 两种地址都支持：
+  //   新：/e/<10位短码>                     ← 推荐，短码即读凭据
+  //   旧：/e/<watchKey>/<guid>?t=<token>    ← 过渡期保留，已发出去的链接不能失效
   function parse(){
-    var parts = location.pathname.split("/").filter(Boolean);   // ["e", mac, guid]
-    var guid = parts.length >= 3 ? decodeURIComponent(parts[2]) : "";
+    var parts = location.pathname.split("/").filter(Boolean);
     var q = new URLSearchParams(location.search);
+    if (parts.length === 2) return { code: decodeURIComponent(parts[1]), guid: "", token: "" };
+    var guid = parts.length >= 3 ? decodeURIComponent(parts[2]) : "";
     return { guid: guid, token: q.get("t") || "" };
   }
 
@@ -119,13 +122,17 @@
   }
 
   var p = parse();
-  if (!p.guid){ fail("链接不完整", "请从手机 App 的「网页大屏编辑」重新获取链接。"); return; }
-  if (!p.token){ fail("这个链接缺少访问凭据",
+  if (!p.code && !p.guid){ fail("链接不完整", "请从手机 App 的「网页大屏编辑」重新获取链接。"); return; }
+  if (!p.code && !p.token){ fail("这个链接缺少访问凭据",
       "链接里的 <code>t=</code> 参数不能丢；请从手机 App 重新复制完整网址。"); return; }
 
-  fetch("/api/sched/pull?guid=" + encodeURIComponent(p.guid), {
-    headers: { "Authorization": "Bearer " + p.token }
-  })
+  var load = p.code
+      ? fetch("/api/sched/open?c=" + encodeURIComponent(p.code))
+      : fetch("/api/sched/pull?guid=" + encodeURIComponent(p.guid), {
+          headers: { "Authorization": "Bearer " + p.token }
+        });
+
+  load
     .then(function(r){
       if (r.status === 401) throw new Error("unauthorized");
       if (r.status === 404) throw new Error("notfound");

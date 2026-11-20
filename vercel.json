@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/e/:code",
+      "destination": "/e.html"
+    },
+    {
       "source": "/e/:watchKey/:guid",
       "destination": "/e.html"
     },
