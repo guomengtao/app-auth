@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>这台设备的课表</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#171a21; --line:#252a34; --text:#e8ebf0; --muted:#8b93a3;
+    --accent:#4c8dff; --warn:#e6a23c; --ok:#3ecf8e;
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#f5f7fa; --card:#fff; --line:#e5e8ee; --text:#1b1f26; --muted:#6b7280; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+    padding:24px 16px 64px}
+  .wrap{max-width:760px;margin:0 auto}
+  header{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  h1{font-size:20px;margin:0;font-weight:600;flex:1;min-width:0;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
+  .badge{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}
+  .sub{color:var(--muted);font-size:13px;margin:2px 0 18px}
+  .card{display:block;text-decoration:none;color:inherit;background:var(--card);
+    border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:12px;
+    transition:border-color .15s}
+  .card:hover{border-color:var(--accent)}
+  .card .row{display:flex;align-items:center;gap:12px}
+  .card .t{flex:1;min-width:0}
+  .name{font-weight:600;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .meta{color:var(--muted);font-size:13px;margin-top:2px}
+  .arrow{color:var(--muted);font-size:18px}
+  .empty{color:var(--muted);text-align:center;padding:32px 0}
+  .err{border-color:var(--warn)}
+  .foot{color:var(--muted);font-size:12px;text-align:center;margin-top:22px;line-height:1.8}
+  code{background:rgba(127,127,127,.14);padding:1px 5px;border-radius:5px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="title">这台设备的课表</h1>
+    <span class="badge" id="badge">只读</span>
+  </header>
+  <div class="sub" id="sub">正在读取…</div>
+  <div id="list"></div>
+  <div class="foot">
+    点任意一份进入只读视图 · 要改课程，请在手机 App 里对那张课表开通「网页编辑」<br>
+    数据由手机同步至云端
+  </div>
+</div>
+<script>
+(function(){
+  var elTitle = document.getElementById("title");
+  var elSub   = document.getElementById("sub");
+  var elList  = document.getElementById("list");
+
+  function esc(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+  function fail(msg, hint){
+    elSub.textContent = msg;
+    elList.innerHTML = '<div class="card err"><div class="empty">' + (hint || "") + '</div></div>';
+  }
+  function when(iso){
+    var t = new Date(iso).getTime();
+    if (isNaN(t)) return "";
+    var d = Math.floor((Date.now() - t) / 1000);
+    if (d < 60) return "刚刚更新";
+    if (d < 3600) return Math.floor(d/60) + " 分钟前更新";
+    if (d < 86400) return Math.floor(d/3600) + " 小时前更新";
+    if (d < 86400*30) return Math.floor(d/86400) + " 天前更新";
+    return new Date(t).toLocaleDateString("zh-CN");
+  }
+
+  var parts = location.pathname.split("/").filter(Boolean);
+  var code = parts.length >= 2 ? decodeURIComponent(parts[1]) : "";
+  if (!code || code === "null"){
+    fail("链接不完整", "请在手机 App 的设备页重新获取链接。");
+    return;
+  }
+
+  fetch("/api/sched/devopen?c=" + encodeURIComponent(code))
+    .then(function(r){
+      if (r.status === 401) throw new Error("unauthorized");
+      return r.json();
+    })
+    .then(function(j){
+      if (!j || j.success === false) throw new Error((j && j.error) || "bad_response");
+      var name = (j.deviceName || "").trim();
+      if (name) elTitle.textContent = name;
+      var list = j.schedules || [];
+      elSub.textContent = "共 " + list.length + " 份课表";
+      if (!list.length){
+        elList.innerHTML = '<div class="card"><div class="empty">这台设备上还没有同步过来的课表</div></div>';
+        return;
+      }
+      var html = "";
+      list.forEach(function(s){
+        html += '<a class="card" href="/e/' + encodeURIComponent(s.shortId || "") + '">'
+              + '<div class="row"><div class="t">'
+              + '<div class="name">' + esc(s.name || "未命名课表") + '</div>'
+              + '<div class="meta">云端 rev ' + (s.rev || 0)
+              + (s.updatedAt ? " · " + esc(when(s.updatedAt)) : "") + '</div>'
+              + '</div><div class="arrow">›</div></div></a>';
+      });
+      elList.innerHTML = html;
+    })
+    .catch(function(err){
+      if (err.message === "unauthorized")
+        fail("链接无效或已失效", "请在手机 App 里重新获取这台设备的链接。");
+      else
+        fail("读取失败", "网络不通或服务暂时不可用，稍后再试。");
+    });
+})();
+</script>
+</body>
+</html>
