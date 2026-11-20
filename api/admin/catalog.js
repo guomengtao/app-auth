@@ -10,6 +10,11 @@ module.exports = async (req, res) => {
   if (kind === "products") return products(req, res);
   if (kind === "health") return health(req, res);
   if (kind === "bandbbs") return handleBandBBS(req, res);
+  // 2026-11-20：Vercel 函数文件数收到 10 个上限，原 api/admin/redeem-codes.js 与
+  // api/admin/review.js 已移入 lib/，这里按 kind 转发；对外路径由 vercel.json 的
+  // rewrite 保持 /api/admin/redeem-codes、/api/admin/review 不变（前端零改动）。
+  if (kind === "redeem-codes") return require("../../lib/admin-redeem")(req, res);
+  if (kind === "review") return require("../../lib/admin-review")(req, res);
   return res.status(404).json({ success: false, error: "unknown kind: " + kind });
 };
 

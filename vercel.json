@@ -71,6 +71,14 @@
     {
       "source": "/api/sched/:op/",
       "destination": "/api/ev?action=sched-:op"
+    },
+    {
+      "source": "/api/admin/redeem-codes",
+      "destination": "/api/admin/catalog?kind=redeem-codes"
+    },
+    {
+      "source": "/api/admin/review",
+      "destination": "/api/admin/catalog?kind=review"
     }
   ],
   "redirects": [
