@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>课表 · 网页查看</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#171a21; --line:#252a34; --text:#e8ebf0; --muted:#8b93a3;
+    --accent:#4c8dff; --warn:#e6a23c;
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#f5f7fa; --card:#fff; --line:#e5e8ee; --text:#1b1f26; --muted:#6b7280; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+    padding:24px 16px 64px}
+  .wrap{max-width:760px;margin:0 auto}
+  header{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  h1{font-size:20px;margin:0;font-weight:600}
+  .badge{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}
+  .sub{color:var(--muted);font-size:13px;margin:2px 0 18px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:14px}
+  .day{font-size:13px;color:var(--muted);margin:0 0 8px;letter-spacing:.04em}
+  .row{display:flex;gap:12px;padding:9px 0;border-top:1px solid var(--line);align-items:baseline}
+  .row:first-of-type{border-top:0}
+  .time{font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px;min-width:96px}
+  .name{font-weight:500}
+  .meta{color:var(--muted);font-size:13px}
+  .empty{color:var(--muted);text-align:center;padding:28px 0}
+  .err{border-color:var(--warn)}
+  .foot{color:var(--muted);font-size:12px;text-align:center;margin-top:22px;line-height:1.8}
+  code{background:rgba(127,127,127,.14);padding:1px 5px;border-radius:5px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1 id="title">课表</h1><span class="badge">只读</span></header>
+  <div class="sub" id="sub">正在读取…</div>
+  <div id="list"></div>
+  <div class="foot">
+    只读视图 · 数据由手机同步至云端<br>
+    网页编辑功能尚未开放；手环上的课表仍需在手机上点一次同步
+  </div>
+</div>
+<script>
+(function(){
+  var DAYS = ["周一","周二","周三","周四","周五","周六","周日"];
+  var elTitle = document.getElementById("title");
+  var elSub   = document.getElementById("sub");
+  var elList  = document.getElementById("list");
+
+  // 地址形如 /e/<watchKey>/<guid>?t=<token>
+  function parse(){
+    var parts = location.pathname.split("/").filter(Boolean);   // ["e", mac, guid]
+    var guid = parts.length >= 3 ? decodeURIComponent(parts[2]) : "";
+    var q = new URLSearchParams(location.search);
+    return { guid: guid, token: q.get("t") || "" };
+  }
+
+  function fail(msg, hint){
+    elSub.textContent = msg;
+    elList.innerHTML = '<div class="card err"><div class="empty">' + (hint || "") + '</div></div>';
+  }
+
+  function esc(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  function hhmm(v){
+    if (v == null || v === "") return "";
+    if (typeof v === "string" && v.indexOf(":") > 0) return v.slice(0,5);
+    var n = Number(v);
+    if (isNaN(n)) return String(v);
+    if (n > 1000) n = Math.round(n / 60);      // 分钟数兜底
+    var h = Math.floor(n / 60), m = n % 60;
+    return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
+  }
+
+  function render(name, courses){
+    if (name) elTitle.textContent = name;
+    var byDay = {};
+    courses.forEach(function(c){
+      var d = Number(c.day != null ? c.day : c.weekday);
+      if (isNaN(d)) d = 0;
+      d = (d >= 1 && d <= 7) ? d : 1;
+      (byDay[d] = byDay[d] || []).push(c);
+    });
+    var days = Object.keys(byDay).map(Number).sort(function(a,b){ return a-b; });
+    if (!days.length){
+      elList.innerHTML = '<div class="card"><div class="empty">这张课表还没有课程</div></div>';
+      elSub.textContent = "共 0 门课";
+      return;
+    }
+    var html = "";
+    days.forEach(function(d){
+      var arr = byDay[d].slice().sort(function(a,b){
+        return String(a.start != null ? a.start : (a.begin || ""))
+          .localeCompare(String(b.start != null ? b.start : (b.begin || "")));
+      });
+      html += '<div class="card"><p class="day">' + (DAYS[d-1] || ("第" + d + "天"))
+            + ' · ' + arr.length + ' 节</p>';
+      arr.forEach(function(c){
+        var s = hhmm(c.start != null ? c.start : c.begin);
+        var e = hhmm(c.end != null ? c.end : c.finish);
+        var time = (s || e) ? (s + (e ? "–" + e : "")) : "";
+        var meta = [c.room || c.place || "", c.teacher || ""].filter(Boolean).join(" · ");
+        html += '<div class="row"><div class="time">' + esc(time) + '</div><div>'
+              + '<div class="name">' + esc(c.name || c.title || "未命名") + '</div>'
+              + (meta ? '<div class="meta">' + esc(meta) + '</div>' : '')
+              + '</div></div>';
+      });
+      html += '</div>';
+    });
+    elList.innerHTML = html;
+  }
+
+  var p = parse();
+  if (!p.guid){ fail("链接不完整", "请从手机 App 的「网页大屏编辑」重新获取链接。"); return; }
+  if (!p.token){ fail("这个链接缺少访问凭据",
+      "链接里的 <code>t=</code> 参数不能丢；请从手机 App 重新复制完整网址。"); return; }
+
+  fetch("/api/sched/pull?guid=" + encodeURIComponent(p.guid), {
+    headers: { "Authorization": "Bearer " + p.token }
+  })
+    .then(function(r){
+      if (r.status === 401) throw new Error("unauthorized");
+      if (r.status === 404) throw new Error("notfound");
+      return r.json();
+    })
+    .then(function(j){
+      if (!j || j.success === false) throw new Error((j && j.error) || "bad_response");
+      if (j.exists === false){
+        fail("云端还没有这张课表", "可能手机还没上传完，回手机再点一次「网页大屏编辑」试试。");
+        return;
+      }
+      if (j.deleted){
+        fail("这张课表已被删除", "如需恢复，请在手机 App 的云端版本里回滚。");
+        return;
+      }
+      var payload = j.payload || {};
+      var courses = payload.courses || (Array.isArray(payload) ? payload : []);
+      render(payload.name || "", courses);
+      elSub.textContent = "共 " + courses.length + " 门课 · 云端 rev " + (j.rev || 0) + " · 只读";
+    })
+    .catch(function(err){
+      if (err.message === "unauthorized")       fail("链接无效或已失效", "请从手机 App 重新复制链接（旧链接可能已被撤销）。");
+      else if (err.message === "notfound")      fail("链接格式不对", "地址应形如 <code>/e/手环ID/课表ID?t=…</code>。");
+      else                                      fail("读取失败", "网络不通或服务暂时不可用，稍后再试。");
+    });
+})();
+</script>
+</body>
+</html>

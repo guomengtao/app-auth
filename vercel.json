@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/e/:watchKey/:guid",
+      "destination": "/e.html"
+    },
+    {
+      "source": "/e/:guid",
+      "destination": "/e.html"
+    },
+    {
       "source": "/evboard",
       "destination": "/evboard.html"
     },
