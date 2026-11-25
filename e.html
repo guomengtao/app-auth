@@ -2,76 +2,169 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>课表 · 网页编辑</title>
 <style>
   :root{
-    --bg:#0f1115; --card:#171a21; --line:#252a34; --text:#e8ebf0; --muted:#8b93a3;
-    --accent:#4c8dff; --warn:#e6a23c; --danger:#e05a5a; --ok:#3ecf8e;
+    --bg:#f4f6fa; --card:#ffffff; --line:#e6e9f0; --soft:#eef1f6;
+    --text:#151922; --text2:#5b6376; --muted:#8b93a5;
+    --accent:#4f6bff; --accent-soft:#eef1ff;
+    --ok:#18b26b; --warn:#e6a23c; --danger:#e05252;
+    --shadow:0 1px 2px rgba(16,24,40,.05), 0 10px 26px -16px rgba(16,24,40,.22);
+    --r:16px;
   }
-  @media (prefers-color-scheme: light){
-    :root{ --bg:#f5f7fa; --card:#fff; --line:#e5e8ee; --text:#1b1f26; --muted:#6b7280; }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0e1015; --card:#171a21; --line:#262b36; --soft:#20242d;
+      --text:#e9ecf2; --text2:#a3abbc; --muted:#7c8496;
+      --accent:#6f88ff; --accent-soft:#1d2335;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 28px -16px rgba(0,0,0,.75);
+    }
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--text);
-    font:15px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
-    padding:24px 16px 96px}
-  .wrap{max-width:760px;margin:0 auto}
-  header{display:flex;align-items:center;gap:10px;margin-bottom:6px}
-  h1{font-size:20px;margin:0;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .badge{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
-  .badge.on{color:var(--ok);border-color:rgba(62,207,142,.45)}
-  .btn{font:inherit;font-size:13px;padding:5px 12px;border-radius:9px;border:1px solid var(--line);
-    background:transparent;color:var(--text);cursor:pointer}
-  .btn:hover{border-color:var(--accent)}
+  html,body{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+    padding:22px 16px 116px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:720px;margin:0 auto}
+
+  /* ---------- 头部 ---------- */
+  header{display:flex;align-items:flex-start;gap:10px;margin-bottom:4px}
+  .htext{flex:1;min-width:0}
+  h1{font-size:21px;line-height:1.3;margin:0;font-weight:700;letter-spacing:-.01em;
+     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:3px;font-variant-numeric:tabular-nums}
+  .badge{font-size:11.5px;font-weight:600;padding:4px 9px;border-radius:999px;
+     background:var(--soft);color:var(--text2);white-space:nowrap;margin-top:3px}
+  .badge.on{background:rgba(24,178,107,.13);color:var(--ok)}
+  .headbtn{font:inherit;font-size:13px;font-weight:600;padding:6px 13px;border-radius:999px;
+     border:1px solid var(--line);background:var(--card);color:var(--text);cursor:pointer;margin-top:1px}
+  .headbtn:active{transform:scale(.97)}
+  .headbtn.ghost{color:var(--muted)}
+
+  /* ---------- 按天分组 ---------- */
+  .dayblock{margin-top:20px}
+  .dayhead{display:flex;align-items:center;gap:8px;margin:0 2px 8px;
+     font-size:13px;font-weight:600;color:var(--text2);letter-spacing:.02em}
+  .dot{width:8px;height:8px;border-radius:3px;background:var(--muted);flex:none}
+  .cnt{margin-left:auto;font-weight:500;color:var(--muted);font-size:12px}
+  .courses{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+
+  .course{position:relative;padding:13px 15px 13px 19px;border-top:1px solid var(--soft)}
+  .course:first-child{border-top:0}
+  .course::before{content:"";position:absolute;left:7px;top:11px;bottom:11px;width:3px;
+     border-radius:2px;background:var(--dc,var(--accent));opacity:.85}
+  .course.tap{cursor:pointer;transition:background .12s}
+  .course.tap:hover{background:rgba(127,127,127,.05)}
+  .course.tap:active{background:rgba(127,127,127,.09)}
+  .crow{display:flex;align-items:center;gap:10px}
+  .cname{flex:1;min-width:0;font-size:16.5px;font-weight:650;letter-spacing:-.01em;
+     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pill{flex:none;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;
+     padding:3px 9px;border-radius:999px;background:var(--soft);color:var(--text2)}
+  .pill.none{opacity:.5;font-weight:500}
+  .cmeta{margin-top:3px;font-size:12.5px;color:var(--muted);overflow:hidden;
+     text-overflow:ellipsis;white-space:nowrap}
+  .cmeta.dim{opacity:.55}
+
+  .empty{color:var(--muted);text-align:center;padding:34px 16px;font-size:13.5px}
+  .card{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow)}
+  .card.err{box-shadow:none;border:1px solid rgba(230,162,60,.5)}
+  .foot{color:var(--muted);font-size:12px;text-align:center;margin-top:26px;line-height:1.7;padding:0 8px}
+  code{background:var(--soft);padding:1px 5px;border-radius:5px;font-size:12px}
+
+  /* ---------- 底部操作条 ---------- */
+  .bar{position:fixed;left:0;right:0;bottom:0;background:color-mix(in srgb,var(--card) 92%,transparent);
+     background:var(--card);border-top:1px solid var(--line);display:none;
+     padding:10px 16px calc(10px + env(safe-area-inset-bottom));z-index:15}
+  .bar.show{display:block}
+  .barin{max-width:720px;margin:0 auto;display:flex;align-items:center;gap:10px}
+  .hint{flex:1;min-width:0;font-size:12px;color:var(--muted);
+     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  .btn{font:inherit;font-size:13px;font-weight:600;padding:9px 14px;border-radius:11px;
+     border:1px solid var(--line);background:var(--card);color:var(--text);cursor:pointer;
+     transition:transform .12s,background .12s}
+  .btn:active{transform:scale(.97)}
   .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-  .btn.ghost{color:var(--muted)}
-  .sub{color:var(--muted);font-size:13px;margin:2px 0 18px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:14px}
-  .day{font-size:13px;color:var(--muted);margin:0 0 8px;letter-spacing:.04em}
-  .row{display:flex;gap:12px;padding:9px 0;border-top:1px solid var(--line);align-items:baseline}
-  .row:first-of-type{border-top:0}
-  .row.tap{cursor:pointer;border-radius:8px;margin:0 -8px;padding:9px 8px}
-  .row.tap:hover{background:rgba(127,127,127,.08)}
-  .time{font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px;min-width:96px}
-  .name{font-weight:500}
-  .meta{color:var(--muted);font-size:13px}
-  .empty{color:var(--muted);text-align:center;padding:28px 0}
-  .err{border-color:var(--warn)}
-  .foot{color:var(--muted);font-size:12px;text-align:center;margin-top:22px;line-height:1.8}
-  code{background:rgba(127,127,127,.14);padding:1px 5px;border-radius:5px;font-size:12px}
-  /* 底部操作条 */
-  .bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);
-    padding:10px 16px;display:none;gap:10px;align-items:center;justify-content:flex-end}
-  .bar.show{display:flex}
-  .bar .hint{flex:1;font-size:12px;color:var(--muted)}
-  /* 表单浮层 */
-  .mask{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;justify-content:center;z-index:20}
-  .mask.show{display:flex}
-  .sheet{background:var(--card);border:1px solid var(--line);border-radius:16px 16px 0 0;width:100%;max-width:520px;padding:18px 18px 24px}
-  .sheet h3{margin:0 0 14px;font-size:16px;font-weight:600}
-  .field{margin-bottom:12px}
-  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
-  .field input,.field select{width:100%;font:inherit;padding:8px 10px;border-radius:9px;
-    border:1px solid var(--line);background:var(--bg);color:var(--text)}
-  .two{display:flex;gap:10px}
-  .two .field{flex:1}
-  .sheet .acts{display:flex;gap:10px;margin-top:6px}
-  .sheet .acts .btn{flex:1;padding:9px}
-  .toast{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);background:var(--card);
-    border:1px solid var(--line);border-radius:10px;padding:8px 14px;font-size:13px;opacity:0;
-    transition:opacity .2s;pointer-events:none;z-index:30;max-width:90vw;text-align:center}
-  .toast.show{opacity:1}
+  .btn.plain{border-color:transparent;background:var(--soft)}
+  .btn.danger{color:var(--danger)}
+
+  /* ---------- 底部抽屉 ---------- */
+  .mask{position:fixed;inset:0;background:rgba(10,12,18,.44);-webkit-backdrop-filter:blur(2px);
+     backdrop-filter:blur(2px);display:none;align-items:flex-end;justify-content:center;z-index:40}
+  .mask.show{display:flex;animation:fade .18s ease}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .sheet{background:var(--card);width:100%;max-width:520px;border-radius:24px 24px 0 0;
+     padding:8px 18px calc(18px + env(safe-area-inset-bottom));max-height:92vh;overflow:auto;
+     box-shadow:0 -12px 44px rgba(0,0,0,.22);animation:up .22s cubic-bezier(.2,.8,.3,1)}
+  @keyframes up{from{transform:translateY(18px);opacity:.6}to{transform:none;opacity:1}}
+  .grab{width:38px;height:4px;border-radius:2px;background:var(--line);margin:6px auto 14px}
+  .sheet h3{margin:0 0 4px;font-size:17px;font-weight:700;letter-spacing:-.01em}
+  .sheet .tip{font-size:12px;color:var(--muted);margin:0 0 16px}
+
+  .field{margin-bottom:14px}
+  .field > label{display:block;font-size:11.5px;font-weight:600;color:var(--muted);
+     letter-spacing:.06em;margin-bottom:6px;text-transform:uppercase}
+  .field input{width:100%;font:inherit;font-size:15px;padding:11px 12px;border-radius:11px;
+     border:1px solid var(--line);background:var(--bg);color:var(--text);outline:none;transition:.15s}
+  .field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:var(--card)}
+  .field input::placeholder{color:var(--muted);opacity:.8}
+  /* datalist 会带出一个下拉箭头，看起来像 select，去掉 */
+  #fName::-webkit-calendar-picker-indicator{display:none!important;opacity:0}
+  #fName::-webkit-list-button{-webkit-appearance:none;display:none}
+
+  /* 星期 chips */
+  .chips{display:flex;gap:6px}
+  .chip{flex:1;min-width:0;font:inherit;font-size:12.5px;font-weight:600;padding:9px 0;
+     border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text2);
+     cursor:pointer;transition:.13s;text-align:center}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+  /* 快捷时段 */
+  .quicks{display:flex;gap:7px;overflow-x:auto;padding:1px 0 3px;margin-bottom:11px;
+     scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .quicks::-webkit-scrollbar{display:none}
+  .quick{flex:none;font:inherit;font-size:12.5px;font-weight:500;font-variant-numeric:tabular-nums;
+     padding:7px 11px;border-radius:999px;border:1px solid var(--line);background:var(--bg);
+     color:var(--text2);cursor:pointer;transition:.13s;white-space:nowrap}
+  .quick.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+
+  .timerow{display:flex;align-items:center;gap:10px}
+  .timerow .tfield{flex:1;min-width:0}
+  .timerow .arrow{color:var(--muted);font-size:13px;padding-top:2px;flex:none}
+  .tsel{width:100%;font:inherit;font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;
+     padding:11px 10px;border-radius:11px;border:1px solid var(--line);background:var(--bg);
+     color:var(--text);outline:none;-webkit-appearance:none;appearance:none;text-align:center;
+     background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),
+                      linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+     background-position:calc(100% - 15px) 52%,calc(100% - 10px) 52%;
+     background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+  .tsel:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+
+  .acts{display:flex;gap:9px;margin-top:20px;position:sticky;bottom:0;
+     background:linear-gradient(to top,var(--card) 72%,transparent);padding-top:10px}
+  .acts .btn{flex:1;padding:12px}
+
+  .toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%) translateY(6px);
+     background:var(--text);color:var(--bg);border-radius:999px;padding:9px 16px;font-size:13px;
+     font-weight:500;opacity:0;transition:.2s;pointer-events:none;z-index:60;max-width:88vw;text-align:center}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <h1 id="title">课表</h1>
+    <div class="htext">
+      <h1 id="title">课表</h1>
+      <div class="sub" id="sub">正在读取…</div>
+    </div>
     <span class="badge" id="badge">只读</span>
-    <button class="btn" id="editBtn" style="display:none">编辑</button>
+    <button class="headbtn" id="editBtn" style="display:none">编辑</button>
   </header>
-  <div class="sub" id="sub">正在读取…</div>
   <div id="list"></div>
   <div class="foot" id="foot">
     数据由手机同步至云端 · 网页改动会写回云端，手环下次同步时更新
@@ -79,33 +172,73 @@
 </div>
 
 <div class="bar" id="bar">
-  <span class="hint" id="barHint">编辑中</span>
-  <button class="btn" id="addBtn">+ 加课程</button>
-  <button class="btn primary" id="saveBtn">保存</button>
+  <div class="barin">
+    <span class="hint" id="barHint">编辑中 · 改完记着点保存</span>
+    <button class="btn plain" id="addBtn">+ 加课程</button>
+    <button class="btn primary" id="saveBtn">保存</button>
+  </div>
 </div>
 
 <div class="mask" id="mask">
   <div class="sheet">
+    <div class="grab"></div>
     <h3 id="sheetTitle">课程</h3>
-    <div class="field"><label>课程名</label><input id="fName" maxlength="40" placeholder="例如 高等数学"></div>
-    <div class="two">
-      <div class="field"><label>星期</label>
-        <select id="fDay">
-          <option value="1">周一</option><option value="2">周二</option><option value="3">周三</option>
-          <option value="4">周四</option><option value="5">周五</option><option value="6">周六</option>
-          <option value="7">周日</option>
-        </select>
+    <p class="tip" id="sheetTip">填完点确定，页面里还没写进云端</p>
+
+    <div class="field">
+      <label>课程名</label>
+      <input id="fName" maxlength="40" placeholder="例如 高等数学" list="nameHints" autocomplete="off">
+      <datalist id="nameHints">
+        <option value="高等数学"></option>
+        <option value="大学物理"></option>
+        <option value="线性代数"></option>
+        <option value="大学英语"></option>
+        <option value="程序设计"></option>
+        <option value="体育"></option>
+      </datalist>
+    </div>
+
+    <div class="field">
+      <label>星期</label>
+      <div class="chips" id="dayChips">
+        <button type="button" class="chip" data-d="1">一</button>
+        <button type="button" class="chip" data-d="2">二</button>
+        <button type="button" class="chip" data-d="3">三</button>
+        <button type="button" class="chip" data-d="4">四</button>
+        <button type="button" class="chip" data-d="5">五</button>
+        <button type="button" class="chip" data-d="6">六</button>
+        <button type="button" class="chip" data-d="7">日</button>
       </div>
-      <div class="field"><label>教室</label><input id="fRoom" maxlength="30" placeholder="选填"></div>
     </div>
-    <div class="two">
-      <div class="field"><label>开始</label><input id="fStart" type="time"></div>
-      <div class="field"><label>结束</label><input id="fEnd" type="time"></div>
+
+    <div class="field">
+      <label>时间</label>
+      <div class="quicks" id="quicks">
+        <button type="button" class="quick" data-s="08:00" data-e="09:40">08:00–09:40</button>
+        <button type="button" class="quick" data-s="10:00" data-e="11:40">10:00–11:40</button>
+        <button type="button" class="quick" data-s="14:00" data-e="15:40">14:00–15:40</button>
+        <button type="button" class="quick" data-s="16:00" data-e="17:40">16:00–17:40</button>
+        <button type="button" class="quick" data-s="19:00" data-e="20:40">19:00–20:40</button>
+      </div>
+      <div class="timerow">
+        <div class="tfield"><select class="tsel" id="fStart"></select></div>
+        <span class="arrow">→</span>
+        <div class="tfield"><select class="tsel" id="fEnd"></select></div>
+      </div>
     </div>
-    <div class="field"><label>教师</label><input id="fTeacher" maxlength="20" placeholder="选填"></div>
+
+    <div class="field">
+      <label>教室</label>
+      <input id="fRoom" maxlength="30" placeholder="选填，例如 教三-201">
+    </div>
+    <div class="field">
+      <label>教师</label>
+      <input id="fTeacher" maxlength="20" placeholder="选填">
+    </div>
+
     <div class="acts">
-      <button class="btn" id="cancelBtn">取消</button>
-      <button class="btn" id="delBtn" style="display:none;color:var(--danger);border-color:rgba(224,90,90,.5)">删除</button>
+      <button class="btn plain" id="cancelBtn">取消</button>
+      <button class="btn danger" id="delBtn" style="display:none">删除</button>
       <button class="btn primary" id="okBtn">确定</button>
     </div>
   </div>
@@ -116,14 +249,16 @@
 <script>
 (function(){
   var DAYS = ["周一","周二","周三","周四","周五","周六","周日"];
+  var DAYC = ["#5b8def","#18b26b","#e6a23c","#e0559a","#8b6cf0","#22b3c4","#f0803c"];
   var elTitle = document.getElementById("title");
   var elSub   = document.getElementById("sub");
   var elList  = document.getElementById("list");
   var elBadge = document.getElementById("badge");
   var elEdit  = document.getElementById("editBtn");
   var elBar   = document.getElementById("bar");
-  var elBarHint = document.getElementById("barHint");
   var elFoot  = document.getElementById("foot");
+  var elStart = document.getElementById("fStart");
+  var elEnd   = document.getElementById("fEnd");
 
   var S = { guid:"", code:"", token:"", editToken:"", editUntil:null,
             rev:0, name:"", courses:[], editing:false, editingIdx:-1 };
@@ -154,6 +289,7 @@
     elList.innerHTML = '<div class="card err"><div class="empty">' + (hint || "") + '</div></div>';
   }
 
+  function pad(n){ return (n < 10 ? "0" : "") + n; }
   function hhmm(v){
     if (v == null || v === "") return "";
     if (typeof v === "string" && v.indexOf(":") > 0) return v.slice(0,5);
@@ -161,28 +297,36 @@
     if (isNaN(n)) return String(v);
     if (n > 1000) n = Math.round(n / 60);      // 分钟数兜底
     var h = Math.floor(n / 60), m = n % 60;
-    return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
+    return pad(h) + ":" + pad(m);
   }
   function toMin(s){
     if (!s) return 0;
     var p = String(s).split(":");
     return (parseInt(p[0],10) || 0) * 60 + (parseInt(p[1],10) || 0);
   }
+  function addMin(s, delta){
+    var m = toMin(s) + delta;
+    if (m < 0) m = 0; if (m > 23*60+59) m = 23*60+59;
+    return pad(Math.floor(m/60)) + ":" + pad(m%60);
+  }
   function dayOf(c){
     var d = Number(c.day != null ? c.day : c.weekday);
     if (isNaN(d)) d = 0;
     return (d >= 1 && d <= 7) ? d : 1;
   }
+  function startOf(c){ return hhmm(c.start != null ? c.start : c.begin); }
+  function endOf(c){ return hhmm(c.end != null ? c.end : c.finish); }
   function timeText(c){
-    var s = hhmm(c.start != null ? c.start : c.begin);
-    var e = hhmm(c.end != null ? c.end : c.finish);
-    return (s || e) ? (s + (e ? "–" + e : "")) : "";
+    var s = startOf(c), e = endOf(c);
+    return s && e ? (s + "–" + e) : (s || e || "");
   }
+  function dayColor(d){ return DAYC[(d - 1) % 7]; }
 
   function render(){
     var byDay = {};
     S.courses.forEach(function(c, i){
-      (byDay[dayOf(c)] = byDay[dayOf(c)] || []).push({ c:c, i:i });
+      var d = dayOf(c);
+      (byDay[d] = byDay[d] || []).push({ c:c, i:i });
     });
     var days = Object.keys(byDay).map(Number).sort(function(a,b){ return a-b; });
     if (!days.length){
@@ -194,25 +338,33 @@
     var html = "";
     days.forEach(function(d){
       var arr = byDay[d].slice().sort(function(a,b){
-        return String(a.c.start != null ? a.c.start : (a.c.begin || ""))
-          .localeCompare(String(b.c.start != null ? b.c.start : (b.c.begin || "")));
+        return toMin(startOf(a.c)) - toMin(startOf(b.c));
       });
-      html += '<div class="card"><p class="day">' + (DAYS[d-1] || ("第" + d + "天"))
-            + ' · ' + arr.length + ' 节</p>';
+      var dc = dayColor(d);
+      html += '<section class="dayblock">'
+            + '<div class="dayhead"><span class="dot" style="background:' + dc + '"></span>'
+            + (DAYS[d-1] || ("第" + d + "天"))
+            + '<span class="cnt">' + arr.length + ' 节</span></div>'
+            + '<div class="courses">';
       arr.forEach(function(o){
         var c = o.c;
         var meta = [c.room || c.place || "", c.teacher || ""].filter(Boolean).join(" · ");
-        html += '<div class="row' + (S.editing ? ' tap' : '') + '" data-i="' + o.i + '">'
-              + '<div class="time">' + esc(timeText(c)) + '</div><div>'
-              + '<div class="name">' + esc(c.name || c.title || "未命名") + '</div>'
-              + (meta ? '<div class="meta">' + esc(meta) + '</div>' : '')
-              + '</div></div>';
+        var tt = timeText(c);
+        html += '<div class="course' + (S.editing ? ' tap' : '') + '" data-i="' + o.i + '"'
+              + ' style="--dc:' + dc + '">'
+              + '<div class="crow"><div class="cname">' + esc(c.name || c.title || "未命名") + '</div>'
+              + (tt ? '<span class="pill">' + esc(tt) + '</span>'
+                    : '<span class="pill none">未填时间</span>')
+              + '</div>'
+              + (meta ? '<div class="cmeta">' + esc(meta) + '</div>'
+                      : '<div class="cmeta dim">未填教室 / 教师</div>')
+              + '</div>';
       });
-      html += '</div>';
+      html += '</div></section>';
     });
     elList.innerHTML = html;
     if (S.editing){
-      Array.prototype.forEach.call(elList.querySelectorAll(".row.tap"), function(el){
+      Array.prototype.forEach.call(elList.querySelectorAll(".course.tap"), function(el){
         el.addEventListener("click", function(){ openSheet(parseInt(el.getAttribute("data-i"), 10)); });
       });
     }
@@ -230,34 +382,75 @@
     render();
   }
 
+  // ---------- 时间选择器 ----------
+  var TIME_LIST = (function(){
+    var a = [];
+    for (var m = 6*60; m <= 23*60 + 30; m += 30) a.push(pad(Math.floor(m/60)) + ":" + pad(m%60));
+    return a;
+  })();
+
+  function fillTimeSel(sel){
+    var html = '<option value="">--:--</option>';
+    TIME_LIST.forEach(function(v){ html += '<option value="' + v + '">' + v + '</option>'; });
+    sel.innerHTML = html;
+  }
+  // 库里可能是 08:15 这种不在 30 分钟网格上的值，临时插一条，避免显示成空
+  function setTimeSel(sel, val){
+    if (val && TIME_LIST.indexOf(val) < 0){
+      var o = document.createElement("option");
+      o.value = val; o.textContent = val;
+      sel.appendChild(o);
+    }
+    sel.value = val || "";
+  }
+  function syncQuickActive(){
+    var s = elStart.value, e = elEnd.value;
+    Array.prototype.forEach.call(document.querySelectorAll("#quicks .quick"), function(b){
+      b.classList.toggle("on", b.getAttribute("data-s") === s && b.getAttribute("data-e") === e);
+    });
+  }
+
   // ---------- 表单 ----------
+  function setDayChip(d){
+    Array.prototype.forEach.call(document.querySelectorAll("#dayChips .chip"), function(b){
+      b.classList.toggle("on", Number(b.getAttribute("data-d")) === d);
+    });
+  }
+  function getDayChip(){
+    var on = document.querySelector("#dayChips .chip.on");
+    return on ? parseInt(on.getAttribute("data-d"), 10) : 1;
+  }
+
   function openSheet(i){
     var c = i >= 0 ? S.courses[i] : {};
     S.editingIdx = i;
     document.getElementById("sheetTitle").textContent = i >= 0 ? "改课程" : "加课程";
+    document.getElementById("sheetTip").textContent = i >= 0
+      ? "修改后点确定，页面里还没写进云端" : "填完点确定，页面里还没写进云端";
     document.getElementById("fName").value = c.name || c.title || "";
-    document.getElementById("fDay").value = String(dayOf(c));
+    setDayChip(dayOf(c));
     document.getElementById("fRoom").value = c.room || c.place || "";
-    document.getElementById("fStart").value = hhmm(c.start != null ? c.start : c.begin);
-    document.getElementById("fEnd").value = hhmm(c.end != null ? c.end : c.finish);
+    setTimeSel(elStart, startOf(c) || (i < 0 ? "08:00" : ""));
+    setTimeSel(elEnd, endOf(c) || (i < 0 ? "09:40" : ""));
+    syncQuickActive();
     document.getElementById("fTeacher").value = c.teacher || "";
     document.getElementById("delBtn").style.display = i >= 0 ? "" : "none";
     document.getElementById("mask").classList.add("show");
+    setTimeout(function(){ if (i < 0) document.getElementById("fName").focus(); }, 220);
   }
   function closeSheet(){ document.getElementById("mask").classList.remove("show"); }
 
   function submitSheet(){
     var name = document.getElementById("fName").value.trim();
     if (!name){ toast("课程名不能为空"); return; }
-    var s = document.getElementById("fStart").value;
-    var e = document.getElementById("fEnd").value;
+    var s = elStart.value, e = elEnd.value;
     if (s && e && toMin(e) <= toMin(s)){ toast("结束时间要晚于开始时间"); return; }
     var base = S.editingIdx >= 0 ? S.courses[S.editingIdx] : {};
     var out = {};
     // 保留原对象里我们不认识的字段，避免把扩展字段洗掉
     for (var k in base) if (Object.prototype.hasOwnProperty.call(base, k)) out[k] = base[k];
     out.name = name;
-    out.day = parseInt(document.getElementById("fDay").value, 10);
+    out.day = getDayChip();
     var room = document.getElementById("fRoom").value.trim();
     var teacher = document.getElementById("fTeacher").value.trim();
     out.start = s || null;
@@ -321,6 +514,42 @@
     elTitle.textContent = S.name || "课表";
   }
 
+  // ---------- 交互绑定（与加载解耦，只绑一次） ----------
+  fillTimeSel(elStart); fillTimeSel(elEnd);
+
+  elStart.addEventListener("change", function(){
+    var s = elStart.value;
+    if (!s) return;
+    var e = elEnd.value;
+    // 选完开始时间自动补 100 分钟（两节连堂），结束时间明显不合理时才覆盖
+    if (!e || toMin(e) <= toMin(s)) setTimeSel(elEnd, addMin(s, 100));
+    syncQuickActive();
+  });
+  elEnd.addEventListener("change", syncQuickActive);
+
+  Array.prototype.forEach.call(document.querySelectorAll("#quicks .quick"), function(b){
+    b.addEventListener("click", function(){
+      setTimeSel(elStart, b.getAttribute("data-s"));
+      setTimeSel(elEnd, b.getAttribute("data-e"));
+      syncQuickActive();
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("#dayChips .chip"), function(b){
+    b.addEventListener("click", function(){ setDayChip(Number(b.getAttribute("data-d"))); });
+  });
+
+  document.getElementById("addBtn").addEventListener("click", function(){ openSheet(-1); });
+  document.getElementById("saveBtn").addEventListener("click", save);
+  document.getElementById("cancelBtn").addEventListener("click", closeSheet);
+  document.getElementById("okBtn").addEventListener("click", submitSheet);
+  document.getElementById("delBtn").addEventListener("click", deleteCurrent);
+  document.getElementById("mask").addEventListener("click", function(ev){
+    if (ev.target === this) closeSheet();
+  });
+  document.addEventListener("keydown", function(ev){
+    if (ev.key === "Escape") closeSheet();
+  });
+
   // ---------- 加载 ----------
   var p = parse();
   if (!p.code && !p.guid){ fail("链接不完整", "请从手机 App 的「网页大屏编辑」重新获取链接。"); return; }
@@ -357,18 +586,10 @@
       S.editUntil = j.editUntil || null;
       if (S.editToken && !p.code) S.editToken = p.token;   // 旧长链：链接里的 token 即写权限
       render();
+      elEdit.style.display = "";
       if (S.editToken){
-        elEdit.style.display = "";
         elBadge.textContent = "可编辑";
         elEdit.addEventListener("click", function(){ setEditing(!S.editing); });
-        document.getElementById("addBtn").addEventListener("click", function(){ openSheet(-1); });
-        document.getElementById("saveBtn").addEventListener("click", save);
-        document.getElementById("cancelBtn").addEventListener("click", closeSheet);
-        document.getElementById("okBtn").addEventListener("click", submitSheet);
-        document.getElementById("delBtn").addEventListener("click", deleteCurrent);
-        document.getElementById("mask").addEventListener("click", function(e){
-          if (e.target === this) closeSheet();
-        });
         if (S.editUntil){
           var d = new Date(S.editUntil);
           if (!isNaN(d.getTime())){
@@ -377,7 +598,6 @@
           }
         }
       } else {
-        elEdit.style.display = "";
         elEdit.classList.add("ghost");
         elEdit.addEventListener("click", function(){
           toast("请在手机上开通：设备页 → 网页大屏编辑 → 允许网页编辑");
