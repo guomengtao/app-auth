@@ -136,14 +136,18 @@
   .timerow{display:flex;align-items:center;gap:10px}
   .timerow .tfield{flex:1;min-width:0}
   .timerow .arrow{color:var(--muted);font-size:13px;padding-top:2px;flex:none}
-  .tsel{width:100%;font:inherit;font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;
-     padding:11px 10px;border-radius:11px;border:1px solid var(--line);background:var(--bg);
-     color:var(--text);outline:none;-webkit-appearance:none;appearance:none;text-align:center;
-     background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),
-                      linear-gradient(135deg,var(--muted) 50%,transparent 50%);
-     background-position:calc(100% - 15px) 52%,calc(100% - 10px) 52%;
-     background-size:5px 5px,5px 5px;background-repeat:no-repeat}
-  .tsel:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  /* 时间输入：可任意分钟，手机弹数字键盘 */
+  .tin{width:100%;font:inherit;font-size:17px;font-weight:650;font-variant-numeric:tabular-nums;
+     letter-spacing:.02em;text-align:center;padding:12px 8px;min-height:46px;
+     border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--text);outline:none;
+     transition:border-color .15s,box-shadow .15s;-webkit-appearance:none;appearance:none}
+  .tin::placeholder{font-weight:500;letter-spacing:0;color:var(--muted);opacity:.65}
+  .tin:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:var(--card)}
+  .tin.bad{border-color:var(--danger);box-shadow:0 0 0 3px rgba(224,82,82,.14)}
+  .thint{margin:8px 1px 0;font-size:11.5px;color:var(--muted);line-height:1.5}
+  /* iOS 输入框 <16px 会触发页面自动缩放，统一拉到 16px */
+  .field input{font-size:16px}
+  .chip,.quick,.btn,.tin,.headbtn{touch-action:manipulation}
 
   .acts{display:flex;gap:9px;margin-top:20px;position:sticky;bottom:0;
      background:linear-gradient(to top,var(--card) 72%,transparent);padding-top:10px}
@@ -221,10 +225,17 @@
         <button type="button" class="quick" data-s="19:00" data-e="20:40">19:00–20:40</button>
       </div>
       <div class="timerow">
-        <div class="tfield"><select class="tsel" id="fStart"></select></div>
+        <div class="tfield">
+          <input class="tin" id="fStart" type="text" inputmode="numeric" maxlength="5"
+                 autocomplete="off" enterkeyhint="next" placeholder="08:00">
+        </div>
         <span class="arrow">→</span>
-        <div class="tfield"><select class="tsel" id="fEnd"></select></div>
+        <div class="tfield">
+          <input class="tin" id="fEnd" type="text" inputmode="numeric" maxlength="5"
+                 autocomplete="off" enterkeyhint="done" placeholder="09:40">
+        </div>
       </div>
+      <p class="thint">任意分钟都能填：<b>8:15</b> / <b>815</b> / <b>8点15</b> 都认；只写 <b>8</b> 算 08:00；留空 = 不排时间</p>
     </div>
 
     <div class="field">
@@ -382,26 +393,32 @@
     render();
   }
 
-  // ---------- 时间选择器 ----------
-  var TIME_LIST = (function(){
-    var a = [];
-    for (var m = 6*60; m <= 23*60 + 30; m += 30) a.push(pad(Math.floor(m/60)) + ":" + pad(m%60));
-    return a;
-  })();
-
-  function fillTimeSel(sel){
-    var html = '<option value="">--:--</option>';
-    TIME_LIST.forEach(function(v){ html += '<option value="' + v + '">' + v + '</option>'; });
-    sel.innerHTML = html;
+  // ---------- 时间输入：支持任意分钟 ----------
+  // 认这些写法：08:15 / 8:15 / 815 / 0815 / 8.15 / 8点15 / 8（=08:00）
+  // 解析不出合法时间返回 ""，交给调用方标红提示。
+  function parseTime(str){
+    var s = String(str == null ? "" : str).trim();
+    if (!s) return "";
+    s = s.replace(/[点時时時．.，,：\s]/g, ":");
+    var h = null, m = null, mm;
+    if ((mm = s.match(/^(\d{1,2}):(\d{1,2})$/))){ h = +mm[1]; m = +mm[2]; }
+    else if (/^\d{1,2}$/.test(s)){ h = +s; m = 0; }
+    else if (/^\d{3,4}$/.test(s)){ h = +s.slice(0, s.length - 2); m = +s.slice(-2); }
+    if (h === null || isNaN(h) || isNaN(m) || h > 23 || m > 59) return "";
+    return pad(h) + ":" + pad(m);
   }
-  // 库里可能是 08:15 这种不在 30 分钟网格上的值，临时插一条，避免显示成空
-  function setTimeSel(sel, val){
-    if (val && TIME_LIST.indexOf(val) < 0){
-      var o = document.createElement("option");
-      o.value = val; o.textContent = val;
-      sel.appendChild(o);
-    }
-    sel.value = val || "";
+  // 失焦/提交前规范化：合法就改写成 HH:MM，非法标红返回 ""
+  function normField(el){
+    var raw = el.value.trim();
+    if (!raw){ el.classList.remove("bad"); return ""; }
+    var v = parseTime(raw);
+    if (!v){ el.classList.add("bad"); return ""; }
+    el.value = v; el.classList.remove("bad");
+    return v;
+  }
+  function setTimeValue(el, v){
+    el.value = v || "";
+    el.classList.remove("bad");
   }
   function syncQuickActive(){
     var s = elStart.value, e = elEnd.value;
@@ -430,8 +447,10 @@
     document.getElementById("fName").value = c.name || c.title || "";
     setDayChip(dayOf(c));
     document.getElementById("fRoom").value = c.room || c.place || "";
-    setTimeSel(elStart, startOf(c) || (i < 0 ? "08:00" : ""));
-    setTimeSel(elEnd, endOf(c) || (i < 0 ? "09:40" : ""));
+    setTimeValue(elStart, startOf(c) || (i < 0 ? "08:00" : ""));
+    setTimeValue(elEnd, endOf(c) || (i < 0 ? "09:40" : ""));
+    // 新建时结束时间是「自动填的」，开始时间一改就跟着走；用户自己动过结束就不再覆盖
+    elEnd.dataset.auto = (i < 0 && !endOf(c)) ? "1" : "";
     syncQuickActive();
     document.getElementById("fTeacher").value = c.teacher || "";
     document.getElementById("delBtn").style.display = i >= 0 ? "" : "none";
@@ -443,7 +462,10 @@
   function submitSheet(){
     var name = document.getElementById("fName").value.trim();
     if (!name){ toast("课程名不能为空"); return; }
-    var s = elStart.value, e = elEnd.value;
+    var s = normField(elStart), e = normField(elEnd);
+    if ((elStart.value.trim() && !s) || (elEnd.value.trim() && !e)){
+      toast("时间写法不对，示例 08:15 或 815"); return;
+    }
     if (s && e && toMin(e) <= toMin(s)){ toast("结束时间要晚于开始时间"); return; }
     var base = S.editingIdx >= 0 ? S.courses[S.editingIdx] : {};
     var out = {};
@@ -515,25 +537,55 @@
   }
 
   // ---------- 交互绑定（与加载解耦，只绑一次） ----------
-  fillTimeSel(elStart); fillTimeSel(elEnd);
-
-  elStart.addEventListener("change", function(){
-    var s = elStart.value;
+  // 开始时间定下来后自动补 100 分钟（两节连堂）；结束时间合理就不动
+  function endFollowStart(){
+    var s = normField(elStart);
     if (!s) return;
-    var e = elEnd.value;
-    // 选完开始时间自动补 100 分钟（两节连堂），结束时间明显不合理时才覆盖
-    if (!e || toMin(e) <= toMin(s)) setTimeSel(elEnd, addMin(s, 100));
+    var e = elEnd.value.trim();
+    var en = e ? parseTime(e) : "";
+    if (!en || toMin(en) <= toMin(s) || elEnd.dataset.auto === "1"){
+      setTimeValue(elEnd, addMin(s, 100));
+      elEnd.dataset.auto = "1";
+    } else elEnd.classList.remove("bad");
     syncQuickActive();
+  }
+  elStart.addEventListener("blur", endFollowStart);
+  elStart.addEventListener("change", endFollowStart);
+  elEnd.addEventListener("input", function(){ elEnd.dataset.auto = ""; });
+  elEnd.addEventListener("blur", function(){ normField(elEnd); syncQuickActive(); });
+  elEnd.addEventListener("change", function(){ normField(elEnd); syncQuickActive(); });
+  // 手机键盘会顶起可视区：抽到视图里，别被键盘盖住
+  Array.prototype.forEach.call([elStart, elEnd], function(el){
+    el.addEventListener("focus", function(){
+      setTimeout(function(){ try{ el.scrollIntoView({ block: "center", behavior: "smooth" }); }catch(e){} }, 300);
+    });
   });
-  elEnd.addEventListener("change", syncQuickActive);
 
   Array.prototype.forEach.call(document.querySelectorAll("#quicks .quick"), function(b){
     b.addEventListener("click", function(){
-      setTimeSel(elStart, b.getAttribute("data-s"));
-      setTimeSel(elEnd, b.getAttribute("data-e"));
+      setTimeValue(elStart, b.getAttribute("data-s"));
+      setTimeValue(elEnd, b.getAttribute("data-e"));
+      elEnd.dataset.auto = "";
       syncQuickActive();
     });
   });
+
+  // 手机键盘弹出时布局视口不变、可视视口变矮 —— 把抽屉贴到可视区里，别让「确定」被键盘吃掉
+  (function(){
+    var vv = window.visualViewport;
+    var mask = document.getElementById("mask");
+    function sync(){
+      if (!vv) return;
+      mask.style.height = Math.round(vv.height) + "px";
+      mask.style.top = Math.round(vv.offsetTop) + "px";
+      mask.style.bottom = "auto";
+    }
+    if (vv){
+      vv.addEventListener("resize", sync);
+      vv.addEventListener("scroll", sync);
+      sync();
+    }
+  })();
   Array.prototype.forEach.call(document.querySelectorAll("#dayChips .chip"), function(b){
     b.addEventListener("click", function(){ setDayChip(Number(b.getAttribute("data-d"))); });
   });
