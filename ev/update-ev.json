@@ -1,9 +1,9 @@
 {
- "versionCode": 245,
- "versionName": "0.6.63",
- "sha256": "7e7b2348815f6064be9ee556d7736881cffab69cf77691c138acc44b3add9186",
- "downloadUrlMirror": "https://app-auth.gudq.com/dl/EVSyncProbe-v0.6.63.apk",
- "downloadUrlOrigin": "https://github.com/guomengtao/ev-schedule-android/releases/download/v0.6.63/EVSyncProbe-v0.6.63.apk",
+ "versionCode": 283,
+ "versionName": "0.6.101",
+ "sha256": "4497d67b39fd9a55217dde5227705669a74a8542dbc6b3d344230842ffb5e961",
+ "downloadUrlMirror": "https://app-auth.gudq.com/dl/EVSyncProbe-v0.6.101.apk",
+ "downloadUrlOrigin": "https://github.com/guomengtao/ev-schedule-android/releases/download/v0.6.101/EVSyncProbe-v0.6.101.apk",
  "isForce": false,
- "updateLog": "传图失败、未连接、回包异常等改为弹窗提示，不再只有底部小字；结果弹窗换成与升级提示同款圆角卡样式（成功蓝 / 失败红、长文可滚动）"
+ "updateLog": "① 连不上手环时不用再把 App 从后台划掉重开——现在能自己恢复；小米运动健康没打开时会直接提示你先去打开它。② 新增云端同步：课表改完自动排队推送，手机、网页、多台手环各看各的。③ 手环页可一键开通「网页大屏编辑」，7 天内在电脑上改课表，扫码即通。④ 删课改为墓碑语义，手环侧数据对不上过半时中止合并，避免课程被静默删光。⑤ 推手环时一并下发晚课配置；手环数据正确时可用「从手环读回（覆盖本表）」还原。"
 }
